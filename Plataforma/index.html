@@ -1,0 +1,2157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torre de Control — Unlocked</title>
+<link rel="icon" type="image/png" href="logo.png"/>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+const { createClient } = supabase;
+
+const SUPABASE_URL = 'https://vluuftzeivluexuhdupu.supabase.co';
+const SUPABASE_KEY = '[REDACTED_JWT]';
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const MDAYS  = [31,28,31,30,31,30,31,31,30,31,30,31];
+const CANALES= ["Meta","TikTok","Google","YouTube","Orgánico","Otro"];
+const TEAM   = ["Karen","Luisa","Valen","Carlos","Dahiana","Otro"];
+
+const BRAND="#E03A18",BRAND2="#C82A0A"; // Unlocked brand red
+const THEMES={
+  dark:{BG:"#07090F",SURFACE:"#0E1117",SURFACE2:"#141925",BORDER:"#1C2333",BORDER2:"#222B3A",TXT:"#F1F5F9",TXT2:"#94A3B8",TXT3:"#475569"},
+  light:{BG:"#F7F7F5",SURFACE:"#ffffff",SURFACE2:"#F4F4F2",BORDER:"#E5E4DF",BORDER2:"#EDECE8",TXT:"#111110",TXT2:"#5C5C52",TXT3:"#9C9B93"},
+};
+let BG,SURFACE,SURFACE2,BORDER,BORDER2,TXT,TXT2,TXT3,IS_DARK=false;
+const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];BG=t.BG;SURFACE=t.SURFACE;SURFACE2=t.SURFACE2;BORDER=t.BORDER;BORDER2=t.BORDER2;TXT=t.TXT;TXT2=t.TXT2;TXT3=t.TXT3;};
+applyTheme(false);
+const C={gold:BRAND,green:"#22C55E",amber:"#F59E0B",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F97316",pink:"#EC4899"};
+const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Otro:"#64748b"};
+
+const nv=v=>{const x=Number(v);return(!v&&v!==0)||isNaN(x)?null:x};
+const dv=(a,b)=>{const x=nv(a),y=nv(b);return(!x||!y||y===0)?null:x/y};
+const pv=(a,b)=>{const r=dv(a,b);return r==null?null:r*100};
+const fD=v=>{const x=nv(v);if(x==null)return"—";return"$"+Math.round(Math.abs(x)).toLocaleString("en-US")};
+const fP=(v,d=1)=>{const x=nv(v);if(x==null)return"—";return x.toFixed(d)+"%"};
+const fX=(v,d=2)=>{const x=nv(v);if(x==null)return"—";return x.toFixed(d)+"x"};
+const fN=v=>{const x=nv(v);if(x==null)return"—";return Math.round(x).toLocaleString()};
+const sumF=(arr,k)=>arr.reduce((s,r)=>s+(nv(r[k])||0),0);
+const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
+const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
+const today=()=>new Date().toISOString().split("T")[0];
+
+const blankEntry=()=>({
+  igFollowers:0,posts:0,mensajes:0,followUps:0,bkOffers:0,
+  gastoMeta:0,gastoGoogle:0,gastoTikTok:0,gastoOtros:0,
+});
+
+const blankCloser=()=>({
+  q_ventas_ht:0,valor_venta_ht:0,upfront_cash_ht:0,ventas_cash:0,recurring_cash:0,
+  q_ventas_lt:0,valor_venta_lt:0,total_clientes_activos:0,
+  q_reservas:0,cash_reservas:0,
+  q_reembolsos:0,valor_reembolsos:0,
+  agendas_organicas:0,agendas_meta:0,agendas_google:0,agendas_tiktok:0,agendas_otros:0,
+  cal_organicas:0,cal_meta:0,cal_google:0,cal_tiktok:0,cal_otros:0,
+  hoy_organicas:0,hoy_meta:0,hoy_google:0,hoy_tiktok:0,hoy_otros:0,
+  show_organicas:0,show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
+});
+
+const rowToEntry=row=>{
+  return {
+    member:row.member,date:row.date,
+    igFollowers:row.ig_followers||0,
+    posts:row.posts||0,mensajes:row.mensajes||0,followUps:row.follow_ups||0,bkOffers:row.bk_offers||0,
+    gastoMeta:row.gasto_meta||0,gastoGoogle:row.gasto_google||0,gastoTikTok:row.gasto_tiktok||0,gastoOtros:row.gasto_otros||0,
+  };
+};
+
+// ─── SVG ICONS ────────────────────────────────────────────────────────────────
+const ICON_PATHS={
+  home:'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10',
+  dollar:'M12 1v22 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+  rocket:'M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11A22.35 22.35 0 0 1 12 15z M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0 M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5',
+  calendar:'M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18',
+  users:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  filter:'M22 3H2l8 9.46V19l4 2v-8.54L22 3z',
+  barChart:'M18 20V10 M12 20V4 M6 20v-6',
+  trendUp:'M23 6l-9.5 9.5-5-5L1 18 M17 6h6v6',
+  settings:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  chart:'M18 20V10 M12 20V4 M6 20v-6',
+  megaphone:'M3 11l19-9-9 19-2-8-8-2z',
+  user:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  lock:'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4',
+};
+const Icon=({name,size=16,color="currentColor",strokeWidth=1.8})=>(
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    {(ICON_PATHS[name]||"").split(" M").map((seg,i)=>(
+      <path key={i} d={i===0?seg:"M"+seg}/>
+    ))}
+  </svg>
+);
+
+// ─── UI ATOMS ─────────────────────────────────────────────────────────────────
+const Card=({children,style={}})=>(
+  <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:16,
+    padding:"20px 22px",boxShadow:"0 4px 24px rgba(0,0,0,.35)",...style}}>{children}</div>
+);
+const Lbl=({children,style={}})=>(
+  <div style={{fontSize:9,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
+    fontFamily:"'Inter',sans-serif",fontWeight:600,marginBottom:5,...style}}>{children}</div>
+);
+const Stat=({label,value,sub,color=C.gold,size="md"})=>(
+  <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:12,
+    padding:size==="lg"?"18px 20px":"13px 16px",position:"relative",overflow:"hidden",
+    flex:1,minWidth:0}}>
+    <div style={{position:"absolute",top:0,left:0,width:3,bottom:0,
+      background:color,borderRadius:"12px 0 0 12px"}}/>
+    <div style={{paddingLeft:10}}>
+      <Lbl style={{marginBottom:4}}>{label}</Lbl>
+      <div style={{fontSize:size==="lg"?28:20,fontWeight:800,color,
+        fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.03em"}}>{value}</div>
+      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:4,fontFamily:"'Inter',sans-serif"}}>{sub}</div>}
+    </div>
+  </div>
+);
+const Barz=({value,max,color=C.gold,h=6,label,right})=>{
+  const p=Math.min(100,Math.max(0,((value||0)/(max||1))*100));
+  return(
+    <div>
+      {(label||right)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        {label&&<span style={{fontSize:11,color:TXT2,fontWeight:500}}>{label}</span>}
+        {right&&<span style={{fontSize:11,color,fontFamily:"'Inter',sans-serif",fontWeight:600}}>{right}</span>}
+      </div>}
+      <div style={{background:BORDER2,borderRadius:100,height:h,overflow:"hidden"}}>
+        <div style={{width:p+"%",height:"100%",background:color,borderRadius:100,
+          transition:"width 1s cubic-bezier(.2,.8,.2,1)"}}/>
+      </div>
+    </div>
+  );
+};
+const Inp=({label,value,onChange,prefix,hint,type="number"})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    <Lbl>{label}</Lbl>
+    <div style={{display:"flex",alignItems:"center",background:SURFACE2,
+      border:`1px solid ${BORDER}`,borderRadius:9,overflow:"hidden",height:38}}>
+      {prefix&&<span style={{padding:"0 10px",color:TXT3,fontSize:12,fontFamily:"'Inter',sans-serif",
+        borderRight:`1px solid ${BORDER}`,height:"100%",display:"flex",alignItems:"center",
+        background:BG,fontWeight:500}}>{prefix}</span>}
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder="0"
+        style={{flex:1,background:"transparent",border:"none",outline:"none",color:TXT,
+          fontSize:13,padding:"0 11px",fontFamily:"'Inter',sans-serif",fontWeight:500}}/>
+    </div>
+    {hint&&<div style={{fontSize:10,color:TXT3}}>{hint}</div>}
+  </div>
+);
+const STit=({icon,title,sub,right})=>(
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:3,height:16,background:BRAND,borderRadius:2,flexShrink:0}}/>
+        <span style={{fontSize:13,fontWeight:700,color:TXT,letterSpacing:"-0.02em"}}>{title}</span>
+      </div>
+      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:3,marginLeft:11}}>{sub}</div>}
+    </div>
+    {right}
+  </div>
+);
+const MemberBadge=({name,size="sm"})=>{
+  const col=TEAM_COLORS[name]||C.amber;
+  return(
+    <div style={{display:"inline-flex",alignItems:"center",gap:6,background:col+"18",
+      border:`1px solid ${col}35`,borderRadius:7,padding:size==="lg"?"7px 13px":"4px 10px"}}>
+      <div style={{width:size==="lg"?8:6,height:size==="lg"?8:6,borderRadius:100,background:col}}/>
+      <span style={{fontSize:size==="lg"?12:10,color:col,fontFamily:"'Inter',sans-serif",fontWeight:600,letterSpacing:"0.01em"}}>{name}</span>
+    </div>
+  );
+};
+
+// ─── DAILY ENTRY FORM ─────────────────────────────────────────────────────────
+const DailyEntryForm=({year,month,allDaily,onSave})=>{
+  const [member,setMember]=useState(TEAM[0]);
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankEntry());
+  const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{
+    const existing=allDaily[`${date}:${member}`];
+    setForm(existing?{...blankEntry(),...existing}:blankEntry());
+    setSaved(false);
+  },[member,date,allDaily]);
+
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const totalGasto=(form.gastoMeta||0)+(form.gastoGoogle||0)+(form.gastoTikTok||0)+(form.gastoOtros||0);
+
+  const handleSave=async()=>{
+    setSaving(true);
+    const entry={...form,member,date};
+    const ok=await onSave(`${date}:${member}`,entry);
+    setSaving(false);
+    if(ok!==false){setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="📣" title="Marketing" sub="Una entrada por día por miembro"/>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Miembro del equipo</Lbl>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+              {TEAM.map(m=>{
+                const col=TEAM_COLORS[m]||C.amber;const sel=member===m;
+                return(<button key={m} onClick={()=>setMember(m)} style={{
+                  background:sel?col+"15":SURFACE2,border:`1.5px solid ${sel?col:BORDER}`,
+                  borderRadius:8,padding:"7px 15px",cursor:"pointer",color:sel?col:TXT2,
+                  fontSize:12,fontFamily:"'Epilogue',sans-serif",fontWeight:sel?700:500,
+                  transition:"all .15s"}}>{m}</button>);
+              })}
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          {allDaily[`${date}:${member}`]&&(
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",
+              paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
+              Editando entrada existente
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="📱" title="Actividad del día"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+          <Inp label="# IG Seguidores" value={form.igFollowers} onChange={v=>sf("igFollowers",v)}/>
+          <Inp label="# Posts + CTA" value={form.posts} onChange={v=>sf("posts",v)}/>
+          <Inp label="# Mensajes Diarios" value={form.mensajes} onChange={v=>sf("mensajes",v)}/>
+          <Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+          <Inp label="# Booking Offers" value={form.bkOffers} onChange={v=>sf("bkOffers",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="📊" title="Gasto Ads por Canal"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+          <Inp label="Meta Ads $" prefix="$" value={form.gastoMeta} onChange={v=>sf("gastoMeta",v)}/>
+          <Inp label="Google Ads $" prefix="$" value={form.gastoGoogle} onChange={v=>sf("gastoGoogle",v)}/>
+          <Inp label="TikTok Ads $" prefix="$" value={form.gastoTikTok} onChange={v=>sf("gastoTikTok",v)}/>
+          <Inp label="Otros $" prefix="$" value={form.gastoOtros} onChange={v=>sf("gastoOtros",v)}/>
+        </div>
+        {totalGasto>0&&(
+          <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+            {[{l:"Meta",v:form.gastoMeta,c:"#1877F2"},{l:"Google",v:form.gastoGoogle,c:"#34A853"},
+              {l:"TikTok",v:form.gastoTikTok,c:"#010101"},{l:"Otros",v:form.gastoOtros,c:C.purple}]
+              .filter(x=>x.v>0).map(x=>(
+                <Barz key={x.l} value={x.v} max={totalGasto} color={x.c} h={7}
+                  label={x.l} right={`${fD(x.v)} · ${fP(pv(x.v,totalGasto))}`}/>
+              ))}
+          </div>
+        )}
+      </Card>
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:saving?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${member} · ${date}`}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
+          Marketing guardado ✓
+        </div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── RESUMEN EQUIPO ───────────────────────────────────────────────────────────
+const ResumenEquipo=({year,month,allDaily})=>{
+  const [view,setView]=useState("resumen");
+  const prefix=`${year}-${String(month+1).padStart(2,"0")}`;
+  const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+  const byMember={};TEAM.forEach(m=>{byMember[m]=[];});
+  entries.forEach(e=>{if(byMember[e.member])byMember[e.member].push(e);});
+
+  const memberTotals=TEAM.map(m=>{
+    const rows=byMember[m];if(!rows.length)return null;
+    const t={member:m,days:rows.length,
+      posts:sumF(rows,"posts"),mensajes:sumF(rows,"mensajes"),
+      followUps:sumF(rows,"followUps"),bkOffers:sumF(rows,"bkOffers"),
+      newBk:sumF(rows,"newBkTotal"),qualBk:sumF(rows,"qualBkTotal"),
+      shows:sumF(rows,"showsTotal"),investment:sumF(rows,"paidBkInvestment")};
+    t.showRate=t.qualBk>0?pv(t.shows,t.qualBk):null;
+    t.qualRate=t.newBk>0?pv(t.qualBk,t.newBk):null;
+    t.msgPerDay=t.days>0?t.mensajes/t.days:0;
+    return t;
+  }).filter(Boolean);
+
+  const team=memberTotals.reduce((a,m)=>({
+    mensajes:(a.mensajes||0)+m.mensajes,followUps:(a.followUps||0)+m.followUps,
+    bkOffers:(a.bkOffers||0)+m.bkOffers,newBk:(a.newBk||0)+m.newBk,
+    qualBk:(a.qualBk||0)+m.qualBk,shows:(a.shows||0)+m.shows,posts:(a.posts||0)+m.posts
+  }),{});
+  const teamShowRate=pv(team.shows,team.qualBk),teamQualRate=pv(team.qualBk,team.newBk),dm=MDAYS[month];
+  const byDate={};entries.forEach(e=>{if(!byDate[e.date])byDate[e.date]={};byDate[e.date][e.member]=e;});
+  const sortedDates=Object.keys(byDate).sort().reverse();
+  const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
+    borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
+    fontSize:11,fontFamily:"'Epilogue',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",gap:6}}>
+        {[["resumen","Resumen"],["miembro","Por miembro"],["historial","Historial"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
+        ))}
+      </div>
+
+      {entries.length===0&&(
+        <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
+          Sin entradas para {MONTHS[month]} {year}.<br/>
+          <span style={{fontSize:10,marginTop:6,display:"block"}}>El equipo debe usar "Entrada Diaria" para registrar.</span>
+        </div></Card>
+      )}
+
+      {view==="resumen"&&entries.length>0&&(
+        <>
+          {teamShowRate!=null&&teamShowRate<40&&(
+            <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:12,
+              padding:"13px 16px",display:"flex",gap:10,alignItems:"flex-start"}}>
+              <Icon name="megaphone" size={18} color={C.amber} strokeWidth={2}/>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:3}}>
+                  Show-up rate: {fP(teamShowRate)} — target ≥ 60%
+                </div>
+                <div style={{fontSize:11,color:"#7f1d1d",lineHeight:1.7}}>
+                  {fN(team.shows)} shows de {fN(team.qualBk)} quality bookings.
+                </div>
+              </div>
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:9}}>
+            <Stat label="New Bookings"  value={fN(team.newBk)}    color={C.purple}/>
+            <Stat label="Quality Bk"    value={fN(team.qualBk)}   color={C.teal}/>
+            <Stat label="Show Ups"      value={fN(team.shows)}    color={C.green}/>
+            <Stat label="Show-up Rate"  value={fP(teamShowRate)}  color={cH(teamShowRate,60,40)}/>
+            <Stat label="% Calificados" value={fP(teamQualRate)}  color={cH(teamQualRate,50,20)}/>
+            <Stat label="Bk Offers"     value={fN(team.bkOffers)} color={C.orange}/>
+            <Stat label="Follow-ups"    value={fN(team.followUps)} color={C.blue}/>
+            <Stat label="Mensajes"      value={fN(team.mensajes)} color={TXT2}/>
+          </div>
+          <Card>
+            <STit icon="🎯" title="Actividad vs targets"/>
+            <div style={{display:"flex",flexDirection:"column",gap:13}}>
+              {[
+                {l:"Mensajes/día",v:dv(team.mensajes,dm),t:60*memberTotals.length,max:100*memberTotals.length,c:cH(dv(team.mensajes,dm),60,40)},
+                {l:"Follow-ups/día",v:dv(team.followUps,dm),t:175,max:300,c:cH(dv(team.followUps,dm),150,100)},
+                {l:"Bk Offers/día",v:dv(team.bkOffers,dm),t:5*memberTotals.length,max:10*memberTotals.length,c:cH(dv(team.bkOffers,dm),5,3)},
+                {l:"Show-up Rate",v:teamShowRate,t:70,max:100,c:cH(teamShowRate,60,40)},
+                {l:"% Calificados",v:teamQualRate,t:50,max:100,c:cH(teamQualRate,50,20)},
+              ].map(r=>(
+                <Barz key={r.l} value={r.v} max={r.max} color={r.c} h={8}
+                  label={r.l} right={`${(r.v||0).toFixed(1)} / ${r.t} target`}/>
+              ))}
+            </div>
+          </Card>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(195px,1fr))",gap:10}}>
+            {memberTotals.map(m=>(
+              <Card key={m.member} style={{padding:"14px 16px",cursor:"pointer"}} onClick={()=>setView("miembro")}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <MemberBadge name={m.member} size="lg"/>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días</span>
+                </div>
+                {[["New Bk",fN(m.newBk),C.purple],["Quality Bk",fN(m.qualBk),C.teal],
+                  ["Shows",fN(m.shows),C.green],["Show %",fP(m.showRate),cH(m.showRate,60,40)]].map(([l,v,c])=>(
+                  <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                    <span style={{fontSize:10,color:TXT2}}>{l}</span>
+                    <span style={{fontSize:11,color:c,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{v}</span>
+                  </div>
+                ))}
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {view==="miembro"&&entries.length>0&&(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {memberTotals.map(m=>(
+            <Card key={m.member}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <MemberBadge name={m.member} size="lg"/>
+                <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días / {dm} del mes</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8,marginBottom:14}}>
+                <Stat label="New Bookings"  value={fN(m.newBk)}    color={C.purple} size="sm"/>
+                <Stat label="Quality Bk"    value={fN(m.qualBk)}   color={C.teal}   size="sm"/>
+                <Stat label="Show Ups"      value={fN(m.shows)}    color={C.green}  size="sm"/>
+                <Stat label="Show-up Rate"  value={fP(m.showRate)} color={cH(m.showRate,60,40)} size="sm"/>
+                <Stat label="% Calificados" value={fP(m.qualRate)} color={cH(m.qualRate,50,20)} size="sm"/>
+                <Stat label="Mensajes"      value={fN(m.mensajes)} color={TXT2}     size="sm"/>
+                <Stat label="Follow-ups"    value={fN(m.followUps)} color={C.blue}  size="sm"/>
+                <Stat label="Bk Offers"     value={fN(m.bkOffers)} color={C.orange} size="sm"/>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {[
+                  {l:"Mensajes/día vs 60",v:m.msgPerDay,max:100,c:cH(m.msgPerDay,60,40)},
+                  {l:"Show-up Rate vs 60%",v:m.showRate,max:100,c:cH(m.showRate,60,40)},
+                  {l:"% Calificados vs 50%",v:m.qualRate,max:100,c:cH(m.qualRate,50,20)},
+                ].map(r=>(
+                  <Barz key={r.l} value={r.v} max={r.max} color={r.c} h={6}
+                    label={r.l} right={`${(r.v||0).toFixed(1)}%`}/>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {view==="historial"&&entries.length>0&&(
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {sortedDates.map(date=>(
+            <Card key={date} style={{padding:"12px 16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{date}</span>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {Object.keys(byDate[date]).map(m=><MemberBadge key={m} name={m}/>)}
+                </div>
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace",width:"100%"}}>
+                  <thead>
+                    <tr style={{borderBottom:`1px solid ${BORDER}`}}>
+                      {["Miembro","Mensajes","Follow-ups","Bk Offers","New Bk","Quality Bk","Shows","Show %"].map(h=>(
+                        <th key={h} style={{padding:"4px 10px",color:TXT3,textAlign:"left",
+                          fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(byDate[date]).map(([mem,e])=>{
+                      const sr=pv(e.showsTotal,e.qualBkTotal);
+                      return(
+                        <tr key={mem} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                          <td style={{padding:"6px 10px"}}><MemberBadge name={mem}/></td>
+                          <td style={{padding:"6px 10px",color:cH(e.mensajes,60,40)}}>{fN(e.mensajes)}</td>
+                          <td style={{padding:"6px 10px",color:C.blue}}>{fN(e.followUps)}</td>
+                          <td style={{padding:"6px 10px",color:C.orange}}>{fN(e.bkOffers)}</td>
+                          <td style={{padding:"6px 10px",color:C.purple,fontWeight:700}}>{fN(e.newBkTotal)}</td>
+                          <td style={{padding:"6px 10px",color:C.teal,fontWeight:700}}>{fN(e.qualBkTotal)}</td>
+                          <td style={{padding:"6px 10px",color:C.green,fontWeight:700}}>{fN(e.showsTotal)}</td>
+                          <td style={{padding:"6px 10px",color:cH(sr,60,40),fontWeight:700}}>{fP(sr)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── TORRE CEO ────────────────────────────────────────────────────────────────
+const Row2=({label,value,color=TXT,bold=false,bg=null})=>(
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+    padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`}}>
+    <span style={{fontSize:10,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{label}</span>
+    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace"}}>{value}</span>
+  </div>
+);
+const SectionTitle=({children})=>(
+  <div style={{background:"#1e2a4a",color:"#fff",padding:"6px 10px",fontSize:10,
+    fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
+    fontFamily:"'Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
+);
+
+const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
+  const [editConfig,setEditConfig]=useState(false);
+  const [cfg,setCfg]=useState({});
+  const [savingCfg,setSavingCfg]=useState(false);
+
+  useEffect(()=>{
+    setCfg({
+      metaMensual:kpi.meta?.revenue||"150000",
+      inversionPlaneada:kpi.inversion_planeada||"0",
+      roasObj:kpi.roas_objetivo||"4",
+      pctLeadsAg:kpi.pct_leads_agendadas||"45",
+      pctAgAsis:kpi.pct_agendadas_asistidas||"70",
+      closeRateMeta:kpi.close_rate_meta||"25",
+      day:kpi.day||new Date().getDate(),
+    });
+  },[kpi]);
+
+  const prefix=`${year}-${String(month+1).padStart(2,"0")}`;
+  const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+  const dailyEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+
+  const totalCash=sumF(closerEntries,"ventas_cash");
+  const totalValorHT=sumF(closerEntries,"valor_venta_ht");
+  const totalValorLT=sumF(closerEntries,"valor_venta_lt");
+  const totalValor=totalValorHT+totalValorLT;
+  const totalVentas=sumF(closerEntries,"q_ventas_ht");
+  const totalLeads=sumF(closerEntries,"agendas_calificadas");
+  const totalAgendas=sumF(closerEntries,"agendas_final");
+  const totalAsistidas=sumF(closerEntries,"citas_asistidas");
+  // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
+  const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
+  const totalGastoGoogle=sumF(dailyEntries,"gastoGoogle");
+  const totalGastoTiktok=sumF(dailyEntries,"gastoTikTok");
+  const totalGastoOtros=sumF(dailyEntries,"gastoOtros");
+  const totalGasto=totalGastoMeta+totalGastoGoogle+totalGastoTiktok+totalGastoOtros;
+
+  const metaMensual=nv(cfg.metaMensual)||150000;
+  const inversionPlaneada=nv(cfg.inversionPlaneada)||0;
+  const roasObj=nv(cfg.roasObj)||4;
+  const pctLeadsAg=nv(cfg.pctLeadsAg)||45;
+  const pctAgAsis=nv(cfg.pctAgAsis)||70;
+  const closeRateMeta=nv(cfg.closeRateMeta)||25;
+  const day=nv(cfg.day)||new Date().getDate();
+
+  const ticketProm=totalVentas>0?totalValor/totalVentas:0;
+  const pctTranscurrido=day/dm;
+  const metaEsperadaHoy=metaMensual*pctTranscurrido;
+  const gapVsRitmo=totalCash-metaEsperadaHoy;
+  const proyeccion=day>0&&totalCash>0?(totalCash/day)*dm:null;
+  const pctCumpl=pv(totalCash,metaMensual);
+
+  const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
+  const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;
+  const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;
+
+  const roasReal=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const invEsperadaHoy=inversionPlaneada*pctTranscurrido;
+  const gapInversion=totalGasto-invEsperadaHoy;
+
+  const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
+  const ventasUniMeta=ticketProm>0?metaMensual/ticketProm:0;
+  const asistidaMeta=closeRateMeta>0?ventasUniMeta/(closeRateMeta/100):0;
+  const agendaMeta=pctAgAsis>0?asistidaMeta/(pctAgAsis/100):0;
+  const leadsMeta=pctLeadsAg>0?agendaMeta/(pctLeadsAg/100):0;
+  const leadsPorDolar=metaMensual>0?leadsMeta/metaMensual:0;
+
+  const roasCash=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
+  const roasUpfront=totalGasto>0&&totalUpfront>0?totalUpfront/totalGasto:null;
+
+  const pctCumplProy=pv(proyeccion,metaMensual);
+  const gapProy=proyeccion?proyeccion-metaMensual:null;
+
+  const funnelRows=[
+    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
+    {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
+    {l:"Citas asistidas",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
+    {l:"Citas agend. calificadas",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
+    {l:"Leads calificados",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+  ];
+
+  const handleSaveCfg=async()=>{
+    setSavingCfg(true);
+    await onSaveConfig({
+      meta_revenue:nv(cfg.metaMensual),
+      inversion_planeada:nv(cfg.inversionPlaneada),
+      roas_objetivo:nv(cfg.roasObj),
+      pct_leads_agendadas:nv(cfg.pctLeadsAg),
+      pct_agendadas_asistidas:nv(cfg.pctAgAsis),
+      close_rate_meta:nv(cfg.closeRateMeta),
+      day:nv(cfg.day),
+    });
+    setSavingCfg(false);
+    setEditConfig(false);
+  };
+
+  const block={background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.04)"};
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* HEADER */}
+      <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",borderRadius:12,padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:11,color:"#94a3b8",letterSpacing:"0.18em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace",marginBottom:3}}>Torre de Control — Comercial</div>
+          <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
+        </div>
+        <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Upfront Cash</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fbbf24",fontFamily:"'DM Mono',monospace"}}>{fD(totalUpfront)}</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Low Ticket</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(totalValorLT)}</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Día</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'DM Mono',monospace"}}>{day}/{dm}</div>
+          </div>
+          {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
+        </div>
+      </div>
+
+      {/* CONFIG EDIT PANEL */}
+      {editConfig&&(
+        <div style={{...block,padding:"16px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <span style={{fontSize:12,fontWeight:700,color:TXT}}>Configuración del mes</span>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={handleSaveCfg} disabled={savingCfg} style={{background:BRAND,color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:700,opacity:savingCfg?0.7:1}}>{savingCfg?"...":"✓ Guardar"}</button>
+              <button onClick={()=>setEditConfig(false)} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",color:TXT2}}>Cancelar</button>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+            <Inp label="Meta mensual $" prefix="$" value={cfg.metaMensual} onChange={v=>setCfg(p=>({...p,metaMensual:v}))}/>
+            <Inp label="Inversión planeada $" prefix="$" value={cfg.inversionPlaneada} onChange={v=>setCfg(p=>({...p,inversionPlaneada:v}))}/>
+            <Inp label="ROAS objetivo" value={cfg.roasObj} onChange={v=>setCfg(p=>({...p,roasObj:v}))}/>
+            <Inp label="Día actual del mes" value={cfg.day} onChange={v=>setCfg(p=>({...p,day:v}))}/>
+            <Inp label="% Leads → Agendadas meta" value={cfg.pctLeadsAg} onChange={v=>setCfg(p=>({...p,pctLeadsAg:v}))} hint="%"/>
+            <Inp label="% Agendadas → Asistidas meta" value={cfg.pctAgAsis} onChange={v=>setCfg(p=>({...p,pctAgAsis:v}))} hint="%"/>
+            <Inp label="Close Rate meta" value={cfg.closeRateMeta} onChange={v=>setCfg(p=>({...p,closeRateMeta:v}))} hint="%"/>
+          </div>
+        </div>
+      )}
+
+      {/* TOP GRID: CONFIG + REALIDAD */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+
+        {/* CONFIGURACIÓN */}
+        <div style={block}>
+          <SectionTitle>Configuración</SectionTitle>
+          <Row2 label="Mes" value={MONTHS[month]}/>
+          <Row2 label="Año" value={year}/>
+          <Row2 label="Días del mes" value={dm}/>
+          <Row2 label="Meta mensual ventas ($)" value={fD(metaMensual)} bold color={BRAND}/>
+          <Row2 label="ROAS objetivo" value={`${roasObj}x`}/>
+          <Row2 label="% Leads → Agendadas (meta)" value={fP(pctLeadsAg)}/>
+          <Row2 label="% Agendadas → Asistidas (meta)" value={fP(pctAgAsis)}/>
+          <Row2 label="Close rate (meta)" value={fP(closeRateMeta)}/>
+          <Row2 label="Leads necesarios por dólar" value={leadsPorDolar>0?leadsPorDolar.toFixed(5):"—"}/>
+        </div>
+
+        {/* REALIDAD DEL MES */}
+        <div style={block}>
+          <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
+          <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
+          <Row2 label="Ventas $ (cash cobrado)" value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label="Upfront Cash HT" value={fD(totalUpfront)} color={C.green}/>
+          <Row2 label="Cash Low Ticket" value={fD(totalValorLT)} color={C.teal}/>
+          <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
+          <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
+          <Row2 label="Citas agendadas reales" value={fN(totalAgendas)}/>
+          <Row2 label="Citas Show Up (asistidas)" value={fN(totalAsistidas)}/>
+          <Row2 label="Ticket promedio (comprometido)" value={fD(ticketProm)} bold/>
+          <Row2 label="Close rate real" value={fP(closeRateReal)} bold color={cH(closeRateReal,closeRateMeta*0.9,closeRateMeta*0.7)}/>
+        </div>
+      </div>
+
+      {/* RITMO + PROYECCIÓN */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+
+        <div style={block}>
+          <SectionTitle>Ritmo del mes (tiempo + dinero)</SectionTitle>
+          <Row2 label="Fecha hoy" value={today()}/>
+          <Row2 label="Días totales mes" value={dm}/>
+          <Row2 label="Día del mes" value={day}/>
+          <Row2 label="% mes transcurrido" value={fP(pctTranscurrido*100,1)}/>
+          <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
+          <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
+          <Row2 label="Meta esperada a hoy ($)" value={fD(metaEsperadaHoy)} bold/>
+          <Row2 label="Ventas reales acumuladas ($)" value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label="Gap vs ritmo ($)" value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
+        </div>
+
+        <div style={block}>
+          <SectionTitle>Proyección fin de mes (si seguimos así)</SectionTitle>
+          <div style={{padding:"18px 14px",display:"flex",flexDirection:"column",gap:0}}>
+            <Row2 label="Ventas proyectadas fin de mes ($)" value={proyeccion?fD(proyeccion):"—"} bold color={proyeccion&&proyeccion>=metaMensual?C.green:C.red}/>
+            <Row2 label="% cumplimiento proyectado" value={fP(pctCumplProy)} bold color={cH(pctCumplProy,85,65)}/>
+            <Row2 label="Gap proyectado vs meta ($)" value={gapProy!=null?fD(gapProy):"—"} bold color={gapProy!=null&&gapProy>=0?C.green:C.red} bg={gapProy!=null&&gapProy>=0?"#f0fdf4":"#fef2f2"}/>
+          </div>
+          {totalCash>0&&(
+            <div style={{padding:"0 10px 12px"}}>
+              <Barz value={totalCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`Cash actual: ${fP(pctCumpl)}`} right={fD(totalCash)}/>
+              {proyeccion&&<div style={{marginTop:6}}><Barz value={proyeccion} max={metaMensual} color={C.blue} h={5} label={`Proyección: ${fP(pctCumplProy)}`} right={fD(proyeccion)}/></div>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* FUNNEL A HOY */}
+      <div style={block}>
+        <SectionTitle>Funnel a hoy — Plan vs Real · Día {day}/{dm} ({fP(pctTranscurrido*100,0)} transcurrido)</SectionTitle>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+            <thead>
+              <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                {["Métrica","Requerido a hoy","Real a hoy","Gap","Estado"].map(h=>(
+                  <th key={h} style={{padding:"9px 14px",color:TXT3,textAlign:h==="Métrica"?"left":"center",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {funnelRows.map(r=>{
+                const gap=r.real-r.req;
+                const pctR=r.req>0?(r.real/r.req)*100:null;
+                const fmt=v=>r.fmt==="$"?fD(v):fN(v);
+                return(
+                  <tr key={r.l} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                    <td style={{padding:"10px 14px",color:TXT,fontWeight:600}}>{r.l}</td>
+                    <td style={{padding:"10px 14px",color:TXT2,textAlign:"center"}}>{fmt(r.req)}</td>
+                    <td style={{padding:"10px 14px",color:TXT,fontWeight:700,textAlign:"center"}}>{fmt(r.real)}</td>
+                    <td style={{padding:"10px 14px",color:gap>=0?C.green:C.red,fontWeight:700,textAlign:"center",background:gap>=0?"#f0fdf4":"#fef2f2"}}>
+                      {gap>=0?"▲":"▼"} {fmt(Math.abs(gap))}
+                    </td>
+                    <td style={{padding:"10px 14px",textAlign:"center"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
+                        <div style={{background:"#ebe9e3",borderRadius:100,height:5,width:60,overflow:"hidden"}}>
+                          <div style={{width:Math.min(100,pctR||0)+"%",height:"100%",background:cH(pctR,90,70)}}/>
+                        </div>
+                        <span style={{fontSize:10,color:cH(pctR,90,70),fontWeight:600}}>{fP(pctR,0)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* SALUD DEL EMBUDO + ADS */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+
+        <div style={block}>
+          <SectionTitle>Salud del embudo — Meta vs Real · Ticket promedio: {fD(ticketProm)}</SectionTitle>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+            <thead>
+              <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                {["Métrica","Meta","Real","Estado"].map(h=>(
+                  <th key={h} style={{padding:"8px 12px",color:TXT3,textAlign:h==="Métrica"?"left":"center",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                {l:"% Leads → Agendadas",meta:pctLeadsAg,real:pctLeadsAgReal},
+                {l:"% Agendadas → Asistidas",meta:pctAgAsis,real:pctAgAsisReal},
+                {l:"Close Rate",meta:closeRateMeta,real:closeRateReal},
+              ].map(r=>{
+                const color=cH(r.real,r.meta*0.95,r.meta*0.75);
+                return(
+                  <tr key={r.l} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                    <td style={{padding:"9px 12px",color:TXT,fontWeight:600}}>{r.l}</td>
+                    <td style={{padding:"9px 12px",color:TXT2,textAlign:"center"}}>{fP(r.meta)}</td>
+                    <td style={{padding:"9px 12px",textAlign:"center",background:r.real!=null?(r.real>=r.meta*0.95?"#f0fdf4":"#fef2f2"):"transparent"}}>
+                      <span style={{color,fontWeight:700}}>{fP(r.real)}</span>
+                    </td>
+                    <td style={{padding:"9px 12px",textAlign:"center"}}>
+                      <div style={{background:"#ebe9e3",borderRadius:100,height:5,overflow:"hidden",width:50,margin:"0 auto"}}>
+                        <div style={{width:Math.min(100,r.real||0)+"%",height:"100%",background:color}}/>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={block}>
+          <SectionTitle>Apoyo — Control Ads & ROAS</SectionTitle>
+          <Row2 label="Inversión planeada mes ($)" value={fD(inversionPlaneada)}/>
+          <Row2 label="Inversión Ads real acumulada ($)" value={fD(totalGasto)} bold/>
+          <Row2 label="Inversión Ads esperada a hoy ($)" value={fD(invEsperadaHoy)}/>
+          <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={gapInversion>500?C.red:gapInversion<-500?C.green:TXT} bg={gapInversion>500?"#fef2f2":gapInversion<-500?"#f0fdf4":"transparent"}/>
+          <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+            <thead>
+              <tr style={{background:SURFACE2}}>
+                {["","Cash Total","Upfront Cash","Comprometido HT"].map(h=>(
+                  <th key={h} style={{padding:"6px 10px",color:TXT3,textAlign:"center",fontSize:8,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{borderTop:`1px solid ${BORDER}`}}>
+                <td style={{padding:"9px 10px",color:TXT2,fontSize:10}}>ROAS real</td>
+                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasCash,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasCash)}</td>
+                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasUpfront,roasObj*0.5,roasObj*0.3),fontWeight:700}}>{fX(roasUpfront)}</td>
+                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasComprometido,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasComprometido)}</td>
+              </tr>
+              <tr style={{borderTop:`1px solid ${BORDER2}`}}>
+                <td style={{padding:"9px 10px",color:TXT3,fontSize:9}}>ROAS objetivo</td>
+                <td colSpan={3} style={{padding:"9px 10px",textAlign:"center",color:TXT2,fontWeight:600}}>{roasObj}x</td>
+              </tr>
+            </tbody>
+          </table>
+          {totalGasto>0&&(
+            <div style={{padding:"10px 12px",display:"flex",flexDirection:"column",gap:7}}>
+              {[{l:"Meta",v:totalGastoMeta,c:"#1877F2"},{l:"Google",v:totalGastoGoogle,c:"#34A853"},{l:"TikTok",v:totalGastoTiktok,c:"#333"},{l:"Otros",v:totalGastoOtros,c:C.purple}]
+                .filter(x=>x.v>0).map(x=>(
+                  <Barz key={x.l} value={x.v} max={totalGasto} color={x.c} h={6}
+                    label={x.l} right={`${fD(x.v)} · ${fP(pv(x.v,totalGasto))}`}/>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* MODELO OBJETIVO */}
+      <div style={block}>
+        <SectionTitle>Modelo objetivo del embudo (plan)</SectionTitle>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
+          {[
+            {l:"Leads requeridos para meta",v:leadsMeta,fmt:"n"},
+            {l:"Citas agendadas requeridas",v:agendaMeta,fmt:"n"},
+            {l:"Citas asistidas requeridas",v:asistidaMeta,fmt:"n"},
+            {l:"Ventas requeridas (unidades)",v:ventasUniMeta,fmt:"n"},
+          ].map(r=>(
+            <div key={r.l} style={{padding:"14px 16px",borderRight:`1px solid ${BORDER}`,textAlign:"center"}}>
+              <div style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>{r.l}</div>
+              <div style={{fontSize:24,fontWeight:800,color:BRAND,fontFamily:"'DM Mono',monospace"}}>{r.fmt==="$"?fD(r.v):fN(r.v)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
+// ─── FUNNEL ───────────────────────────────────────────────────────────────────
+const FunnelView=({f,onUpdate})=>{
+  const rev=nv(f.revenue),ads=nv(f.adSpend),leads=nv(f.leads),ag=nv(f.agendas),shows=nv(f.shows),cierres=nv(f.cierres);
+  const metrics=[
+    {l:"ROAS",v:fX(dv(rev,ads)),c:cH(dv(rev,ads),3.5,2.5),h:"Revenue/Ads"},
+    {l:"CPL",v:fD(dv(ads,leads)),c:cL(dv(ads,leads),5,15),h:"Ads/Leads"},
+    {l:"Costo/Agenda",v:fD(dv(ads,ag)),c:TXT2,h:"Ads/Agendas"},
+    {l:"Costo/Show",v:fD(dv(ads,shows)),c:TXT2,h:"Ads/Shows"},
+    {l:"Costo/Cierre",v:fD(dv(ads,cierres)),c:cL(dv(ads,cierres),200,400),h:"Ads/Cierres"},
+    {l:"Show-up Rate",v:fP(pv(shows,ag)),c:cH(pv(shows,ag),60,40),h:"Shows/Agendas"},
+    {l:"Close Rate",v:fP(pv(cierres,shows)),c:cH(pv(cierres,shows),25,15),h:"Cierres/Shows"},
+    {l:"Lead-to-Close",v:fP(pv(cierres,leads)),c:C.orange,h:"Cierres/Leads"},
+  ];
+  const stages=[{l:"Leads",v:leads,c:C.purple},{l:"Agendas",v:ag,c:C.blue},{l:"Shows",v:shows,c:C.green},{l:"Cierres",v:cierres,c:C.amber}];
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="📥" title="Datos del mes"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+          <Inp label="Revenue $"  value={f.revenue}  onChange={v=>onUpdate("revenue",v)}  prefix="$"/>
+          <Inp label="Ad Spend $" value={f.adSpend}  onChange={v=>onUpdate("adSpend",v)}  prefix="$"/>
+          <Inp label="Leads"      value={f.leads}    onChange={v=>onUpdate("leads",v)}/>
+          <Inp label="Agendas"    value={f.agendas}  onChange={v=>onUpdate("agendas",v)}/>
+          <Inp label="Shows"      value={f.shows}    onChange={v=>onUpdate("shows",v)}/>
+          <Inp label="Cierres"    value={f.cierres}  onChange={v=>onUpdate("cierres",v)}/>
+        </div>
+      </Card>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(162px,1fr))",gap:9}}>
+        {metrics.map(m=><Stat key={m.l} label={m.l} value={m.v} sub={m.h} color={m.v==="—"?TXT3:m.c}/>)}
+      </div>
+      {(leads||ag||shows||cierres)&&(
+        <Card>
+          <STit icon="🔽" title="Funnel visual"/>
+          <div style={{display:"flex",alignItems:"flex-start",gap:5,justifyContent:"center",flexWrap:"wrap"}}>
+            {stages.map((s,i)=>(
+              <div key={s.l} style={{display:"flex",alignItems:"center",gap:5,flex:"1 1 0",minWidth:65}}>
+                <div style={{flex:1,background:`${s.c}10`,border:`1.5px solid ${s.c}30`,borderRadius:10,padding:"11px 7px",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:s.c,fontFamily:"'DM Mono',monospace"}}>{s.v!=null?fN(s.v):"—"}</div>
+                  <div style={{fontSize:8,color:TXT3,marginTop:2,textTransform:"uppercase",letterSpacing:"0.1em"}}>{s.l}</div>
+                  {i>0&&stages[i-1].v&&s.v&&<div style={{fontSize:8,color:TXT3,marginTop:2}}>{fP(pv(s.v,stages[i-1].v))} conv</div>}
+                </div>
+                {i<stages.length-1&&<div style={{color:BORDER,fontSize:14,flexShrink:0}}>▸</div>}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+// ─── ADS VIEW ─────────────────────────────────────────────────────────────────
+const AdsView=({entries,onAdd,onRemove})=>{
+  const [form,setForm]=useState({fecha:today(),canal:"Meta",gasto:"",impresiones:"",clicks:"",revenue:""});
+  const [saving,setSaving]=useState(false);
+  const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const add=async()=>{
+    if(!form.gasto)return;
+    setSaving(true);
+    await onAdd({...form});
+    setForm(p=>({...p,gasto:"",impresiones:"",clicks:"",revenue:""}));
+    setSaving(false);
+  };
+  const tots={gasto:sumF(entries,"gasto"),revenue:sumF(entries,"revenue"),impr:sumF(entries,"impresiones"),clicks:sumF(entries,"clicks")};
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="➕" title="Nueva entrada"/>
+        <div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={form.fecha} onChange={e=>sf("fecha",e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Canal</Lbl>
+            <select value={form.canal} onChange={e=>sf("canal",e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
+              {CANALES.map(c=><option key={c}>{c}</option>)}
+            </select>
+          </div>
+          {[["gasto","Gasto","$"],["impresiones","Impr."],["clicks","Clicks"],["revenue","Revenue","$"]].map(([k,l,p])=>(
+            <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>{l}</Lbl>
+              <div style={{display:"flex",alignItems:"center",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",height:36}}>
+                {p&&<span style={{padding:"0 7px",color:TXT3,fontSize:11,background:BORDER2,borderRight:`1px solid ${BORDER}`,fontFamily:"'DM Mono',monospace"}}>{p}</span>}
+                <input type="number" value={form[k]} onChange={e=>sf(k,e.target.value)} placeholder="0"
+                  style={{background:"transparent",border:"none",outline:"none",color:TXT,fontSize:12,padding:"0 8px",width:82,fontFamily:"'DM Mono',monospace"}}/>
+              </div>
+            </div>
+          ))}
+          <button onClick={add} disabled={saving} style={{background:C.gold,color:"#fff",border:"none",
+            borderRadius:8,padding:"0 16px",height:36,fontWeight:800,fontSize:12,cursor:"pointer",
+            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 6px ${C.gold}40`,opacity:saving?0.7:1}}>
+            {saving?"...":"+ Agregar"}
+          </button>
+        </div>
+      </Card>
+      {entries.length>0&&(
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:9}}>
+            <Stat label="Total Gasto"   value={fD(tots.gasto)}   color={C.red}/>
+            <Stat label="Total Revenue" value={fD(tots.revenue)} color={C.green}/>
+            <Stat label="ROAS"          value={fX(dv(tots.revenue,tots.gasto))} color={cH(dv(tots.revenue,tots.gasto),3.5,2.5)}/>
+            <Stat label="CTR Prom."     value={fP(pv(tots.clicks,tots.impr))}   color={cH(pv(tots.clicks,tots.impr),2,1)}/>
+          </div>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+                <thead>
+                  <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                    {["Fecha","Canal","Gasto","Impr","Clicks","CTR","CPC","Revenue","ROAS",""].map(h=>(
+                      <th key={h} style={{padding:"9px 13px",color:TXT3,textAlign:"left",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e,i)=>{
+                    const g=nv(e.gasto),cl=nv(e.clicks),im=nv(e.impresiones),rv=nv(e.revenue);
+                    const ctr=pv(cl,im),cpc=dv(g,cl),ro=dv(rv,g);
+                    return(
+                      <tr key={e.id||i} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{e.fecha}</td>
+                        <td style={{padding:"8px 13px",color:TXT}}>{e.canal}</td>
+                        <td style={{padding:"8px 13px",color:C.red}}>{fD(g)}</td>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{im?.toLocaleString()||"—"}</td>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{cl?.toLocaleString()||"—"}</td>
+                        <td style={{padding:"8px 13px",color:cH(ctr,2,1)}}>{fP(ctr)}</td>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{fD(cpc)}</td>
+                        <td style={{padding:"8px 13px",color:C.green,fontWeight:700}}>{fD(rv)}</td>
+                        <td style={{padding:"8px 13px",color:cH(ro,3.5,2.5),fontWeight:700}}>{fX(ro)}</td>
+                        <td style={{padding:"8px 13px"}}>
+                          <button onClick={()=>onRemove(e.id)} style={{background:"transparent",border:"none",color:TXT3,cursor:"pointer",fontSize:14}}>×</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ─── HISTÓRICO ────────────────────────────────────────────────────────────────
+const HistoricoView=({allKpi,allDaily})=>{
+  const rows=Object.entries(allKpi).filter(([k])=>k.startsWith("kpi:")).map(([k,d])=>{
+    const [,ym]=k.split(":");const [y,mi]=ym.split("-").map(Number);
+    const prefix=`${y}-${String(mi+1).padStart(2,"0")}`;
+    const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+    return{key:ym,label:`${MONTHS[mi].substring(0,3)} ${y}`,
+      rev:nv(d.funnel?.revenue),ads:nv(d.funnel?.adSpend),meta:nv(d.meta?.revenue),
+      newBk:sumF(entries,"newBkTotal"),qBk:sumF(entries,"qualBkTotal"),shows:sumF(entries,"showsTotal"),
+      clients:entries.length>0?Math.max(...entries.map(e=>nv(e.activeClients)||0)):null};
+  }).sort((a,b)=>a.key.localeCompare(b.key));
+  const maxRev=Math.max(...rows.map(r=>r.rev||r.meta||0),1);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {rows.length===0&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>Sin datos históricos aún.</div></Card>}
+      {rows.length>0&&(
+        <>
+          <Card>
+            <STit icon="📈" title="Tendencia revenue"/>
+            <div style={{display:"flex",alignItems:"flex-end",gap:10,height:110,paddingBottom:4}}>
+              {rows.map(r=>{
+                const rH=r.rev?Math.max(4,(r.rev/maxRev)*90):0;
+                const mH=r.meta?Math.max(3,(r.meta/maxRev)*90):0;
+                const c=cH(pv(r.rev,r.meta),85,60);
+                return(
+                  <div key={r.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:40}}>
+                    <div style={{fontSize:8,color:c,fontFamily:"'DM Mono',monospace",textAlign:"center"}}>{fD(r.rev)}</div>
+                    <div style={{width:"100%",display:"flex",alignItems:"flex-end",justifyContent:"center",gap:2}}>
+                      {r.meta&&<div style={{width:"38%",height:mH,background:BORDER,borderRadius:"3px 3px 0 0",minHeight:2}}/>}
+                      {r.rev&&<div style={{width:"38%",height:rH,background:c,borderRadius:"3px 3px 0 0"}}/>}
+                    </div>
+                    <div style={{fontSize:8,color:TXT3,textAlign:"center"}}>{r.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:12,marginTop:4}}>
+              <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:7,height:7,background:BORDER,borderRadius:2,border:`1px solid ${TXT3}`}}/><span style={{fontSize:8,color:TXT3}}>Meta</span></div>
+              <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:7,height:7,background:C.green,borderRadius:2}}/><span style={{fontSize:8,color:TXT3}}>Real</span></div>
+            </div>
+          </Card>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <div style={{padding:"13px 16px 7px",borderBottom:`1px solid ${BORDER}`}}>
+              <STit icon="🗂" title="Histórico mensual"/>
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+                <thead>
+                  <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                    {["Mes","Meta","Revenue","Cumpl.","Ads","ROAS","New Bk","QB","Shows","Show%","Clients"].map(h=>(
+                      <th key={h} style={{padding:"9px 13px",color:TXT3,textAlign:"left",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r=>{
+                    const c=cH(pv(r.rev,r.meta),85,60),sR=pv(r.shows,r.qBk);
+                    return(
+                      <tr key={r.key} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                        <td style={{padding:"9px 13px",color:TXT,fontWeight:700}}>{r.label}</td>
+                        <td style={{padding:"9px 13px",color:TXT3}}>{fD(r.meta)}</td>
+                        <td style={{padding:"9px 13px",color:C.gold,fontWeight:700}}>{fD(r.rev)}</td>
+                        <td style={{padding:"9px 13px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{background:"#ebe9e3",borderRadius:100,height:4,width:42,overflow:"hidden"}}>
+                              <div style={{width:Math.min(100,pv(r.rev,r.meta)||0)+"%",height:"100%",background:c}}/>
+                            </div>
+                            <span style={{color:c,fontSize:11}}>{fP(pv(r.rev,r.meta))}</span>
+                          </div>
+                        </td>
+                        <td style={{padding:"9px 13px",color:C.red}}>{fD(r.ads)}</td>
+                        <td style={{padding:"9px 13px",color:cH(dv(r.rev,r.ads),3.5,2.5)}}>{fX(dv(r.rev,r.ads))}</td>
+                        <td style={{padding:"9px 13px",color:C.purple}}>{fN(r.newBk)}</td>
+                        <td style={{padding:"9px 13px",color:C.teal}}>{fN(r.qBk)}</td>
+                        <td style={{padding:"9px 13px",color:C.green}}>{fN(r.shows)}</td>
+                        <td style={{padding:"9px 13px",color:cH(sR,60,40)}}>{fP(sR)}</td>
+                        <td style={{padding:"9px 13px",color:C.blue}}>{fN(r.clients)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ─── CLOSER ENTRY FORM ────────────────────────────────────────────────────────
+const CloserEntryForm=({year,month,allCloser,onSave})=>{
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankCloser());
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    const ex=allCloser[date];
+    setForm(ex?{...blankCloser(),...ex}:blankCloser());
+    setSaved(false);
+  },[date,allCloser]);
+
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const totalValorHT=(form.valor_venta_ht||0);
+  const totalValorLT=(form.valor_venta_lt||0);
+  const totalValor=totalValorHT+totalValorLT;
+  const totalVentasHT=(form.q_ventas_ht||0);
+  const totalVentasLT=(form.q_ventas_lt||0);
+
+  const handleSave=async()=>{
+    setSaving(true);
+    await onSave(date,{...form,date});
+    setSaving(false);setSaved(true);
+    setTimeout(()=>setSaved(false),2500);
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="💼" title="Area Comercial" sub="Una entrada por día — ventas y clientes"/>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          {allCloser[date]&&(
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
+              Editando entrada existente
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {(totalValor>0||totalVentasHT>0||totalVentasLT>0)&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
+          <Stat label="# Ventas HT" value={fN(totalVentasHT)} color={C.purple}/>
+          <Stat label="$ Venta HT" value={fD(totalValorHT)} color={BRAND}/>
+          <Stat label="Upfront Cash HT" value={fD(form.upfront_cash_ht)} color={C.green}/>
+          <Stat label="Cash Collected HT" value={fD(form.ventas_cash)} color={C.teal}/>
+          <Stat label="# Ventas LT" value={fN(totalVentasLT)} color={C.blue}/>
+          <Stat label="$ Venta LT" value={fD(totalValorLT)} color={C.blue}/>
+          <Stat label="Valor Total" value={fD(totalValor)} color={BRAND} bold/>
+        </div>
+      )}
+
+      <Card>
+        <STit icon="💰" title="High Ticket"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Ventas HT" value={form.q_ventas_ht} onChange={v=>sf("q_ventas_ht",v)}/>
+          <Inp label="$ Venta HT" prefix="$" value={form.valor_venta_ht} onChange={v=>sf("valor_venta_ht",v)}/>
+          <Inp label="Upfront Cash HT" prefix="$" value={form.upfront_cash_ht} onChange={v=>sf("upfront_cash_ht",v)}/>
+          <Inp label="Cash Collected HT" prefix="$" value={form.ventas_cash} onChange={v=>sf("ventas_cash",v)}/>
+          <Inp label="Recurring Cash" prefix="$" value={form.recurring_cash} onChange={v=>sf("recurring_cash",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="🎯" title="Low Ticket"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Ventas LT" value={form.q_ventas_lt} onChange={v=>sf("q_ventas_lt",v)}/>
+          <Inp label="$ Venta LT" prefix="$" value={form.valor_venta_lt} onChange={v=>sf("valor_venta_lt",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="🔖" title="Reservas"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Reservas" value={form.q_reservas} onChange={v=>sf("q_reservas",v)}/>
+          <Inp label="$ Cash Collected Reservas" prefix="$" value={form.cash_reservas} onChange={v=>sf("cash_reservas",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="↩️" title="Reembolsos"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Reembolsos" value={form.q_reembolsos} onChange={v=>sf("q_reembolsos",v)}/>
+          <Inp label="$ Valor Reembolsos" prefix="$" value={form.valor_reembolsos} onChange={v=>sf("valor_reembolsos",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="👥" title="Clientes"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Total de Clientes Activos" value={form.total_clientes_activos} onChange={v=>sf("total_clientes_activos",v)}/>
+        </div>
+      </Card>
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:saving?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Área Comercial guardada ✓</div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── AGENDAS / LEADS ──────────────────────────────────────────────────────────
+const AG_CANALES=["Orgánicas","Meta","Google","TikTok","Otros"];
+const AG_CANAL_KEYS=["organicas","meta","google","tiktok","otros"];
+const AG_CANAL_COLORS={"Orgánicas":C.green,"Meta":"#1877F2","Google":"#34A853","TikTok":"#010101","Otros":C.purple};
+
+const AgendasLeadsForm=({allCloser,onSave})=>{
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankCloser());
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    const ex=allCloser[date];
+    setForm(ex?{...blankCloser(),...ex}:blankCloser());
+    setSaved(false);
+  },[date,allCloser]);
+
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const totalAgendas=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`agendas_${c}`]||0),0);
+  const totalCal=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`cal_${c}`]||0),0);
+  const totalHoy=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`hoy_${c}`]||0),0);
+  const totalShow=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`show_${c}`]||0),0);
+  const showRate=totalHoy>0?pv(totalShow,totalHoy):null;
+  const calRate=totalAgendas>0?pv(totalCal,totalAgendas):null;
+
+  const handleSave=async()=>{
+    setSaving(true);
+    await onSave(date,{...form,date});
+    setSaving(false);setSaved(true);
+    setTimeout(()=>setSaved(false),2500);
+  };
+
+  const CanalGrid=({prefix,label})=>(
+    <Card>
+      <STit icon="📅" title={label}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:11}}>
+        {AG_CANALES.map((canal,i)=>(
+          <div key={canal}>
+            <div style={{fontSize:9,fontWeight:700,color:AG_CANAL_COLORS[canal],
+              fontFamily:"'Inter',sans-serif",letterSpacing:"0.06em",
+              textTransform:"uppercase",marginBottom:4}}>{canal}</div>
+            <Inp label={`# ${label} ${canal}`} value={form[`${prefix}_${AG_CANAL_KEYS[i]}`]}
+              onChange={v=>sf(`${prefix}_${AG_CANAL_KEYS[i]}`,v)}/>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="📅" title="Agendas / Leads" sub="Una entrada por día — pipeline por canal"/>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          {allCloser[date]&&(
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
+              Editando entrada existente
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {(totalAgendas>0||totalCal>0||totalShow>0)&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
+          <Stat label="Total Agendas" value={fN(totalAgendas)} color={C.blue}/>
+          <Stat label="Cualificadas" value={fN(totalCal)} color={C.purple}/>
+          <Stat label="Hoy (en agenda)" value={fN(totalHoy)} color={C.teal}/>
+          <Stat label="Show Ups" value={fN(totalShow)} color={C.green}/>
+          <Stat label="Show Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
+          <Stat label="% Cualif." value={fP(calRate)} color={cH(calRate,50,30)}/>
+        </div>
+      )}
+
+      <CanalGrid prefix="agendas" label="Agendas"/>
+      <CanalGrid prefix="cal" label="Cualificadas"/>
+      <CanalGrid prefix="hoy" label="Agendas Hoy"/>
+      <CanalGrid prefix="show" label="Show Ups"/>
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:saving?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Agendas guardadas ✓</div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── DETALLE DIARIO ────────────────────────────────────────────────────────────
+const DetalleView=({allDaily,allCloser,year,month})=>{
+  const dm=MDAYS[month];
+  const pad=n=>String(n).padStart(2,"0");
+  const mp=`${year}-${pad(month+1)}`;
+  const DOW=["D","L","M","M","J","V","S"];
+  const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
+  const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
+
+  const dayData=Array.from({length:dm},(_,i)=>{
+    const d=`${mp}-${pad(i+1)}`;
+    const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(d+":")).map(([,v])=>v);
+    const closer=allCloser[d]||{};
+    const sd=f=>sumF(entries,f);
+    const totalGastoDay=sd("gastoMeta")+sd("gastoGoogle")+sd("gastoTikTok")+sd("gastoOtros");
+    return{day:i+1,d,entries,closer,sd,totalGastoDay};
+  });
+
+  const cellTxt=(v,fmt)=>{
+    if(v===null||v===undefined||v===0)return null;
+    if(fmt==="$")return fD(v);
+    if(fmt==="%")return fP(v);
+    return fN(v);
+  };
+
+  // For ratio rows (cost/rate), total uses monthly aggregates instead of day average
+  const rowTotalVal=(row)=>{
+    if(row.totFn) return row.totFn();
+    if(row.fmt==="%"){
+      const vals=dayData.map(d=>row.fn(d)).filter(v=>v!==null&&v!==undefined);
+      return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+    }
+    const t=dayData.reduce((s,d)=>{const v=row.fn(d);return s+(v||0);},0);
+    return t||null;
+  };
+
+  // Monthly aggregates for cost calculations
+  const mGastoMeta=dayData.reduce((s,d)=>s+d.sd("gastoMeta"),0);
+  const mGastoGoogle=dayData.reduce((s,d)=>s+d.sd("gastoGoogle"),0);
+  const mGastoTikTok=dayData.reduce((s,d)=>s+d.sd("gastoTikTok"),0);
+  const mGastoOtros=dayData.reduce((s,d)=>s+d.sd("gastoOtros"),0);
+  const mGastoTotal=mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros;
+  const mAgTotal=dayData.reduce((s,d)=>{const ks=["organicas","meta","google","tiktok","otros"];return s+ks.reduce((a,c)=>a+(d.closer[`agendas_${c}`]||0),0);},0);
+  const mAgMeta=dayData.reduce((s,d)=>s+(d.closer.agendas_meta||0),0);
+  const mAgGoogle=dayData.reduce((s,d)=>s+(d.closer.agendas_google||0),0);
+  const mAgTikTok=dayData.reduce((s,d)=>s+(d.closer.agendas_tiktok||0),0);
+  const mAgOtros=dayData.reduce((s,d)=>s+(d.closer.agendas_otros||0),0);
+  const mCalTotal=dayData.reduce((s,d)=>s+(d.closer.agendas_calificadas||0),0);
+  const mCalMeta=dayData.reduce((s,d)=>s+(d.closer.cal_meta||0),0);
+  const mCalGoogle=dayData.reduce((s,d)=>s+(d.closer.cal_google||0),0);
+  const mCalTikTok=dayData.reduce((s,d)=>s+(d.closer.cal_tiktok||0),0);
+  const mCalOtros=dayData.reduce((s,d)=>s+(d.closer.cal_otros||0),0);
+  const mShows=dayData.reduce((s,d)=>s+(d.closer.citas_asistidas||0),0);
+  const mVentasHT=dayData.reduce((s,d)=>s+(d.closer.q_ventas_ht||0),0);
+  const mValorHT=dayData.reduce((s,d)=>s+(d.closer.valor_venta_ht||0),0);
+  const mCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0);
+  const mRecurring=dayData.reduce((s,d)=>s+(d.closer.recurring_cash||0),0);
+
+  const GROUPS=[
+    {title:"Gasto Publicitario",bg:"#1e40af",rows:[
+      {l:"$ Total Gasto",fn:d=>d.totalGastoDay||null,fmt:"$"},
+      {l:"Meta",fn:d=>d.sd("gastoMeta")||null,fmt:"$",sub:true},
+      {l:"Google",fn:d=>d.sd("gastoGoogle")||null,fmt:"$",sub:true},
+      {l:"TikTok",fn:d=>d.sd("gastoTikTok")||null,fmt:"$",sub:true},
+      {l:"Otros",fn:d=>d.sd("gastoOtros")||null,fmt:"$",sub:true},
+    ]},
+    {title:"Actividad Marketing",bg:"#6d28d9",rows:[
+      {l:"# IG Seguidores",fn:d=>d.sd("igFollowers")||null,fmt:"n"},
+      {l:"# Posts + CTA",fn:d=>d.sd("posts")||null,fmt:"n"},
+      {l:"# Mensajes",fn:d=>d.sd("mensajes")||null,fmt:"n"},
+      {l:"# Follow Ups",fn:d=>d.sd("followUps")||null,fmt:"n"},
+      {l:"# Booking Offers",fn:d=>d.sd("bkOffers")||null,fmt:"n"},
+    ]},
+    {title:"Agendas / Leads",bg:"#0f766e",rows:[
+      {l:"Agendas Total",fn:d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||null;},fmt:"n"},
+      {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true},
+      {l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true},
+      {l:"Google",fn:d=>d.closer.agendas_google||null,fmt:"n",sub:true},
+      {l:"TikTok",fn:d=>d.closer.agendas_tiktok||null,fmt:"n",sub:true},
+      {l:"Otros",fn:d=>d.closer.agendas_otros||null,fmt:"n",sub:true},
+      {l:"Cualificadas Total",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
+      {l:"% Cualificadas",fn:d=>{const t=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return t>0?pv(d.closer.agendas_calificadas||0,t):null;},fmt:"%",
+        totFn:()=>mAgTotal>0?pv(mCalTotal,mAgTotal):null},
+      {l:"Hoy (en agenda)",fn:d=>d.closer.agendas_final||null,fmt:"n"},
+      {l:"Show Ups",fn:d=>d.closer.citas_asistidas||null,fmt:"n"},
+      {l:"% Show Up Rate",fn:d=>{const h=d.closer.agendas_final||0,s=d.closer.citas_asistidas||0;return h>0?pv(s,h):null;},fmt:"%",
+        totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mShows,mHoy):null;}},
+    ]},
+    {title:"Costos por Lead",bg:"#92400e",rows:[
+      {l:"CPL (Costo/Agenda)",fn:d=>{const ag=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return ag>0?d.totalGastoDay/ag:null;},fmt:"$",
+        totFn:()=>mAgTotal>0?mGastoTotal/mAgTotal:null},
+      {l:"CPL Meta",fn:d=>d.closer.agendas_meta>0?d.sd("gastoMeta")/d.closer.agendas_meta:null,fmt:"$",sub:true,
+        totFn:()=>mAgMeta>0?mGastoMeta/mAgMeta:null},
+      {l:"CPL Google",fn:d=>d.closer.agendas_google>0?d.sd("gastoGoogle")/d.closer.agendas_google:null,fmt:"$",sub:true,
+        totFn:()=>mAgGoogle>0?mGastoGoogle/mAgGoogle:null},
+      {l:"CPL TikTok",fn:d=>d.closer.agendas_tiktok>0?d.sd("gastoTikTok")/d.closer.agendas_tiktok:null,fmt:"$",sub:true,
+        totFn:()=>mAgTikTok>0?mGastoTikTok/mAgTikTok:null},
+      {l:"CPL Otros",fn:d=>d.closer.agendas_otros>0?d.sd("gastoOtros")/d.closer.agendas_otros:null,fmt:"$",sub:true,
+        totFn:()=>mAgOtros>0?mGastoOtros/mAgOtros:null},
+      {l:"CP Cualificada",fn:d=>{const cal=d.closer.agendas_calificadas||0;return cal>0?d.totalGastoDay/cal:null;},fmt:"$",
+        totFn:()=>mCalTotal>0?mGastoTotal/mCalTotal:null},
+      {l:"CP Cualif. Meta",fn:d=>d.closer.cal_meta>0?d.sd("gastoMeta")/d.closer.cal_meta:null,fmt:"$",sub:true,
+        totFn:()=>mCalMeta>0?mGastoMeta/mCalMeta:null},
+      {l:"CP Cualif. Google",fn:d=>d.closer.cal_google>0?d.sd("gastoGoogle")/d.closer.cal_google:null,fmt:"$",sub:true,
+        totFn:()=>mCalGoogle>0?mGastoGoogle/mCalGoogle:null},
+      {l:"CP Cualif. TikTok",fn:d=>d.closer.cal_tiktok>0?d.sd("gastoTikTok")/d.closer.cal_tiktok:null,fmt:"$",sub:true,
+        totFn:()=>mCalTikTok>0?mGastoTikTok/mCalTikTok:null},
+      {l:"CP Cualif. Otros",fn:d=>d.closer.cal_otros>0?d.sd("gastoOtros")/d.closer.cal_otros:null,fmt:"$",sub:true,
+        totFn:()=>mCalOtros>0?mGastoOtros/mCalOtros:null},
+    ]},
+    {title:"Ventas — Area Comercial",bg:"#c2410c",rows:[
+      {l:"# Ventas HT",fn:d=>d.closer.q_ventas_ht||null,fmt:"n"},
+      {l:"$ Venta HT",fn:d=>d.closer.valor_venta_ht||null,fmt:"$"},
+      {l:"Upfront Cash HT",fn:d=>d.closer.upfront_cash_ht||null,fmt:"$"},
+      {l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||null,fmt:"$"},
+      {l:"Recurring Cash",fn:d=>d.closer.recurring_cash||null,fmt:"$"},
+      {l:"Cash + Recurring",fn:d=>{const t=(d.closer.ventas_cash||0)+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
+        totFn:()=>mCashHT+mRecurring||null},
+      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
+        totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
+      {l:"% Closing Rate",fn:d=>{const s=d.closer.citas_asistidas||0,v=d.closer.q_ventas_ht||0;return s>0?pv(v,s):null;},fmt:"%",
+        totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
+      {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
+      {l:"$ Venta LT",fn:d=>d.closer.valor_venta_lt||null,fmt:"$"},
+      {l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"},
+      {l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||null,fmt:"$"},
+      {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
+      {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
+      {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
+    ]},
+  ];
+
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
+  const HDR_TXT="#f1f5f9";
+  const thBase={padding:"5px 3px",textAlign:"center",fontSize:9,fontWeight:700,
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"3px 4px",textAlign:"right",fontSize:9,fontFamily:"'DM Mono',monospace",
+    borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:21};
+  const stickyCol={position:"sticky",left:0,zIndex:2};
+
+  return(
+    <div>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+        {MONTHS[month]} {year} · Scroll horizontal para ver todos los días
+      </div>
+      <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
+        height:"calc(100vh - 160px)"}}>
+        <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
+          <thead style={{position:"sticky",top:0,zIndex:10}}>
+            <tr>
+              <th style={{...thBase,...stickyCol,background:HDR_BG,color:HDR_TXT,textAlign:"left",
+                padding:"8px 10px",minWidth:165,zIndex:11,borderRight:`2px solid ${BORDER}`}}>
+                KPI
+              </th>
+              {dayData.map(d=>(
+                <th key={d.day} style={{...thBase,
+                  background:isWeekend(d.d)?WKD_BG:HDR_BG,
+                  color:isWeekend(d.d)?"#94A3B8":HDR_TXT,minWidth:38}}>
+                  <div style={{opacity:0.6}}>{getDoW(d.d)}</div>
+                  <div>{d.day}</div>
+                </th>
+              ))}
+              <th style={{...thBase,background:BRAND,color:"#fff",minWidth:62,
+                borderLeft:`2px solid ${BORDER}`}}>
+                Total / Mes
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {GROUPS.map(g=>(
+              <React.Fragment key={g.title}>
+                <tr>
+                  <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
+                    fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    {g.title}
+                  </td>
+                </tr>
+                {g.rows.map(row=>{
+                  const tot=rowTotalVal(row);
+                  return(
+                    <tr key={row.l}>
+                      <td style={{...tdBase,...stickyCol,textAlign:"left",
+                        paddingLeft:row.sub?20:10,
+                        color:row.sub?TXT2:TXT,
+                        fontWeight:row.sub?400:600,
+                        fontSize:row.sub?8:9,
+                        background:SURFACE,
+                        borderRight:`2px solid ${BORDER}`,
+                        fontFamily:"'Inter',sans-serif",
+                        whiteSpace:"nowrap"}}>
+                        {row.l}
+                      </td>
+                      {dayData.map(d=>{
+                        const v=row.fn(d);
+                        const txt=cellTxt(v,row.fmt);
+                        return(
+                          <td key={d.day} style={{...tdBase,
+                            background:isWeekend(d.d)?WKD_BG:SURFACE,
+                            color:txt?TXT:TXT3}}>
+                            {txt||"·"}
+                          </td>
+                        );
+                      })}
+                      <td style={{...tdBase,background:SURFACE2,
+                        color:tot?TXT:TXT3,fontWeight:700,
+                        borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                        {cellTxt(tot,row.fmt)||"—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
+const ADMIN_PIN = "1234"; // ← cambia este PIN cuando quieras
+
+const AdminView=({allDaily,onSave,onDelete})=>{
+  const [pin,setPin]=useState("");
+  const [authed,setAuthed]=useState(false);
+  const [pinError,setPinError]=useState(false);
+  const [filterMember,setFilterMember]=useState("Todos");
+  const [filterDate,setFilterDate]=useState("");
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({});
+  const [saving,setSaving]=useState(false);
+  const [deleting,setDeleting]=useState(null);
+
+  const tryPin=()=>{
+    if(pin===ADMIN_PIN){setAuthed(true);setPinError(false);}
+    else{setPinError(true);setPin("");}
+  };
+
+  const entries=Object.entries(allDaily)
+    .map(([k,v])=>({key:k,...v}))
+    .filter(e=>filterMember==="Todos"||e.member===filterMember)
+    .filter(e=>!filterDate||e.date===filterDate)
+    .sort((a,b)=>b.date.localeCompare(a.date)||a.member.localeCompare(b.member));
+
+  const startEdit=entry=>{setEditing(entry.key);setForm({...entry});};
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const saveEdit=async()=>{
+    setSaving(true);
+    const newBk=(form.newBkOrganic||0)+(form.newBkPaid||0);
+    const qualBk=(form.qualBkOrganic||0)+(form.qualBkPaid||0);
+    const shows=(form.showOrganic||0)+(form.showPaid||0);
+    const entry={...form,
+      newBkTotal:newBk,qualBkTotal:qualBk,showsTotal:shows,
+      bkInboundTotal:(form.bkInboundOrganic||0)+(form.bkInboundPaid||0),
+    };
+    await onSave(`${form.date}:${form.member}`,entry);
+    setSaving(false);setEditing(null);
+  };
+
+  const handleDelete=async entry=>{
+    if(!window.confirm(`¿Eliminar entrada de ${entry.member} del ${entry.date}?`))return;
+    setDeleting(entry.key);
+    await onDelete(entry.date,entry.member);
+    setDeleting(null);
+  };
+
+  if(!authed)return(
+    <Card>
+      <div style={{textAlign:"center",padding:"50px 20px"}}>
+        <div style={{width:52,height:52,borderRadius:14,background:BORDER2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+          <Icon name="lock" size={22} color={TXT3}/>
+        </div>
+        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>Panel Admin</div>
+        <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace",marginBottom:24}}>
+          Solo el administrador puede acceder aquí
+        </div>
+        <input type="password" value={pin}
+          onChange={e=>{setPin(e.target.value);setPinError(false);}}
+          onKeyDown={e=>e.key==="Enter"&&tryPin()}
+          placeholder="PIN de administrador"
+          style={{background:SURFACE2,border:`1.5px solid ${pinError?C.red:BORDER}`,
+            borderRadius:9,color:TXT,padding:"11px 18px",fontSize:14,outline:"none",
+            fontFamily:"'DM Mono',monospace",textAlign:"center",width:220,display:"block",margin:"0 auto"}}/>
+        {pinError&&<div style={{fontSize:11,color:C.red,marginTop:7,fontFamily:"'DM Mono',monospace"}}>
+          PIN incorrecto — intenta de nuevo
+        </div>}
+        <button onClick={tryPin} style={{marginTop:14,background:C.gold,color:"#fff",border:"none",
+          borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
+          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`}}>
+          Entrar
+        </button>
+      </div>
+    </Card>
+  );
+
+  const EDIT_FIELDS=[
+    {k:"posts",l:"Posts + CTA"},{k:"mensajes",l:"Mensajes"},{k:"followUps",l:"Follow-ups"},{k:"bkOffers",l:"Bk Offers"},
+    {k:"newBkOrganic",l:"New Bk Orgánico"},{k:"newBkPaid",l:"New Bk Paid"},
+    {k:"qualBkOrganic",l:"Quality Bk Orgánico"},{k:"qualBkPaid",l:"Quality Bk Paid"},
+    {k:"todayBkOrganic",l:"Today Bk Orgánico"},{k:"todayBkPaid",l:"Today Bk Paid"},
+    {k:"showOrganic",l:"Shows Orgánico"},{k:"showPaid",l:"Shows Paid"},
+    {k:"pitchesOrganic",l:"Pitches Orgánico"},{k:"pitchesPaid",l:"Pitches Paid"},
+    {k:"bkInboundOrganic",l:"Inbound Orgánico"},{k:"bkInboundPaid",l:"Inbound Paid"},
+    {k:"bkOutbound",l:"Outbound"},{k:"paidBkInvestment",l:"Inversión Ads $",p:"$"},
+    {k:"paidBkCount",l:"# Paid Bookings"},{k:"activeClients",l:"Clientes Activos"},
+    {k:"igFollowers",l:"IG Followers (k)"},{k:"offerPrice",l:"Precio Oferta $",p:"$"},
+  ];
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="🔐" title="Panel Admin" sub="Visualiza, edita o elimina cualquier entrada del equipo"/>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Miembro</Lbl>
+            <select value={filterMember} onChange={e=>setFilterMember(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
+                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
+              <option>Todos</option>
+              {TEAM.map(m=><option key={m}>{m}</option>)}
+            </select>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
+                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace",height:36}}/>
+          </div>
+          {filterDate&&(
+            <button onClick={()=>setFilterDate("")}
+              style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,
+                color:TXT2,padding:"7px 12px",fontSize:11,cursor:"pointer",
+                fontFamily:"'Epilogue',sans-serif",height:36}}>× Limpiar</button>
+          )}
+          <div style={{marginLeft:"auto",fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace",paddingBottom:6}}>
+            {entries.length} entradas encontradas
+          </div>
+        </div>
+      </Card>
+
+      {entries.length===0&&(
+        <Card><div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
+          fontFamily:"'DM Mono',monospace"}}>No hay entradas con esos filtros.</div></Card>
+      )}
+
+      {entries.map(entry=>(
+        <Card key={entry.key} style={{padding:"16px 20px"}}>
+          {editing===entry.key?(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <MemberBadge name={entry.member} size="lg"/>
+                  <span style={{fontSize:12,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
+                  <span style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace"}}>✏️ Modo edición</span>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={saveEdit} disabled={saving} style={{background:C.green,color:"#fff",
+                    border:"none",borderRadius:8,padding:"8px 18px",fontWeight:800,fontSize:12,
+                    cursor:"pointer",fontFamily:"'Epilogue',sans-serif",opacity:saving?0.7:1}}>
+                    {saving?"Guardando...":"✓ Guardar cambios"}
+                  </button>
+                  <button onClick={()=>setEditing(null)} style={{background:"transparent",
+                    border:`1px solid ${BORDER}`,borderRadius:8,padding:"8px 14px",fontSize:12,
+                    cursor:"pointer",color:TXT2,fontFamily:"'Epilogue',sans-serif"}}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+                {EDIT_FIELDS.map(f=>(
+                  <Inp key={f.k} label={f.l} prefix={f.p} value={form[f.k]||""} onChange={v=>sf(f.k,v)}/>
+                ))}
+              </div>
+            </div>
+          ):(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <MemberBadge name={entry.member} size="lg"/>
+                  <span style={{fontSize:13,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>startEdit(entry)} style={{background:C.gold+"15",
+                    border:`1px solid ${C.gold}40`,borderRadius:7,padding:"6px 14px",fontSize:11,
+                    cursor:"pointer",color:C.gold,fontFamily:"'Epilogue',sans-serif",fontWeight:700}}>
+                    ✏️ Editar
+                  </button>
+                  <button onClick={()=>handleDelete(entry)} disabled={deleting===entry.key}
+                    style={{background:C.red+"10",border:`1px solid ${C.red}30`,borderRadius:7,
+                      padding:"6px 14px",fontSize:11,cursor:"pointer",color:C.red,
+                      fontFamily:"'Epilogue',sans-serif",fontWeight:700,opacity:deleting===entry.key?0.5:1}}>
+                    {deleting===entry.key?"...":"🗑 Eliminar"}
+                  </button>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
+                {[
+                  ["Mensajes",    entry.mensajes,       TXT2],
+                  ["Follow-ups",  entry.followUps,      C.blue],
+                  ["Bk Offers",   entry.bkOffers,       C.orange],
+                  ["New Bk",      entry.newBkTotal,     C.purple],
+                  ["Quality Bk",  entry.qualBkTotal,    C.teal],
+                  ["Shows",       entry.showsTotal,     C.green],
+                  ["Show-up %",   fP(pv(entry.showsTotal,entry.qualBkTotal)), cH(pv(entry.showsTotal,entry.qualBkTotal),60,40)],
+                  ["% Calif.",    fP(pv(entry.qualBkTotal,entry.newBkTotal)), cH(pv(entry.qualBkTotal,entry.newBkTotal),50,20)],
+                  ["Posts",       entry.posts,          TXT3],
+                  ["Pitches",     (entry.pitchesOrganic||0)+(entry.pitchesPaid||0), C.blue],
+                  ["Clientes",    entry.activeClients,  C.blue],
+                  ["Inv. Ads",    fD(entry.paidBkInvestment), C.red],
+                  ["Paid Bk #",   entry.paidBkCount,   C.orange],
+                  ["IG Followers",entry.igFollowers,    C.purple],
+                  ["Precio",      fD(entry.offerPrice), C.gold],
+                ].map(([l,v,c])=>(
+                  <div key={l} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+                    borderRadius:8,padding:"9px 12px"}}>
+                    <Lbl style={{marginBottom:2}}>{l}</Lbl>
+                    <div style={{fontSize:16,fontWeight:700,color:c,fontFamily:"'DM Mono',monospace"}}>
+                      {typeof v==="string"?v:fN(v)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+};
+
+// ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
+const TABS=[
+  {id:"torre",   l:"Torre CEO",       icon:"home"},
+  {id:"closer",  l:"Area Comercial",  icon:"dollar"},
+  {id:"entrada", l:"Marketing",       icon:"rocket"},
+  {id:"agendas", l:"Agendas / Leads", icon:"calendar"},
+  {id:"equipo",  l:"Resumen Equipo",  icon:"users"},
+  {id:"funnel",  l:"Funnel",          icon:"filter"},
+  {id:"detalle", l:"Detalle Diario",  icon:"barChart"},
+  {id:"hist",    l:"Histórico",       icon:"trendUp"},
+  {id:"admin",   l:"Admin",           icon:"settings"},
+];
+
+function App(){
+  const [isDark,setIsDark]=useState(()=>localStorage.getItem("theme")==="dark");
+  applyTheme(isDark);
+  const toggleTheme=()=>{const n=!isDark;setIsDark(n);localStorage.setItem("theme",n?"dark":"light");};
+  const [tab,setTab]=useState("torre");
+  const [year,setYear]=useState(new Date().getFullYear());
+  const [month,setMonth]=useState(new Date().getMonth());
+  const [kpiData,setKpiData]=useState({});
+  const [daily,setDaily]=useState({});
+  const [ready,setReady]=useState(false);
+  const [closerData,setCloserData]=useState({});
+  const [error,setError]=useState(null);
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const [{data:kpiRows,error:e1},{data:dailyRows,error:e2},{data:adsRows,error:e3},{data:closerRows,error:e4}]=await Promise.all([
+          db.from("kpi_data").select("*"),
+          db.from("daily_entries").select("*"),
+          db.from("ads_entries").select("*"),
+          db.from("daily_closer").select("*"),
+        ]);
+        if(e1||e2||e3||e4)throw new Error("DB error");
+        const kpiObj={};
+        kpiRows?.forEach(row=>{
+          const key=`kpi:${row.year}-${row.month}`;
+          kpiObj[key]={
+            funnel:{revenue:row.revenue?.toString()||"",adSpend:row.ad_spend?.toString()||"",
+              leads:row.leads?.toString()||"",agendas:row.agendas?.toString()||"",
+              shows:row.shows?.toString()||"",cierres:row.cierres?.toString()||""},
+            meta:{revenue:row.meta_revenue?.toString()||"150000"},
+            day:row.day||new Date().getDate(),ads:[],
+            pct_leads_agendadas:row.pct_leads_agendadas?.toString()||"45",
+            pct_agendadas_asistidas:row.pct_agendadas_asistidas?.toString()||"70",
+            close_rate_meta:row.close_rate_meta?.toString()||"25",
+            inversion_planeada:row.inversion_planeada?.toString()||"0",
+            roas_objetivo:row.roas_objetivo?.toString()||"4",
+          };
+        });
+        adsRows?.forEach(row=>{
+          const key=`kpi:${row.year}-${row.month}`;
+          if(!kpiObj[key])kpiObj[key]={funnel:{revenue:"",adSpend:"",leads:"",agendas:"",shows:"",cierres:""},meta:{revenue:"150000"},day:new Date().getDate(),ads:[]};
+          kpiObj[key].ads.push({id:row.id,fecha:row.fecha,canal:row.canal,
+            gasto:row.gasto||0,impresiones:row.impresiones||0,clicks:row.clicks||0,revenue:row.revenue||0});
+        });
+        const dailyObj={};
+        dailyRows?.forEach(row=>{dailyObj[`${row.date}:${row.member}`]=rowToEntry(row);});
+        const closerObj={};
+        closerRows?.forEach(row=>{closerObj[row.date]=row;});
+        setCloserData(closerObj);
+        setKpiData(kpiObj);
+        setDaily(dailyObj);
+      }catch(e){
+        setError("Error conectando a la base de datos. Verifica tu conexión a internet.");
+        console.error(e);
+      }
+      setReady(true);
+    })();
+  },[]);
+
+  const kk=`kpi:${year}-${month}`;
+  const kpi=kpiData[kk]||{funnel:{revenue:"",adSpend:"",leads:"",agendas:"",shows:"",cierres:""},meta:{revenue:"150000"},day:new Date().getDate(),ads:[]};
+
+  const upKpi=async(f,v)=>{
+    const nd={...kpiData,[kk]:{...kpi,funnel:{...kpi.funnel,[f]:v}}};
+    setKpiData(nd);
+    const k=nd[kk];
+    await db.from("kpi_data").upsert({
+      year,month,
+      revenue:nv(k.funnel.revenue),ad_spend:nv(k.funnel.adSpend),
+      leads:nv(k.funnel.leads),agendas:nv(k.funnel.agendas),
+      shows:nv(k.funnel.shows),cierres:nv(k.funnel.cierres),
+      meta_revenue:nv(k.meta.revenue),day:k.day,
+    },{onConflict:"year,month"});
+  };
+
+  const saveEntry=async(key,entry)=>{
+    const nd={...daily,[key]:entry};
+    setDaily(nd);
+    const {error}=await db.from("daily_entries").upsert({
+      date:entry.date,member:entry.member,
+      ig_followers:entry.igFollowers||0,
+      posts:entry.posts||0,mensajes:entry.mensajes||0,
+      follow_ups:entry.followUps||0,bk_offers:entry.bkOffers||0,
+      gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
+      gasto_tiktok:entry.gastoTikTok||0,gasto_otros:entry.gastoOtros||0,
+    },{onConflict:"date,member"});
+    if(error){alert("Error guardando: "+error.message);return false;}
+    return true;
+  };
+
+  const saveCloserEntry=async(date,data)=>{
+    // compute totals from channel splits (keep old columns in sync for Torre CEO)
+    const agendas_calificadas=(data.cal_organicas||0)+(data.cal_meta||0)+(data.cal_google||0)+(data.cal_tiktok||0)+(data.cal_otros||0);
+    const agendas_final=(data.hoy_organicas||0)+(data.hoy_meta||0)+(data.hoy_google||0)+(data.hoy_tiktok||0)+(data.hoy_otros||0);
+    const citas_asistidas=(data.show_organicas||0)+(data.show_meta||0)+(data.show_google||0)+(data.show_tiktok||0)+(data.show_otros||0);
+    const merged={...data,agendas_calificadas,agendas_final,citas_asistidas};
+    const nd={...closerData,[date]:merged};
+    setCloserData(nd);
+    await db.from("daily_closer").upsert({
+      date:data.date||date,
+      q_ventas_ht:data.q_ventas_ht||0,valor_venta_ht:data.valor_venta_ht||0,
+      upfront_cash_ht:data.upfront_cash_ht||0,ventas_cash:data.ventas_cash||0,recurring_cash:data.recurring_cash||0,
+      q_ventas_lt:data.q_ventas_lt||0,valor_venta_lt:data.valor_venta_lt||0,
+      total_clientes_activos:data.total_clientes_activos||0,
+      q_reservas:data.q_reservas||0,cash_reservas:data.cash_reservas||0,
+      q_reembolsos:data.q_reembolsos||0,valor_reembolsos:data.valor_reembolsos||0,
+      agendas_organicas:data.agendas_organicas||0,agendas_meta:data.agendas_meta||0,
+      agendas_google:data.agendas_google||0,agendas_tiktok:data.agendas_tiktok||0,agendas_otros:data.agendas_otros||0,
+      cal_organicas:data.cal_organicas||0,cal_meta:data.cal_meta||0,
+      cal_google:data.cal_google||0,cal_tiktok:data.cal_tiktok||0,cal_otros:data.cal_otros||0,
+      hoy_organicas:data.hoy_organicas||0,hoy_meta:data.hoy_meta||0,
+      hoy_google:data.hoy_google||0,hoy_tiktok:data.hoy_tiktok||0,hoy_otros:data.hoy_otros||0,
+      show_organicas:data.show_organicas||0,show_meta:data.show_meta||0,
+      show_google:data.show_google||0,show_tiktok:data.show_tiktok||0,show_otros:data.show_otros||0,
+      agendas_calificadas,agendas_final,citas_asistidas,
+    },{onConflict:"date"});
+  };
+
+  const saveKpiConfig=async(configObj)=>{
+    const nd={...kpiData,[kk]:{...kpi,
+      meta:{revenue:configObj.meta_revenue?.toString()||kpi.meta.revenue},
+      day:configObj.day||kpi.day,
+      pct_leads_agendadas:configObj.pct_leads_agendadas?.toString()||kpi.pct_leads_agendadas,
+      pct_agendadas_asistidas:configObj.pct_agendadas_asistidas?.toString()||kpi.pct_agendadas_asistidas,
+      close_rate_meta:configObj.close_rate_meta?.toString()||kpi.close_rate_meta,
+      inversion_planeada:configObj.inversion_planeada?.toString()||kpi.inversion_planeada,
+      roas_objetivo:configObj.roas_objetivo?.toString()||kpi.roas_objetivo,
+    }};
+    setKpiData(nd);
+    await db.from("kpi_data").upsert({
+      year,month,
+      meta_revenue:configObj.meta_revenue,
+      day:configObj.day,
+      pct_leads_agendadas:configObj.pct_leads_agendadas,
+      pct_agendadas_asistidas:configObj.pct_agendadas_asistidas,
+      close_rate_meta:configObj.close_rate_meta,
+      inversion_planeada:configObj.inversion_planeada,
+      roas_objetivo:configObj.roas_objetivo,
+      revenue:nv(kpi.funnel.revenue),
+      ad_spend:nv(kpi.funnel.adSpend),
+      leads:nv(kpi.funnel.leads),
+      agendas:nv(kpi.funnel.agendas),
+      shows:nv(kpi.funnel.shows),
+      cierres:nv(kpi.funnel.cierres),
+    },{onConflict:"year,month"});
+  };
+
+  const addAd=async(e)=>{
+    const {data}=await db.from("ads_entries").insert({
+      year,month,fecha:e.fecha,canal:e.canal,
+      gasto:nv(e.gasto)||0,impresiones:nv(e.impresiones)||0,
+      clicks:nv(e.clicks)||0,revenue:nv(e.revenue)||0,
+    }).select().single();
+    const nd={...kpiData,[kk]:{...kpi,ads:[...(kpi.ads||[]),{...e,id:data?.id}]}};
+    setKpiData(nd);
+  };
+
+  const rmAd=async(id)=>{
+    await db.from("ads_entries").delete().eq("id",id);
+    const nd={...kpiData,[kk]:{...kpi,ads:(kpi.ads||[]).filter(e=>e.id!==id)}};
+    setKpiData(nd);
+  };
+
+  const deleteEntry=async(date,member)=>{
+    await db.from("daily_entries").delete().match({date,member});
+    const key=`${date}:${member}`;
+    const nd={...daily};
+    delete nd[key];
+    setDaily(nd);
+  };
+
+  const allKpi=Object.fromEntries(Object.entries(kpiData).filter(([k])=>k.startsWith("kpi:")));
+  const prefix=`${year}-${String(month+1).padStart(2,"0")}`;
+  const mEntries=Object.entries(daily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+  const mShows=sumF(mEntries,"showsTotal"),mQual=sumF(mEntries,"qualBkTotal");
+  const alertShow=mQual>0&&pv(mShows,mQual)<40;
+
+  if(!ready)return(
+    <div style={{display:"flex",justifyContent:"center",alignItems:"center",
+      height:"100vh",background:BG,flexDirection:"column",gap:20}}>
+      <img src="logo.png" alt="Unlocked" style={{width:52,height:52,objectFit:"contain"}}
+        onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
+      <div style={{display:"none",width:48,height:48,borderRadius:14,
+        background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
+        alignItems:"center",justifyContent:"center",
+        fontSize:20,fontWeight:900,color:"#fff",boxShadow:`0 0 30px ${BRAND}40`}}>U</div>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+        <div style={{color:TXT,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:600,letterSpacing:"-0.01em"}}>
+          Torre de Control
+        </div>
+        <div style={{color:TXT3,fontFamily:"'Inter',sans-serif",fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>
+          Cargando datos...
+        </div>
+      </div>
+    </div>
+  );
+
+  if(error)return(
+    <div style={{display:"flex",justifyContent:"center",alignItems:"center",height:"100vh",background:BG}}>
+      <div style={{background:SURFACE,border:`1px solid ${C.red}40`,borderRadius:16,padding:"32px 36px",
+        textAlign:"center",maxWidth:400}}>
+        <div style={{width:44,height:44,borderRadius:12,background:C.red+"18",display:"flex",
+          alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+          <Icon name="megaphone" size={20} color={C.red}/>
+        </div>
+        <div style={{color:C.red,fontSize:12,lineHeight:1.8,fontFamily:"'Inter',sans-serif"}}>{error}</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <>
+      <style>{`
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        html,body{background:${BG};font-family:'Inter',sans-serif;color:${TXT};height:100%;overflow:hidden}
+        ::-webkit-scrollbar{width:5px;height:5px}
+        ::-webkit-scrollbar-track{background:${BG}}
+        ::-webkit-scrollbar-thumb{background:${BORDER2};border-radius:4px}
+        ::-webkit-scrollbar-thumb:hover{background:#2D3A50}
+        input[type=number]{-moz-appearance:textfield}
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+        input::placeholder{color:${TXT3}}
+        input:focus,select:focus{outline:none;border-color:${BRAND}!important;box-shadow:0 0 0 3px ${BRAND}20!important}
+        select option{background:${SURFACE2};color:${TXT}}
+        button{transition:all .15s ease}
+        .fade-in{animation:fi .22s ease}
+        @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+        .sidebar-item:hover{background:${SURFACE2}!important;color:${TXT}!important}
+        .sidebar-item.active{background:${BRAND}18!important;color:${BRAND}!important;border-left:2px solid ${BRAND}!important}
+        .tab-btn:hover{background:${SURFACE2}!important}
+        @media (max-width:767px){
+          .sidebar{display:none!important}
+          .main-content{margin-left:0!important}
+          .mobile-nav{display:flex!important}
+          .mobile-topbar-extra{display:none!important}
+          .page-content{padding:12px 12px 90px!important}
+        }
+        @media (min-width:768px){
+          .mobile-nav{display:none!important}
+          .mobile-period-bar{display:none!important}
+        }
+      `}</style>
+      <div style={{height:"100vh",background:BG,color:TXT,display:"flex",overflow:"hidden"}}>
+
+        {/* Sidebar */}
+        <div className="sidebar" style={{width:220,flexShrink:0,background:SURFACE,borderRight:`1px solid ${BORDER}`,
+          display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:100,
+          overflowY:"auto"}}>
+
+          {/* Logo */}
+          <div style={{padding:"20px 18px 16px",borderBottom:`1px solid ${BORDER}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <img src="logo.png" alt="Unlocked" style={{width:30,height:30,objectFit:"contain"}}
+                onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
+              <div style={{display:"none",width:30,height:30,borderRadius:8,
+                background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
+                alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>U</div>
+              <div>
+                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED</div>
+                <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Command Center</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Month/Year selectors */}
+          <div style={{padding:"14px 14px 10px",borderBottom:`1px solid ${BORDER}`}}>
+            <Lbl style={{marginBottom:8}}>Período</Lbl>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <select value={month} onChange={e=>setMonth(Number(e.target.value))}
+                style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                  color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
+                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+              </select>
+              <select value={year} onChange={e=>setYear(Number(e.target.value))}
+                style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                  color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
+                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Nav items */}
+          <nav style={{padding:"10px 10px",flex:1}}>
+            <Lbl style={{marginLeft:8,marginBottom:6}}>Navegación</Lbl>
+            {TABS.map(t=>{
+              const active=tab===t.id;
+              const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
+              return(
+                <button key={t.id} onClick={()=>setTab(t.id)}
+                  className={`sidebar-item${active?" active":""}`}
+                  style={{width:"100%",textAlign:"left",background:active?BRAND+"18":"transparent",
+                    border:"none",borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
+                    borderRadius:active?"0 9px 9px 0":"0 9px 9px 0",
+                    padding:"9px 12px",cursor:"pointer",
+                    color:active?BRAND:TXT2,fontSize:12,fontWeight:active?700:500,
+                    fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                    gap:9,marginBottom:2,position:"relative",transition:"all .15s"}}>
+                  <Icon name={t.icon} size={15} color={active?BRAND:TXT3}/>
+                  <span>{t.l}</span>
+                  {hasAlert&&<span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+                    width:6,height:6,background:C.red,borderRadius:100}}/>}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Footer info */}
+          <div style={{padding:"12px 16px",borderTop:`1px solid ${BORDER}`}}>
+            <div style={{fontSize:9,color:TXT3,letterSpacing:"0.05em",lineHeight:1.6,marginBottom:10}}>
+              <div style={{color:TXT2,fontWeight:600,marginBottom:2}}>{MONTHS[month]} {year}</div>
+              <div>Día {kpi.day} de {MDAYS[month]}</div>
+              {kpi.funnel.revenue&&<div style={{color:BRAND,fontWeight:600,marginTop:2}}>{fD(nv(kpi.funnel.revenue))} revenue</div>}
+            </div>
+            <button onClick={toggleTheme} style={{
+              width:"100%",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+              padding:"8px 10px",cursor:"pointer",color:TXT2,fontSize:11,fontWeight:600,
+              fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",gap:8,
+              transition:"all .15s"}}>
+              <Icon name={isDark?"trendUp":"barChart"} size={13} color={TXT3}/>
+              {isDark?"Modo Claro":"Modo Oscuro"}
+            </button>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="main-content" style={{flex:1,marginLeft:220,height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {/* Top bar */}
+          <div style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,
+            padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",
+            position:"sticky",top:0,zIndex:50}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
+              <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
+                {TABS.find(t=>t.id===tab)?.l}
+              </div>
+              <div className="mobile-topbar-extra" style={{fontSize:10,color:TXT3,marginTop:4,letterSpacing:"0.02em"}}>
+                {MONTHS[month].toUpperCase()} {year} · DÍA {kpi.day} DE {MDAYS[month]}
+                {mQual>0&&<> · <span style={{color:cH(pv(mShows,mQual),60,40)}}>{fP(pv(mShows,mQual))} show-up</span></>}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile period bar */}
+          <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8}}>
+            <select value={month} onChange={e=>setMonth(Number(e.target.value))}
+              style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
+                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+              {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+            </select>
+            <select value={year} onChange={e=>setYear(Number(e.target.value))}
+              style={{width:80,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
+                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+              {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+            </select>
+          </div>
+
+          {/* Page content */}
+          <div style={{padding:"20px 24px 60px",flex:1,overflowY:"auto",overflowX:"hidden"}} className="fade-in page-content">
+            {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
+            {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
+            {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
+            {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
+            {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
+            {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
+            {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
+            {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
+            {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+          </div>
+        </div>
+
+        {/* Mobile bottom nav */}
+        <div className="mobile-nav" style={{
+          position:"fixed",bottom:0,left:0,right:0,zIndex:200,
+          background:SURFACE,borderTop:`1px solid ${BORDER}`,
+          display:"none",overflowX:"auto",
+          boxShadow:"0 -4px 20px rgba(0,0,0,.2)"}}>
+          <div style={{display:"flex",minWidth:"max-content",padding:"6px 4px 8px"}}>
+            {TABS.map(t=>{
+              const active=tab===t.id;
+              return(
+                <button key={t.id} onClick={()=>setTab(t.id)} style={{
+                  display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+                  background:"transparent",border:"none",cursor:"pointer",
+                  padding:"6px 14px",borderRadius:10,
+                  color:active?BRAND:TXT3,
+                  transition:"all .15s",flexShrink:0}}>
+                  <Icon name={t.icon} size={20} color={active?BRAND:TXT3}/>
+                  <span style={{fontSize:9,fontWeight:active?700:500,
+                    fontFamily:"'Inter',sans-serif",letterSpacing:"0.01em",
+                    color:active?BRAND:TXT3,whiteSpace:"nowrap"}}>{t.l}</span>
+                  {active&&<div style={{width:16,height:2,background:BRAND,borderRadius:2}}/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
