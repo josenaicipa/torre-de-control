@@ -437,7 +437,7 @@ const ResumenEquipo=({year,month,allDaily})=>{
                   {Object.keys(byDate[date]).map(m=><MemberBadge key={m} name={m}/>)}
                 </div>
               </div>
-              <div style={{overflowX:"auto"}}>
+              <div className="sticky-table-wrap" style={{overflowX:"auto"}}>
                 <table style={{borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace",width:"100%"}}>
                   <thead>
                     <tr style={{borderBottom:`1px solid ${BORDER}`}}>
@@ -702,7 +702,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
       {/* FUNNEL A HOY */}
       <div style={block}>
         <SectionTitle>Funnel a hoy — Plan vs Real · Día {day}/{dm} ({fP(pctTranscurrido*100,0)} transcurrido)</SectionTitle>
-        <div style={{overflowX:"auto"}}>
+        <div className="sticky-table-wrap" style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
@@ -948,7 +948,7 @@ const AdsView=({entries,onAdd,onRemove})=>{
             <Stat label="CTR Prom."     value={fP(pv(tots.clicks,tots.impr))}   color={cH(pv(tots.clicks,tots.impr),2,1)}/>
           </div>
           <Card style={{padding:0,overflow:"hidden"}}>
-            <div style={{overflowX:"auto"}}>
+            <div className="sticky-table-wrap" style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
                 <thead>
                   <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
@@ -1033,7 +1033,7 @@ const HistoricoView=({allKpi,allDaily})=>{
             <div style={{padding:"13px 16px 7px",borderBottom:`1px solid ${BORDER}`}}>
               <STit icon="🗂" title="Histórico mensual"/>
             </div>
-            <div style={{overflowX:"auto"}}>
+            <div className="sticky-table-wrap" style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
                 <thead>
                   <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
@@ -1981,6 +1981,21 @@ function App(){
           .mobile-nav{display:flex!important}
           .mobile-topbar-extra{display:none!important}
           .page-content{padding:12px 12px 90px!important}
+          .sticky-table-wrap{-webkit-overflow-scrolling:touch}
+          .sticky-table-wrap thead th{
+            position:sticky;top:0;z-index:8;
+            background:${SURFACE2}!important;
+            box-shadow:0 1px 0 ${BORDER}
+          }
+          .sticky-table-wrap tbody td:first-child{
+            position:sticky;left:0;z-index:5;
+            background:${SURFACE}!important;
+            box-shadow:1px 0 0 ${BORDER}
+          }
+          .sticky-table-wrap thead th:first-child{
+            position:sticky;left:0;z-index:11;
+            background:${SURFACE2}!important
+          }
         }
         @media (min-width:768px){
           .mobile-nav{display:none!important}
