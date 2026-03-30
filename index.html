@@ -656,12 +656,12 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         {/* REALIDAD DEL MES */}
         <div style={block}>
           <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
-          <Row2 label="Cash Collected" value={fD(totalCash)} bold color={C.green}/>
-          <Row2 label="Recurring Cash Collected" value={fD(totalRecurring)} color={C.green}/>
-          <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
-          <Row2 label="Comprometido HT" value={fD(totalValorHT)} color={BRAND}/>
+          <Row2 label="Comprometido HT" value={fD(totalValorHT)} bold color={BRAND}/>
           <Row2 label="Venta Low Ticket" value={fD(totalValorLT)} color={C.teal}/>
-          <Row2 label="Total HT + LT (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
+          <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
+          <Row2 label="Cash Collected" value={fD(totalCash)} color={C.green}/>
+          <Row2 label="Recurring Cash Collected" value={fD(totalRecurring)} color={C.green}/>
+          <Row2 label="Total Cash + Recurring + LT" value={fD(totalCash+totalRecurring+totalValorLT)} bold color={C.green}/>
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
           <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
