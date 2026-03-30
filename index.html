@@ -664,8 +664,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <Row2 label="Total Cash + Recurring + LT" value={fD(totalCash+totalRecurring+totalValorLT)} bold color={C.green}/>
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
-          <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
-          <Row2 label="Citas agendadas reales" value={fN(totalAgendas)}/>
+          <Row2 label="Leads calificados reales" value={fN(totalAgendasMes)}/>
+          <Row2 label="Citas agendadas reales" value={fN(totalLeads)}/>
           <Row2 label="Citas Show Up (asistidas)" value={fN(totalAsistidas)}/>
           <Row2 label="Ticket promedio (comprometido)" value={fD(ticketProm)} bold/>
           <Row2 label="Close rate real" value={fP(closeRateReal)} bold color={cH(closeRateReal,closeRateMeta*0.9,closeRateMeta*0.7)}/>
