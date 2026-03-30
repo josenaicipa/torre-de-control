@@ -548,6 +548,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const gapInversion=totalGasto-invEsperadaHoy;
 
   const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
+  const totalRecurring=sumF(closerEntries,"recurring_cash");
   const ventasUniMeta=ticketProm>0?metaMensual/ticketProm:0;
   const asistidaMeta=closeRateMeta>0?ventasUniMeta/(closeRateMeta/100):0;
   const agendaMeta=pctAgAsis>0?asistidaMeta/(pctAgAsis/100):0;
@@ -654,10 +655,13 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         {/* REALIDAD DEL MES */}
         <div style={block}>
           <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
-          <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
-          <Row2 label="Ventas $ (cash cobrado)" value={fD(totalCash)} bold color={C.green}/>
-          <Row2 label="Upfront Cash HT" value={fD(totalUpfront)} color={C.green}/>
-          <Row2 label="Cash Low Ticket" value={fD(totalValorLT)} color={C.teal}/>
+          <Row2 label="Cash Collected" value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label="Recurring Cash Collected" value={fD(totalRecurring)} color={C.green}/>
+          <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
+          <Row2 label="Comprometido HT" value={fD(totalValorHT)} color={BRAND}/>
+          <Row2 label="Comprometido LT" value={fD(totalValorLT)} color={C.teal}/>
+          <Row2 label="Total HT + LT (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
+          <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
           <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
           <Row2 label="Citas agendadas reales" value={fN(totalAgendas)}/>
