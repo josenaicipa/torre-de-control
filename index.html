@@ -556,9 +556,10 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const leadsMeta=pctLeadsAg>0?agendaMeta/(pctLeadsAg/100):0;
   const leadsPorDolar=metaMensual>0?leadsMeta/metaMensual:0;
 
+  const inversionPlaneadaAuto=roasObj>0?metaMensual/roasObj:0;
   const roasCash=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
-  const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
-  const roasUpfront=totalGasto>0&&totalUpfront>0?totalUpfront/totalGasto:null;
+  const roasCashRecurring=totalGasto>0&&(totalCash+totalRecurring)>0?(totalCash+totalRecurring)/totalGasto:null;
+  const roasComprometido=totalGasto>0&&totalValorHT>0?totalValorHT/totalGasto:null;
 
   const pctCumplProy=pv(proyeccion,metaMensual);
   const gapProy=proyeccion?proyeccion-metaMensual:null;
@@ -786,15 +787,15 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
 
         <div style={block}>
           <SectionTitle>Apoyo — Control Ads & ROAS</SectionTitle>
-          <Row2 label="Inversión planeada mes ($)" value={fD(inversionPlaneada)}/>
+          <Row2 label="Inversión planeada mes ($)" value={fD(inversionPlaneadaAuto)}/>
           <Row2 label="Inversión Ads real acumulada ($)" value={fD(totalGasto)} bold/>
-          <Row2 label="Inversión Ads esperada a hoy ($)" value={fD(invEsperadaHoy)}/>
-          <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={gapInversion>500?C.red:gapInversion<-500?C.green:TXT} bg={gapInversion>500?"#fef2f2":gapInversion<-500?"#f0fdf4":"transparent"}/>
+          <Row2 label="Inversión Ads esperada a hoy ($)" value={fD(inversionPlaneadaAuto*pctTranscurrido)}/>
+          <Row2 label="Gap inversión ($)" value={fD(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))} color={(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))>500?C.red:(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))<-500?C.green:TXT} bg={(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))>500?"#fef2f2":(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))<-500?"#f0fdf4":"transparent"}/>
           <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
           <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2}}>
-                {["","Cash Total","Upfront Cash","Comprometido HT"].map(h=>(
+                {["","Cash Collected","Cash + Recurring","Comprometido HT"].map(h=>(
                   <th key={h} style={{padding:"6px 10px",color:TXT3,textAlign:"center",fontSize:8,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</th>
                 ))}
               </tr>
@@ -803,7 +804,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
               <tr style={{borderTop:`1px solid ${BORDER}`}}>
                 <td style={{padding:"9px 10px",color:TXT2,fontSize:10}}>ROAS real</td>
                 <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasCash,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasCash)}</td>
-                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasUpfront,roasObj*0.5,roasObj*0.3),fontWeight:700}}>{fX(roasUpfront)}</td>
+                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasCashRecurring,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasCashRecurring)}</td>
                 <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasComprometido,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasComprometido)}</td>
               </tr>
               <tr style={{borderTop:`1px solid ${BORDER2}`}}>
