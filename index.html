@@ -536,8 +536,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const pctTranscurrido=day/dm;
   const metaEsperadaHoy=metaMensual*pctTranscurrido;
   const gapVsRitmo=totalValorHT-metaEsperadaHoy;
-  const proyeccion=day>0&&totalCash>0?(totalCash/day)*dm:null;
-  const pctCumpl=pv(totalCash,metaMensual);
+  const proyeccion=day>0&&totalValorHT>0?(totalValorHT/day)*dm:null;
+  const pctCumpl=pv(totalValorHT,metaMensual);
 
   const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
   const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;
@@ -694,9 +694,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             <Row2 label="% cumplimiento proyectado" value={fP(pctCumplProy)} bold color={cH(pctCumplProy,85,65)}/>
             <Row2 label="Gap proyectado vs meta ($)" value={gapProy!=null?fD(gapProy):"—"} bold color={gapProy!=null&&gapProy>=0?C.green:C.red} bg={gapProy!=null&&gapProy>=0?"#f0fdf4":"#fef2f2"}/>
           </div>
-          {totalCash>0&&(
+          {totalValorHT>0&&(
             <div style={{padding:"0 10px 12px"}}>
-              <Barz value={totalCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`Cash actual: ${fP(pctCumpl)}`} right={fD(totalCash)}/>
+              <Barz value={totalValorHT} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`Comprometido HT: ${fP(pctCumpl)}`} right={fD(totalValorHT)}/>
               {proyeccion&&<div style={{marginTop:6}}><Barz value={proyeccion} max={metaMensual} color={C.blue} h={5} label={`Proyección: ${fP(pctCumplProy)}`} right={fD(proyeccion)}/></div>}
             </div>
           )}
