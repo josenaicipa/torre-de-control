@@ -535,7 +535,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const ticketProm=totalVentas>0?totalValor/totalVentas:0;
   const pctTranscurrido=day/dm;
   const metaEsperadaHoy=metaMensual*pctTranscurrido;
-  const gapVsRitmo=totalCash-metaEsperadaHoy;
+  const gapVsRitmo=totalValorHT-metaEsperadaHoy;
   const proyeccion=day>0&&totalCash>0?(totalCash/day)*dm:null;
   const pctCumpl=pv(totalCash,metaMensual);
 
@@ -683,7 +683,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
           <Row2 label="Meta esperada a hoy ($)" value={fD(metaEsperadaHoy)} bold/>
-          <Row2 label="Ventas reales acumuladas ($)" value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label="Ventas reales acumuladas ($)" value={fD(totalValorHT)} bold color={C.green}/>
           <Row2 label="Gap vs ritmo ($)" value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
         </div>
 
