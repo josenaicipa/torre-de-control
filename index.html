@@ -790,7 +790,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <Row2 label="Inversión planeada mes ($)" value={fD(inversionPlaneadaAuto)}/>
           <Row2 label="Inversión Ads real acumulada ($)" value={fD(totalGasto)} bold/>
           <Row2 label="Inversión Ads esperada a hoy ($)" value={fD(inversionPlaneadaAuto*pctTranscurrido)}/>
-          <Row2 label="Gap inversión ($)" value={fD(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))} color={(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))>500?C.red:(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))<-500?C.green:TXT} bg={(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))>500?"#fef2f2":(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))<-500?"#f0fdf4":"transparent"}/>
+          <Row2 label="Gap inversión ($)" value={fD(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))} color={(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))>500?C.green:(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))<-500?C.red:TXT} bg={(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))>500?"#f0fdf4":(totalGasto-(inversionPlaneadaAuto*pctTranscurrido))<-500?"#fef2f2":"transparent"}/>
           <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
           <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
