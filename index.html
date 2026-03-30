@@ -517,6 +517,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const totalLeads=sumF(closerEntries,"agendas_calificadas");
   const totalAgendas=sumF(closerEntries,"agendas_final");
   const totalAsistidas=sumF(closerEntries,"citas_asistidas");
+  const totalAgendasMes=sumF(closerEntries,"agendas_organicas")+sumF(closerEntries,"agendas_meta")+sumF(closerEntries,"agendas_google")+sumF(closerEntries,"agendas_tiktok")+sumF(closerEntries,"agendas_otros");
   // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
   const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
   const totalGastoGoogle=sumF(dailyEntries,"gastoGoogle");
@@ -563,11 +564,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const gapProy=proyeccion?proyeccion-metaMensual:null;
 
   const funnelRows=[
-    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
+    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValorHT,fmt:"$"},
     {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
-    {l:"Citas asistidas",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
-    {l:"Citas agend. calificadas",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
-    {l:"Leads calificados",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+    {l:"Citas asistidas (Show Ups)",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
+    {l:"Citas agend. calificadas",req:agendaMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+    {l:"Total Agendadas",req:leadsMeta*pctTranscurrido,real:totalAgendasMes,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{
