@@ -540,8 +540,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const proyeccion=day>0&&totalValorHT>0?(totalValorHT/day)*dm:null;
   const pctCumpl=pv(totalValorHT,metaMensual);
 
-  const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
-  const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;
+  const pctLeadsAgReal=totalAgendasMes>0?pv(totalLeads,totalAgendasMes):null;
+  const pctAgAsisReal=totalLeads>0?pv(totalAsistidas,totalLeads):null;
   const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;
 
   const roasReal=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
