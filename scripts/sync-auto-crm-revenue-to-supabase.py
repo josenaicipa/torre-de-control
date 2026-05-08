@@ -1,20 +1,45 @@
 #!/usr/bin/env python3
 """Conservative auto-sync of CRM agendas + revenue into Torre de Control's daily_closer.
 
-Reads three Unlocked dashboard exports:
-  - crm-calls-lite.json          (booked/qualified/showed CRM calls, by call date)
-  - daily-closers-history-lite.json  (parity reference; not yet written, kept for
-                                      future reconciliation)
-  - payments-lead-join.json      (HT/LT close + reserve revenue, by sale date)
+Reads three Unlocked dashboard exports and produces a partial daily_closer row
+per date:
 
-Computes a partial daily_closer row per date with channel splits and HT/LT
-revenue, then upserts into Supabase.
+  - crm-calls-lite.json
+        agendas_<channel>: every CRM call row, keyed by `call.date[:10]`
+                           (booked/created day) and split via channel_for_call.
+        cal_<channel>:     subset of those rows with is_qualified == true.
+  - daily-closers-history-lite.json
+        hoy_<channel>:     appointments scheduled FOR that report date, taken
+                           from `dates[date].all_leads` and deduped by
+                           contactId/email so the count tracks
+                           `appointment_unique_contacts` when available.
+                           Channel is resolved by looking up the lead in the
+                           CRM index (contactId, then email) and applying
+                           channel_for_call; otherwise a calendar/source
+                           fallback is used.
+        show_<channel>:    subset of hoy_<channel> with status in
+                           SHOWED_LEAD_STATUSES.
+  - payments-lead-join.json
+        q_ventas_ht / valor_venta_ht / q_ventas_lt / valor_venta_lt /
+        q_reservas / cash_reservas, by sale date with the HT close-threshold
+        rule.
+
+Totals derived from the channel splits:
+  agendas_calificadas = sum(cal_*)
+  agendas_final       = sum(hoy_*)
+  citas_asistidas     = sum(show_*)
 
 Safety:
   * Default mode is dry-run unless --write is passed.
-  * Never overwrites a non-zero Supabase value with a different generated value;
-    only fills zero/null fields. Conflicting (existing != generated and existing
-    != 0) writes are recorded in skipped_conflicts and not touched.
+  * Default merge is conservative: never overwrites a non-zero Supabase value
+    with a different generated value; only fills zero/null fields. Conflicting
+    rows are recorded in skipped_conflicts and the existing value is kept.
+  * --repair-existing flips that for the active --field-group: non-zero
+    existing values that differ from the generated value are overwritten and
+    recorded in repaired_conflicts. This is the only path that can clobber
+    non-zero data.
+  * --field-group {all,crm,revenue} restricts the write surface so an operator
+    can run a CRM-only repair without touching revenue columns.
   * Reads Supabase URL/key from index.html the same way sync-ad-spend uses.
 """
 from __future__ import annotations
@@ -38,16 +63,30 @@ DEFAULT_PAYMENTS = DEFAULT_BASE / "payments-lead-join.json"
 
 CHANNELS = ("organicas", "meta", "google", "tiktok", "otros")
 
-# Fields we are willing to fill on an empty/zero day.
-WRITE_FIELDS = (
+# Fields we are willing to fill on an empty/zero day, grouped by domain.
+# CRM_FIELDS: derived from CRM calls + GHL appointment history.
+# REVENUE_FIELDS: derived from payments-lead-join.
+CRM_FIELDS: tuple[str, ...] = (
+    *(f"agendas_{c}" for c in CHANNELS),
     *(f"cal_{c}" for c in CHANNELS),
     *(f"hoy_{c}" for c in CHANNELS),
     *(f"show_{c}" for c in CHANNELS),
+    "agendas_calificadas", "agendas_final", "citas_asistidas",
+)
+REVENUE_FIELDS: tuple[str, ...] = (
     "q_ventas_ht", "valor_venta_ht",
     "q_ventas_lt", "valor_venta_lt",
     "q_reservas", "cash_reservas",
-    "agendas_calificadas", "agendas_final", "citas_asistidas",
 )
+WRITE_FIELDS: tuple[str, ...] = CRM_FIELDS + REVENUE_FIELDS
+
+
+def fields_for_group(group: str) -> tuple[str, ...]:
+    if group == "crm":
+        return CRM_FIELDS
+    if group == "revenue":
+        return REVENUE_FIELDS
+    return WRITE_FIELDS
 
 HT_CLOSE_THRESHOLD_USD = 450.0
 
@@ -170,15 +209,81 @@ def is_showed(call: dict[str, Any]) -> bool:
     return False
 
 
+# ─── lead-side helpers (daily-closers-history-lite all_leads) ────────────────
+
+# Statuses in `all_leads` that count as a showed appointment.
+SHOWED_LEAD_STATUSES = ("showed", "show", "show_up", "showup")
+
+
+def channel_for_lead_fallback(lead: dict[str, Any]) -> str:
+    """Best-effort channel inference for a lead row when no CRM call matches."""
+    cal = (lead.get("calendarName") or "").lower()
+    src = (lead.get("source") or "").lower()
+    text = f"{cal} {src}"
+    if any(tok in cal for tok in ORGANIC_TOKENS):
+        return "organicas"
+    if any(h in text for h in TIKTOK_HINTS):
+        return "tiktok"
+    if any(h in text for h in GOOGLE_HINTS):
+        return "google"
+    if any(h in text for h in META_HINTS):
+        return "meta"
+    if any(tok in cal for tok in PAID_TOKENS):
+        return "meta"
+    return "otros"
+
+
+def channel_for_lead(
+    lead: dict[str, Any],
+    by_contact: dict[str, dict[str, Any]],
+    by_email: dict[str, dict[str, Any]],
+) -> str:
+    """Resolve channel for an appointment lead via CRM lookup, then fallback."""
+    cid = lead.get("contactId")
+    if isinstance(cid, str) and cid and cid in by_contact:
+        return channel_for_call(by_contact[cid])
+    em = (lead.get("email") or "").strip().lower()
+    if em and em in by_email:
+        return channel_for_call(by_email[em])
+    return channel_for_lead_fallback(lead)
+
+
+def build_crm_index(crm_path: Path) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Index CRM calls by contactId and email so we can look up channel for an appointment lead.
+
+    When multiple calls match the same key, keep the most recent one by `date` so
+    the inferred channel reflects the latest sourcing.
+    """
+    payload = json.loads(crm_path.read_text(encoding="utf-8"))
+    by_contact: dict[str, dict[str, Any]] = {}
+    by_email: dict[str, dict[str, Any]] = {}
+    for call in payload.get("calls", []):
+        d = call.get("date") or ""
+        cid = call.get("contactId")
+        if isinstance(cid, str) and cid:
+            prev = by_contact.get(cid)
+            if not prev or d >= (prev.get("date") or ""):
+                by_contact[cid] = call
+        em = (call.get("email") or "").strip().lower()
+        if em:
+            prev = by_email.get(em)
+            if not prev or d >= (prev.get("date") or ""):
+                by_email[em] = call
+    return by_contact, by_email
+
+
 # ─── builders ────────────────────────────────────────────────────────────────
 
-def build_call_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
+def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
+    """agendas_* (every CRM row) + cal_* (qualified subset), keyed by booked/created date.
+
+    `call.date` in crm-calls-lite is the booked/created day, so we use that directly.
+    """
     payload = json.loads(crm_path.read_text(encoding="utf-8"))
     calls = payload.get("calls", [])
     by_date: dict[str, dict[str, int]] = defaultdict(lambda: {f: 0 for f in (
+        *(f"agendas_{c}" for c in CHANNELS),
         *(f"cal_{c}" for c in CHANNELS),
-        *(f"hoy_{c}" for c in CHANNELS),
-        *(f"show_{c}" for c in CHANNELS),
     )})
 
     for call in calls:
@@ -187,14 +292,62 @@ def build_call_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
             continue
         date = date[:10]
         ch = channel_for_call(call)
-        # hoy_* = booked / created by call date (every CRM row counted)
-        by_date[date][f"hoy_{ch}"] += 1
+        by_date[date][f"agendas_{ch}"] += 1
         if is_qualified(call):
             by_date[date][f"cal_{ch}"] += 1
-        if is_showed(call):
-            by_date[date][f"show_{ch}"] += 1
 
     return by_date
+
+
+def build_appointment_metrics(
+    history_path: Path,
+    by_contact: dict[str, dict[str, Any]],
+    by_email: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, int]]:
+    """hoy_* (scheduled appointments) + show_* (showed subset), keyed by report date.
+
+    Reads `dates[date].all_leads` from daily-closers-history-lite and dedupes by
+    contactId, then by email, so the count tracks `appointment_unique_contacts`
+    when those identifiers are present. Channel is resolved via CRM lookup
+    (contactId, then email), with a calendar/source fallback.
+    """
+    if not history_path.exists():
+        return {}
+    payload = json.loads(history_path.read_text(encoding="utf-8"))
+    dates_obj = payload.get("dates") or {}
+    out: dict[str, dict[str, int]] = {}
+    for date, day in dates_obj.items():
+        if not isinstance(date, str) or len(date) < 10 or not isinstance(day, dict):
+            continue
+        date_key = date[:10]
+        leads = day.get("all_leads") or []
+        if not isinstance(leads, list):
+            continue
+        bucket = {f"hoy_{c}": 0 for c in CHANNELS}
+        bucket.update({f"show_{c}": 0 for c in CHANNELS})
+        seen: set[tuple[str, str]] = set()
+        for idx, lead in enumerate(leads):
+            if not isinstance(lead, dict):
+                continue
+            cid = lead.get("contactId")
+            em = (lead.get("email") or "").strip().lower()
+            if isinstance(cid, str) and cid:
+                key = ("c", cid)
+            elif em:
+                key = ("e", em)
+            else:
+                # Anonymous row: keep it, but make the dedupe key unique per row.
+                key = ("r", f"{date_key}:{idx}")
+            if key in seen:
+                continue
+            seen.add(key)
+            ch = channel_for_lead(lead, by_contact, by_email)
+            bucket[f"hoy_{ch}"] += 1
+            status = (lead.get("status") or "").strip().lower()
+            if status in SHOWED_LEAD_STATUSES:
+                bucket[f"show_{ch}"] += 1
+        out[date_key] = bucket
+    return out
 
 
 def build_revenue_metrics(payments_path: Path) -> dict[str, dict[str, float]]:
@@ -252,21 +405,24 @@ def build_revenue_metrics(payments_path: Path) -> dict[str, dict[str, float]]:
     return by_date
 
 
-def build_rows(crm_path: Path, payments_path: Path) -> list[dict[str, Any]]:
-    calls = build_call_metrics(crm_path)
+def build_rows(crm_path: Path, payments_path: Path, history_path: Path) -> list[dict[str, Any]]:
+    by_contact, by_email = build_crm_index(crm_path)
+    booked = build_booked_metrics(crm_path)
+    appts = build_appointment_metrics(history_path, by_contact, by_email)
     payments = build_revenue_metrics(payments_path)
-    dates = sorted(set(calls) | set(payments))
+    dates = sorted(set(booked) | set(appts) | set(payments))
 
     rows: list[dict[str, Any]] = []
     for date in dates:
         row: dict[str, Any] = {"date": date}
-        # call channel splits
-        c = calls.get(date) or {}
+        b = booked.get(date) or {}
+        a = appts.get(date) or {}
         for ch in CHANNELS:
-            row[f"cal_{ch}"] = int(c.get(f"cal_{ch}", 0))
-            row[f"hoy_{ch}"] = int(c.get(f"hoy_{ch}", 0))
-            row[f"show_{ch}"] = int(c.get(f"show_{ch}", 0))
-        # totals
+            row[f"agendas_{ch}"] = int(b.get(f"agendas_{ch}", 0))
+            row[f"cal_{ch}"] = int(b.get(f"cal_{ch}", 0))
+            row[f"hoy_{ch}"] = int(a.get(f"hoy_{ch}", 0))
+            row[f"show_{ch}"] = int(a.get(f"show_{ch}", 0))
+        # totals derived from the channel splits
         row["agendas_calificadas"] = sum(row[f"cal_{ch}"] for ch in CHANNELS)
         row["agendas_final"] = sum(row[f"hoy_{ch}"] for ch in CHANNELS)
         row["citas_asistidas"] = sum(row[f"show_{ch}"] for ch in CHANNELS)
@@ -304,13 +460,18 @@ def _supabase_request(url: str, key: str, method: str, path: str,
         raise RuntimeError(f"Supabase {method} {path} failed HTTP {exc.code}: {details}") from exc
 
 
-def fetch_existing(url: str, key: str, dates: list[str]) -> dict[str, dict[str, Any]]:
-    """Fetch existing daily_closer rows for the given dates."""
+def fetch_existing(
+    url: str,
+    key: str,
+    dates: list[str],
+    fields: tuple[str, ...] = WRITE_FIELDS,
+) -> dict[str, dict[str, Any]]:
+    """Fetch existing daily_closer rows for the given dates, selecting only `fields`."""
     if not dates:
         return {}
     out: dict[str, dict[str, Any]] = {}
     chunk = 100
-    select = "select=" + ",".join(("date", *WRITE_FIELDS))
+    select = "select=" + ",".join(("date", *fields))
     for i in range(0, len(dates), chunk):
         sub = dates[i:i + chunk]
         in_clause = "in.(" + ",".join(urllib.parse.quote(d, safe="") for d in sub) + ")"
@@ -325,18 +486,30 @@ def fetch_existing(url: str, key: str, dates: list[str]) -> dict[str, dict[str, 
     return out
 
 
-def merge_safely(generated: dict[str, Any], existing: dict[str, Any] | None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Build the safe payload for one date.
+def merge_safely(
+    generated: dict[str, Any],
+    existing: dict[str, Any] | None,
+    *,
+    fields: tuple[str, ...] = WRITE_FIELDS,
+    repair_existing: bool = False,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build the safe payload for one date over `fields` only.
 
-    For each WRITE_FIELDS field:
-      * if existing is missing or the existing value is zero/null -> write generated value
-      * if existing value is non-zero AND generated value differs -> keep existing,
-        report a skipped_conflict
-      * if existing value equals generated -> still write the same value (no-op)
+    Default (conservative) behaviour:
+      * if existing is missing or the existing value is zero/null -> write generated
+      * if existing value is non-zero AND generated value differs -> keep existing
+        and record a skipped_conflict
+      * if existing value equals generated -> write the same value (no-op)
+
+    With `repair_existing=True`, non-zero existing values that differ from the
+    generated value are *overwritten* and recorded as `repaired` instead of
+    skipped. Equal/zero/null cases stay unchanged. This is the only path that
+    can clobber an existing non-zero value, so it must be opted into explicitly.
     """
     out: dict[str, Any] = {"date": generated["date"]}
-    conflicts: list[dict[str, Any]] = []
-    for field in WRITE_FIELDS:
+    skipped: list[dict[str, Any]] = []
+    repaired: list[dict[str, Any]] = []
+    for field in fields:
         gen_v = generated.get(field, 0)
         if existing is None:
             out[field] = gen_v
@@ -344,22 +517,31 @@ def merge_safely(generated: dict[str, Any], existing: dict[str, Any] | None) -> 
         cur_v = existing.get(field)
         if cur_v in (None, 0, 0.0):
             out[field] = gen_v
+            continue
+        try:
+            same = float(cur_v) == float(gen_v)
+        except (TypeError, ValueError):
+            same = cur_v == gen_v
+        if same:
+            out[field] = gen_v
+            continue
+        if repair_existing:
+            out[field] = gen_v
+            repaired.append({
+                "date": generated["date"],
+                "field": field,
+                "previous": cur_v,
+                "generated": gen_v,
+            })
         else:
-            try:
-                same = float(cur_v) == float(gen_v)
-            except (TypeError, ValueError):
-                same = cur_v == gen_v
-            if same:
-                out[field] = gen_v
-            else:
-                out[field] = cur_v
-                conflicts.append({
-                    "date": generated["date"],
-                    "field": field,
-                    "existing": cur_v,
-                    "generated": gen_v,
-                })
-    return out, conflicts
+            out[field] = cur_v
+            skipped.append({
+                "date": generated["date"],
+                "field": field,
+                "existing": cur_v,
+                "generated": gen_v,
+            })
+    return out, skipped, repaired
 
 
 def upsert_rows(url: str, key: str, rows: list[dict[str, Any]], chunk_size: int = 100) -> None:
@@ -376,17 +558,21 @@ def upsert_rows(url: str, key: str, rows: list[dict[str, Any]], chunk_size: int 
 
 # ─── summary ─────────────────────────────────────────────────────────────────
 
-def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize(
+    rows: list[dict[str, Any]],
+    fields: tuple[str, ...] = WRITE_FIELDS,
+) -> dict[str, Any]:
     if not rows:
         return {"rows": 0}
-    totals = {f: 0 for f in WRITE_FIELDS}
+    totals: dict[str, float] = {f: 0 for f in fields}
     for row in rows:
-        for f in WRITE_FIELDS:
+        for f in fields:
             v = row.get(f)
             if isinstance(v, (int, float)):
                 totals[f] += v
     for f in ("valor_venta_ht", "valor_venta_lt", "cash_reservas"):
-        totals[f] = round(totals[f], 2)
+        if f in totals:
+            totals[f] = round(totals[f], 2)
     return {
         "rows": len(rows),
         "first_date": rows[0]["date"],
@@ -413,50 +599,71 @@ def main() -> int:
     parser.add_argument("--since", type=str, default=None, help="Optional ISO date lower bound (inclusive)")
     parser.add_argument("--until", type=str, default=None, help="Optional ISO date upper bound (inclusive)")
     parser.add_argument("--max-conflicts-shown", type=int, default=20,
-                        help="Cap how many skipped_conflicts items appear in the JSON summary")
+                        help="Cap how many skipped/repaired conflict items appear in the JSON summary")
+    parser.add_argument("--field-group", choices=("all", "crm", "revenue"), default="all",
+                        help="Restrict the write surface. 'crm' covers agendas/cal/hoy/show + totals; "
+                             "'revenue' covers q_ventas/valor/reservas; 'all' is the union.")
+    parser.add_argument("--repair-existing", action="store_true",
+                        help="Authorized repair mode: overwrite non-zero existing values with the "
+                             "generated value when they differ. Default is conservative (preserve "
+                             "existing non-zero values). Combine with --field-group crm to limit "
+                             "repairs to CRM-derived columns.")
     args = parser.parse_args()
 
     if args.dry_run and args.write:
         print("Refusing to run with both --dry-run and --write.", file=sys.stderr)
         return 2
     do_write = bool(args.write) and not args.dry_run
+    fields = fields_for_group(args.field_group)
 
     if not args.history.exists():
-        # not fatal: the script does not write from history yet, but warn for visibility
+        # No history -> hoy_*/show_* will be zero. Warn so the operator notices.
         print(f"warning: history file missing: {args.history}", file=sys.stderr)
 
-    rows = build_rows(args.crm, args.payments)
+    rows = build_rows(args.crm, args.payments, args.history)
     if args.since:
         rows = [r for r in rows if r["date"] >= args.since]
     if args.until:
         rows = [r for r in rows if r["date"] <= args.until]
 
-    summary = summarize(rows)
+    summary = summarize(rows, fields=fields)
     output: dict[str, Any] = {
         "mode": "write" if do_write else "dry_run",
+        "field_group": args.field_group,
+        "repair_existing": bool(args.repair_existing),
         "summary": summary,
         "sample": rows[-3:],
     }
 
     url, key = parse_supabase_config(args.index)
     dates = [r["date"] for r in rows]
-    existing = fetch_existing(url, key, dates)
+    existing = fetch_existing(url, key, dates, fields=fields)
 
     safe_rows: list[dict[str, Any]] = []
     all_conflicts: list[dict[str, Any]] = []
+    all_repaired: list[dict[str, Any]] = []
     filled_dates: list[str] = []
     for row in rows:
-        merged, conflicts = merge_safely(row, existing.get(row["date"]))
-        if any(merged.get(f) for f in WRITE_FIELDS):
+        merged, conflicts, repaired = merge_safely(
+            row,
+            existing.get(row["date"]),
+            fields=fields,
+            repair_existing=bool(args.repair_existing),
+        )
+        if any(merged.get(f) for f in fields):
             safe_rows.append(merged)
             filled_dates.append(row["date"])
         all_conflicts.extend(conflicts)
+        all_repaired.extend(repaired)
 
+    cap = max(0, int(args.max_conflicts_shown or 0))
     output["safe_rows"] = len(safe_rows)
     output["safe_date_range"] = [filled_dates[0], filled_dates[-1]] if filled_dates else None
     output["existing_rows_seen"] = len(existing)
     output["skipped_conflicts_total"] = len(all_conflicts)
-    output["skipped_conflicts_sample"] = all_conflicts[: args.max_conflicts_shown]
+    output["skipped_conflicts_sample"] = all_conflicts[:cap]
+    output["repaired_conflicts_total"] = len(all_repaired)
+    output["repaired_conflicts_sample"] = all_repaired[:cap]
 
     if not do_write:
         print(json.dumps(output, indent=2, ensure_ascii=False))
