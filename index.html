@@ -66,6 +66,24 @@ const blankCloser=()=>({
   hoy_organicas:0,hoy_meta:0,hoy_google:0,hoy_tiktok:0,hoy_otros:0,
   show_organicas:0,show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
 });
+const DAILY_ENTRY_FIELDS=["igFollowers","posts","mensajes","followUps","bkOffers","gastoMeta","gastoGoogle","gastoTikTok","gastoOtros"];
+const CLOSER_ENTRY_FIELDS=[
+  "q_ventas_ht","valor_venta_ht","upfront_cash_ht","ventas_cash","recurring_cash",
+  "q_ventas_lt","valor_venta_lt","total_clientes_activos","q_reservas","cash_reservas",
+  "q_reembolsos","valor_reembolsos","agendas_organicas","agendas_meta","agendas_google",
+  "agendas_tiktok","agendas_otros","cal_organicas","cal_meta","cal_google","cal_tiktok",
+  "cal_otros","hoy_organicas","hoy_meta","hoy_google","hoy_tiktok","hoy_otros",
+  "show_organicas","show_meta","show_google","show_tiktok","show_otros",
+  "agendas_calificadas","agendas_final","citas_asistidas"
+];
+const hasManualConflict=(existing,next,fields)=>{
+  if(!existing)return false;
+  return fields.some(k=>{
+    const oldVal=Number(existing[k]||0);
+    const newVal=Number(next[k]||0);
+    return oldVal!==0&&oldVal!==newVal;
+  });
+};
 
 const rowToEntry=row=>{
   return {
@@ -196,8 +214,13 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
   const totalGasto=(form.gastoMeta||0)+(form.gastoGoogle||0)+(form.gastoTikTok||0)+(form.gastoOtros||0);
 
   const handleSave=async()=>{
-    setSaving(true);
     const entry={...form,member,date};
+    const existing=allDaily[`${date}:${member}`];
+    if(hasManualConflict(existing,entry,DAILY_ENTRY_FIELDS)&&
+      !window.confirm("Ya hay datos cargados para este día/miembro. ¿Quieres modificar el dato existente o dejarlo así?")){
+      return;
+    }
+    setSaving(true);
     const ok=await onSave(`${date}:${member}`,entry);
     setSaving(false);
     if(ok!==false){setSaved(true);setTimeout(()=>setSaved(false),2500);}
@@ -1846,6 +1869,11 @@ function App(){
     const agendas_final=(data.hoy_organicas||0)+(data.hoy_meta||0)+(data.hoy_google||0)+(data.hoy_tiktok||0)+(data.hoy_otros||0);
     const citas_asistidas=(data.show_organicas||0)+(data.show_meta||0)+(data.show_google||0)+(data.show_tiktok||0)+(data.show_otros||0);
     const merged={...data,agendas_calificadas,agendas_final,citas_asistidas};
+    const existing=closerData[date];
+    if(hasManualConflict(existing,merged,CLOSER_ENTRY_FIELDS)&&
+      !window.confirm("Ya hay datos cargados para este día. ¿Quieres modificar el dato existente o dejarlo así?")){
+      return false;
+    }
     const nd={...closerData,[date]:merged};
     setCloserData(nd);
     await db.from("daily_closer").upsert({
