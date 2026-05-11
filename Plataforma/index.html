@@ -28,6 +28,19 @@ const MDAYS  = [31,28,31,30,31,30,31,31,30,31,30,31];
 const CANALES= ["Meta","TikTok","Google","YouTube","Orgánico","Otro"];
 const TEAM   = ["Karen","Luisa","Valen","Carlos","Dahiana","Otro"];
 
+// ─── Control Comercial (cross-origin audit notes) ────────────────────────────
+const CONTROL_NOTES_URL="https://metrics.unlockedecom.co/api/commercial-control-notes";
+const COMERCIAL_CLOSERS=["Carlos","Daryi","Karen","Luisa","Valen","Dahiana","Otro"];
+const COMERCIAL_OUTCOMES=[
+  {v:"Pendiente",          c:"#F59E0B"},
+  {v:"Atendido",           c:"#3B82F6"},
+  {v:"Cierre/Reserva",     c:"#22C55E"},
+  {v:"HOT seguimiento",    c:"#F97316"},
+  {v:"No show",            c:"#EF4444"},
+  {v:"Reagendado",         c:"#8B5CF6"},
+  {v:"Perdido/No califica",c:"#64748B"},
+];
+
 const BRAND="#E03A18",BRAND2="#C82A0A"; // Unlocked brand red
 const THEMES={
   dark:{BG:"#07090F",SURFACE:"#0E1117",SURFACE2:"#141925",BORDER:"#1C2333",BORDER2:"#222B3A",TXT:"#F1F5F9",TXT2:"#94A3B8",TXT3:"#475569"},
@@ -37,7 +50,7 @@ let BG,SURFACE,SURFACE2,BORDER,BORDER2,TXT,TXT2,TXT3,IS_DARK=false;
 const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];BG=t.BG;SURFACE=t.SURFACE;SURFACE2=t.SURFACE2;BORDER=t.BORDER;BORDER2=t.BORDER2;TXT=t.TXT;TXT2=t.TXT2;TXT3=t.TXT3;};
 applyTheme(false);
 const C={gold:BRAND,green:"#22C55E",amber:"#F59E0B",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F97316",pink:"#EC4899"};
-const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Otro:"#64748b"};
+const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Daryi:C.gold,Otro:"#64748b"};
 
 const nv=v=>{const x=Number(v);return(!v&&v!==0)||isNaN(x)?null:x};
 const dv=(a,b)=>{const x=nv(a),y=nv(b);return(!x||!y||y===0)?null:x/y};
@@ -91,6 +104,7 @@ const ICON_PATHS={
   megaphone:'M3 11l19-9-9 19-2-8-8-2z',
   user:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   lock:'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4',
+  clipboardCheck:'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2 M9 4h6v4H9z M9 14l2 2 4-4',
 };
 const Icon=({name,size=16,color="currentColor",strokeWidth=1.8})=>(
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -1730,17 +1744,328 @@ const AdminView=({allDaily,onSave,onDelete})=>{
   );
 };
 
+// ─── CONTROL COMERCIAL (audit-only — does NOT write to GHL) ────────────────
+const ControlComercial=()=>{
+  const [date,setDate]=useState(today());
+  const [notes,setNotes]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+  const [deleting,setDeleting]=useState(null);
+  const [form,setForm]=useState({
+    appointmentTime:"",lead:"",closer:COMERCIAL_CLOSERS[0],
+    outcome:COMERCIAL_OUTCOMES[0].v,nextAction:"",followUpAt:"",note:"",
+  });
+  const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const loadNotes=async()=>{
+    setLoading(true);
+    try{
+      const r=await fetch(CONTROL_NOTES_URL,{method:"GET"});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const j=await r.json();
+      if(!j.ok)throw new Error("API error");
+      setNotes(Array.isArray(j.notes)?j.notes:[]);
+      setLoadError(null);
+    }catch(e){
+      setLoadError("No se pudo conectar al servicio de control comercial. ("+(e.message||"error")+")");
+    }
+    setLoading(false);
+  };
+
+  useEffect(()=>{loadNotes();},[]);
+
+  const handleSave=async()=>{
+    if(!form.lead.trim()){alert("Falta el lead/cliente");return;}
+    setSaving(true);
+    const payload={
+      date,
+      appointmentAt:form.appointmentTime?`${date}T${form.appointmentTime}:00`:null,
+      lead:form.lead.trim(),
+      closer:form.closer,
+      outcome:form.outcome,
+      nextAction:form.nextAction.trim(),
+      followUpAt:form.followUpAt?`${form.followUpAt}T09:00:00`:null,
+      note:form.note.trim(),
+      source:"dashboard",
+    };
+    try{
+      const r=await fetch(CONTROL_NOTES_URL,{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify(payload),
+      });
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const j=await r.json();
+      if(!j.ok)throw new Error("API error");
+      setForm({appointmentTime:"",lead:"",closer:form.closer,
+        outcome:COMERCIAL_OUTCOMES[0].v,nextAction:"",followUpAt:"",note:""});
+      setSaved(true);
+      await loadNotes();
+      setTimeout(()=>setSaved(false),2500);
+    }catch(e){
+      alert("Error guardando: "+(e.message||"error"));
+    }
+    setSaving(false);
+  };
+
+  const handleDelete=async id=>{
+    if(!window.confirm("¿Eliminar este registro? Esta acción no se puede deshacer."))return;
+    setDeleting(id);
+    try{
+      const r=await fetch(CONTROL_NOTES_URL,{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify({action:"delete",id}),
+      });
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      await loadNotes();
+    }catch(e){
+      alert("Error eliminando: "+(e.message||"error"));
+    }
+    setDeleting(null);
+  };
+
+  const fmtTime=iso=>{
+    if(!iso)return "—";
+    const m=String(iso).match(/T(\d{2}):(\d{2})/);
+    return m?`${m[1]}:${m[2]}`:"—";
+  };
+  const fmtDate=iso=>{
+    if(!iso)return "—";
+    return String(iso).split("T")[0]||"—";
+  };
+  const outcomeColor=v=>(COMERCIAL_OUTCOMES.find(o=>o.v===v)||{}).c||"#64748B";
+
+  const dayNotes=notes.filter(n=>n.date===date);
+  const total=dayNotes.length;
+  const atendidos=dayNotes.filter(n=>n.outcome==="Atendido"||n.outcome==="Cierre/Reserva").length;
+  const pendientes=dayNotes.filter(n=>n.outcome==="Pendiente").length;
+  const followUp=dayNotes.filter(n=>n.outcome==="HOT seguimiento"||n.outcome==="Reagendado"||(n.followUpAt&&n.followUpAt.length>0)).length;
+  const noShow=dayNotes.filter(n=>n.outcome==="No show").length;
+  const sinAccion=dayNotes.filter(n=>!n.nextAction||!String(n.nextAction).trim()).length;
+
+  const byCloser={};
+  dayNotes.forEach(n=>{const c=n.closer||"Otro";if(!byCloser[c])byCloser[c]=[];byCloser[c].push(n);});
+  Object.values(byCloser).forEach(arr=>arr.sort((a,b)=>{
+    const av=a.appointmentAt||"";const bv=b.appointmentAt||"";
+    if(!av&&!bv)return 0;if(!av)return 1;if(!bv)return -1;
+    return av.localeCompare(bv);
+  }));
+  const closerKeys=Object.keys(byCloser).sort((a,b)=>byCloser[b].length-byCloser[a].length);
+
+  const fieldBox={background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+    color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
+    fontFamily:"'Inter',sans-serif",fontWeight:500,height:38,width:"100%"};
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* Audit-only banner */}
+      <Card style={{borderColor:C.amber+"55",background:C.amber+"10"}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+          <div style={{width:30,height:30,borderRadius:8,background:C.amber+"22",
+            display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <Icon name="lock" size={14} color={C.amber}/>
+          </div>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:C.amber,letterSpacing:"-0.01em",marginBottom:3}}>
+              Auditoría comercial interna
+            </div>
+            <div style={{fontSize:11,color:TXT2,lineHeight:1.55}}>
+              Este panel es solo para control y supervisión del equipo comercial. No escribe en GHL ni notifica al lead. Usa el CRM oficial para acciones que el cliente deba ver.
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Form */}
+      <Card>
+        <STit title="Nuevo registro" sub="Una entrada por cita o gestión comercial del día"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:11}}>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Fecha operativa</Lbl>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={fieldBox}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Hora cita</Lbl>
+            <input type="time" value={form.appointmentTime}
+              onChange={e=>sf("appointmentTime",e.target.value)} style={fieldBox}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Lead / cliente</Lbl>
+            <input type="text" value={form.lead}
+              onChange={e=>sf("lead",e.target.value)} placeholder="Nombre del cliente" style={fieldBox}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Closer</Lbl>
+            <select value={form.closer} onChange={e=>sf("closer",e.target.value)}
+              style={{...fieldBox,cursor:"pointer"}}>
+              {COMERCIAL_CLOSERS.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Resultado</Lbl>
+            <select value={form.outcome} onChange={e=>sf("outcome",e.target.value)}
+              style={{...fieldBox,cursor:"pointer"}}>
+              {COMERCIAL_OUTCOMES.map(o=><option key={o.v} value={o.v}>{o.v}</option>)}
+            </select>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Próxima acción</Lbl>
+            <input type="text" value={form.nextAction}
+              onChange={e=>sf("nextAction",e.target.value)}
+              placeholder="Ej. enviar oferta, llamar..." style={fieldBox}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Fecha follow-up</Lbl>
+            <input type="date" value={form.followUpAt}
+              onChange={e=>sf("followUpAt",e.target.value)} style={fieldBox}/>
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:5,marginTop:11}}>
+          <Lbl>Nota interna</Lbl>
+          <textarea value={form.note} onChange={e=>sf("note",e.target.value)} rows={2}
+            placeholder="Observación del closer o de supervisión..."
+            style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+              color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
+              fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center",marginTop:14,flexWrap:"wrap"}}>
+          <button onClick={handleSave} disabled={saving} style={{
+            background:saved?C.green:BRAND,color:"#fff",border:"none",
+            borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+            cursor:saving?"wait":"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+            transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+            opacity:saving?0.6:1}}>
+            {saving?"Guardando...":saved?"✓ Guardado":`Guardar registro — ${date}`}
+          </button>
+          <button onClick={loadNotes} disabled={loading} style={{
+            background:"transparent",border:`1px solid ${BORDER}`,borderRadius:10,
+            padding:"10px 16px",fontWeight:600,fontSize:12,cursor:"pointer",
+            color:TXT2,fontFamily:"'Inter',sans-serif",opacity:loading?0.5:1}}>
+            ↻ {loading?"Cargando...":"Refrescar"}
+          </button>
+          {saved&&<div style={{fontSize:11,color:C.green,fontWeight:600,fontFamily:"'Inter',sans-serif"}}>Registro guardado ✓</div>}
+        </div>
+      </Card>
+
+      {/* Summary stats for selected date */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
+        <Stat label="Total clientes" value={fN(total)} color={C.blue}/>
+        <Stat label="Atendidos / cerrados" value={fN(atendidos)} color={C.green}/>
+        <Stat label="Pendientes" value={fN(pendientes)} color={C.amber}/>
+        <Stat label="Follow-up / HOT" value={fN(followUp)} color={C.orange}/>
+        <Stat label="No shows" value={fN(noShow)} color={C.red}/>
+        <Stat label="Sin próxima acción" value={fN(sinAccion)} color={sinAccion>0?C.red:TXT3}/>
+      </div>
+
+      {/* Errors / empty / list */}
+      {loadError&&(
+        <Card style={{borderColor:C.red+"55",background:C.red+"08"}}>
+          <div style={{fontSize:12,color:C.red,fontWeight:500}}>{loadError}</div>
+        </Card>
+      )}
+
+      {loading&&!loadError&&(
+        <Card>
+          <div style={{textAlign:"center",padding:"24px",color:TXT3,fontSize:12,
+            fontFamily:"'Inter',sans-serif"}}>Cargando registros...</div>
+        </Card>
+      )}
+
+      {!loading&&!loadError&&dayNotes.length===0&&(
+        <Card>
+          <div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
+            fontFamily:"'Inter',sans-serif"}}>
+            Sin registros para <b style={{color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>{date}</b>. Agrega el primero con el formulario de arriba.
+          </div>
+        </Card>
+      )}
+
+      {closerKeys.map(closer=>(
+        <Card key={closer}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+            marginBottom:12,flexWrap:"wrap",gap:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <MemberBadge name={closer} size="lg"/>
+              <span style={{fontSize:10,color:TXT3,fontFamily:"'JetBrains Mono',monospace"}}>
+                {byCloser[closer].length} {byCloser[closer].length===1?"registro":"registros"}
+              </span>
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {byCloser[closer].map(n=>{
+              const oc=outcomeColor(n.outcome);
+              const noNext=!n.nextAction||!String(n.nextAction).trim();
+              return(
+                <div key={n.id} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+                  borderRadius:10,padding:"11px 13px 11px 18px",position:"relative",overflow:"hidden"}}>
+                  <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:oc}}/>
+                  <div style={{position:"absolute",top:9,right:11}}>
+                    <button onClick={()=>handleDelete(n.id)} disabled={deleting===n.id}
+                      title="Eliminar este registro" style={{background:C.red+"10",
+                        border:`1px solid ${C.red}30`,borderRadius:7,padding:"4px 10px",
+                        fontSize:10,cursor:deleting===n.id?"wait":"pointer",color:C.red,
+                        fontFamily:"'Inter',sans-serif",fontWeight:700,
+                        opacity:deleting===n.id?0.5:1}}>
+                      {deleting===n.id?"...":"Eliminar"}
+                    </button>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8,paddingRight:80}}>
+                    <div>
+                      <Lbl>Hora cita</Lbl>
+                      <div style={{fontSize:13,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(n.appointmentAt)}</div>
+                    </div>
+                    <div>
+                      <Lbl>Lead</Lbl>
+                      <div style={{fontSize:13,fontWeight:600,color:TXT}}>{n.lead||"—"}</div>
+                    </div>
+                    <div>
+                      <Lbl>Resultado</Lbl>
+                      <div style={{fontSize:12,fontWeight:700,color:oc}}>{n.outcome||"—"}</div>
+                    </div>
+                    <div>
+                      <Lbl>Follow-up</Lbl>
+                      <div style={{fontSize:12,fontWeight:600,color:n.followUpAt?TXT2:TXT3,fontFamily:"'JetBrains Mono',monospace"}}>{fmtDate(n.followUpAt)}</div>
+                    </div>
+                  </div>
+                  <div style={{marginTop:9,paddingTop:9,borderTop:`1px dashed ${BORDER}`}}>
+                    <Lbl>Próxima acción</Lbl>
+                    <div style={{fontSize:12,fontWeight:500,color:noNext?C.red:TXT,fontStyle:noNext?"italic":"normal"}}>
+                      {noNext?"⚠ Sin definir":n.nextAction}
+                    </div>
+                  </div>
+                  {n.note&&(
+                    <div style={{marginTop:9,paddingTop:9,borderTop:`1px dashed ${BORDER}`}}>
+                      <Lbl>Nota interna</Lbl>
+                      <div style={{fontSize:12,color:TXT2,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{n.note}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ))}
+
+    </div>
+  );
+};
+
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
 const TABS=[
-  {id:"torre",   l:"Torre CEO",       icon:"home"},
-  {id:"closer",  l:"Area Comercial",  icon:"dollar"},
-  {id:"entrada", l:"Marketing",       icon:"rocket"},
-  {id:"agendas", l:"Agendas / Leads", icon:"calendar"},
-  {id:"equipo",  l:"Resumen Equipo",  icon:"users"},
-  {id:"funnel",  l:"Funnel",          icon:"filter"},
-  {id:"detalle", l:"Detalle Diario",  icon:"barChart"},
-  {id:"hist",    l:"Histórico",       icon:"trendUp"},
-  {id:"admin",   l:"Admin",           icon:"settings"},
+  {id:"torre",   l:"Torre CEO",          icon:"home"},
+  {id:"closer",  l:"Area Comercial",     icon:"dollar"},
+  {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
+  {id:"entrada", l:"Marketing",          icon:"rocket"},
+  {id:"agendas", l:"Agendas / Leads",    icon:"calendar"},
+  {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
+  {id:"funnel",  l:"Funnel",             icon:"filter"},
+  {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
+  {id:"hist",    l:"Histórico",          icon:"trendUp"},
+  {id:"admin",   l:"Admin",              icon:"settings"},
 ];
 
 function App(){
@@ -2109,6 +2434,7 @@ function App(){
           <div style={{padding:"20px 24px 60px",flex:1,overflowY:"auto",overflowX:"hidden"}} className="fade-in page-content">
             {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
             {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
+            {tab==="control" &&<ControlComercial/>}
             {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
             {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
             {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
