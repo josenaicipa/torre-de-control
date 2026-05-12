@@ -2,29 +2,38 @@
 """Conservative auto-sync of CRM agendas + revenue into Torre de Control's daily_closer.
 
 Reads three Unlocked dashboard exports and produces a partial daily_closer row
-per date:
+per date.
+
+CRM-side metrics are High Ticket only. Low Ticket appointments (calendar/
+callType containing `[LT]`, e.g. "Llamada Claridad 1 a 1 [LT]") are excluded
+from every agendas/cal/hoy/show column and from their derived totals. Revenue
+columns (q_ventas_lt / valor_venta_lt etc.) are unchanged and still count
+LT payments.
 
   - crm-calls-lite.json
-        agendas_<channel>: every CRM call row, keyed by `call.date[:10]`
-                           (booked/created day) and split via channel_for_call.
-        cal_<channel>:     subset of those rows with is_qualified == true.
+        agendas_<channel>: every HT CRM call row, keyed by `call.date[:10]`
+                           (booked/created day per crm-calls-lite, equivalent
+                           to bookedAt/dateAdded) and split via
+                           channel_for_call. LT rows are filtered out.
+        cal_<channel>:     subset of those HT rows with is_qualified == true.
   - daily-closers-history-lite.json
-        hoy_<channel>:     appointments scheduled FOR that report date, taken
-                           from `dates[date].all_leads` and deduped by
-                           contactId/email so the count tracks
+        hoy_<channel>:     HT appointments scheduled FOR that report date,
+                           taken from `dates[date].all_leads` (`date` is the
+                           scheduled-for day derived from startTime) and
+                           deduped by contactId/email so the count tracks
                            `appointment_unique_contacts` when available.
-                           Channel is resolved by looking up the lead in the
-                           CRM index (contactId, then email) and applying
-                           channel_for_call; otherwise a calendar/source
-                           fallback is used.
-        show_<channel>:    subset of hoy_<channel> with status in
+                           LT leads are filtered out. Channel is resolved by
+                           looking up the lead in the CRM index (contactId,
+                           then email) and applying channel_for_call;
+                           otherwise a calendar/source fallback is used.
+        show_<channel>:    subset of hoy_<channel> (HT only) with status in
                            SHOWED_LEAD_STATUSES.
   - payments-lead-join.json
         q_ventas_ht / valor_venta_ht / q_ventas_lt / valor_venta_lt /
         q_reservas / cash_reservas, by sale date with the HT close-threshold
-        rule.
+        rule. (LT revenue columns are unchanged by the HT-only agenda filter.)
 
-Totals derived from the channel splits:
+Totals derived from the channel splits (HT only):
   agendas_calificadas = sum(cal_*)
   agendas_final       = sum(hoy_*)
   citas_asistidas     = sum(show_*)
@@ -177,6 +186,40 @@ def channel_for_call(call: dict[str, Any]) -> str:
     return "otros"
 
 
+# ─── low-ticket filter (agenda/cal/hoy/show metrics are HT-only) ────────────
+
+# In both crm-calls-lite and daily-closers-history-lite the LT product is
+# identified by a `[LT]` suffix on the calendar/callType (e.g.
+# "Llamada Claridad 1 a 1 [LT]"). Audit of both inputs (2025-12 → 2026-05) shows
+# this is the only LT marker present; HT calendars use [A], [GA], (CA), (O),
+# etc. Revenue (q_ventas_lt / valor_venta_lt) is unaffected by this filter.
+LT_MARKER = "[LT]"
+
+
+def _contains_lt_marker(*values: Any) -> bool:
+    for v in values:
+        if isinstance(v, str) and LT_MARKER in v:
+            return True
+    return False
+
+
+def is_low_ticket_call(call: dict[str, Any]) -> bool:
+    """True if a crm-calls-lite row represents a Low Ticket appointment."""
+    return _contains_lt_marker(
+        call.get("callType"),
+        call.get("calendarName"),
+        call.get("ghlSource"),
+    )
+
+
+def is_low_ticket_lead(lead: dict[str, Any]) -> bool:
+    """True if a daily-closers-history-lite all_leads row is a Low Ticket appointment."""
+    return _contains_lt_marker(
+        lead.get("calendarName"),
+        lead.get("source"),
+    )
+
+
 # ─── call status classification ──────────────────────────────────────────────
 
 QUALIFIED_TAG_TOKENS = ("lead_vip", "lead_calificado", "lead_cualificado",
@@ -275,9 +318,13 @@ def build_crm_index(crm_path: Path) -> tuple[dict[str, dict[str, Any]], dict[str
 # ─── builders ────────────────────────────────────────────────────────────────
 
 def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
-    """agendas_* (every CRM row) + cal_* (qualified subset), keyed by booked/created date.
+    """agendas_* + cal_* (HT-only), keyed by booked/created date.
 
-    `call.date` in crm-calls-lite is the booked/created day, so we use that directly.
+    `call.date` in crm-calls-lite is the booked/created day (equivalent to
+    bookedAt/dateAdded), so we key directly off it. Low Ticket calls
+    (`is_low_ticket_call`) are skipped so agendas_* only counts HT
+    appointments that entered/were booked on that date. `cal_*` is the
+    qualified subset of those same HT rows.
     """
     payload = json.loads(crm_path.read_text(encoding="utf-8"))
     calls = payload.get("calls", [])
@@ -289,6 +336,8 @@ def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
     for call in calls:
         date = call.get("date")
         if not date or not isinstance(date, str) or len(date) < 10:
+            continue
+        if is_low_ticket_call(call):
             continue
         date = date[:10]
         ch = channel_for_call(call)
@@ -304,12 +353,19 @@ def build_appointment_metrics(
     by_contact: dict[str, dict[str, Any]],
     by_email: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, int]]:
-    """hoy_* (scheduled appointments) + show_* (showed subset), keyed by report date.
+    """hoy_* + show_* (HT-only), keyed by the scheduled-for date.
 
-    Reads `dates[date].all_leads` from daily-closers-history-lite and dedupes by
-    contactId, then by email, so the count tracks `appointment_unique_contacts`
-    when those identifiers are present. Channel is resolved via CRM lookup
-    (contactId, then email), with a calendar/source fallback.
+    Reads `dates[date].all_leads` from daily-closers-history-lite, where the
+    outer `date` key is the scheduled-for day (derived from `startTime`),
+    regardless of when the lead was created. Low Ticket leads
+    (`is_low_ticket_lead`) are skipped so hoy_* only counts HT appointments
+    scheduled for that date. show_* is the subset of those same HT
+    appointments whose status is in SHOWED_LEAD_STATUSES.
+
+    Dedupes by contactId, then by email, so the count tracks
+    `appointment_unique_contacts` when those identifiers are present.
+    Channel is resolved via CRM lookup (contactId, then email), with a
+    calendar/source fallback.
     """
     if not history_path.exists():
         return {}
@@ -328,6 +384,8 @@ def build_appointment_metrics(
         seen: set[tuple[str, str]] = set()
         for idx, lead in enumerate(leads):
             if not isinstance(lead, dict):
+                continue
+            if is_low_ticket_lead(lead):
                 continue
             cid = lead.get("contactId")
             em = (lead.get("email") or "").strip().lower()
