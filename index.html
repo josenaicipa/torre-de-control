@@ -1861,6 +1861,10 @@ const ControlComercial=()=>{
     byBucket[k].push(it);
   });
 
+  const activeItem=activeItemId?items.find(it=>it.id===activeItemId)||null:null;
+  const activePipelineStage=activeItem&&activeItem.pipelineStage!==activeItem.bucket?activeItem.pipelineStage:"";
+  const activeStage=activeItem?(activeItem.stage||activePipelineStage||activeItem.ghlStatus||""):"";
+
   const fieldBox={background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
     color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
     fontFamily:"'Inter',sans-serif",fontWeight:500,height:38,width:"100%"};
@@ -2036,9 +2040,55 @@ const ControlComercial=()=>{
       {/* Update form (only when a card is being edited) */}
       {activeItemId&&(
         <Card style={{borderColor:BRAND+"55"}}>
-          <STit title="Actualizar registro" sub="Guarda solo en el panel interno, no toca GHL"
+          <STit title="Actualizar registro" sub="Muestra datos de GHL para identificar el contacto. Se guarda solo en el panel interno — no escribe en GHL."
             right={<button onClick={closeUpdate} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:8,
               padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Cerrar</button>}/>
+          {activeItem&&(
+            <div className="cc-ghl-readonly" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+              borderRadius:10,padding:"10px 12px",marginBottom:10,display:"flex",flexDirection:"column",gap:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",color:BRAND,
+                  background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 7px",borderRadius:6}}>
+                  DATOS GHL
+                </span>
+                <span style={{fontSize:10,color:TXT3,fontFamily:"'Inter',sans-serif"}}>
+                  solo lectura · para ubicar el contacto en GHL
+                </span>
+              </div>
+              <div className="cc-ghl-readonly-grid" style={{display:"grid",
+                gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
+                <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
+                  <Lbl>Email</Lbl>
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
+                    title={activeItem.email||""}>{activeItem.email||"—"}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
+                  <Lbl>Teléfono</Lbl>
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
+                    title={activeItem.phone||""}>{activeItem.phone||"—"}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
+                  <Lbl>Etapa GHL</Lbl>
+                  <div style={{fontSize:12,color:TXT,fontWeight:600,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
+                    title={activeStage||""}>{activeStage||"—"}</div>
+                </div>
+              </div>
+              {(activeItem.contactId||activeItem.opportunityId)&&(
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",fontSize:10,color:TXT3,
+                  fontFamily:"'JetBrains Mono',monospace",paddingTop:4,borderTop:`1px dashed ${BORDER}`}}>
+                  {activeItem.contactId&&<span style={{userSelect:"all"}} title="contactId">
+                    contact: {String(activeItem.contactId).slice(0,10)}…
+                  </span>}
+                  {activeItem.opportunityId&&<span style={{userSelect:"all"}} title="opportunityId">
+                    opp: {String(activeItem.opportunityId).slice(0,10)}…
+                  </span>}
+                </div>
+              )}
+            </div>
+          )}
           <div className="cc-update-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               <Lbl>Lead</Lbl>
