@@ -31,6 +31,7 @@ const TEAM   = ["Karen","Luisa","Valen","Carlos","Dahiana","Otro"];
 // ─── Control Comercial (cross-origin audit notes) ────────────────────────────
 const CONTROL_NOTES_URL="https://metrics.unlockedecom.co/api/commercial-control-notes";
 const CONTROL_PIPELINE_URL="https://metrics.unlockedecom.co/api/commercial-control-pipeline";
+const CONTROL_SYNC_URL="https://metrics.unlockedecom.co/api/commercial-control-sync-ghl";
 const COMERCIAL_CLOSERS=["Carlos","Daryi","Karen","Luisa","Valen","Dahiana","Otro"];
 // Outcomes accepted by the backend whitelist; UI labels may differ but the value
 // must stay within this set or the server falls back to "Pendiente".
@@ -1764,6 +1765,8 @@ const ControlComercial=()=>{
   const [saving,setSaving]=useState(false);
   const [savedFlag,setSavedFlag]=useState(false);
   const [activeItemId,setActiveItemId]=useState(null);
+  const [syncGhl,setSyncGhl]=useState(true);
+  const [syncStatus,setSyncStatus]=useState(null);
   const [form,setForm]=useState({
     lead:"",closer:COMERCIAL_CLOSERS[0],appointmentAt:"",
     outcome:COMERCIAL_OUTCOMES[0].v,nextAction:"",followUpAt:"",note:"",
@@ -1805,6 +1808,10 @@ const ControlComercial=()=>{
   const handleSave=async()=>{
     if(!form.lead.trim()){alert("Falta el lead/cliente");return;}
     setSaving(true);
+    setSyncStatus(null);
+    const activeNow=activeItemId?(pipeline&&Array.isArray(pipeline.items)?pipeline.items.find(it=>it.id===activeItemId):null):null;
+    const currentStageNow=activeNow?(activeNow.stage||(activeNow.pipelineStage!==activeNow.bucket?activeNow.pipelineStage:"")||activeNow.ghlStatus||""):"";
+    const followUpAtIso=form.followUpAt?`${form.followUpAt}T09:00:00`:null;
     const payload={
       date,
       appointmentAt:form.appointmentAt||null,
@@ -1812,9 +1819,14 @@ const ControlComercial=()=>{
       closer:form.closer,
       outcome:form.outcome,
       nextAction:form.nextAction.trim(),
-      followUpAt:form.followUpAt?`${form.followUpAt}T09:00:00`:null,
+      followUpAt:followUpAtIso,
       note:form.note.trim(),
       source:"dashboard",
+      contactId:(activeNow&&activeNow.contactId)||null,
+      opportunityId:(activeNow&&activeNow.opportunityId)||null,
+      email:(activeNow&&activeNow.email)||null,
+      phone:(activeNow&&activeNow.phone)||null,
+      currentStage:currentStageNow||null,
     };
     try{
       const r=await fetch(CONTROL_NOTES_URL,{
@@ -1826,6 +1838,55 @@ const ControlComercial=()=>{
       const j=await r.json();
       if(!j.ok)throw new Error("API error");
       setSavedFlag(true);
+      // Sync to GHL after internal save (best-effort, never fails the save).
+      if(syncGhl && activeNow && activeNow.contactId){
+        try{
+          const token=(typeof localStorage!=="undefined"
+            ?(localStorage.getItem("unlocked_admin_token")
+              ||localStorage.getItem("commercial_control_sync_token")
+              ||"")
+            :"");
+          const syncHeaders={"content-type":"application/json"};
+          if(token)syncHeaders["X-Unlocked-Dashboard-Admin-Token"]=token;
+          const syncPayload={
+            contactId:activeNow.contactId,
+            opportunityId:activeNow.opportunityId||null,
+            lead:payload.lead,
+            closer:payload.closer,
+            outcome:payload.outcome,
+            nextAction:payload.nextAction,
+            followUpAt:payload.followUpAt,
+            note:payload.note,
+            date:payload.date,
+            appointmentAt:payload.appointmentAt,
+            currentStage:payload.currentStage,
+          };
+          const sr=await fetch(CONTROL_SYNC_URL,{
+            method:"POST",
+            headers:syncHeaders,
+            body:JSON.stringify(syncPayload),
+          });
+          if(sr.status===401){
+            setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL necesita token de sync."});
+          }else if(sr.status===503){
+            setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL no configurado en servidor."});
+          }else if(!sr.ok){
+            setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL respondió "+sr.status+"."});
+          }else{
+            const sj=await sr.json().catch(()=>({ok:false}));
+            if(sj&&sj.ok){
+              const oks=(Array.isArray(sj.actions)?sj.actions:[]).filter(a=>a&&a.ok).map(a=>a.kind);
+              setSyncStatus({kind:"ok",msg:oks.length?("GHL sincronizado: "+oks.join(", ")):"GHL: nada que sincronizar."});
+            }else{
+              setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL no aceptó la sincronización."});
+            }
+          }
+        }catch(_){
+          setSyncStatus({kind:"warn",msg:"Guardado interno OK · no se pudo contactar al sync de GHL."});
+        }
+      }else if(syncGhl && activeNow && !activeNow.contactId){
+        setSyncStatus({kind:"warn",msg:"Guardado interno OK · sin contactId para sincronizar."});
+      }
       setActiveItemId(null);
       await loadPipeline(date);
       setTimeout(()=>setSavedFlag(false),2200);
@@ -1942,7 +2003,7 @@ const ControlComercial=()=>{
               Pipeline operativo del día
             </div>
             <div style={{fontSize:11,color:TXT2,lineHeight:1.55}}>
-              GHL alimenta la cola; el closer solo confirma resultado y próximo paso. <b>No escribe en GHL.</b> Esto es la capa operativa diaria — no es Excel.
+              GHL alimenta la cola; el closer confirma resultado y próximo paso. <b>Puede sincronizar nota/tarea/etapa con GHL cuando está activado.</b> Esto es la capa operativa diaria — no es Excel.
             </div>
           </div>
         </div>
@@ -1966,7 +2027,7 @@ const ControlComercial=()=>{
               </span>
             </div>
           </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
             <button onClick={()=>loadPipeline(date)} disabled={loading} style={{
               background:"transparent",border:`1px solid ${BORDER}`,borderRadius:10,
               padding:"9px 16px",fontWeight:600,fontSize:12,cursor:"pointer",
@@ -1974,6 +2035,16 @@ const ControlComercial=()=>{
               ↻ {loading?"Cargando...":"Refrescar"}
             </button>
             {savedFlag&&<div style={{fontSize:11,color:C.green,fontWeight:700}}>✓ Guardado</div>}
+            {syncStatus&&(
+              <div style={{fontSize:11,fontWeight:700,
+                color:syncStatus.kind==="ok"?C.green:C.amber,
+                background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
+                border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
+                padding:"6px 10px",borderRadius:8,
+                fontFamily:"'Inter',sans-serif"}}>
+                {syncStatus.msg}
+              </div>
+            )}
           </div>
         </div>
         {Array.isArray(source.warnings)&&source.warnings.length>0&&(
@@ -2040,7 +2111,7 @@ const ControlComercial=()=>{
       {/* Update form (only when a card is being edited) */}
       {activeItemId&&(
         <Card style={{borderColor:BRAND+"55"}}>
-          <STit title="Actualizar registro" sub="Muestra datos de GHL para identificar el contacto. Se guarda solo en el panel interno — no escribe en GHL."
+          <STit title="Actualizar registro" sub="Muestra datos de GHL para identificar el contacto. Se guarda en el panel interno y, si está activado, sincroniza con GHL."
             right={<button onClick={closeUpdate} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:8,
               padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Cerrar</button>}/>
           {activeItem&&(
@@ -2133,8 +2204,30 @@ const ControlComercial=()=>{
               padding:"10px 22px",fontWeight:700,fontSize:13,
               cursor:saving?"wait":"pointer",fontFamily:"'Inter',sans-serif",
               opacity:saving?0.6:1}}>
-              {saving?"Guardando...":"Guardar registro"}
+              {saving?"Guardando...":(syncGhl?"Guardar y sincronizar":"Guardar registro")}
             </button>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",
+              fontFamily:"'Inter',sans-serif",userSelect:"none"}}>
+              <input type="checkbox" checked={syncGhl}
+                onChange={e=>setSyncGhl(e.target.checked)}
+                style={{width:16,height:16,cursor:"pointer",accentColor:BRAND}}/>
+              <span style={{display:"flex",flexDirection:"column",gap:1}}>
+                <span style={{fontSize:12,fontWeight:700,color:TXT}}>Sincronizar con GHL</span>
+                <span style={{fontSize:10,color:TXT3,lineHeight:1.35}}>
+                  crea nota/tarea y mueve etapa cuando aplique
+                </span>
+              </span>
+            </label>
+            {syncStatus&&(
+              <div style={{fontSize:11,fontWeight:700,
+                color:syncStatus.kind==="ok"?C.green:C.amber,
+                background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
+                border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
+                padding:"6px 10px",borderRadius:8,
+                fontFamily:"'Inter',sans-serif"}}>
+                {syncStatus.msg}
+              </div>
+            )}
           </div>
         </Card>
       )}
