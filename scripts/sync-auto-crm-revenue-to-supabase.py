@@ -456,8 +456,25 @@ def is_stale_snapshot_call(call: dict[str, Any]) -> bool:
     return False
 
 
-def is_excluded_from_booked(call: dict[str, Any]) -> bool:
-    """Combined gate for agendas_*/cal_*: drop cancelled, no-booking, or stale rows."""
+def is_excluded_from_booked(call: dict[str, Any], latest_call_date: str = "") -> bool:
+    """Combined historical cleanup gate for agendas_*/cal_*.
+
+    For live/recent days, Jose validates against the raw CRM/GHL booked-day count
+    (e.g. 2026-05-11=15 and 2026-05-12=17), so do not apply stale/cancel
+    cleanup to the latest two CRM dates. Older days can accumulate update/snapshot
+    noise, so the conservative cleanup still applies there.
+    """
+    from datetime import date as _date
+
+    call_day_s = _date_only(call.get("date"))
+    if latest_call_date and call_day_s:
+        try:
+            latest_day = _date.fromisoformat(latest_call_date[:10])
+            call_day = _date.fromisoformat(call_day_s)
+            if (latest_day - call_day).days <= 1:
+                return False
+        except ValueError:
+            pass
     return (
         is_cancelled_call(call)
         or is_no_booking_row(call)
@@ -487,6 +504,10 @@ def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
     """
     payload = json.loads(crm_path.read_text(encoding="utf-8"))
     calls = payload.get("calls", [])
+    latest_call_date = max(
+        (_date_only(c.get("date")) for c in calls if isinstance(c, dict)),
+        default="",
+    )
     by_date: dict[str, dict[str, int]] = defaultdict(lambda: {f: 0 for f in (
         *(f"agendas_{c}" for c in CHANNELS),
         *(f"cal_{c}" for c in CHANNELS),
@@ -498,7 +519,7 @@ def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
             continue
         if is_low_ticket_call(call):
             continue
-        if is_excluded_from_booked(call):
+        if is_excluded_from_booked(call, latest_call_date):
             continue
         date = date[:10]
         ch = channel_for_call(call)
