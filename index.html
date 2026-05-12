@@ -2011,20 +2011,20 @@ const ControlComercial=()=>{
             {closers.map(c=>{
               const scoreColor=c.score>=70?C.green:c.score>=45?C.amber:C.red;
               return(
-                <div key={c.closer} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+                <div key={c.closer} className="cc-closer-card" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
                   borderRadius:10,padding:"11px 13px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                    <span style={{fontSize:12,fontWeight:700,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}} title={c.closer}>{c.closer}</span>
-                    <span style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Inter',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
+                  <div className="cc-closer-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
+                    <span className="cc-closer-name" style={{fontSize:12,fontWeight:700,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}} title={c.closer}>{c.closer}</span>
+                    <span className="cc-closer-score" style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Inter',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
                   </div>
                   <Barz value={c.score} max={100} color={scoreColor} h={5}/>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:4,marginTop:8,fontSize:10}}>
-                    <div><Lbl style={{marginBottom:1}}>Total</Lbl><div style={{fontWeight:700,color:TXT}}>{c.total}</div></div>
-                    <div><Lbl style={{marginBottom:1}}>Cerrados</Lbl><div style={{fontWeight:700,color:C.green}}>{c.cerrados}</div></div>
-                    <div><Lbl style={{marginBottom:1}}>Pendientes</Lbl><div style={{fontWeight:700,color:c.porAtender>0?C.amber:TXT3}}>{c.porAtender}</div></div>
-                    <div><Lbl style={{marginBottom:1}}>Atendidos</Lbl><div style={{fontWeight:700,color:C.blue}}>{c.atendidos}</div></div>
-                    <div><Lbl style={{marginBottom:1}}>No show</Lbl><div style={{fontWeight:700,color:c.noShow>0?C.red:TXT3}}>{c.noShow}</div></div>
-                    <div><Lbl style={{marginBottom:1}}>Sin acción</Lbl><div style={{fontWeight:700,color:c.sinProximaAccion>0?C.red:TXT3}}>{c.sinProximaAccion}</div></div>
+                  <div className="cc-closer-metrics" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:4,marginTop:8,fontSize:10}}>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Total</Lbl><div style={{fontWeight:700,color:TXT}}>{c.total}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Cerrados</Lbl><div style={{fontWeight:700,color:C.green}}>{c.cerrados}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Pendientes</Lbl><div style={{fontWeight:700,color:c.porAtender>0?C.amber:TXT3}}>{c.porAtender}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Atendidos</Lbl><div style={{fontWeight:700,color:C.blue}}>{c.atendidos}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>No show</Lbl><div style={{fontWeight:700,color:c.noShow>0?C.red:TXT3}}>{c.noShow}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Sin acción</Lbl><div style={{fontWeight:700,color:c.sinProximaAccion>0?C.red:TXT3}}>{c.sinProximaAccion}</div></div>
                   </div>
                 </div>
               );
@@ -2402,8 +2402,15 @@ function App(){
           .cc-controls-bar input[type=date]{width:100%!important;height:42px!important;font-size:14px!important}
           .cc-controls-bar button{width:100%!important;justify-content:center!important;padding:11px 14px!important}
           .cc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
-          .cc-closer-grid{display:flex!important;overflow-x:auto!important;padding-bottom:4px!important;scroll-snap-type:x proximity!important}
-          .cc-closer-grid > div{min-width:172px!important;scroll-snap-align:start!important}
+          .cc-closer-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:8px!important;overflow:visible!important;padding-bottom:0!important;scroll-snap-type:none!important}
+          .cc-closer-card{min-width:0!important;width:100%!important;padding:12px!important;border-radius:14px!important}
+          .cc-closer-head{align-items:flex-start!important;margin-bottom:10px!important}
+          .cc-closer-name{max-width:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;font-size:13px!important;line-height:1.25!important;padding-top:2px!important}
+          .cc-closer-score{font-size:22px!important;line-height:1!important;min-width:42px!important;text-align:right!important}
+          .cc-closer-metrics{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;margin-top:10px!important;font-size:11px!important}
+          .cc-closer-metric{background:${SURFACE}!important;border:1px solid ${BORDER}!important;border-radius:10px!important;padding:7px 6px!important;min-width:0!important;text-align:left!important}
+          .cc-closer-metric > div:first-child{font-size:8px!important;letter-spacing:.08em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+          .cc-closer-metric > div:last-child{font-size:15px!important;line-height:1.1!important}
           .cc-update-grid{grid-template-columns:minmax(0,1fr)!important}
           .cc-pipeline-board{display:flex!important;flex-direction:column!important;overflow-x:visible!important;gap:12px!important;padding-bottom:0!important}
           .cc-pipeline-col{flex:1 1 auto!important;width:100%!important;max-width:none!important;padding:12px!important;border-radius:16px!important}
