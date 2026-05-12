@@ -11,10 +11,16 @@ columns (q_ventas_lt / valor_venta_lt etc.) are unchanged and still count
 LT payments.
 
   - crm-calls-lite.json
-        agendas_<channel>: every HT CRM call row, keyed by `call.date[:10]`
-                           (booked/created day per crm-calls-lite, equivalent
-                           to bookedAt/dateAdded) and split via
-                           channel_for_call. LT rows are filtered out.
+        agendas_<channel>: every HT CRM call row that truly booked an
+                           appointment for `call.date[:10]`, split via
+                           channel_for_call. LT rows are filtered out. We
+                           also exclude (a) cancelled/cancelado rows,
+                           (b) Registrados Sin Agenda / formulario_sin_agenda
+                           / "no actual booking" rows, and (c) stale CRM rows
+                           where call.date is a snapshot/update date but the
+                           appointment/booked evidence belongs to an older
+                           day. No-calificado stages still count as agendas
+                           when they truly booked (Jose's rule).
         cal_<channel>:     subset of those HT rows with is_qualified == true.
   - daily-closers-history-lite.json
         hoy_<channel>:     HT appointments scheduled FOR that report date,
@@ -47,8 +53,9 @@ Safety:
     existing values that differ from the generated value are overwritten and
     recorded in repaired_conflicts. This is the only path that can clobber
     non-zero data.
-  * --field-group {all,crm,revenue} restricts the write surface so an operator
-    can run a CRM-only repair without touching revenue columns.
+  * --field-group {all,booked,crm,revenue} restricts the write surface so an
+    operator can run a booked-agendas-only repair without touching scheduled-day
+    hoy/show or revenue columns.
   * Reads Supabase URL/key from index.html the same way sync-ad-spend uses.
 """
 from __future__ import annotations
@@ -73,14 +80,19 @@ DEFAULT_PAYMENTS = DEFAULT_BASE / "payments-lead-join.json"
 CHANNELS = ("organicas", "meta", "google", "tiktok", "otros")
 
 # Fields we are willing to fill on an empty/zero day, grouped by domain.
+# BOOKED_FIELDS: derived from CRM calls booked/created date.
 # CRM_FIELDS: derived from CRM calls + GHL appointment history.
 # REVENUE_FIELDS: derived from payments-lead-join.
-CRM_FIELDS: tuple[str, ...] = (
+BOOKED_FIELDS: tuple[str, ...] = (
     *(f"agendas_{c}" for c in CHANNELS),
     *(f"cal_{c}" for c in CHANNELS),
+    "agendas_calificadas",
+)
+CRM_FIELDS: tuple[str, ...] = (
+    *BOOKED_FIELDS,
     *(f"hoy_{c}" for c in CHANNELS),
     *(f"show_{c}" for c in CHANNELS),
-    "agendas_calificadas", "agendas_final", "citas_asistidas",
+    "agendas_final", "citas_asistidas",
 )
 REVENUE_FIELDS: tuple[str, ...] = (
     "q_ventas_ht", "valor_venta_ht",
@@ -91,6 +103,8 @@ WRITE_FIELDS: tuple[str, ...] = CRM_FIELDS + REVENUE_FIELDS
 
 
 def fields_for_group(group: str) -> tuple[str, ...]:
+    if group == "booked":
+        return BOOKED_FIELDS
     if group == "crm":
         return CRM_FIELDS
     if group == "revenue":
@@ -315,6 +329,142 @@ def build_crm_index(crm_path: Path) -> tuple[dict[str, dict[str, Any]], dict[str
     return by_contact, by_email
 
 
+# ─── booked-agenda exclusion filters (cancelled / sin-agenda / stale) ────────
+
+# Tokens that mark a cancelled appointment on either stage labels or tags.
+CANCELLED_TOKENS = ("cancelado", "cancelled", "canceled")
+
+# Stage label (lowercased) for rows that never produced a real booking.
+NO_BOOKING_STAGE = "registrados sin agenda"
+
+# Tag (lowercased) attached to form-only rows that never produced a booking.
+NO_BOOKING_TAG = "formulario_sin_agenda"
+
+# Day-diff tolerance between call.date and dateAdded/appointment evidence.
+# A 1-day gap can occur naturally because call.date is Colombia local
+# (UTC-5) while dateAdded is UTC, so evening bookings land on the next UTC
+# day. A gap of 2+ days means the row is a stale snapshot.
+STALE_TOLERANCE_DAYS = 1
+
+
+def _has_token(value: Any, tokens: tuple[str, ...]) -> bool:
+    return isinstance(value, str) and any(tok in value.lower() for tok in tokens)
+
+
+def is_cancelled_call(call: dict[str, Any]) -> bool:
+    """True if the CRM row represents a cancelled appointment.
+
+    Evidence is a cancelado/cancelled/canceled token in the GHL stage label
+    or in any ghlTags entry / ghlTagsText. Per Jose's rule, cancelled rows
+    are excluded from booked agenda/cal counts even though they once held a
+    real booking — they no longer represent a held appointment.
+    """
+    if _has_token(call.get("stage"), CANCELLED_TOKENS):
+        return True
+    if _has_token(call.get("ghlStage"), CANCELLED_TOKENS):
+        return True
+    tags = call.get("ghlTags") or []
+    if isinstance(tags, list):
+        for tag in tags:
+            if _has_token(tag, CANCELLED_TOKENS):
+                return True
+    if _has_token(call.get("ghlTagsText"), CANCELLED_TOKENS):
+        return True
+    return False
+
+
+def _has_appointment_evidence(call: dict[str, Any]) -> bool:
+    """True if the row carries a scheduled appointment timestamp."""
+    return bool(call.get("ghlAppointmentStart") or call.get("startTime"))
+
+
+def is_no_booking_row(call: dict[str, Any]) -> bool:
+    """True if the row is a Registrados Sin Agenda / formulario_sin_agenda /
+    no-actual-booking record.
+
+    These are form or lead-capture rows that hit the CRM but never became a
+    real scheduled appointment. We exclude them from agendas_*/cal_* so that
+    raw form submissions do not inflate the booked count. No-calificado
+    stages are NOT covered here on purpose — per Jose, those still count as
+    agendas when they truly booked.
+    """
+    stage = (call.get("stage") or "").strip().lower()
+    ghl_stage = (call.get("ghlStage") or "").strip().lower()
+    if stage == NO_BOOKING_STAGE or ghl_stage == NO_BOOKING_STAGE:
+        return True
+    if not _has_appointment_evidence(call):
+        return True
+    tags = call.get("ghlTags") or []
+    if isinstance(tags, list):
+        has_sin_agenda_tag = any(
+            isinstance(t, str) and t.strip().lower() == NO_BOOKING_TAG
+            for t in tags
+        )
+        # Only treat the tag as "no booking" when no appointment evidence is
+        # present. In practice formulario_sin_agenda also appears on rows
+        # that later booked a real session, and Jose's rule is to keep those.
+        if has_sin_agenda_tag and not _has_appointment_evidence(call):
+            return True
+    return False
+
+
+def _date_only(value: Any) -> str:
+    if isinstance(value, str) and len(value) >= 10:
+        return value[:10]
+    return ""
+
+
+def is_stale_snapshot_call(call: dict[str, Any]) -> bool:
+    """True if call.date is a snapshot/update date but the actual booking
+    evidence belongs to an older day.
+
+    The crm-calls-lite pipeline can re-point `date` at the most recent
+    snapshot/update timestamp (e.g., ghlUpdatedAt) even when the booking
+    itself was created earlier. We detect this by comparing call.date[:10]
+    against (a) dateAdded[:10] — the canonical row-creation UTC day — and
+    (b) the appointment day (ghlAppointmentStart/startTime). If either is
+    strictly older than call.date by more than STALE_TOLERANCE_DAYS, we
+    treat the row as stale and drop it from the booked count for call.date.
+
+    We only flag rows whose evidence is OLDER than call.date (not newer):
+    Jose's directive specifically called out "a different older day".
+    """
+    from datetime import date as _date
+
+    call_day_s = _date_only(call.get("date"))
+    if not call_day_s:
+        return False
+    try:
+        call_day = _date.fromisoformat(call_day_s)
+    except ValueError:
+        return False
+
+    def _older_by_more_than(other_str: str) -> bool:
+        if not other_str:
+            return False
+        try:
+            other_day = _date.fromisoformat(other_str)
+        except ValueError:
+            return False
+        return (call_day - other_day).days > STALE_TOLERANCE_DAYS
+
+    if _older_by_more_than(_date_only(call.get("dateAdded"))):
+        return True
+    appt = call.get("ghlAppointmentStart") or call.get("startTime")
+    if _older_by_more_than(_date_only(appt)):
+        return True
+    return False
+
+
+def is_excluded_from_booked(call: dict[str, Any]) -> bool:
+    """Combined gate for agendas_*/cal_*: drop cancelled, no-booking, or stale rows."""
+    return (
+        is_cancelled_call(call)
+        or is_no_booking_row(call)
+        or is_stale_snapshot_call(call)
+    )
+
+
 # ─── builders ────────────────────────────────────────────────────────────────
 
 def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
@@ -325,6 +475,15 @@ def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
     (`is_low_ticket_call`) are skipped so agendas_* only counts HT
     appointments that entered/were booked on that date. `cal_*` is the
     qualified subset of those same HT rows.
+
+    Per Jose's clarification, no-calificado stages still count as agendas
+    when they truly booked. Only three exclusions are applied here:
+      * cancelled rows (`is_cancelled_call`)
+      * Registrados Sin Agenda / formulario_sin_agenda / no-actual-booking
+        rows (`is_no_booking_row`)
+      * stale CRM rows where call.date is a snapshot/update date but the
+        appointment/booked evidence belongs to an older day
+        (`is_stale_snapshot_call`)
     """
     payload = json.loads(crm_path.read_text(encoding="utf-8"))
     calls = payload.get("calls", [])
@@ -338,6 +497,8 @@ def build_booked_metrics(crm_path: Path) -> dict[str, dict[str, int]]:
         if not date or not isinstance(date, str) or len(date) < 10:
             continue
         if is_low_ticket_call(call):
+            continue
+        if is_excluded_from_booked(call):
             continue
         date = date[:10]
         ch = channel_for_call(call)
@@ -658,8 +819,9 @@ def main() -> int:
     parser.add_argument("--until", type=str, default=None, help="Optional ISO date upper bound (inclusive)")
     parser.add_argument("--max-conflicts-shown", type=int, default=20,
                         help="Cap how many skipped/repaired conflict items appear in the JSON summary")
-    parser.add_argument("--field-group", choices=("all", "crm", "revenue"), default="all",
-                        help="Restrict the write surface. 'crm' covers agendas/cal/hoy/show + totals; "
+    parser.add_argument("--field-group", choices=("all", "booked", "crm", "revenue"), default="all",
+                        help="Restrict the write surface. 'booked' covers agendas/cal by booked date; "
+                             "'crm' covers agendas/cal/hoy/show + totals; "
                              "'revenue' covers q_ventas/valor/reservas; 'all' is the union.")
     parser.add_argument("--repair-existing", action="store_true",
                         help="Authorized repair mode: overwrite non-zero existing values with the "
