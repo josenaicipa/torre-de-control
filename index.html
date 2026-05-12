@@ -33,17 +33,37 @@ const CONTROL_NOTES_URL="https://metrics.unlockedecom.co/api/commercial-control-
 const CONTROL_PIPELINE_URL="https://metrics.unlockedecom.co/api/commercial-control-pipeline";
 const CONTROL_SYNC_URL="https://metrics.unlockedecom.co/api/commercial-control-sync-ghl";
 const COMERCIAL_CLOSERS=["Carlos","Daryi","Karen","Luisa","Valen","Dahiana","Otro"];
-// Outcomes accepted by the backend whitelist; UI labels may differ but the value
-// must stay within this set or the server falls back to "Pendiente".
+// Outcomes mirror the real GHL pipeline "CAPTACIÓN Y VENTAS" stage names exactly.
+// Keeping them identical avoids invented mappings when syncing to GHL.
+// Legacy values (Pendiente, Atendido, Cierre, HOT seguimiento, Reagendado, No califica)
+// are still accepted by the backend for historical notes but are not surfaced here.
 const COMERCIAL_OUTCOMES=[
-  {v:"Pendiente",       c:"#F59E0B"},
-  {v:"Atendido",        c:"#3B82F6"},
-  {v:"Cierre",          c:"#22C55E"},
-  {v:"HOT seguimiento", c:"#F97316"},
-  {v:"No show",         c:"#EF4444"},
-  {v:"Reagendado",      c:"#8B5CF6"},
-  {v:"No califica",     c:"#64748B"},
+  {v:"Registrados Sin Agenda",     c:"#94A3B8"},
+  {v:"Agendados No Calificados",   c:"#F59E0B"},
+  {v:"Sesión Agendada",            c:"#3B82F6"},
+  {v:"Seguimiento Call Confirmer", c:"#F97316"},
+  {v:"Seguimiento Reagenda",       c:"#8B5CF6"},
+  {v:"Agenda Confirmada",          c:"#14B8A6"},
+  {v:"No calificado/Descartado",   c:"#64748B"},
+  {v:"No Show",                    c:"#EF4444"},
+  {v:"Seguimiento PostAgenda",     c:"#FB923C"},
+  {v:"Reserva",                    c:"#06B6D4"},
+  {v:"Consiguiendo Dinero",        c:"#A855F7"},
+  {v:"Ingreso a Cuotas",           c:"#16A34A"},
+  {v:"Ingreso Full",               c:"#22C55E"},
+  {v:"Ingreso Gratis",             c:"#10B981"},
 ];
+const COMERCIAL_OUTCOME_SET=new Set(COMERCIAL_OUTCOMES.map(o=>o.v));
+const COMERCIAL_LEGACY_OUTCOME_MAP={
+  Pendiente:"Sesión Agendada",
+  Atendido:"Seguimiento PostAgenda",
+  "HOT seguimiento":"Consiguiendo Dinero",
+  Cierre:"Ingreso Full",
+  "No show":"No Show",
+  Reagendado:"Seguimiento Reagenda",
+  "No califica":"No calificado/Descartado",
+};
+const normalizeComercialOutcome=v=>COMERCIAL_OUTCOME_SET.has(v)?v:(COMERCIAL_LEGACY_OUTCOME_MAP[v]||COMERCIAL_OUTCOMES[0].v);
 const COMERCIAL_BUCKETS=[
   {k:"por_atender", label:"Por atender", c:"#3B82F6"},
   {k:"atendido",    label:"Atendido",    c:"#22C55E"},
@@ -1769,7 +1789,7 @@ const ControlComercial=()=>{
   const [syncStatus,setSyncStatus]=useState(null);
   const [form,setForm]=useState({
     lead:"",closer:COMERCIAL_CLOSERS[0],appointmentAt:"",
-    outcome:COMERCIAL_OUTCOMES[0].v,nextAction:"",followUpAt:"",note:"",
+    outcome:normalizeComercialOutcome(""),nextAction:"",followUpAt:"",note:"",
   });
   const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
 
@@ -1797,7 +1817,7 @@ const ControlComercial=()=>{
       lead:item.lead||"",
       closer:item.closer||COMERCIAL_CLOSERS[0],
       appointmentAt:item.appointmentAt||"",
-      outcome:item.outcome||COMERCIAL_OUTCOMES[0].v,
+      outcome:normalizeComercialOutcome(item.outcome||""),
       nextAction:item.nextAction||"",
       followUpAt:item.followUpAt?String(item.followUpAt).slice(0,10):"",
       note:item.note||"",
