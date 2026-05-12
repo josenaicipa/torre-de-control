@@ -1873,7 +1873,7 @@ const ControlComercial=()=>{
       it.temperature==="WARM"?{c:C.amber,label:"WARM"}:null;
     return(
       <div key={it.id} className="cc-pipeline-card" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
-        borderRadius:10,padding:"10px 12px 10px 16px",position:"relative",overflow:"hidden"}}>
+        borderRadius:10,padding:"10px 12px 10px 16px",position:"relative",overflow:"hidden",flexShrink:0}}>
         <div className="cc-pipeline-card-rail" style={{position:"absolute",left:0,top:0,bottom:0,width:1,background:meta.c}}/>
         <div className="cc-pipeline-card-head" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
           <div className="cc-pipeline-card-headinfo" style={{display:"flex",alignItems:"center",gap:8,minWidth:0,flexWrap:"wrap"}}>
