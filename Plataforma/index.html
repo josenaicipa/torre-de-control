@@ -30,15 +30,26 @@ const TEAM   = ["Karen","Luisa","Valen","Carlos","Dahiana","Otro"];
 
 // ─── Control Comercial (cross-origin audit notes) ────────────────────────────
 const CONTROL_NOTES_URL="https://metrics.unlockedecom.co/api/commercial-control-notes";
+const CONTROL_PIPELINE_URL="https://metrics.unlockedecom.co/api/commercial-control-pipeline";
 const COMERCIAL_CLOSERS=["Carlos","Daryi","Karen","Luisa","Valen","Dahiana","Otro"];
+// Outcomes accepted by the backend whitelist; UI labels may differ but the value
+// must stay within this set or the server falls back to "Pendiente".
 const COMERCIAL_OUTCOMES=[
-  {v:"Pendiente",          c:"#F59E0B"},
-  {v:"Atendido",           c:"#3B82F6"},
-  {v:"Cierre/Reserva",     c:"#22C55E"},
-  {v:"HOT seguimiento",    c:"#F97316"},
-  {v:"No show",            c:"#EF4444"},
-  {v:"Reagendado",         c:"#8B5CF6"},
-  {v:"Perdido/No califica",c:"#64748B"},
+  {v:"Pendiente",       c:"#F59E0B"},
+  {v:"Atendido",        c:"#3B82F6"},
+  {v:"Cierre",          c:"#22C55E"},
+  {v:"HOT seguimiento", c:"#F97316"},
+  {v:"No show",         c:"#EF4444"},
+  {v:"Reagendado",      c:"#8B5CF6"},
+  {v:"No califica",     c:"#64748B"},
+];
+const COMERCIAL_BUCKETS=[
+  {k:"por_atender", label:"Por atender", c:"#3B82F6"},
+  {k:"atendido",    label:"Atendido",    c:"#22C55E"},
+  {k:"follow_up",   label:"Follow-up",   c:"#F97316"},
+  {k:"no_show",     label:"No show",     c:"#EF4444"},
+  {k:"cerrado",     label:"Cerrado",     c:"#16A34A"},
+  {k:"perdido",     label:"Perdido",     c:"#64748B"},
 ];
 
 const BRAND="#E03A18",BRAND2="#C82A0A"; // Unlocked brand red
@@ -62,7 +73,7 @@ const fN=v=>{const x=nv(v);if(x==null)return"—";return Math.round(x).toLocaleS
 const sumF=(arr,k)=>arr.reduce((s,r)=>s+(nv(r[k])||0),0);
 const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
 const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
-const today=()=>new Date().toISOString().split("T")[0];
+const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 
 const blankEntry=()=>({
   igFollowers:0,posts:0,mensajes:0,followUps:0,bkOffers:0,
@@ -1747,41 +1758,56 @@ const AdminView=({allDaily,onSave,onDelete})=>{
 // ─── CONTROL COMERCIAL (audit-only — does NOT write to GHL) ────────────────
 const ControlComercial=()=>{
   const [date,setDate]=useState(today());
-  const [notes,setNotes]=useState([]);
+  const [pipeline,setPipeline]=useState(null);
   const [loading,setLoading]=useState(true);
   const [loadError,setLoadError]=useState(null);
   const [saving,setSaving]=useState(false);
-  const [saved,setSaved]=useState(false);
-  const [deleting,setDeleting]=useState(null);
+  const [savedFlag,setSavedFlag]=useState(false);
+  const [activeItemId,setActiveItemId]=useState(null);
   const [form,setForm]=useState({
-    appointmentTime:"",lead:"",closer:COMERCIAL_CLOSERS[0],
+    lead:"",closer:COMERCIAL_CLOSERS[0],appointmentAt:"",
     outcome:COMERCIAL_OUTCOMES[0].v,nextAction:"",followUpAt:"",note:"",
   });
   const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
 
-  const loadNotes=async()=>{
+  const loadPipeline=async(d)=>{
     setLoading(true);
     try{
-      const r=await fetch(CONTROL_NOTES_URL,{method:"GET"});
+      const r=await fetch(`${CONTROL_PIPELINE_URL}?date=${encodeURIComponent(d||date)}`,{method:"GET"});
       if(!r.ok)throw new Error("HTTP "+r.status);
       const j=await r.json();
-      if(!j.ok)throw new Error("API error");
-      setNotes(Array.isArray(j.notes)?j.notes:[]);
+      if(!j.ok)throw new Error(j.error||"API error");
+      setPipeline(j);
       setLoadError(null);
     }catch(e){
-      setLoadError("No se pudo conectar al servicio de control comercial. ("+(e.message||"error")+")");
+      setLoadError("No se pudo conectar al pipeline. ("+(e.message||"error")+")");
+      setPipeline(null);
     }
     setLoading(false);
   };
 
-  useEffect(()=>{loadNotes();},[]);
+  useEffect(()=>{loadPipeline(date);/* eslint-disable-next-line */},[date]);
+
+  const openUpdate=item=>{
+    setActiveItemId(item.id);
+    setForm({
+      lead:item.lead||"",
+      closer:item.closer||COMERCIAL_CLOSERS[0],
+      appointmentAt:item.appointmentAt||"",
+      outcome:item.outcome||COMERCIAL_OUTCOMES[0].v,
+      nextAction:item.nextAction||"",
+      followUpAt:item.followUpAt?String(item.followUpAt).slice(0,10):"",
+      note:item.note||"",
+    });
+  };
+  const closeUpdate=()=>setActiveItemId(null);
 
   const handleSave=async()=>{
     if(!form.lead.trim()){alert("Falta el lead/cliente");return;}
     setSaving(true);
     const payload={
       date,
-      appointmentAt:form.appointmentTime?`${date}T${form.appointmentTime}:00`:null,
+      appointmentAt:form.appointmentAt||null,
       lead:form.lead.trim(),
       closer:form.closer,
       outcome:form.outcome,
@@ -1799,256 +1825,306 @@ const ControlComercial=()=>{
       if(!r.ok)throw new Error("HTTP "+r.status);
       const j=await r.json();
       if(!j.ok)throw new Error("API error");
-      setForm({appointmentTime:"",lead:"",closer:form.closer,
-        outcome:COMERCIAL_OUTCOMES[0].v,nextAction:"",followUpAt:"",note:""});
-      setSaved(true);
-      await loadNotes();
-      setTimeout(()=>setSaved(false),2500);
+      setSavedFlag(true);
+      setActiveItemId(null);
+      await loadPipeline(date);
+      setTimeout(()=>setSavedFlag(false),2200);
     }catch(e){
       alert("Error guardando: "+(e.message||"error"));
     }
     setSaving(false);
   };
 
-  const handleDelete=async id=>{
-    if(!window.confirm("¿Eliminar este registro? Esta acción no se puede deshacer."))return;
-    setDeleting(id);
-    try{
-      const r=await fetch(CONTROL_NOTES_URL,{
-        method:"POST",
-        headers:{"content-type":"application/json"},
-        body:JSON.stringify({action:"delete",id}),
-      });
-      if(!r.ok)throw new Error("HTTP "+r.status);
-      await loadNotes();
-    }catch(e){
-      alert("Error eliminando: "+(e.message||"error"));
-    }
-    setDeleting(null);
-  };
-
   const fmtTime=iso=>{
     if(!iso)return "—";
-    const m=String(iso).match(/T(\d{2}):(\d{2})/);
+    const m=String(iso).match(/T(\d{2}):(\d{2})/)||String(iso).match(/\s(\d{2}):(\d{2})/);
     return m?`${m[1]}:${m[2]}`:"—";
   };
   const fmtDate=iso=>{
     if(!iso)return "—";
-    return String(iso).split("T")[0]||"—";
+    return String(iso).slice(0,10)||"—";
   };
+  const bucketMeta=k=>COMERCIAL_BUCKETS.find(b=>b.k===k)||COMERCIAL_BUCKETS[0];
   const outcomeColor=v=>(COMERCIAL_OUTCOMES.find(o=>o.v===v)||{}).c||"#64748B";
 
-  const dayNotes=notes.filter(n=>n.date===date);
-  const total=dayNotes.length;
-  const atendidos=dayNotes.filter(n=>n.outcome==="Atendido"||n.outcome==="Cierre/Reserva").length;
-  const pendientes=dayNotes.filter(n=>n.outcome==="Pendiente").length;
-  const followUp=dayNotes.filter(n=>n.outcome==="HOT seguimiento"||n.outcome==="Reagendado"||(n.followUpAt&&n.followUpAt.length>0)).length;
-  const noShow=dayNotes.filter(n=>n.outcome==="No show").length;
-  const sinAccion=dayNotes.filter(n=>!n.nextAction||!String(n.nextAction).trim()).length;
+  const items=(pipeline&&Array.isArray(pipeline.items))?pipeline.items:[];
+  const stats=(pipeline&&pipeline.stats)||{
+    total:0,porAtender:0,atendidos:0,pendientes:0,followUp:0,
+    hot:0,noShow:0,cerrados:0,sinProximaAccion:0,
+  };
+  const closers=(pipeline&&Array.isArray(pipeline.closers))?pipeline.closers:[];
+  const source=(pipeline&&pipeline.source)||{agenda:"manual-only",fresh:false,warnings:[]};
 
-  const byCloser={};
-  dayNotes.forEach(n=>{const c=n.closer||"Otro";if(!byCloser[c])byCloser[c]=[];byCloser[c].push(n);});
-  Object.values(byCloser).forEach(arr=>arr.sort((a,b)=>{
-    const av=a.appointmentAt||"";const bv=b.appointmentAt||"";
-    if(!av&&!bv)return 0;if(!av)return 1;if(!bv)return -1;
-    return av.localeCompare(bv);
-  }));
-  const closerKeys=Object.keys(byCloser).sort((a,b)=>byCloser[b].length-byCloser[a].length);
+  const byBucket=COMERCIAL_BUCKETS.reduce((acc,b)=>{acc[b.k]=[];return acc;},{});
+  items.forEach(it=>{
+    const k=byBucket[it.bucket]?it.bucket:"por_atender";
+    byBucket[k].push(it);
+  });
 
   const fieldBox={background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
     color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
     fontFamily:"'Inter',sans-serif",fontWeight:500,height:38,width:"100%"};
 
+  const renderItemCard=(it)=>{
+    const meta=bucketMeta(it.bucket);
+    const noNext=!it.nextAction||!String(it.nextAction).trim();
+    const hasRisk=Array.isArray(it.riskFlags)&&it.riskFlags.length>0;
+    const tempBadge=it.temperature==="HOT"?{c:C.red,label:"HOT"}:
+      it.temperature==="WARM"?{c:C.amber,label:"WARM"}:null;
+    return(
+      <div key={it.id} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+        borderRadius:10,padding:"10px 12px 10px 16px",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:meta.c}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0,flexWrap:"wrap"}}>
+            <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(it.appointmentAt)}</span>
+            <span style={{fontSize:13,fontWeight:600,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={it.lead}>{it.lead||"—"}</span>
+            {tempBadge&&<span style={{fontSize:9,fontWeight:800,letterSpacing:"0.08em",
+              color:tempBadge.c,background:tempBadge.c+"18",border:`1px solid ${tempBadge.c}40`,
+              padding:"2px 6px",borderRadius:6}}>{tempBadge.label}</span>}
+          </div>
+          <button onClick={()=>openUpdate(it)} style={{background:BRAND+"15",
+            border:`1px solid ${BRAND}40`,borderRadius:7,padding:"3px 9px",fontSize:10,
+            cursor:"pointer",color:BRAND,fontFamily:"'Inter',sans-serif",fontWeight:700,whiteSpace:"nowrap"}}>
+            Actualizar
+          </button>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:TXT3,marginBottom:6,flexWrap:"wrap"}}>
+          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:TXT2}}>{it.closer||"Sin asignar"}</span>
+          {it.ghlStatus&&<><span>•</span><span>{it.ghlStatus}</span></>}
+          {it.stage&&it.stage!==it.ghlStatus&&<><span>•</span><span title={it.stage}>{String(it.stage).slice(0,18)}</span></>}
+          {it.automationSource==="manual"&&<><span>•</span><span style={{color:C.amber,fontWeight:700}}>MANUAL</span></>}
+        </div>
+        {(it.outcome||it.nextAction||it.followUpAt||it.note)&&(
+          <div style={{paddingTop:6,borderTop:`1px dashed ${BORDER}`,display:"flex",flexDirection:"column",gap:4}}>
+            {it.outcome&&<div style={{fontSize:11,fontWeight:700,color:outcomeColor(it.outcome)}}>{it.outcome}</div>}
+            {it.nextAction&&<div style={{fontSize:11,color:TXT}}>→ {it.nextAction}</div>}
+            {it.followUpAt&&<div style={{fontSize:10,color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>Follow-up: {fmtDate(it.followUpAt)}</div>}
+            {it.note&&<div style={{fontSize:10,color:TXT2,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{it.note}</div>}
+          </div>
+        )}
+        {hasRisk&&(
+          <div style={{marginTop:6,fontSize:10,fontWeight:700,color:C.red,letterSpacing:"0.04em"}}>
+            ⚠ {it.riskFlags.join(" · ")}
+          </div>
+        )}
+        {!hasRisk&&noNext&&(it.bucket==="atendido"||it.bucket==="follow_up"||it.bucket==="no_show")&&(
+          <div style={{marginTop:6,fontSize:10,fontWeight:700,color:C.amber}}>
+            ⚠ Falta próxima acción
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const sourceBadge=(()=>{
+    if(source.agenda==="appointments")return{c:C.green,label:"GHL agenda en vivo"};
+    if(source.agenda==="crm-calls-fallback")return{c:C.amber,label:"Fallback: CRM calls"};
+    return{c:C.red,label:"Solo notas manuales"};
+  })();
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
-      {/* Audit-only banner */}
-      <Card style={{borderColor:C.amber+"55",background:C.amber+"10"}}>
+      {/* Concept banner */}
+      <Card style={{borderColor:BRAND+"55",background:BRAND+"08"}}>
         <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-          <div style={{width:30,height:30,borderRadius:8,background:C.amber+"22",
+          <div style={{width:30,height:30,borderRadius:8,background:BRAND+"22",
             display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <Icon name="lock" size={14} color={C.amber}/>
+            <Icon name="clipboardCheck" size={14} color={BRAND}/>
           </div>
           <div>
-            <div style={{fontSize:12,fontWeight:700,color:C.amber,letterSpacing:"-0.01em",marginBottom:3}}>
-              Auditoría comercial interna
+            <div style={{fontSize:12,fontWeight:700,color:BRAND,letterSpacing:"-0.01em",marginBottom:3}}>
+              Pipeline operativo del día
             </div>
             <div style={{fontSize:11,color:TXT2,lineHeight:1.55}}>
-              Este panel es solo para control y supervisión del equipo comercial. No escribe en GHL ni notifica al lead. Usa el CRM oficial para acciones que el cliente deba ver.
+              GHL alimenta la cola; el closer solo confirma resultado y próximo paso. <b>No escribe en GHL.</b> Esto es la capa operativa diaria — no es Excel.
             </div>
           </div>
         </div>
       </Card>
 
-      {/* Form */}
+      {/* Controls bar */}
       <Card>
-        <STit title="Nuevo registro" sub="Una entrada por cita o gestión comercial del día"/>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:11}}>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            <Lbl>Fecha operativa</Lbl>
-            <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={fieldBox}/>
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Fecha operativa</Lbl>
+              <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+                style={{...fieldBox,width:170}}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Fuente</Lbl>
+              <span style={{fontSize:11,fontWeight:700,color:sourceBadge.c,
+                background:sourceBadge.c+"15",border:`1px solid ${sourceBadge.c}40`,
+                padding:"7px 11px",borderRadius:8}}>
+                {sourceBadge.label}{source.fresh?"":" · stale"}
+              </span>
+            </div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            <Lbl>Hora cita</Lbl>
-            <input type="time" value={form.appointmentTime}
-              onChange={e=>sf("appointmentTime",e.target.value)} style={fieldBox}/>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            <Lbl>Lead / cliente</Lbl>
-            <input type="text" value={form.lead}
-              onChange={e=>sf("lead",e.target.value)} placeholder="Nombre del cliente" style={fieldBox}/>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            <Lbl>Closer</Lbl>
-            <select value={form.closer} onChange={e=>sf("closer",e.target.value)}
-              style={{...fieldBox,cursor:"pointer"}}>
-              {COMERCIAL_CLOSERS.map(c=><option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            <Lbl>Resultado</Lbl>
-            <select value={form.outcome} onChange={e=>sf("outcome",e.target.value)}
-              style={{...fieldBox,cursor:"pointer"}}>
-              {COMERCIAL_OUTCOMES.map(o=><option key={o.v} value={o.v}>{o.v}</option>)}
-            </select>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            <Lbl>Próxima acción</Lbl>
-            <input type="text" value={form.nextAction}
-              onChange={e=>sf("nextAction",e.target.value)}
-              placeholder="Ej. enviar oferta, llamar..." style={fieldBox}/>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            <Lbl>Fecha follow-up</Lbl>
-            <input type="date" value={form.followUpAt}
-              onChange={e=>sf("followUpAt",e.target.value)} style={fieldBox}/>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button onClick={()=>loadPipeline(date)} disabled={loading} style={{
+              background:"transparent",border:`1px solid ${BORDER}`,borderRadius:10,
+              padding:"9px 16px",fontWeight:600,fontSize:12,cursor:"pointer",
+              color:TXT2,fontFamily:"'Inter',sans-serif",opacity:loading?0.5:1}}>
+              ↻ {loading?"Cargando...":"Refrescar"}
+            </button>
+            {savedFlag&&<div style={{fontSize:11,color:C.green,fontWeight:700}}>✓ Guardado</div>}
           </div>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:5,marginTop:11}}>
-          <Lbl>Nota interna</Lbl>
-          <textarea value={form.note} onChange={e=>sf("note",e.target.value)} rows={2}
-            placeholder="Observación del closer o de supervisión..."
-            style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
-              color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
-              fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
-        </div>
-        <div style={{display:"flex",gap:10,alignItems:"center",marginTop:14,flexWrap:"wrap"}}>
-          <button onClick={handleSave} disabled={saving} style={{
-            background:saved?C.green:BRAND,color:"#fff",border:"none",
-            borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-            cursor:saving?"wait":"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
-            transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
-            opacity:saving?0.6:1}}>
-            {saving?"Guardando...":saved?"✓ Guardado":`Guardar registro — ${date}`}
-          </button>
-          <button onClick={loadNotes} disabled={loading} style={{
-            background:"transparent",border:`1px solid ${BORDER}`,borderRadius:10,
-            padding:"10px 16px",fontWeight:600,fontSize:12,cursor:"pointer",
-            color:TXT2,fontFamily:"'Inter',sans-serif",opacity:loading?0.5:1}}>
-            ↻ {loading?"Cargando...":"Refrescar"}
-          </button>
-          {saved&&<div style={{fontSize:11,color:C.green,fontWeight:600,fontFamily:"'Inter',sans-serif"}}>Registro guardado ✓</div>}
-        </div>
+        {Array.isArray(source.warnings)&&source.warnings.length>0&&(
+          <div style={{marginTop:10,fontSize:11,color:C.amber,lineHeight:1.5}}>
+            {source.warnings.map((w,i)=>(<div key={i}>⚠ {w}</div>))}
+          </div>
+        )}
       </Card>
 
-      {/* Summary stats for selected date */}
+      {/* KPI cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
-        <Stat label="Total clientes" value={fN(total)} color={C.blue}/>
-        <Stat label="Atendidos / cerrados" value={fN(atendidos)} color={C.green}/>
-        <Stat label="Pendientes" value={fN(pendientes)} color={C.amber}/>
-        <Stat label="Follow-up / HOT" value={fN(followUp)} color={C.orange}/>
-        <Stat label="No shows" value={fN(noShow)} color={C.red}/>
-        <Stat label="Sin próxima acción" value={fN(sinAccion)} color={sinAccion>0?C.red:TXT3}/>
+        <Stat label="Total en pipeline" value={fN(stats.total)} color={C.blue}/>
+        <Stat label="Por atender" value={fN(stats.porAtender)} color={C.amber}/>
+        <Stat label="Atendidos" value={fN(stats.atendidos)} color={C.green}/>
+        <Stat label="Follow-up / HOT" value={fN(stats.followUp)} sub={stats.hot?`HOT: ${stats.hot}`:""} color={C.orange}/>
+        <Stat label="Cerrados" value={fN(stats.cerrados)} color={C.green}/>
+        <Stat label="No show" value={fN(stats.noShow)} color={C.red}/>
+        <Stat label="Sin próxima acción" value={fN(stats.sinProximaAccion)} color={stats.sinProximaAccion>0?C.red:TXT3}/>
       </div>
 
-      {/* Errors / empty / list */}
+      {/* Errors / loading / empty */}
       {loadError&&(
         <Card style={{borderColor:C.red+"55",background:C.red+"08"}}>
           <div style={{fontSize:12,color:C.red,fontWeight:500}}>{loadError}</div>
         </Card>
       )}
-
-      {loading&&!loadError&&(
+      {loading&&!loadError&&!pipeline&&(
         <Card>
           <div style={{textAlign:"center",padding:"24px",color:TXT3,fontSize:12,
-            fontFamily:"'Inter',sans-serif"}}>Cargando registros...</div>
+            fontFamily:"'Inter',sans-serif"}}>Cargando pipeline...</div>
         </Card>
       )}
 
-      {!loading&&!loadError&&dayNotes.length===0&&(
+      {/* Closer scorecards */}
+      {closers.length>0&&(
         <Card>
-          <div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
-            fontFamily:"'Inter',sans-serif"}}>
-            Sin registros para <b style={{color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>{date}</b>. Agrega el primero con el formulario de arriba.
-          </div>
-        </Card>
-      )}
-
-      {closerKeys.map(closer=>(
-        <Card key={closer}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-            marginBottom:12,flexWrap:"wrap",gap:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <MemberBadge name={closer} size="lg"/>
-              <span style={{fontSize:10,color:TXT3,fontFamily:"'JetBrains Mono',monospace"}}>
-                {byCloser[closer].length} {byCloser[closer].length===1?"registro":"registros"}
-              </span>
-            </div>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {byCloser[closer].map(n=>{
-              const oc=outcomeColor(n.outcome);
-              const noNext=!n.nextAction||!String(n.nextAction).trim();
+          <STit title="Disciplina por closer" sub="Score 0-100 según show, follow-up y cierres del día"/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+            {closers.map(c=>{
+              const scoreColor=c.score>=70?C.green:c.score>=45?C.amber:C.red;
               return(
-                <div key={n.id} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
-                  borderRadius:10,padding:"11px 13px 11px 18px",position:"relative",overflow:"hidden"}}>
-                  <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:oc}}/>
-                  <div style={{position:"absolute",top:9,right:11}}>
-                    <button onClick={()=>handleDelete(n.id)} disabled={deleting===n.id}
-                      title="Eliminar este registro" style={{background:C.red+"10",
-                        border:`1px solid ${C.red}30`,borderRadius:7,padding:"4px 10px",
-                        fontSize:10,cursor:deleting===n.id?"wait":"pointer",color:C.red,
-                        fontFamily:"'Inter',sans-serif",fontWeight:700,
-                        opacity:deleting===n.id?0.5:1}}>
-                      {deleting===n.id?"...":"Eliminar"}
-                    </button>
+                <div key={c.closer} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+                  borderRadius:10,padding:"11px 13px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <span style={{fontSize:12,fontWeight:700,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}} title={c.closer}>{c.closer}</span>
+                    <span style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Inter',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8,paddingRight:80}}>
-                    <div>
-                      <Lbl>Hora cita</Lbl>
-                      <div style={{fontSize:13,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(n.appointmentAt)}</div>
-                    </div>
-                    <div>
-                      <Lbl>Lead</Lbl>
-                      <div style={{fontSize:13,fontWeight:600,color:TXT}}>{n.lead||"—"}</div>
-                    </div>
-                    <div>
-                      <Lbl>Resultado</Lbl>
-                      <div style={{fontSize:12,fontWeight:700,color:oc}}>{n.outcome||"—"}</div>
-                    </div>
-                    <div>
-                      <Lbl>Follow-up</Lbl>
-                      <div style={{fontSize:12,fontWeight:600,color:n.followUpAt?TXT2:TXT3,fontFamily:"'JetBrains Mono',monospace"}}>{fmtDate(n.followUpAt)}</div>
-                    </div>
+                  <Barz value={c.score} max={100} color={scoreColor} h={5}/>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:4,marginTop:8,fontSize:10}}>
+                    <div><Lbl style={{marginBottom:1}}>Total</Lbl><div style={{fontWeight:700,color:TXT}}>{c.total}</div></div>
+                    <div><Lbl style={{marginBottom:1}}>Cerrados</Lbl><div style={{fontWeight:700,color:C.green}}>{c.cerrados}</div></div>
+                    <div><Lbl style={{marginBottom:1}}>Pendientes</Lbl><div style={{fontWeight:700,color:c.porAtender>0?C.amber:TXT3}}>{c.porAtender}</div></div>
+                    <div><Lbl style={{marginBottom:1}}>Atendidos</Lbl><div style={{fontWeight:700,color:C.blue}}>{c.atendidos}</div></div>
+                    <div><Lbl style={{marginBottom:1}}>No show</Lbl><div style={{fontWeight:700,color:c.noShow>0?C.red:TXT3}}>{c.noShow}</div></div>
+                    <div><Lbl style={{marginBottom:1}}>Sin acción</Lbl><div style={{fontWeight:700,color:c.sinProximaAccion>0?C.red:TXT3}}>{c.sinProximaAccion}</div></div>
                   </div>
-                  <div style={{marginTop:9,paddingTop:9,borderTop:`1px dashed ${BORDER}`}}>
-                    <Lbl>Próxima acción</Lbl>
-                    <div style={{fontSize:12,fontWeight:500,color:noNext?C.red:TXT,fontStyle:noNext?"italic":"normal"}}>
-                      {noNext?"⚠ Sin definir":n.nextAction}
-                    </div>
-                  </div>
-                  {n.note&&(
-                    <div style={{marginTop:9,paddingTop:9,borderTop:`1px dashed ${BORDER}`}}>
-                      <Lbl>Nota interna</Lbl>
-                      <div style={{fontSize:12,color:TXT2,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{n.note}</div>
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
         </Card>
-      ))}
+      )}
+
+      {/* Update form (only when a card is being edited) */}
+      {activeItemId&&(
+        <Card style={{borderColor:BRAND+"55"}}>
+          <STit title="Actualizar registro" sub="Guarda solo en el panel interno, no toca GHL"
+            right={<button onClick={closeUpdate} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:8,
+              padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Cerrar</button>}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Lead</Lbl>
+              <input type="text" value={form.lead}
+                onChange={e=>sf("lead",e.target.value)} style={fieldBox}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Closer</Lbl>
+              <input type="text" value={form.closer}
+                onChange={e=>sf("closer",e.target.value)} style={fieldBox}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Resultado</Lbl>
+              <select value={form.outcome} onChange={e=>sf("outcome",e.target.value)}
+                style={{...fieldBox,cursor:"pointer"}}>
+                {COMERCIAL_OUTCOMES.map(o=><option key={o.v} value={o.v}>{o.v}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Próxima acción</Lbl>
+              <input type="text" value={form.nextAction}
+                onChange={e=>sf("nextAction",e.target.value)}
+                placeholder="Ej. enviar oferta, llamar..." style={fieldBox}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Follow-up</Lbl>
+              <input type="date" value={form.followUpAt}
+                onChange={e=>sf("followUpAt",e.target.value)} style={fieldBox}/>
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:10}}>
+            <Lbl>Nota interna</Lbl>
+            <textarea value={form.note} onChange={e=>sf("note",e.target.value)} rows={2}
+              placeholder="Observación del closer o de supervisión..."
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+                color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
+                fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
+            <button onClick={handleSave} disabled={saving} style={{
+              background:BRAND,color:"#fff",border:"none",borderRadius:10,
+              padding:"10px 22px",fontWeight:700,fontSize:13,
+              cursor:saving?"wait":"pointer",fontFamily:"'Inter',sans-serif",
+              opacity:saving?0.6:1}}>
+              {saving?"Guardando...":"Guardar registro"}
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {/* Pipeline columns — horizontal scroll on mobile, grid on desktop */}
+      {!loading&&!loadError&&items.length===0&&(
+        <Card>
+          <div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
+            fontFamily:"'Inter',sans-serif"}}>
+            Sin items en pipeline para <b style={{color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>{date}</b>.
+          </div>
+        </Card>
+      )}
+
+      {items.length>0&&(
+        <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6}}>
+          {COMERCIAL_BUCKETS.map(b=>{
+            const list=byBucket[b.k]||[];
+            return(
+              <div key={b.k} style={{flex:"0 0 280px",maxWidth:320,
+                background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:14,
+                padding:"12px 12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:6,height:6,borderRadius:100,background:b.c}}/>
+                    <span style={{fontSize:12,fontWeight:700,color:TXT,letterSpacing:"-0.01em"}}>{b.label}</span>
+                  </div>
+                  <span style={{fontSize:10,color:TXT3,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{list.length}</span>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:520,overflowY:"auto"}}>
+                  {list.length===0&&(
+                    <div style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Inter',sans-serif"}}>—</div>
+                  )}
+                  {list.map(renderItemCard)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
     </div>
   );
