@@ -1787,6 +1787,7 @@ const ControlComercial=()=>{
   const [activeItemId,setActiveItemId]=useState(null);
   const [syncGhl,setSyncGhl]=useState(true);
   const [syncStatus,setSyncStatus]=useState(null);
+  const [showAllGhlNotes,setShowAllGhlNotes]=useState(false);
   const [form,setForm]=useState({
     lead:"",closer:COMERCIAL_CLOSERS[0],appointmentAt:"",
     outcome:normalizeComercialOutcome(""),nextAction:"",followUpAt:"",note:"",
@@ -1813,6 +1814,7 @@ const ControlComercial=()=>{
 
   const openUpdate=item=>{
     setActiveItemId(item.id);
+    setShowAllGhlNotes(false);
     setForm({
       lead:item.lead||"",
       closer:item.closer||COMERCIAL_CLOSERS[0],
@@ -1823,7 +1825,7 @@ const ControlComercial=()=>{
       note:item.note||"",
     });
   };
-  const closeUpdate=()=>setActiveItemId(null);
+  const closeUpdate=()=>{setActiveItemId(null);setShowAllGhlNotes(false);};
 
   const handleSave=async()=>{
     if(!form.lead.trim()){alert("Falta el lead/cliente");return;}
@@ -2210,23 +2212,82 @@ const ControlComercial=()=>{
                 onChange={e=>sf("followUpAt",e.target.value)} style={fieldBox}/>
             </div>
           </div>
-          {activeItem&&(activeItem.ghlNote||activeItem.fathomNote)!==undefined&&(
+          {activeItem&&(activeItem.ghlNote||activeItem.fathomNote)!==undefined&&(()=>{
+            const ghlNotesArr=Array.isArray(activeItem.ghlNotes)?activeItem.ghlNotes.filter(n=>n&&String(n.body||"").trim()):[];
+            const fallbackNote=String(activeItem.ghlNote||"").trim();
+            const notes=ghlNotesArr.length>0
+              ?ghlNotesArr
+              :(fallbackNote?[{id:"",body:fallbackNote,createdAt:""}]:[]);
+            const latestBody=(notes[0]&&notes[0].body)||fallbackNote||"";
+            const noteCount=notes.length;
+            const hasMultiple=noteCount>1;
+            const fmtNoteDate=(s)=>{
+              if(!s) return "";
+              const d=new Date(s);
+              if(Number.isNaN(d.getTime())) return "";
+              try{return d.toLocaleDateString("es",{day:"2-digit",month:"short",year:"2-digit"});}
+              catch(_e){return "";}
+            };
+            return(
             <div className="cc-external-notes" style={{display:"grid",
               gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,marginTop:10}}>
               <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
-                padding:"8px 10px",display:"flex",flexDirection:"column",gap:4,minWidth:0}}>
+                padding:"8px 10px",display:"flex",flexDirection:"column",gap:6,minWidth:0}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                   <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",color:BRAND,
                     background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
                     NOTA GHL
                   </span>
                   <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
+                  {hasMultiple&&(
+                    <span style={{fontSize:9,fontWeight:700,color:TXT2,
+                      background:BORDER,border:`1px solid ${BORDER}`,
+                      padding:"1px 6px",borderRadius:999,fontFamily:"'Inter',sans-serif"}}>
+                      {noteCount} notas
+                    </span>
+                  )}
+                  {hasMultiple&&(
+                    <button type="button"
+                      onClick={()=>setShowAllGhlNotes(v=>!v)}
+                      style={{marginLeft:"auto",background:"transparent",
+                        border:`1px solid ${BORDER}`,borderRadius:6,
+                        padding:"2px 8px",fontSize:10,fontWeight:700,color:TXT2,
+                        cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>
+                      {showAllGhlNotes?"Ocultar":"Ver todas"}
+                    </button>
+                  )}
                 </div>
-                <div style={{fontSize:12,color:activeItem.ghlNote?TXT:TXT3,whiteSpace:"pre-wrap",
-                  wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
-                  maxHeight:140,overflowY:"auto"}}>
-                  {activeItem.ghlNote||"Sin nota GHL para este contacto."}
-                </div>
+                {!showAllGhlNotes&&(
+                  <div style={{fontSize:12,color:latestBody?TXT:TXT3,whiteSpace:"pre-wrap",
+                    wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
+                    maxHeight:140,overflowY:"auto"}}>
+                    {latestBody||"Sin nota GHL para este contacto."}
+                  </div>
+                )}
+                {showAllGhlNotes&&(
+                  <div style={{display:"flex",flexDirection:"column",gap:6,
+                    maxHeight:280,overflowY:"auto",paddingRight:2}}>
+                    {notes.map((n,i)=>{
+                      const dt=fmtNoteDate(n.createdAt);
+                      return(
+                        <div key={n.id||`gn-${i}`} style={{background:SURFACE,
+                          border:`1px solid ${BORDER}`,borderRadius:8,padding:"7px 9px",
+                          display:"flex",flexDirection:"column",gap:3,minWidth:0}}>
+                          {dt&&(
+                            <div style={{fontSize:9,fontWeight:700,color:TXT3,
+                              letterSpacing:"0.04em",fontFamily:"'JetBrains Mono',monospace"}}>
+                              {dt}
+                            </div>
+                          )}
+                          <div style={{fontSize:12,color:TXT,whiteSpace:"pre-wrap",
+                            wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4}}>
+                            {n.body}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
                 padding:"8px 10px",display:"flex",flexDirection:"column",gap:4,minWidth:0}}>
@@ -2244,7 +2305,8 @@ const ControlComercial=()=>{
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
           <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:10}}>
             <Lbl>Nuestra nota para subir a GHL</Lbl>
             <textarea value={form.note} onChange={e=>sf("note",e.target.value)} rows={2}
