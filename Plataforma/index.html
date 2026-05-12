@@ -2210,10 +2210,45 @@ const ControlComercial=()=>{
                 onChange={e=>sf("followUpAt",e.target.value)} style={fieldBox}/>
             </div>
           </div>
+          {activeItem&&(activeItem.ghlNote||activeItem.fathomNote)!==undefined&&(
+            <div className="cc-external-notes" style={{display:"grid",
+              gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,marginTop:10}}>
+              <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+                padding:"8px 10px",display:"flex",flexDirection:"column",gap:4,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",color:BRAND,
+                    background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
+                    NOTA GHL
+                  </span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
+                </div>
+                <div style={{fontSize:12,color:activeItem.ghlNote?TXT:TXT3,whiteSpace:"pre-wrap",
+                  wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
+                  maxHeight:140,overflowY:"auto"}}>
+                  {activeItem.ghlNote||"Sin nota GHL para este contacto."}
+                </div>
+              </div>
+              <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+                padding:"8px 10px",display:"flex",flexDirection:"column",gap:4,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",color:BRAND,
+                    background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
+                    NOTA FATHOM
+                  </span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
+                </div>
+                <div style={{fontSize:12,color:activeItem.fathomNote?TXT:TXT3,whiteSpace:"pre-wrap",
+                  wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
+                  maxHeight:140,overflowY:"auto"}}>
+                  {activeItem.fathomNote||"Sin contexto de llamada (Fathom)."}
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:10}}>
-            <Lbl>Nota interna</Lbl>
+            <Lbl>Nuestra nota para subir a GHL</Lbl>
             <textarea value={form.note} onChange={e=>sf("note",e.target.value)} rows={2}
-              placeholder="Observación del closer o de supervisión..."
+              placeholder="Lo que escribas aquí se guarda en el panel y se sincroniza a GHL como nota nueva."
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
                 color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
                 fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
