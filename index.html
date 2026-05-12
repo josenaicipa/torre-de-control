@@ -1872,24 +1872,24 @@ const ControlComercial=()=>{
     const tempBadge=it.temperature==="HOT"?{c:C.red,label:"HOT"}:
       it.temperature==="WARM"?{c:C.amber,label:"WARM"}:null;
     return(
-      <div key={it.id} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+      <div key={it.id} className="cc-pipeline-card" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
         borderRadius:10,padding:"10px 12px 10px 16px",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:meta.c}}/>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0,flexWrap:"wrap"}}>
-            <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(it.appointmentAt)}</span>
-            <span style={{fontSize:13,fontWeight:600,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={it.lead}>{it.lead||"—"}</span>
+        <div className="cc-pipeline-card-rail" style={{position:"absolute",left:0,top:0,bottom:0,width:1,background:meta.c}}/>
+        <div className="cc-pipeline-card-head" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
+          <div className="cc-pipeline-card-headinfo" style={{display:"flex",alignItems:"center",gap:8,minWidth:0,flexWrap:"wrap"}}>
+            <span className="cc-pipeline-time" style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(it.appointmentAt)}</span>
+            <span className="cc-pipeline-lead-name" style={{fontSize:13,fontWeight:600,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={it.lead}>{it.lead||"—"}</span>
             {tempBadge&&<span style={{fontSize:9,fontWeight:800,letterSpacing:"0.08em",
               color:tempBadge.c,background:tempBadge.c+"18",border:`1px solid ${tempBadge.c}40`,
               padding:"2px 6px",borderRadius:6}}>{tempBadge.label}</span>}
           </div>
-          <button onClick={()=>openUpdate(it)} style={{background:BRAND+"15",
+          <button className="cc-pipeline-card-actualizar" onClick={()=>openUpdate(it)} style={{background:BRAND+"15",
             border:`1px solid ${BRAND}40`,borderRadius:7,padding:"3px 9px",fontSize:10,
             cursor:"pointer",color:BRAND,fontFamily:"'Inter',sans-serif",fontWeight:700,whiteSpace:"nowrap"}}>
             Actualizar
           </button>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:TXT3,marginBottom:6,flexWrap:"wrap"}}>
+        <div className="cc-pipeline-card-meta" style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:TXT3,marginBottom:6,flexWrap:"wrap"}}>
           <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:TXT2}}>{it.closer||"Sin asignar"}</span>
           {it.ghlStatus&&<><span>•</span><span>{it.ghlStatus}</span></>}
           {it.stage&&it.stage!==it.ghlStatus&&<><span>•</span><span title={it.stage}>{String(it.stage).slice(0,18)}</span></>}
@@ -1924,7 +1924,7 @@ const ControlComercial=()=>{
   })();
 
   return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+    <div className="cc-control" style={{display:"flex",flexDirection:"column",gap:14}}>
 
       {/* Concept banner */}
       <Card style={{borderColor:BRAND+"55",background:BRAND+"08"}}>
@@ -1946,7 +1946,7 @@ const ControlComercial=()=>{
 
       {/* Controls bar */}
       <Card>
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:"space-between"}}>
+        <div className="cc-controls-bar" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               <Lbl>Fecha operativa</Lbl>
@@ -1980,7 +1980,7 @@ const ControlComercial=()=>{
       </Card>
 
       {/* KPI cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
+      <div className="cc-kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
         <Stat label="Total en pipeline" value={fN(stats.total)} color={C.blue}/>
         <Stat label="Por atender" value={fN(stats.porAtender)} color={C.amber}/>
         <Stat label="Atendidos" value={fN(stats.atendidos)} color={C.green}/>
@@ -2007,7 +2007,7 @@ const ControlComercial=()=>{
       {closers.length>0&&(
         <Card>
           <STit title="Disciplina por closer" sub="Score 0-100 según show, follow-up y cierres del día"/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+          <div className="cc-closer-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
             {closers.map(c=>{
               const scoreColor=c.score>=70?C.green:c.score>=45?C.amber:C.red;
               return(
@@ -2039,7 +2039,7 @@ const ControlComercial=()=>{
           <STit title="Actualizar registro" sub="Guarda solo en el panel interno, no toca GHL"
             right={<button onClick={closeUpdate} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:8,
               padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Cerrar</button>}/>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+          <div className="cc-update-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
               <Lbl>Lead</Lbl>
               <input type="text" value={form.lead}
@@ -2100,23 +2100,23 @@ const ControlComercial=()=>{
       )}
 
       {items.length>0&&(
-        <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6}}>
+        <div className="cc-pipeline-board" style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6}}>
           {COMERCIAL_BUCKETS.map(b=>{
             const list=byBucket[b.k]||[];
             return(
-              <div key={b.k} style={{flex:"0 0 280px",maxWidth:320,
+              <div key={b.k} className="cc-pipeline-col" style={{flex:"0 0 280px",maxWidth:320,
                 background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:14,
                 padding:"12px 12px 14px",display:"flex",flexDirection:"column",gap:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div className="cc-pipeline-col-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <div style={{width:6,height:6,borderRadius:100,background:b.c}}/>
                     <span style={{fontSize:12,fontWeight:700,color:TXT,letterSpacing:"-0.01em"}}>{b.label}</span>
                   </div>
                   <span style={{fontSize:10,color:TXT3,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{list.length}</span>
                 </div>
-                <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:520,overflowY:"auto"}}>
+                <div className="cc-pipeline-list" style={{display:"flex",flexDirection:"column",gap:8,maxHeight:520,overflowY:"auto"}}>
                   {list.length===0&&(
-                    <div style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Inter',sans-serif"}}>—</div>
+                    <div className="cc-pipeline-empty" style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Inter',sans-serif"}}>—</div>
                   )}
                   {list.map(renderItemCard)}
                 </div>
@@ -2372,7 +2372,7 @@ function App(){
     <>
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:${BG};font-family:'Inter',sans-serif;color:${TXT};height:100%;overflow:hidden}
+        html,body{background:${BG};font-family:'Inter',sans-serif;color:${TXT};height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:${BG}}
         ::-webkit-scrollbar-thumb{background:${BORDER2};border-radius:4px}
@@ -2394,7 +2394,30 @@ function App(){
           .main-content{margin-left:0!important}
           .mobile-nav{display:flex!important}
           .mobile-topbar-extra{display:none!important}
-          .page-content{padding:12px 12px 90px!important}
+          .page-content{padding:12px 12px 96px!important}
+          .cc-control{gap:10px!important}
+          .cc-control > div{border-radius:14px!important;padding:14px!important}
+          .cc-controls-bar{align-items:stretch!important;gap:12px!important}
+          .cc-controls-bar > div{width:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:10px!important}
+          .cc-controls-bar input[type=date]{width:100%!important;height:42px!important;font-size:14px!important}
+          .cc-controls-bar button{width:100%!important;justify-content:center!important;padding:11px 14px!important}
+          .cc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+          .cc-closer-grid{display:flex!important;overflow-x:auto!important;padding-bottom:4px!important;scroll-snap-type:x proximity!important}
+          .cc-closer-grid > div{min-width:172px!important;scroll-snap-align:start!important}
+          .cc-update-grid{grid-template-columns:minmax(0,1fr)!important}
+          .cc-pipeline-board{display:flex!important;flex-direction:column!important;overflow-x:visible!important;gap:12px!important;padding-bottom:0!important}
+          .cc-pipeline-col{flex:1 1 auto!important;width:100%!important;max-width:none!important;padding:12px!important;border-radius:16px!important}
+          .cc-pipeline-col-head{padding-bottom:2px!important}
+          .cc-pipeline-list{max-height:none!important;overflow-y:visible!important;gap:8px!important}
+          .cc-pipeline-empty{padding:8px 0!important}
+          .cc-pipeline-card{padding:12px!important;border-radius:14px!important;overflow:visible!important}
+          .cc-pipeline-card-rail{display:none!important}
+          .cc-pipeline-card-head{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:start!important;gap:10px!important;margin-bottom:8px!important}
+          .cc-pipeline-card-headinfo{display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;align-items:start!important;gap:4px 8px!important;min-width:0!important}
+          .cc-pipeline-time{font-size:13px!important;line-height:1.2!important;padding-top:1px!important}
+          .cc-pipeline-lead-name{max-width:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;font-size:14px!important;line-height:1.25!important}
+          .cc-pipeline-card-actualizar{font-size:11px!important;padding:6px 10px!important;border-radius:999px!important}
+          .cc-pipeline-card-meta{font-size:11px!important;line-height:1.45!important;margin-bottom:7px!important}
         }
         @media (min-width:768px){
           .mobile-nav{display:none!important}
