@@ -81,6 +81,7 @@ CHANNELS = ("organicas", "meta", "google", "tiktok", "otros")
 
 # Fields we are willing to fill on an empty/zero day, grouped by domain.
 # BOOKED_FIELDS: derived from CRM calls booked/created date.
+# APPOINTMENT_FIELDS: derived from GHL appointment history by scheduled date.
 # CRM_FIELDS: derived from CRM calls + GHL appointment history.
 # REVENUE_FIELDS: derived from payments-lead-join.
 BOOKED_FIELDS: tuple[str, ...] = (
@@ -88,11 +89,14 @@ BOOKED_FIELDS: tuple[str, ...] = (
     *(f"cal_{c}" for c in CHANNELS),
     "agendas_calificadas",
 )
-CRM_FIELDS: tuple[str, ...] = (
-    *BOOKED_FIELDS,
+APPOINTMENT_FIELDS: tuple[str, ...] = (
     *(f"hoy_{c}" for c in CHANNELS),
     *(f"show_{c}" for c in CHANNELS),
     "agendas_final", "citas_asistidas",
+)
+CRM_FIELDS: tuple[str, ...] = (
+    *BOOKED_FIELDS,
+    *APPOINTMENT_FIELDS,
 )
 REVENUE_FIELDS: tuple[str, ...] = (
     "q_ventas_ht", "valor_venta_ht",
@@ -105,6 +109,8 @@ WRITE_FIELDS: tuple[str, ...] = CRM_FIELDS + REVENUE_FIELDS
 def fields_for_group(group: str) -> tuple[str, ...]:
     if group == "booked":
         return BOOKED_FIELDS
+    if group == "appointments":
+        return APPOINTMENT_FIELDS
     if group == "crm":
         return CRM_FIELDS
     if group == "revenue":
@@ -840,8 +846,9 @@ def main() -> int:
     parser.add_argument("--until", type=str, default=None, help="Optional ISO date upper bound (inclusive)")
     parser.add_argument("--max-conflicts-shown", type=int, default=20,
                         help="Cap how many skipped/repaired conflict items appear in the JSON summary")
-    parser.add_argument("--field-group", choices=("all", "booked", "crm", "revenue"), default="all",
+    parser.add_argument("--field-group", choices=("all", "booked", "appointments", "crm", "revenue"), default="all",
                         help="Restrict the write surface. 'booked' covers agendas/cal by booked date; "
+                             "'appointments' covers hoy/show by scheduled date; "
                              "'crm' covers agendas/cal/hoy/show + totals; "
                              "'revenue' covers q_ventas/valor/reservas; 'all' is the union.")
     parser.add_argument("--repair-existing", action="store_true",
