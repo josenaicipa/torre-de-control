@@ -1564,6 +1564,357 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   );
 };
 
+// ─── DETALLE POR COLABORADOR ──────────────────────────────────────────────────
+const DetalleColaborador=({allDaily,year,month})=>{
+  const [view,setView]=useState("resumen"); // resumen | dia
+  const [picked,setPicked]=useState(TEAM[0]);
+  const dm=MDAYS[month];
+  const pad=n=>String(n).padStart(2,"0");
+  const mp=`${year}-${pad(month+1)}`;
+
+  const monthEntries=Object.entries(allDaily)
+    .filter(([k])=>k.startsWith(mp+"-"))
+    .map(([,v])=>v);
+
+  const byMember={};
+  TEAM.forEach(m=>{byMember[m]=[];});
+  monthEntries.forEach(e=>{if(e&&e.member&&byMember[e.member])byMember[e.member].push(e);});
+  const activeMembers=TEAM.filter(m=>byMember[m].length>0);
+
+  const memberAgg=m=>{
+    const rows=byMember[m]||[];
+    const days=rows.length;
+    const s=k=>sumF(rows,k);
+    const gMeta=s("gastoMeta"),gGo=s("gastoGoogle"),gTk=s("gastoTikTok"),gOt=s("gastoOtros");
+    const gTotal=gMeta+gGo+gTk+gOt;
+    const mensajes=s("mensajes"),followUps=s("followUps"),bkOffers=s("bkOffers");
+    const newBk=s("newBkTotal"),qualBk=s("qualBkTotal"),shows=s("showsTotal");
+    return{
+      member:m,days,
+      igFollowers:s("igFollowers"),
+      posts:s("posts"),
+      mensajes,followUps,bkOffers,
+      gMeta,gGo,gTk,gOt,gTotal,
+      msgDia:days>0?mensajes/days:null,
+      fuDia:days>0?followUps/days:null,
+      bkDia:days>0?bkOffers/days:null,
+      newBk,qualBk,shows,
+      showRate:qualBk>0?pv(shows,qualBk):null,
+      qualRate:newBk>0?pv(qualBk,newBk):null,
+    };
+  };
+  const memberData=activeMembers.map(memberAgg);
+
+  const total={
+    days:memberData.reduce((a,m)=>a+m.days,0),
+    igFollowers:memberData.reduce((a,m)=>a+m.igFollowers,0),
+    posts:memberData.reduce((a,m)=>a+m.posts,0),
+    mensajes:memberData.reduce((a,m)=>a+m.mensajes,0),
+    followUps:memberData.reduce((a,m)=>a+m.followUps,0),
+    bkOffers:memberData.reduce((a,m)=>a+m.bkOffers,0),
+    gMeta:memberData.reduce((a,m)=>a+m.gMeta,0),
+    gGo:memberData.reduce((a,m)=>a+m.gGo,0),
+    gTk:memberData.reduce((a,m)=>a+m.gTk,0),
+    gOt:memberData.reduce((a,m)=>a+m.gOt,0),
+    gTotal:memberData.reduce((a,m)=>a+m.gTotal,0),
+    newBk:memberData.reduce((a,m)=>a+m.newBk,0),
+    qualBk:memberData.reduce((a,m)=>a+m.qualBk,0),
+    shows:memberData.reduce((a,m)=>a+m.shows,0),
+  };
+  total.msgDia=total.days>0?total.mensajes/total.days:null;
+  total.fuDia=total.days>0?total.followUps/total.days:null;
+  total.bkDia=total.days>0?total.bkOffers/total.days:null;
+  total.showRate=total.qualBk>0?pv(total.shows,total.qualBk):null;
+  total.qualRate=total.newBk>0?pv(total.qualBk,total.newBk):null;
+
+  const cellTxt=(v,fmt)=>{
+    if(v===null||v===undefined||v===0||(typeof v==="number"&&isNaN(v)))return null;
+    if(fmt==="$")return fD(v);
+    if(fmt==="%")return fP(v);
+    return fN(v);
+  };
+
+  const GROUPS=[
+    {title:"Actividad Marketing",bg:"#6d28d9",rows:[
+      {l:"Días con registro",k:"days",fmt:"n"},
+      {l:"# IG Seguidores",k:"igFollowers",fmt:"n"},
+      {l:"# Posts + CTA",k:"posts",fmt:"n"},
+      {l:"# Mensajes",k:"mensajes",fmt:"n"},
+      {l:"# Follow Ups",k:"followUps",fmt:"n"},
+      {l:"# Booking Offers",k:"bkOffers",fmt:"n"},
+    ]},
+    {title:"Promedios diarios",bg:"#0f766e",rows:[
+      {l:"Mensajes / día",k:"msgDia",fmt:"n"},
+      {l:"Follow Ups / día",k:"fuDia",fmt:"n"},
+      {l:"Booking Offers / día",k:"bkDia",fmt:"n"},
+    ]},
+    {title:"Gasto Publicitario",bg:"#1e40af",rows:[
+      {l:"$ Total Gasto",k:"gTotal",fmt:"$"},
+      {l:"Meta",k:"gMeta",fmt:"$",sub:true},
+      {l:"Google",k:"gGo",fmt:"$",sub:true},
+      {l:"TikTok",k:"gTk",fmt:"$",sub:true},
+      {l:"Otros",k:"gOt",fmt:"$",sub:true},
+    ]},
+    {title:"Bookings (histórico)",bg:"#92400e",rows:[
+      {l:"New Bookings",k:"newBk",fmt:"n"},
+      {l:"Quality Bookings",k:"qualBk",fmt:"n"},
+      {l:"Shows",k:"shows",fmt:"n"},
+      {l:"% Calificadas",k:"qualRate",fmt:"%"},
+      {l:"% Show Up Rate",k:"showRate",fmt:"%"},
+    ]},
+  ];
+
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const HDR_TXT="#f1f5f9";
+  const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'DM Mono',monospace",
+    borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:23};
+  const stickyCol={position:"sticky",left:0,zIndex:2};
+
+  const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
+    borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
+    fontSize:11,fontFamily:"'Epilogue',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+
+  const renderResumen=()=>(
+    <div>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+        {MONTHS[month]} {year} · {activeMembers.length} colaboradores con datos · acumulado mensual
+      </div>
+      {activeMembers.length===0?(
+        <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
+          Sin entradas para {MONTHS[month]} {year}.<br/>
+          <span style={{fontSize:10,marginTop:6,display:"block"}}>El equipo debe usar "Marketing" para registrar.</span>
+        </div></Card>
+      ):(
+        <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
+          height:"calc(100vh - 200px)"}}>
+          <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
+            <thead style={{position:"sticky",top:0,zIndex:10}}>
+              <tr>
+                <th style={{...thBase,...stickyCol,background:HDR_BG,color:HDR_TXT,textAlign:"left",
+                  padding:"8px 10px",minWidth:185,zIndex:11,borderRight:`2px solid ${BORDER}`}}>
+                  KPI
+                </th>
+                {memberData.map(m=>{
+                  const col=TEAM_COLORS[m.member]||C.amber;
+                  return(
+                    <th key={m.member} style={{...thBase,background:HDR_BG,color:HDR_TXT,minWidth:96,
+                      padding:"8px 8px"}}>
+                      <div style={{display:"inline-flex",alignItems:"center",gap:6}}>
+                        <span style={{width:7,height:7,borderRadius:100,background:col,display:"inline-block"}}/>
+                        <span>{m.member}</span>
+                      </div>
+                      <div style={{opacity:0.55,fontSize:8,fontWeight:500,marginTop:2}}>{m.days} días</div>
+                    </th>
+                  );
+                })}
+                <th style={{...thBase,background:BRAND,color:"#fff",minWidth:96,
+                  borderLeft:`2px solid ${BORDER}`,padding:"8px 8px"}}>
+                  Total / Mes
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {GROUPS.map(g=>(
+                <React.Fragment key={g.title}>
+                  <tr>
+                    <td colSpan={memberData.length+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
+                      fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                      fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                      {g.title}
+                    </td>
+                  </tr>
+                  {g.rows.map(row=>{
+                    const tot=row.fmt==="%"
+                      ?total[row.k]
+                      :(row.k==="msgDia"||row.k==="fuDia"||row.k==="bkDia"
+                        ?total[row.k]
+                        :memberData.reduce((s,m)=>s+(m[row.k]||0),0)||null);
+                    return(
+                      <tr key={row.l}>
+                        <td style={{...tdBase,...stickyCol,textAlign:"left",
+                          paddingLeft:row.sub?20:10,
+                          color:row.sub?TXT2:TXT,
+                          fontWeight:row.sub?400:600,
+                          fontSize:row.sub?9:10,
+                          background:SURFACE,
+                          borderRight:`2px solid ${BORDER}`,
+                          fontFamily:"'Inter',sans-serif",
+                          whiteSpace:"nowrap"}}>
+                          {row.l}
+                        </td>
+                        {memberData.map(m=>{
+                          const v=m[row.k];
+                          const txt=cellTxt(v,row.fmt);
+                          return(
+                            <td key={m.member} style={{...tdBase,
+                              background:SURFACE,
+                              color:txt?TXT:TXT3}}>
+                              {txt||"·"}
+                            </td>
+                          );
+                        })}
+                        <td style={{...tdBase,background:SURFACE2,
+                          color:tot?TXT:TXT3,fontWeight:700,
+                          borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                          {cellTxt(tot,row.fmt)||"—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderDia=()=>{
+    const rowsM=byMember[picked]||[];
+    const byDate={};
+    rowsM.forEach(e=>{if(e&&e.date)byDate[e.date]=e;});
+    const days=Array.from({length:dm},(_,i)=>{
+      const d=`${mp}-${pad(i+1)}`;
+      const e=byDate[d]||null;
+      const tot=e?((e.gastoMeta||0)+(e.gastoGoogle||0)+(e.gastoTikTok||0)+(e.gastoOtros||0)):0;
+      return{day:i+1,d,e,tot};
+    });
+    const DOW=["D","L","M","M","J","V","S"];
+    const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
+    const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
+    const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
+
+    const ROWS=[
+      {title:"Actividad Marketing",bg:"#6d28d9",rows:[
+        {l:"# IG Seguidores",fn:d=>d.e?d.e.igFollowers:0,fmt:"n"},
+        {l:"# Posts + CTA",fn:d=>d.e?d.e.posts:0,fmt:"n"},
+        {l:"# Mensajes",fn:d=>d.e?d.e.mensajes:0,fmt:"n"},
+        {l:"# Follow Ups",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
+        {l:"# Booking Offers",fn:d=>d.e?d.e.bkOffers:0,fmt:"n"},
+      ]},
+      {title:"Gasto Publicitario",bg:"#1e40af",rows:[
+        {l:"$ Total Gasto",fn:d=>d.tot,fmt:"$"},
+        {l:"Meta",fn:d=>d.e?d.e.gastoMeta:0,fmt:"$",sub:true},
+        {l:"Google",fn:d=>d.e?d.e.gastoGoogle:0,fmt:"$",sub:true},
+        {l:"TikTok",fn:d=>d.e?d.e.gastoTikTok:0,fmt:"$",sub:true},
+        {l:"Otros",fn:d=>d.e?d.e.gastoOtros:0,fmt:"$",sub:true},
+      ]},
+      {title:"Bookings (histórico)",bg:"#92400e",rows:[
+        {l:"New Bookings",fn:d=>d.e?(d.e.newBkTotal||0):0,fmt:"n"},
+        {l:"Quality Bookings",fn:d=>d.e?(d.e.qualBkTotal||0):0,fmt:"n"},
+        {l:"Shows",fn:d=>d.e?(d.e.showsTotal||0):0,fmt:"n"},
+      ]},
+    ];
+    const totForRow=row=>days.reduce((s,d)=>s+(row.fn(d)||0),0)||null;
+
+    return(
+      <div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+          <span style={{fontSize:10,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
+            fontFamily:"'Inter',sans-serif",fontWeight:600,marginRight:4}}>Colaborador</span>
+          {TEAM.map(m=>{
+            const col=TEAM_COLORS[m]||C.amber;const sel=picked===m;
+            return(<button key={m} onClick={()=>setPicked(m)} style={{
+              background:sel?col+"15":SURFACE2,border:`1.5px solid ${sel?col:BORDER}`,
+              borderRadius:8,padding:"5px 12px",cursor:"pointer",color:sel?col:TXT2,
+              fontSize:11,fontFamily:"'Epilogue',sans-serif",fontWeight:sel?700:500,
+              transition:"all .15s"}}>{m}</button>);
+          })}
+        </div>
+        <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+          {picked} · {MONTHS[month]} {year} · {(byMember[picked]||[]).length} días con registro
+        </div>
+        <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
+          height:"calc(100vh - 220px)"}}>
+          <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
+            <thead style={{position:"sticky",top:0,zIndex:10}}>
+              <tr>
+                <th style={{...thBase,...stickyCol,background:HDR_BG,color:HDR_TXT,textAlign:"left",
+                  padding:"8px 10px",minWidth:165,zIndex:11,borderRight:`2px solid ${BORDER}`}}>
+                  KPI
+                </th>
+                {days.map(d=>(
+                  <th key={d.day} style={{...thBase,
+                    background:isWeekend(d.d)?WKD_BG:HDR_BG,
+                    color:isWeekend(d.d)?"#94A3B8":HDR_TXT,minWidth:38}}>
+                    <div style={{opacity:0.6}}>{getDoW(d.d)}</div>
+                    <div>{d.day}</div>
+                  </th>
+                ))}
+                <th style={{...thBase,background:BRAND,color:"#fff",minWidth:62,
+                  borderLeft:`2px solid ${BORDER}`}}>
+                  Total / Mes
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {ROWS.map(g=>(
+                <React.Fragment key={g.title}>
+                  <tr>
+                    <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
+                      fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                      fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                      {g.title}
+                    </td>
+                  </tr>
+                  {g.rows.map(row=>{
+                    const tot=totForRow(row);
+                    return(
+                      <tr key={row.l}>
+                        <td style={{...tdBase,...stickyCol,textAlign:"left",
+                          paddingLeft:row.sub?20:10,
+                          color:row.sub?TXT2:TXT,
+                          fontWeight:row.sub?400:600,
+                          fontSize:row.sub?8:9,
+                          background:SURFACE,
+                          borderRight:`2px solid ${BORDER}`,
+                          fontFamily:"'Inter',sans-serif",
+                          whiteSpace:"nowrap"}}>
+                          {row.l}
+                        </td>
+                        {days.map(d=>{
+                          const v=row.fn(d);
+                          const txt=cellTxt(v,row.fmt);
+                          return(
+                            <td key={d.day} style={{...tdBase,
+                              background:isWeekend(d.d)?WKD_BG:SURFACE,
+                              color:txt?TXT:TXT3,fontSize:9}}>
+                              {txt||"·"}
+                            </td>
+                          );
+                        })}
+                        <td style={{...tdBase,background:SURFACE2,
+                          color:tot?TXT:TXT3,fontWeight:700,
+                          borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                          {cellTxt(tot,row.fmt)||"—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[["resumen","Resumen mensual"],["dia","Detalle por día"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
+        ))}
+      </div>
+      {view==="resumen"?renderResumen():renderDia()}
+    </div>
+  );
+};
+
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
 const ADMIN_PIN = "1234"; // ← cambia este PIN cuando quieras
 
@@ -2400,6 +2751,7 @@ const TABS=[
   {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
   {id:"funnel",  l:"Funnel",             icon:"filter"},
   {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
+  {id:"colab",   l:"Por Colaborador",    icon:"users"},
   {id:"hist",    l:"Histórico",          icon:"trendUp"},
   {id:"admin",   l:"Admin",              icon:"settings"},
 ];
@@ -2413,6 +2765,7 @@ const MOBILE_TABS=[
   TABS.find(t=>t.id==="equipo"),
   TABS.find(t=>t.id==="funnel"),
   TABS.find(t=>t.id==="detalle"),
+  TABS.find(t=>t.id==="colab"),
   TABS.find(t=>t.id==="hist"),
   TABS.find(t=>t.id==="admin"),
 ].filter(Boolean);
@@ -2825,6 +3178,7 @@ function App(){
             {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
             {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
             {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
+            {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month}/>}
             {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
           </div>
         </div>
