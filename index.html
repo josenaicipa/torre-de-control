@@ -20,7 +20,7 @@ const { useState, useEffect } = React;
 const { createClient } = supabase;
 
 const SUPABASE_URL = 'https://vluuftzeivluexuhdupu.supabase.co';
-const SUPABASE_KEY = '[REDACTED_JWT]';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsdXVmdHplaXZsdWV4dWhkdXB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTczNTAsImV4cCI6MjA4OTc3MzM1MH0.DlM-t41BzH0TBxaxiZBQfjg6l-zO0Cs17Uvn4FBZlkQ';
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
