@@ -1,0 +1,53 @@
+name: Deploy to Netlify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: netlify-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+    steps:
+      - name: Check Netlify secrets
+        id: netlify-secrets
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::notice::Skipping Netlify deploy because NETLIFY_AUTH_TOKEN or NETLIFY_SITE_ID is not configured."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.netlify-secrets.outputs.available == 'true'
+        uses: actions/checkout@v4
+
+      - name: Build public/ artifact
+        if: steps.netlify-secrets.outputs.available == 'true'
+        run: |
+          rm -rf public
+          mkdir -p public
+          cp index.html public/
+          cp logo.png public/
+          cp -R Plataforma public/
+
+      - name: Deploy to Netlify
+        if: steps.netlify-secrets.outputs.available == 'true'
+        run: |
+          npx --yes netlify-cli@latest deploy \
+            --prod \
+            --dir=public \
+            --auth="$NETLIFY_AUTH_TOKEN" \
+            --site="$NETLIFY_SITE_ID" \
+            --message="GitHub Actions deploy ${GITHUB_SHA}"
