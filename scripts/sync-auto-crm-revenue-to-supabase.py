@@ -33,9 +33,7 @@ LT payments.
                            then email) and applying channel_for_call;
                            otherwise a calendar/source fallback is used.
         show_<channel>:    subset of hoy_<channel> (HT only) with status in
-                           SHOWED_LEAD_STATUSES and an appointment startTime
-                           that has already passed; future showed rows are
-                           deferred until the appointment time.
+                           SHOWED_LEAD_STATUSES.
   - payments-lead-join.json
         q_ventas_ht / valor_venta_ht / q_ventas_lt / valor_venta_lt /
         q_reservas / cash_reservas, by sale date with the HT close-threshold
@@ -278,62 +276,6 @@ def is_showed(call: dict[str, Any]) -> bool:
 
 # Statuses in `all_leads` that count as a showed appointment.
 SHOWED_LEAD_STATUSES = ("showed", "show", "show_up", "showup")
-
-
-def _parse_iso_datetime(value: Any) -> "datetime | None":
-    """Parse an ISO-8601 timestamp into an aware datetime; None on failure.
-
-    Accepts the `Z` suffix (treated as UTC) and standard `+HH:MM` offsets.
-    Naive timestamps are assumed to be UTC so comparisons stay total-orderable.
-    """
-    from datetime import datetime, timezone
-
-    if not isinstance(value, str) or not value:
-        return None
-    s = value.strip()
-    if s.endswith("Z"):
-        s = s[:-1] + "+00:00"
-    try:
-        dt = datetime.fromisoformat(s)
-    except ValueError:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt
-
-
-def parse_appointment_start(lead: dict[str, Any]) -> "datetime | None":
-    """Return the appointment start as an aware datetime, or None if unknown.
-
-    Prefers `startTime` (ISO with offset, e.g. 2026-05-15T09:00:00-05:00) and
-    falls back to `localStart` when present. Returns None when neither field
-    parses, so callers can preserve historical behavior.
-    """
-    return _parse_iso_datetime(lead.get("startTime")) or _parse_iso_datetime(lead.get("localStart"))
-
-
-def is_showed_lead_for_report(lead: dict[str, Any], now: "datetime | None" = None) -> bool:
-    """Whether a lead row counts as a showed appointment at this point in time.
-
-    Returns False for showed-status rows whose appointment startTime is still
-    in the future relative to ``now`` (defaults to current UTC). Returns True
-    for showed-status rows whose start has passed, or whose start is missing/
-    unparseable (so historical data — which never has future starts — keeps
-    its existing semantics). Non-showed statuses always return False.
-    """
-    from datetime import datetime, timezone
-
-    status = (lead.get("status") or "").strip().lower()
-    if status not in SHOWED_LEAD_STATUSES:
-        return False
-    start = parse_appointment_start(lead)
-    if start is None:
-        return True
-    if now is None:
-        now = datetime.now(timezone.utc)
-    elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
-    return start <= now
 
 
 def channel_for_lead_fallback(lead: dict[str, Any]) -> str:
@@ -606,9 +548,7 @@ def build_appointment_metrics(
     regardless of when the lead was created. Low Ticket leads
     (`is_low_ticket_lead`) are skipped so hoy_* only counts HT appointments
     scheduled for that date. show_* is the subset of those same HT
-    appointments whose status is in SHOWED_LEAD_STATUSES and whose
-    appointment startTime has already passed; future showed rows are deferred
-    until the appointment time.
+    appointments whose status is in SHOWED_LEAD_STATUSES.
 
     Dedupes by contactId, then by email, so the count tracks
     `appointment_unique_contacts` when those identifiers are present.
@@ -649,10 +589,8 @@ def build_appointment_metrics(
             seen.add(key)
             ch = channel_for_lead(lead, by_contact, by_email)
             bucket[f"hoy_{ch}"] += 1
-            # show_* only counts showed appointments whose startTime has
-            # already passed; future-dated "showed" rows (operator marked
-            # them ahead of the call) are deferred until the appointment time.
-            if is_showed_lead_for_report(lead):
+            status = (lead.get("status") or "").strip().lower()
+            if status in SHOWED_LEAD_STATUSES:
                 bucket[f"show_{ch}"] += 1
         out[date_key] = bucket
     return out
