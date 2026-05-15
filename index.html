@@ -1833,16 +1833,6 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
               <Inp label="# Pendientes cierre (acumulados)" value={form.pendAcumulados} onChange={v=>sf("pendAcumulados",v)}/>
             </div>
           </Card>
-          <Card>
-            <STit icon="📊" title="Gasto Publicitario y Costo por Lead" sub="Automático — no se llena por colaborador"/>
-            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.6,marginBottom:11}}>
-              El gasto publicitario y los costos por lead siguen siendo cifras de equipo y no se atribuyen al closer.
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:9}}>
-              <Stat label="Gasto hoy" value={fD(dayTotal)} color={BRAND} size="sm"/>
-              <Stat label="Total mes" value={fD(monthAdSpend.total)} color={BRAND} size="sm"/>
-            </div>
-          </Card>
         </>
       )}
 
