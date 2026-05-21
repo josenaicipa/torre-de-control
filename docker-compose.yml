@@ -1,0 +1,24 @@
+# Local-only Postgres for Torre de Control v2 (app/).
+# Production target is AWS RDS PostgreSQL; this compose is for local dev only.
+# Host port 5438 avoids collisions with other local apps. Containers use 5432.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: torre-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: torre_control
+      POSTGRES_USER: torre
+      POSTGRES_PASSWORD: torre
+    ports:
+      - "5438:5432"
+    volumes:
+      - torre_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U torre -d torre_control"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  torre_pgdata:
