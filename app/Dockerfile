@@ -32,4 +32,5 @@ COPY --from=builder --chown=nextjs:nextjs /app/prisma ./prisma
 
 USER nextjs
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+# Runs `prisma migrate deploy` when DATABASE_URL is set, then starts Next.js.
+CMD ["npm", "run", "start:prod"]
