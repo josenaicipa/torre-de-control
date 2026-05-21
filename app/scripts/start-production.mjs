@@ -40,6 +40,28 @@ function runMigrations() {
   }
 }
 
+function runAdminBootstrap() {
+  if (!process.env.TORRE_ADMIN_EMAIL && !process.env.TORRE_ADMIN_PASSWORD) {
+    console.log("[start-production] admin bootstrap not configured — skipping");
+    return;
+  }
+  console.log("[start-production] admin bootstrap configured — creating/updating admin");
+  const result = spawnSync("node", ["scripts/create-admin-runtime.mjs"], {
+    stdio: "inherit",
+    env: process.env,
+    shell: isWindows,
+  });
+
+  if (result.error) {
+    console.error("[start-production] failed to spawn admin bootstrap:", result.error.message);
+    process.exit(1);
+  }
+  if ((result.status ?? 0) !== 0) {
+    console.error(`[start-production] admin bootstrap exited with code ${result.status}`);
+    process.exit(result.status ?? 1);
+  }
+}
+
 function startNext() {
   console.log(`[start-production] starting Next.js on port ${PORT}`);
   const child = spawn("next", ["start", "-p", PORT], {
@@ -71,8 +93,9 @@ function startNext() {
 
 if (databaseIsConfigured()) {
   runMigrations();
+  runAdminBootstrap();
 } else {
-  console.log("[start-production] DATABASE_URL not configured — skipping migrations");
+  console.log("[start-production] DATABASE_URL not configured — skipping migrations and admin bootstrap");
 }
 
 startNext();
