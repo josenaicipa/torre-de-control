@@ -1,0 +1,50 @@
+name: Torre v2 Verify
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  push:
+    branches: [main, feature/robust-platform-v2]
+    paths:
+      - "app/**"
+      - ".github/workflows/torre-v2-verify.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - ".github/workflows/torre-v2-verify.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    env:
+      # Placeholder values only — no real secrets. The app never connects to a
+      # database during typecheck/test/build (DB access is runtime-only).
+      DATABASE_URL: "postgresql://torre:torre@localhost:5438/torre_control"
+      AUTH_SECRET: "ci-placeholder-auth-secret-not-a-real-key"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Stack doctor
+        run: npm run stack:doctor
+
+      - name: Prisma validate
+        run: npm run prisma:validate
+
+      - name: Verify (typecheck + tests)
+        run: npm run verify
+
+      - name: Build
+        run: npm run build

@@ -1,0 +1,97 @@
+// Torre de Control v2 data model.
+// Provider: PostgreSQL (local via docker-compose; production target AWS RDS).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String
+  role         Role         @default(VIEWER)
+  active       Boolean      @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  auditEvents     AuditEvent[]
+  commercialNotes CommercialNote[]
+
+  @@index([role])
+}
+
+// Append-only trail of who did what.
+model AuditEvent {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  target    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+// Lineage / dedupe record for each external import (CRM, ad spend, etc.).
+model SourceSnapshot {
+  id         String   @id @default(cuid())
+  source     String
+  sourceDate DateTime
+  hash       String
+  rawSummary Json?
+  createdAt  DateTime @default(now())
+
+  @@unique([source, hash])
+  @@index([source, sourceDate])
+}
+
+// One row per (date, channel) of normalized daily KPIs.
+model DailyMetric {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  channel   String
+  spend     Decimal  @default(0) @db.Decimal(14, 2)
+  booked    Int      @default(0)
+  showed    Int      @default(0)
+  closed    Int      @default(0)
+  revenue   Decimal  @default(0) @db.Decimal(14, 2)
+  raw       Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, channel])
+  @@index([date])
+}
+
+// Manual commercial annotations on a lead/contact, with GHL sync status.
+model CommercialNote {
+  id          String   @id @default(cuid())
+  contactId   String?
+  email       String?
+  outcome     String?
+  note        String
+  ghlSyncStatus String @default("pending")
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contactId])
+  @@index([email])
+  @@index([ownerId])
+}
