@@ -12,6 +12,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 // API routes that must remain reachable without a session.
 const PUBLIC_API = new Set<string>([
   "/api/health",
+  "/api/health/deep",
   "/api/auth/login",
   "/api/auth/logout",
 ]);
