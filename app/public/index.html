@@ -3274,7 +3274,7 @@ function App(){
         setKpiData(kpiObj);
         setDaily(dailyObj);
       }catch(e){
-        setError("Error conectando a la base de datos. Verifica tu conexión a internet.");
+        setError(e?.message||"Error conectando a la base de datos. Verifica tu conexión a internet.");
         console.error(e);
       }
       setReady(true);

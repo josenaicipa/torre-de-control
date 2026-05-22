@@ -53,11 +53,11 @@ describe("resolveDashboardAccess — permissions", () => {
     expect(readOnly.canWrite).toBe(false);
   });
 
-  it("denies read and write when no dashboard permissions are present", () => {
+  it("allows legacy empty-permission users to read but not write", () => {
     const none = resolveDashboardAccess(
       actor({ position: "CLOSER", dataScope: "OWN", ghlUserName: "Carlos Velez", permissions: [] }),
     );
-    expect(none.canRead).toBe(false);
+    expect(none.canRead).toBe(true);
     expect(none.canWrite).toBe(false);
   });
 });

@@ -119,7 +119,10 @@ export function isAdmin(actor: Pick<DashboardActor, "role" | "position">): boole
 }
 
 export function canReadDashboard(actor: DashboardActor): boolean {
-  return isAdmin(actor) || actor.permissions.includes("dashboard.read");
+  // Backward compatibility: users created before granular permissions may have
+  // an empty permissions array. Let active legacy users read the dashboard shell;
+  // data scope still decides which rows they can see, and writes remain explicit.
+  return isAdmin(actor) || actor.permissions.includes("dashboard.read") || actor.permissions.length === 0;
 }
 
 export function canWriteDashboard(actor: DashboardActor): boolean {
