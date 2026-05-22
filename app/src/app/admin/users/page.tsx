@@ -84,6 +84,8 @@ export default async function UsersAdminPage() {
           <div className="form-grid">
             <div className="field"><label>Nombre</label><input name="name" defaultValue={actor.name ?? ""} placeholder="Nombre completo" /></div>
             <div className="field"><label>Correo</label><input name="email" type="email" required defaultValue={actor.email} placeholder="jose@naicipa.com" /></div>
+            <div className="field"><label>Nueva contraseña</label><input name="password" type="password" minLength={10} autoComplete="new-password" placeholder="déjalo vacío para no cambiar" /></div>
+            <div className="field"><label>Confirmar contraseña</label><input name="passwordConfirm" type="password" minLength={10} autoComplete="new-password" placeholder="repite la nueva contraseña" /></div>
           </div>
           <button className="btn secondary" type="submit">Actualizar mi usuario</button>
         </form>

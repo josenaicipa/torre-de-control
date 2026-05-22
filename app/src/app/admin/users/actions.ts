@@ -63,18 +63,28 @@ export async function updateOwnProfileAction(formData: FormData) {
   const actor = await requireUserAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const passwordConfirm = String(formData.get("passwordConfirm") ?? "");
 
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Correo inválido");
+  if (password || passwordConfirm) {
+    if (password.length < 10) throw new Error("La nueva contraseña debe tener mínimo 10 caracteres");
+    if (password !== passwordConfirm) throw new Error("Las contraseñas no coinciden");
+  }
 
   const updated = await prisma.user.update({
     where: { id: actor.id },
-    data: { email, name: name || null },
+    data: {
+      email,
+      name: name || null,
+      ...(password ? { passwordHash: hashPassword(password) } : {}),
+    },
     select: { email: true },
   });
   await prisma.auditEvent.create({
     data: {
       actorId: actor.id,
-      action: "user.profile_updated",
+      action: password ? "user.password_updated" : "user.profile_updated",
       target: updated.email,
       metadata: { self: true },
     },
