@@ -56,6 +56,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, counts });
   } catch (error) {
     const status = error instanceof DashboardStoreError ? error.status : 500;
+    const safeMessage = error instanceof Error ? error.message.slice(0, 300) : "unknown";
+    const safeCode = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : undefined;
+    console.error("dashboard.import.failed", { status, safeCode, safeMessage });
     return NextResponse.json({ error: "Importación falló" }, { status });
   }
 }
