@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Torre de Control — Unlocked</title>
 <link rel="icon" type="image/png" href="logo.png"/>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -16,108 +17,11 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect } = React;
+const { createClient } = supabase;
 
-// ─── Authenticated data client ───────────────────────────────────────────────
-// The browser no longer talks to Supabase directly. All reads/writes go through
-// same-origin Next routes (/api/dashboard/*) that enforce session + permissions
-// + data scope server-side. This `db` shim mirrors the small slice of the
-// Supabase query API the dashboard actually used, so call sites stay unchanged.
-const DASH_API = "/api/dashboard";
-const _post = (path, body) =>
-  fetch(DASH_API + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify(body),
-  });
-async function _errFrom(r) {
-  if (r.status === 401 && !location.pathname.startsWith('/login')) {
-    const next = encodeURIComponent(location.pathname + location.search);
-    location.href = `/login?next=${next}`;
-    return { message: 'Sesión requerida', status: r.status };
-  }
-  const j = await r.json().catch(() => ({}));
-  return { message: j.error || `HTTP ${r.status}`, status: r.status };
-}
-const db = {
-  from(table) {
-    return {
-      // .select("*") — read a whole table (server scope-filters the rows).
-      select() {
-        return (async () => {
-          try {
-            const r = await fetch(
-              `${DASH_API}/select?table=${encodeURIComponent(table)}`,
-              { credentials: "same-origin" },
-            );
-            if (!r.ok) return { data: null, error: await _errFrom(r) };
-            const j = await r.json();
-            return { data: j.rows || [], error: null };
-          } catch (e) {
-            return { data: null, error: { message: String(e) } };
-          }
-        })();
-      },
-      // .upsert(values, {onConflict}) — insert or merge.
-      upsert(values, opts) {
-        return (async () => {
-          try {
-            const r = await _post("/mutate", {
-              op: "upsert",
-              table,
-              values,
-              onConflict: opts && opts.onConflict,
-            });
-            if (!r.ok) return { data: null, error: await _errFrom(r) };
-            return { data: null, error: null };
-          } catch (e) {
-            return { data: null, error: { message: String(e) } };
-          }
-        })();
-      },
-      // .insert(values) — supports both `await insert()` and `insert().select().single()`.
-      insert(values) {
-        const exec = async (single) => {
-          try {
-            const r = await _post("/mutate", { op: "insert", table, values });
-            if (!r.ok) return { data: null, error: await _errFrom(r) };
-            const j = await r.json();
-            const rows = j.rows || [];
-            return { data: single ? rows[0] || null : rows, error: null };
-          } catch (e) {
-            return { data: null, error: { message: String(e) } };
-          }
-        };
-        return {
-          select() {
-            return {
-              single: () => exec(true),
-              then: (res, rej) => exec(false).then(res, rej),
-            };
-          },
-          then: (res, rej) => exec(false).then(res, rej),
-        };
-      },
-      // .delete().eq(col,val) / .delete().match({...})
-      delete() {
-        const run = (match) =>
-          (async () => {
-            try {
-              const r = await _post("/mutate", { op: "delete", table, match });
-              if (!r.ok) return { data: null, error: await _errFrom(r) };
-              return { data: null, error: null };
-            } catch (e) {
-              return { data: null, error: { message: String(e) } };
-            }
-          })();
-        return {
-          eq: (col, val) => run({ [col]: val }),
-          match: (obj) => run(obj),
-        };
-      },
-    };
-  },
-};
+const SUPABASE_URL = 'https://vluuftzeivluexuhdupu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsdXVmdHplaXZsdWV4dWhkdXB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTczNTAsImV4cCI6MjA4OTc3MzM1MH0.DlM-t41BzH0TBxaxiZBQfjg6l-zO0Cs17Uvn4FBZlkQ';
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const MDAYS  = [31,28,31,30,31,30,31,31,30,31,30,31];
@@ -2324,9 +2228,12 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
 };
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
+const ADMIN_PIN = "1234"; // ← cambia este PIN cuando quieras
+
 const AdminView=({allDaily,onSave,onDelete})=>{
+  const [pin,setPin]=useState("");
   const [authed,setAuthed]=useState(false);
-  const [authState,setAuthState]=useState("checking");
+  const [pinError,setPinError]=useState(false);
   const [filterMember,setFilterMember]=useState("Todos");
   const [filterDate,setFilterDate]=useState("");
   const [editing,setEditing]=useState(null);
@@ -2334,20 +2241,10 @@ const AdminView=({allDaily,onSave,onDelete})=>{
   const [saving,setSaving]=useState(false);
   const [deleting,setDeleting]=useState(null);
 
-  useEffect(()=>{
-    let alive=true;
-    fetch("/api/auth/me",{credentials:"same-origin"})
-      .then(async res=>{
-        if(!alive)return;
-        if(res.status===401){setAuthState("login");return;}
-        if(!res.ok){setAuthState("error");return;}
-        const data=await res.json().catch(()=>({}));
-        if(data?.user?.canManageUsers){setAuthed(true);setAuthState("ok");}
-        else{setAuthState("forbidden");}
-      })
-      .catch(()=>alive&&setAuthState("error"));
-    return()=>{alive=false;};
-  },[]);
+  const tryPin=()=>{
+    if(pin===ADMIN_PIN){setAuthed(true);setPinError(false);}
+    else{setPinError(true);setPin("");}
+  };
 
   const entries=Object.entries(allDaily)
     .map(([k,v])=>({key:k,...v}))
@@ -2378,33 +2275,34 @@ const AdminView=({allDaily,onSave,onDelete})=>{
     setDeleting(null);
   };
 
-  if(!authed){
-    const isChecking=authState==="checking";
-    const title=isChecking?"Validando acceso admin":authState==="forbidden"?"Tu usuario no tiene permisos de admin":"Inicia sesión como admin";
-    const subtitle=isChecking?"Revisando tu sesión segura…":authState==="forbidden"?"Pide a un admin que te active permisos de usuarios":"El PIN fue removido; el acceso depende de tu usuario y permisos";
-    return(
+  if(!authed)return(
     <Card>
       <div style={{textAlign:"center",padding:"50px 20px"}}>
         <div style={{width:52,height:52,borderRadius:14,background:BORDER2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-          <Icon name={isChecking?"users":"lock"} size={22} color={TXT3}/>
+          <Icon name="lock" size={22} color={TXT3}/>
         </div>
-        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>{title}</div>
+        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>Panel Admin</div>
         <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace",marginBottom:24}}>
-          {subtitle}
+          Solo el administrador puede acceder aquí
         </div>
-        {!isChecking&&authState!=="forbidden"&&<a href="/login" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
-          border:"none",borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`,textDecoration:"none"}}>
-          Iniciar sesión
-        </a>}
-        {!isChecking&&authState==="forbidden"&&<a href="/" style={{display:"inline-flex",alignItems:"center",gap:8,background:SURFACE2,color:TXT,
-          border:`1px solid ${BORDER}`,borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Epilogue',sans-serif",textDecoration:"none"}}>
-          Volver al dashboard
-        </a>}
+        <input type="password" value={pin}
+          onChange={e=>{setPin(e.target.value);setPinError(false);}}
+          onKeyDown={e=>e.key==="Enter"&&tryPin()}
+          placeholder="PIN de administrador"
+          style={{background:SURFACE2,border:`1.5px solid ${pinError?C.red:BORDER}`,
+            borderRadius:9,color:TXT,padding:"11px 18px",fontSize:14,outline:"none",
+            fontFamily:"'DM Mono',monospace",textAlign:"center",width:220,display:"block",margin:"0 auto"}}/>
+        {pinError&&<div style={{fontSize:11,color:C.red,marginTop:7,fontFamily:"'DM Mono',monospace"}}>
+          PIN incorrecto — intenta de nuevo
+        </div>}
+        <button onClick={tryPin} style={{marginTop:14,background:C.gold,color:"#fff",border:"none",
+          borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
+          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`}}>
+          Entrar
+        </button>
       </div>
     </Card>
-  );}
+  );
 
   const EDIT_FIELDS=[
     {k:"posts",l:"Posts + CTA"},{k:"mensajes",l:"Mensajes"},{k:"followUps",l:"Follow-ups"},{k:"bkOffers",l:"Bk Offers"},
@@ -2421,20 +2319,6 @@ const AdminView=({allDaily,onSave,onDelete})=>{
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <Card>
-        <STit icon="👥" title="Administración de usuarios" sub="Crea accesos, cambia roles y ajusta permisos por módulo"/>
-        <div style={{display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{fontSize:12,color:TXT3,lineHeight:1.55,maxWidth:620}}>
-            Gestiona quién puede entrar a Torre de Control. El panel usa login seguro y conserva auditoría: los usuarios se suspenden, no se eliminan.
-          </div>
-          <a href="/admin/users" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
-            border:"none",borderRadius:10,padding:"11px 18px",fontWeight:900,fontSize:12,cursor:"pointer",
-            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 10px ${C.gold}35`,textDecoration:"none"}}>
-            Abrir usuarios y permisos →
-          </a>
-        </div>
-      </Card>
-
       <Card>
         <STit icon="🔐" title="Panel Admin" sub="Visualiza, edita o elimina cualquier entrada del equipo"/>
         <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
@@ -3210,29 +3094,6 @@ function App(){
   const [ready,setReady]=useState(false);
   const [closerData,setCloserData]=useState({});
   const [error,setError]=useState(null);
-  const [me,setMe]=useState(null);
-
-  // Identity + capabilities (drives the admin link and the scope banner). The
-  // server is the real authorization boundary; this only shapes the UI.
-  useEffect(()=>{
-    let alive=true;
-    fetch("/api/auth/me",{credentials:"same-origin"})
-      .then(r=>r.ok?r.json():null)
-      .then(d=>{if(alive&&d&&d.user)setMe(d.user);})
-      .catch(()=>{});
-    return()=>{alive=false;};
-  },[]);
-
-  const canManage=!!(me&&me.canManageUsers);
-  const caps=(me&&me.capabilities)||null;
-  const scopeLimited=!!(caps&&!caps.isGlobalData);
-  // Hide the Admin tab unless the user can manage users.
-  const visibleTabs=TABS.filter(t=>t.id!=="admin"||canManage);
-  const visibleMobileTabs=MOBILE_TABS.filter(t=>t&&(t.id!=="admin"||canManage));
-  // If the user landed on a now-hidden tab, fall back to the default view.
-  useEffect(()=>{
-    if(me&&!canManage&&tab==="admin")setTab("torre");
-  },[me,canManage,tab]);
 
   useEffect(()=>{
     (async()=>{
@@ -3243,12 +3104,7 @@ function App(){
           db.from("ads_entries").select("*"),
           db.from("daily_closer").select("*"),
         ]);
-        const dataError=e1||e2||e3||e4;
-        if(dataError){
-          if(dataError.status===401){window.location.href="/login?next=/";return;}
-          if(dataError.status===403)throw new Error(dataError.message||"No tienes permiso para ver estos datos.");
-          throw new Error(dataError.message||"DB error");
-        }
+        if(e1||e2||e3||e4)throw new Error("DB error");
         const kpiObj={};
         kpiRows?.forEach(row=>{
           const key=`kpi:${row.year}-${row.month}`;
@@ -3557,7 +3413,7 @@ function App(){
           {/* Nav items */}
           <nav style={{padding:"10px 10px",flex:1}}>
             <Lbl style={{marginLeft:8,marginBottom:6}}>Navegación</Lbl>
-            {visibleTabs.map(t=>{
+            {TABS.map(t=>{
               const active=tab===t.id;
               const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
               return(
@@ -3638,14 +3494,6 @@ function App(){
 
           {/* Page content */}
           <div style={{padding:"20px 24px 60px",flex:1,overflowY:"auto",overflowX:"hidden"}} className="fade-in page-content">
-            {scopeLimited&&<div style={{marginBottom:16,background:C.amber+"14",border:`1px solid ${C.amber}55`,
-              borderRadius:10,padding:"11px 14px",display:"flex",alignItems:"center",gap:10}}>
-              <Icon name="lock" size={15} color={C.amber}/>
-              <div style={{fontSize:12,color:TXT,lineHeight:1.5}}>
-                <strong style={{fontWeight:800}}>Vista limitada.</strong>{" "}
-                {(caps&&caps.scopeSummary)||"Solo ves los datos asignados a tu alcance."} Si necesitas más acceso, pide a un admin que ajuste tu alcance.
-              </div>
-            </div>}
             {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
             {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
             {tab==="control" &&<ControlComercial/>}
@@ -3667,7 +3515,7 @@ function App(){
           display:"none",overflowX:"auto",
           boxShadow:"0 -4px 20px rgba(0,0,0,.2)"}}>
           <div style={{display:"flex",minWidth:"max-content",padding:"6px 4px 8px"}}>
-            {visibleMobileTabs.map(t=>{
+            {MOBILE_TABS.map(t=>{
               const active=tab===t.id;
               return(
                 <button key={t.id} onClick={()=>setTab(t.id)} style={{
