@@ -50,7 +50,7 @@ Current verified deploy:
 - App Runner service: `torre-de-control-v2`, status `RUNNING`.
 - Runtime port: `3000`.
 - Health endpoint: `/api/health` returns `ok: true`.
-- Latest verified image tag: `d31d874`.
+- Latest verified image tag: `7470088`.
 - Pre-import RDS snapshot: `torre-control-v2-pre-import-20260522003232`, status
   `available`.
 
