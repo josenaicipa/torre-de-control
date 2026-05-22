@@ -46,7 +46,9 @@ export async function GET(req: NextRequest) {
     const rows = await restSelect(table, search);
     return NextResponse.json({ rows, scopeLimited: !access.isGlobalData });
   } catch (error) {
+    const upstreamStatus = error instanceof SupabaseRestError ? error.status : undefined;
+    console.error("dashboard.select.failed", { table, upstreamStatus });
     const status = error instanceof SupabaseRestError ? 502 : 500;
-    return NextResponse.json({ error: "Error de datos" }, { status });
+    return NextResponse.json({ error: `Error de datos (${table})` }, { status });
   }
 }
