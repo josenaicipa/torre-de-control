@@ -303,6 +303,49 @@ model DailyCloser {
   @@map("daily_closer")
 }
 
+// Canonical, append-friendly payment ledger backing the Cash Collected feature.
+// One row per real transaction (Hotmart / Stripe / Manual / ...), imported from
+// the read-only payments-lead-join truth file and classified by the pure domain
+// logic in src/domain/cash-collected.ts. Kept separate from the Operaciones
+// `Payment` model on purpose: that model tracks student installment schedules,
+// while this is the company-wide cash-truth used by the dashboard.
+//
+// `externalTransactionId` is the source's own id when present, or a deterministic
+// synthetic id otherwise, so (source, externalTransactionId) is a stable upsert
+// key and re-imports are idempotent. `classification`, `contributesToCash`,
+// `reviewRequired` and `reviewReason` are precomputed at import time.
+model DashboardPaymentTransaction {
+  id                    String   @id @default(cuid())
+  externalTransactionId String?
+  source                String
+  paidAt                DateTime
+  leadName              String?
+  leadEmail             String?
+  amountUsd             Decimal  @db.Decimal(18, 2)
+  amountOriginal        Decimal? @db.Decimal(18, 2)
+  currency              String?
+  product               String?
+  offerName             String?
+  paymentType           String?
+  buyerType             String?
+  classification        String
+  contributesToCash     Boolean  @default(true)
+  reviewRequired        Boolean  @default(false)
+  reviewReason          String?
+  raw                   Json?
+  importedAt            DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([source, externalTransactionId])
+  @@index([paidAt])
+  @@index([classification])
+  @@index([source])
+  @@index([reviewRequired])
+  @@index([leadEmail])
+  @@map("dashboard_payment_transactions")
+}
+
 // ─── Operaciones module ──────────────────────────────────────────────────────
 
 enum StudentStatus {

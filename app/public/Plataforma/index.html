@@ -669,11 +669,15 @@ const ResumenEquipo=({year,month,allDaily})=>{
 };
 
 // ─── TORRE CEO ────────────────────────────────────────────────────────────────
-const Row2=({label,value,color=TXT,bold=false,bg=null})=>(
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-    padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`}}>
+const Row2=({label,value,color=TXT,bold=false,bg=null,onClick=null})=>(
+  <div onClick={onClick||undefined} role={onClick?"button":undefined} tabIndex={onClick?0:undefined}
+    onKeyDown={onClick?(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onClick();}}:undefined}
+    style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+    padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`,
+    cursor:onClick?"pointer":"default"}}>
     <span style={{fontSize:10,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{label}</span>
-    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace"}}>{value}</span>
+    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace",
+      textDecoration:onClick?"underline dotted":"none",textUnderlineOffset:3}}>{value}{onClick?" ›":""}</span>
   </div>
 );
 const SectionTitle=({children})=>(
@@ -682,10 +686,92 @@ const SectionTitle=({children})=>(
     fontFamily:"'Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
 );
 
+// Spanish labels for the ticket classification returned by /api/payments/summary.
+const CLASS_ES={LOW_TICKET:"Low Ticket",HIGH_TICKET:"High Ticket",RESERVA:"Reserva",UNKNOWN:"—"};
+const fDateShort=iso=>{if(!iso)return"—";const d=new Date(iso);if(isNaN(d.getTime()))return"—";
+  return d.toLocaleDateString("es-CO",{day:"2-digit",month:"short",year:"numeric"});};
+
+// Drill-down drawer for Cash Collected. Shows the transactions behind one metric
+// (Lead, Monto, Fecha, Fuente, Producto, Clasificación, Revisión). It renders only
+// the curated PaymentTransactionView fields the API returns — never raw payloads.
+const PaymentsDrawer=({drill,onClose})=>{
+  if(!drill)return null;
+  const rows=drill.rows||[];
+  const total=rows.reduce((s,r)=>s+(Number(r.amountUsd)||0),0);
+  const cols=["Lead","Monto","Fecha","Fuente","Producto","Clasificación","Revisión"];
+  return(
+    <div onClick={onClose} role="presentation"
+      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(15,23,42,.55)",display:"flex",justifyContent:"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-label={drill.title}
+        style={{width:"min(780px,96vw)",height:"100%",background:SURFACE,display:"flex",flexDirection:"column",boxShadow:"-8px 0 30px rgba(0,0,0,.25)"}}>
+        <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+          <div>
+            <div style={{fontSize:9,color:"#94a3b8",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>Cash Collected — detalle</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Inter',sans-serif"}}>{drill.title}</div>
+            <div style={{fontSize:11,color:"#cbd5e1",fontFamily:"'DM Mono',monospace",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar"
+            style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:8,padding:"6px 12px",fontSize:13,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>✕</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {rows.length===0?(
+            <div style={{padding:"40px 20px",textAlign:"center",color:TXT3,fontSize:13,fontFamily:"'Inter',sans-serif"}}>Sin transacciones para este periodo.</div>
+          ):(
+            <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+              <thead>
+                <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                  {cols.map(h=>(
+                    <th key={h} style={{padding:"9px 12px",color:TXT3,textAlign:h==="Monto"?"right":"left",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap",position:"sticky",top:0,background:SURFACE2}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${BORDER2}`,background:r.reviewRequired?(C.amber+"12"):"transparent"}}>
+                    <td style={{padding:"9px 12px",color:TXT}}>
+                      <div style={{fontWeight:600}}>{r.leadName||r.leadEmail||"—"}</div>
+                      {r.leadName&&r.leadEmail&&<div style={{fontSize:9,color:TXT3}}>{r.leadEmail}</div>}
+                    </td>
+                    <td style={{padding:"9px 12px",color:TXT,fontWeight:700,textAlign:"right",whiteSpace:"nowrap"}}>{fD(r.amountUsd)}</td>
+                    <td style={{padding:"9px 12px",color:TXT2,whiteSpace:"nowrap"}}>{fDateShort(r.paidAt)}</td>
+                    <td style={{padding:"9px 12px",color:TXT2}}>{r.source||"—"}</td>
+                    <td style={{padding:"9px 12px",color:TXT2}}>{r.product||"—"}</td>
+                    <td style={{padding:"9px 12px",color:TXT2,whiteSpace:"nowrap"}}>{CLASS_ES[r.classification]||r.classification||"—"}</td>
+                    <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                      {r.reviewRequired
+                        ?<span title={r.reviewReason||""} style={{color:C.amber,fontWeight:700}}>⚠ Revisar</span>
+                        :<span style={{color:C.green}}>✓ OK</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const [editConfig,setEditConfig]=useState(false);
   const [cfg,setCfg]=useState({});
   const [savingCfg,setSavingCfg]=useState(false);
+  const [cash,setCash]=useState(null);   // /api/payments/summary response (null until loaded)
+  const [drill,setDrill]=useState(null);  // open drawer: {title, rows} | null
+
+  // Load Cash Collected truth for the selected month. month is 0-indexed here; the
+  // API expects 1-12. On 401/403/error we leave `cash` falsy so the UI falls back
+  // to the legacy closer-entered totals and the cells stay non-clickable.
+  useEffect(()=>{
+    let active=true;
+    setCash(null);
+    fetch(`/api/payments/summary?year=${year}&month=${month+1}`,{credentials:"same-origin"})
+      .then(r=>r.ok?r.json():null)
+      .then(j=>{if(active)setCash(j);})
+      .catch(()=>{if(active)setCash({available:false});});
+    return()=>{active=false;};
+  },[year,month]);
 
   useEffect(()=>{
     setCfg({
@@ -726,29 +812,42 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const closeRateMeta=nv(cfg.closeRateMeta)||25;
   const day=nv(cfg.day)||new Date().getDate();
 
+  const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
+
+  // Cash Collected from the payment ledger is authoritative when present; otherwise
+  // we fall back to the legacy closer-entered totals so default behavior is unchanged.
+  const cashApi=cash&&cash.available&&cash.totals?cash.totals:null;
+  const cashGroups=(cash&&cash.groups)||{};
+  const dispCash=cashApi?cashApi.cashCollected:totalCash;
+  const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;
+  const dispHighT=cashApi?cashApi.highTicket:totalUpfront;
+  const dispReservas=cashApi?cashApi.reservas:null;
+  const reviewCount=cashApi&&cashApi.counts?cashApi.counts.reviewRequired:0;
+  const reviewAmount=cashApi?cashApi.reviewRequired:0;
+  const openDrill=(title,key)=>{if(!cashApi)return;setDrill({title,rows:cashGroups[key]||[]});};
+
   const ticketProm=totalVentas>0?totalValor/totalVentas:0;
   const pctTranscurrido=day/dm;
   const metaEsperadaHoy=metaMensual*pctTranscurrido;
-  const gapVsRitmo=totalCash-metaEsperadaHoy;
-  const proyeccion=day>0&&totalCash>0?(totalCash/day)*dm:null;
-  const pctCumpl=pv(totalCash,metaMensual);
+  const gapVsRitmo=dispCash-metaEsperadaHoy;
+  const proyeccion=day>0&&dispCash>0?(dispCash/day)*dm:null;
+  const pctCumpl=pv(dispCash,metaMensual);
 
   const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
   const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;
   const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;
 
-  const roasReal=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const roasReal=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const invEsperadaHoy=inversionPlaneada*pctTranscurrido;
   const gapInversion=totalGasto-invEsperadaHoy;
 
-  const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
   const ventasUniMeta=ticketProm>0?metaMensual/ticketProm:0;
   const asistidaMeta=closeRateMeta>0?ventasUniMeta/(closeRateMeta/100):0;
   const agendaMeta=pctAgAsis>0?asistidaMeta/(pctAgAsis/100):0;
   const leadsMeta=pctLeadsAg>0?agendaMeta/(pctLeadsAg/100):0;
   const leadsPorDolar=metaMensual>0?leadsMeta/metaMensual:0;
 
-  const roasCash=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const roasCash=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
   const roasUpfront=totalGasto>0&&totalUpfront>0?totalUpfront/totalGasto:null;
 
@@ -794,9 +893,12 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Upfront Cash</div>
             <div style={{fontSize:18,fontWeight:800,color:"#fbbf24",fontFamily:"'DM Mono',monospace"}}>{fD(totalUpfront)}</div>
           </div>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Low Ticket</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(totalValorLT)}</div>
+          <div onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):undefined}
+            role={cashApi?"button":undefined} tabIndex={cashApi?0:undefined}
+            onKeyDown={cashApi?(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDrill("Cash Low Ticket","lowTicket");}}:undefined}
+            style={{textAlign:"center",cursor:cashApi?"pointer":"default"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Low Ticket{cashApi?" ›":""}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(dispLowT)}</div>
           </div>
           <div style={{textAlign:"center"}}>
             <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Día</div>
@@ -805,6 +907,23 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
         </div>
       </div>
+
+      {/* PAGOS A REVISAR — amber alert, clickable to open the reviewRequired drill-down */}
+      {reviewCount>0&&(
+        <div onClick={()=>openDrill("Pagos a revisar","reviewRequired")} role="button" tabIndex={0}
+          onKeyDown={(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDrill("Pagos a revisar","reviewRequired");}}}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,cursor:"pointer",
+            background:C.amber+"14",border:`1px solid ${C.amber}66`,borderRadius:10,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:18}}>⚠️</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Pagos a revisar</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{reviewCount} {reviewCount===1?"pago de fuente no oficial":"pagos de fuente no oficial"} · {fD(reviewAmount)}</div>
+            </div>
+          </div>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>Ver detalle ›</span>
+        </div>
+      )}
 
       {/* CONFIG EDIT PANEL */}
       {editConfig&&(
@@ -849,9 +968,10 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         <div style={block}>
           <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
           <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
-          <Row2 label="Ventas $ (cash cobrado)" value={fD(totalCash)} bold color={C.green}/>
-          <Row2 label="Upfront Cash HT" value={fD(totalUpfront)} color={C.green}/>
-          <Row2 label="Cash Low Ticket" value={fD(totalValorLT)} color={C.teal}/>
+          <Row2 label="Ventas $ (cash cobrado)" value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label="Upfront Cash HT" value={fD(dispHighT)} color={C.green} onClick={cashApi?()=>openDrill("High Ticket","highTicket"):null}/>
+          <Row2 label="Cash Low Ticket" value={fD(dispLowT)} color={C.teal} onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):null}/>
+          {cashApi&&<Row2 label="Reservas (cash)" value={fD(dispReservas)} color={C.amber} onClick={()=>openDrill("Reservas","reservas")}/>}
           <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
           <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
           <Row2 label="Citas agendadas reales" value={fN(totalAgendas)}/>
@@ -873,7 +993,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
           <Row2 label="Meta esperada a hoy ($)" value={fD(metaEsperadaHoy)} bold/>
-          <Row2 label="Ventas reales acumuladas ($)" value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label="Ventas reales acumuladas ($)" value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
           <Row2 label="Gap vs ritmo ($)" value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
         </div>
 
@@ -884,9 +1004,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             <Row2 label="% cumplimiento proyectado" value={fP(pctCumplProy)} bold color={cH(pctCumplProy,85,65)}/>
             <Row2 label="Gap proyectado vs meta ($)" value={gapProy!=null?fD(gapProy):"—"} bold color={gapProy!=null&&gapProy>=0?C.green:C.red} bg={gapProy!=null&&gapProy>=0?"#f0fdf4":"#fef2f2"}/>
           </div>
-          {totalCash>0&&(
+          {dispCash>0&&(
             <div style={{padding:"0 10px 12px"}}>
-              <Barz value={totalCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`Cash actual: ${fP(pctCumpl)}`} right={fD(totalCash)}/>
+              <Barz value={dispCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`Cash actual: ${fP(pctCumpl)}`} right={fD(dispCash)}/>
               {proyeccion&&<div style={{marginTop:6}}><Barz value={proyeccion} max={metaMensual} color={C.blue} h={5} label={`Proyección: ${fP(pctCumplProy)}`} right={fD(proyeccion)}/></div>}
             </div>
           )}
@@ -1030,6 +1150,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           ))}
         </div>
       </div>
+
+      <PaymentsDrawer drill={drill} onClose={()=>setDrill(null)}/>
 
     </div>
   );
@@ -3276,7 +3398,7 @@ function App(){
         setKpiData(kpiObj);
         setDaily(dailyObj);
       }catch(e){
-        setError("Error conectando a la base de datos. Verifica tu conexión a internet.");
+        setError(e?.message||"Error conectando a la base de datos. Verifica tu conexión a internet.");
         console.error(e);
       }
       setReady(true);
