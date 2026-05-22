@@ -64,15 +64,16 @@ npm run dev                 # http://localhost:3000
 
 ### Routes
 
-- `/` — public landing.
-- `/login` — login form.
-- `/dashboard` — protected; shows daily KPIs or an explicit **"sin datos"** state.
+- `/` — current production static dashboard from `public/index.html`.
+- `/login` — login form for v2/admin surfaces; successful login returns to `/`.
+- `/dashboard` — protected compatibility route; redirects to `/` so logged-in refreshes do not show the obsolete v2 KPI skeleton.
+- `/admin/users` — ADMIN-only user/permission control.
 - `/api/health` — liveness; reports config presence as booleans only.
 - `/api/daily` — daily metrics from Postgres, with explicit no-data fallback.
 - `/api/auth/login`, `/api/auth/logout` — session lifecycle.
 
 Middleware protects `/dashboard` and `/api/*` except `health`, `auth/login`,
-and `auth/logout`.
+and `auth/logout`. `/admin/users` performs its own server-side session/permission check.
 
 ### Data model (Prisma)
 
