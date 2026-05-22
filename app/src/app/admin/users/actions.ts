@@ -15,7 +15,7 @@ import {
 import { prisma } from "@/lib/prisma";
 
 function parseRole(value: FormDataEntryValue | null): Role {
-  if (value === "ADMIN" || value === "OPERATOR" || value === "VIEWER") return value;
+  if (value === "ADMIN" || value === "OPERATOR" || value === "MENTOR" || value === "VIEWER") return value;
   return "VIEWER";
 }
 

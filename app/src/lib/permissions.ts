@@ -59,7 +59,7 @@ export function normalizePermissions(input: FormDataEntryValue[] | string[] | un
 
 export function defaultPermissionsForRole(role: Role): PermissionId[] {
   if (role === "ADMIN") return [...ALL_PERMISSIONS];
-  if (role === "OPERATOR") {
+  if (role === "OPERATOR" || role === "MENTOR") {
     return ALL_PERMISSIONS.filter(
       (permission) =>
         permission === "dashboard.read" ||
