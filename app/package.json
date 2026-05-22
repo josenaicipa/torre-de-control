@@ -15,7 +15,7 @@
     "prisma:validate": "prisma validate",
     "prisma:generate": "node scripts/prisma-generate.mjs",
     "db:migrate": "prisma migrate dev",
-    "payments:import": "tsx scripts/import-payment-transactions.mjs",
+    "payments:import": "node scripts/import-payment-transactions.mjs",
     "user:create-admin": "tsx scripts/create-admin.ts",
     "postinstall": "node scripts/prisma-generate.mjs",
     "prebuild": "node scripts/prisma-generate.mjs"

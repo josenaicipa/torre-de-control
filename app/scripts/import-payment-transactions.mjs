@@ -18,11 +18,110 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 
-import { classifyPayments, summarize } from "../src/domain/cash-collected.ts";
-
-const DEFAULT_PATH =
+const LEGACY_PATH =
   "/home/ubuntu/proyectos/unlocked-dashboard/cloud-automation/payments-lead-join.json";
+const IMAGE_SEED_PATH = "scripts/payment-transactions-seed.json";
+const DEFAULT_PATH = fs.existsSync(IMAGE_SEED_PATH) ? IMAGE_SEED_PATH : LEGACY_PATH;
 const DATA_PATH = process.env.TORRE_PAYMENTS_JOIN_PATH || DEFAULT_PATH;
+
+const HIGH_TICKET_RESERVA_THRESHOLD = 450;
+const OFFICIAL_SOURCES = new Set(["hotmart", "stripe"]);
+
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+
+function normalize(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function classifySource(source) {
+  const normalized = normalize(source);
+  if (OFFICIAL_SOURCES.has(normalized)) {
+    return { contributesToCash: true, reviewRequired: false, reviewReason: null };
+  }
+  return {
+    contributesToCash: true,
+    reviewRequired: true,
+    reviewReason: normalized ? `Fuente no oficial: ${String(source ?? "").trim()}` : "Fuente desconocida",
+  };
+}
+
+function classifyTicket({ buyerType, amountUsd, cumulativeBefore }) {
+  const type = normalize(buyerType);
+  if (type === "low_ticket") return "LOW_TICKET";
+  if (type !== "high_ticket") return "UNKNOWN";
+  return round2(cumulativeBefore + amountUsd) <= HIGH_TICKET_RESERVA_THRESHOLD
+    ? "RESERVA"
+    : "HIGH_TICKET";
+}
+
+function leadKey(payment, index) {
+  const email = normalize(payment.leadEmail);
+  if (email) return `email:${email}`;
+  const name = normalize(payment.leadName);
+  if (name) return `name:${name}`;
+  return `row:${index}`;
+}
+
+function classifyPayments(payments) {
+  const byLead = new Map();
+  payments.forEach((payment, index) => {
+    const key = leadKey(payment, index);
+    const bucket = byLead.get(key) || [];
+    bucket.push({ payment, index });
+    byLead.set(key, bucket);
+  });
+  const result = new Array(payments.length);
+  for (const bucket of byLead.values()) {
+    bucket.sort((a, b) => {
+      const ta = new Date(a.payment.paidAt).getTime();
+      const tb = new Date(b.payment.paidAt).getTime();
+      return ta === tb ? a.index - b.index : ta - tb;
+    });
+    let cumulative = 0;
+    for (const { payment, index } of bucket) {
+      const amountUsd = round2(Number(payment.amountUsd) || 0);
+      const sourceInfo = classifySource(payment.source);
+      const classification = classifyTicket({ buyerType: payment.buyerType, amountUsd, cumulativeBefore: cumulative });
+      cumulative = round2(cumulative + amountUsd);
+      result[index] = {
+        ...payment,
+        amountUsd,
+        paidAt: new Date(payment.paidAt),
+        classification,
+        contributesToCash: sourceInfo.contributesToCash,
+        reviewRequired: sourceInfo.reviewRequired,
+        reviewReason: sourceInfo.reviewReason,
+      };
+    }
+  }
+  return result;
+}
+
+function summarize(transactions) {
+  const out = {
+    cashCollected: 0,
+    lowTicket: 0,
+    highTicket: 0,
+    reservas: 0,
+    reviewRequired: 0,
+    counts: { total: transactions.length, lowTicket: 0, highTicket: 0, reservas: 0, reviewRequired: 0, unknown: 0 },
+  };
+  for (const tx of transactions) {
+    if (tx.contributesToCash) out.cashCollected += tx.amountUsd;
+    if (tx.reviewRequired) {
+      out.reviewRequired += tx.amountUsd;
+      out.counts.reviewRequired += 1;
+    }
+    if (tx.classification === "LOW_TICKET") { out.lowTicket += tx.amountUsd; out.counts.lowTicket += 1; }
+    else if (tx.classification === "HIGH_TICKET") { out.highTicket += tx.amountUsd; out.counts.highTicket += 1; }
+    else if (tx.classification === "RESERVA") { out.reservas += tx.amountUsd; out.counts.reservas += 1; }
+    else out.counts.unknown += 1;
+  }
+  for (const key of ["cashCollected", "lowTicket", "highTicket", "reservas", "reviewRequired"]) out[key] = round2(out[key]);
+  return out;
+}
 const DRY_RUN = process.env.DRY_RUN === "1" || process.argv.includes("--dry-run");
 
 // Flatten one join row into raw payments — one per sale_item.

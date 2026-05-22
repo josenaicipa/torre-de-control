@@ -7,6 +7,7 @@ app/node_modules/
 app/.next/
 app/coverage/
 app/*.tsbuildinfo
+app/scripts/payment-transactions-seed.json
 .env
 .env.local
 .env.*.local

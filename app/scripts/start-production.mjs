@@ -84,6 +84,28 @@ function runDailyImport() {
   }
 }
 
+function runPaymentTransactionsImport() {
+  if (process.env.IMPORT_PAYMENT_TRANSACTIONS_ON_START !== "1") {
+    console.log("[start-production] payment transaction import not enabled — skipping");
+    return;
+  }
+  console.log("[start-production] payment transaction import enabled — importing cash ledger");
+  const result = spawnSync("node", ["scripts/import-payment-transactions.mjs"], {
+    stdio: "inherit",
+    env: process.env,
+    shell: isWindows,
+  });
+
+  if (result.error) {
+    console.error("[start-production] failed to spawn payment transaction import:", result.error.message);
+    process.exit(1);
+  }
+  if ((result.status ?? 0) !== 0) {
+    console.error(`[start-production] payment transaction import exited with code ${result.status}`);
+    process.exit(result.status ?? 1);
+  }
+}
+
 function startNext() {
   console.log(`[start-production] starting Next.js on port ${PORT}`);
   const child = spawn("next", ["start", "-p", PORT], {
@@ -117,6 +139,7 @@ if (databaseIsConfigured()) {
   runMigrations();
   runAdminBootstrap();
   runDailyImport();
+  runPaymentTransactionsImport();
 } else {
   console.log("[start-production] DATABASE_URL not configured — skipping migrations, admin bootstrap, and daily import");
 }
