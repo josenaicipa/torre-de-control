@@ -93,21 +93,20 @@ Corrections happen in GHL. See `app/src/domain/appointments.ts` and its tests.
 **Local/staging:** Docker Compose Postgres (`docker-compose.yml`, host port 5438)
 — local development only.
 
-**Production (target, not yet provisioned):** AWS **RDS PostgreSQL** for the
-database plus a container runtime (AWS **App Runner** or **ECS/Fargate**) for the
-Next.js app. Production secrets (`DATABASE_URL`, `AUTH_SECRET`) are set in the
-deploy environment, never committed. No production infrastructure has been
-provisioned by this slice; cutover from the static `index.html` requires explicit
-approval per the migration plan.
+**Production:** AWS **RDS PostgreSQL** (`torre-control-v2-db`) plus AWS **App
+Runner** (`torre-de-control-v2`) running the Next.js app at
+`control.unlockedecom.co`. Runtime config is set in AWS only and must never be
+committed. App Runner currently serves the ECR image tagged with the deployed git
+SHA.
 
 CI: `.github/workflows/torre-v2-verify.yml` runs install → stack doctor → prisma
 validate → verify → build on `app/**` changes, using placeholder env values only.
 
-AWS artifacts added in this slice:
+AWS artifacts:
 
 - `app/Dockerfile` and `app/.dockerignore` for an AWS-compatible container image.
 - `amplify.yml` for a monorepo Amplify build rooted at `app/`.
-- `docs/aws-deployment.md` with discovered AWS permissions and current blockers.
+- `docs/aws-deployment.md` with current AWS/App Runner deployment notes.
 
 ---
 

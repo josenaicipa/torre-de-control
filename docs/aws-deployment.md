@@ -2,12 +2,14 @@
 
 ## Target architecture
 
-Preferred production target for Jose/Unlocked:
+Production target for Jose/Unlocked:
 
 - App: Next.js v2 from `app/`.
-- Runtime: AWS Amplify Hosting for fast staging, or App Runner/ECS when container image permissions are available.
-- Database: AWS RDS PostgreSQL, separate from Ecommerce360.
-- Secrets: AWS/Amplify environment variables only. Never commit `.env`.
+- Runtime: AWS App Runner service `torre-de-control-v2` in `us-east-1`.
+- Image: ECR repository `torre-de-control-v2`, tagged by git SHA.
+- Database: AWS RDS PostgreSQL `torre-control-v2-db`, separate from Ecommerce360.
+- Domain: `control.unlockedecom.co`.
+- Secrets/config: AWS runtime configuration only. Never commit `.env` or raw values.
 
 ## Required runtime secrets
 
@@ -17,7 +19,7 @@ Set these in the AWS runtime secret/env store:
 - `AUTH_SECRET` — strong random signing secret, >= 32 chars recommended.
 - `TORRE_ADMIN_PASSWORD` — only temporarily when bootstrapping an admin, then remove/rotate.
 
-## Current AWS permission discovery — 2026-05-21
+## Current AWS state — 2026-05-22
 
 Profile/user discovered:
 
@@ -31,20 +33,26 @@ Observed access:
 - `amplify:ListApps`: OK. Existing app observed: `Ecommerce360`.
 - `rds:DescribeDBInstances`: OK. Existing `ecommerce360-db` observed.
 - `ec2:DescribeVpcs`: OK. Default VPC exists.
+- `ecr:DescribeImages`: OK for `torre-de-control-v2`.
+- `apprunner:ListServices` / `DescribeService`: OK for `torre-de-control-v2`.
+- `logs:FilterLogEvents`: OK for App Runner log groups.
 
-Observed blockers:
+Known blockers / follow-ups:
 
-- `ecr:DescribeRepositories`: denied.
-- `apprunner:ListServices`: denied.
 - `codeconnections:ListConnections`: denied.
 - `cloudformation:DescribeStacks/ListStacks`: denied.
 - `iam:SimulatePrincipalPolicy`: denied.
+- Move App Runner runtime secrets from plain runtime environment variables into
+  AWS secret references / SSM or Secrets Manager when approved.
 
-Impact:
+Current verified deploy:
 
-- We can inspect some AWS state, but cannot currently verify/push ECR or App Runner from this IAM user.
-- Amplify may be the shortest AWS-hosting path if repo access/token and app creation/branch permissions are available.
-- If Jose wants container deploy through ECR/App Runner/ECS, grant the missing ECR/App Runner/CodeConnections permissions or provide an existing deploy target.
+- App Runner service: `torre-de-control-v2`, status `RUNNING`.
+- Runtime port: `3000`.
+- Health endpoint: `/api/health` returns `ok: true`.
+- Latest verified image tag: `53824c8`.
+- Pre-import RDS snapshot: `torre-control-v2-pre-import-20260522003232`, status
+  `available`.
 
 ## Build locally as AWS-compatible container
 
@@ -64,6 +72,9 @@ docker run --rm -p 3000:3000 \
 ```
 
 ## Amplify build
+
+Amplify notes are historical/staging-only. Production currently runs on App
+Runner.
 
 `amplify.yml` is configured for monorepo app root `app/`:
 
