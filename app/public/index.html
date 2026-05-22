@@ -2320,6 +2320,20 @@ const AdminView=({allDaily,onSave,onDelete})=>{
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <Card>
+        <STit icon="👥" title="Administración de usuarios" sub="Crea accesos, cambia roles y ajusta permisos por módulo"/>
+        <div style={{display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{fontSize:12,color:TXT3,lineHeight:1.55,maxWidth:620}}>
+            Gestiona quién puede entrar a Torre de Control. El panel usa login seguro y conserva auditoría: los usuarios se suspenden, no se eliminan.
+          </div>
+          <a href="/admin/users" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
+            border:"none",borderRadius:10,padding:"11px 18px",fontWeight:900,fontSize:12,cursor:"pointer",
+            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 10px ${C.gold}35`,textDecoration:"none"}}>
+            Abrir usuarios y permisos →
+          </a>
+        </div>
+      </Card>
+
+      <Card>
         <STit icon="🔐" title="Panel Admin" sub="Visualiza, edita o elimina cualquier entrada del equipo"/>
         <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
