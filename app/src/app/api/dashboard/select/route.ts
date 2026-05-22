@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getDashboardActor } from "@/lib/dashboard-actor";
 import { resolveDashboardAccess } from "@/lib/dashboard-access";
 import { isDashboardTable, tableConfig } from "@/lib/dashboard-tables";
-import { inFilter, restSelect, SupabaseRestError } from "@/lib/supabase-rest";
+import { dashboardSelect, DashboardStoreError } from "@/lib/dashboard-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,21 +34,21 @@ export async function GET(req: NextRequest) {
 
   // Member-scoped table: global users read everything; others get only their
   // allowed members. An empty allowed set means no rows (fail closed).
-  let search = "select=*";
+  let members: readonly string[] | undefined;
   if (config.scope === "member" && !access.isGlobalData) {
     if (access.allowedMembers.length === 0) {
       return NextResponse.json({ rows: [], scopeLimited: true, reason: access.reason });
     }
-    search = `select=*&${inFilter("member", access.allowedMembers)}`;
+    members = access.allowedMembers;
   }
 
   try {
-    const rows = await restSelect(table, search);
+    const rows = await dashboardSelect(table, members);
     return NextResponse.json({ rows, scopeLimited: !access.isGlobalData });
   } catch (error) {
-    const upstreamStatus = error instanceof SupabaseRestError ? error.status : undefined;
+    const upstreamStatus = error instanceof DashboardStoreError ? error.status : undefined;
     console.error("dashboard.select.failed", { table, upstreamStatus });
-    const status = error instanceof SupabaseRestError ? 502 : 500;
+    const status = error instanceof DashboardStoreError ? 400 : 500;
     return NextResponse.json({ error: `Error de datos (${table})` }, { status });
   }
 }

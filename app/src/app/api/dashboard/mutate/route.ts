@@ -2,13 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getDashboardActor } from "@/lib/dashboard-actor";
 import { isMemberAllowed, resolveDashboardAccess } from "@/lib/dashboard-access";
 import {
-  conflictTarget,
   isDashboardTable,
   sanitizeValues,
   tableConfig,
   type DashboardTable,
 } from "@/lib/dashboard-tables";
-import { restDelete, restInsert, restUpsert, SupabaseRestError } from "@/lib/supabase-rest";
+import {
+  dashboardDelete,
+  dashboardInsert,
+  dashboardUpsert,
+  DashboardStoreError,
+} from "@/lib/dashboard-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,7 +92,7 @@ export async function POST(req: NextRequest) {
           return FORBIDDEN;
         }
       }
-      await restDelete(table, match);
+      await dashboardDelete(table, match);
       return NextResponse.json({ ok: true });
     }
 
@@ -103,15 +107,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.op === "upsert") {
-      await restUpsert(table, values, conflictTarget(table));
+      await dashboardUpsert(table, values);
       return NextResponse.json({ ok: true });
     }
 
     // insert returns the inserted row(s) (ads_entries needs the new id)
-    const rows = await restInsert(table, values);
+    const rows = await dashboardInsert(table, values);
     return NextResponse.json({ ok: true, rows });
   } catch (error) {
-    const status = error instanceof SupabaseRestError ? 502 : 500;
+    const status = error instanceof DashboardStoreError ? error.status : 500;
     return NextResponse.json({ error: "Error de datos" }, { status });
   }
 }

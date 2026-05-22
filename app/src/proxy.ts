@@ -13,6 +13,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 const PUBLIC_API = new Set<string>([
   "/api/health",
   "/api/health/deep",
+  "/api/dashboard/import",
   "/api/auth/login",
   "/api/auth/logout",
 ]);

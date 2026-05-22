@@ -170,3 +170,126 @@ model CommercialNote {
   @@index([email])
   @@index([ownerId])
 }
+
+// ─── Dashboard data tables ───────────────────────────────────────────────────
+// These four tables back public/index.html through /api/dashboard/{select,mutate,
+// import}. They migrated off Supabase to RDS so the server-side dashboard works
+// inside App Runner's VPC. Column names are snake_case to match the browser's
+// existing payloads exactly; the writable column whitelist and scope rules live
+// in src/lib/dashboard-tables.ts (the access source of truth). The store
+// (src/lib/dashboard-store.ts) reads/writes these via parameterized raw SQL, not
+// the Prisma client, but the models are kept here so the schema and migrations
+// stay drift-free.
+
+// Company-wide monthly KPI funnel + targets. One row per (year, month).
+// `month` is 0-indexed to match the browser (0 = January).
+model KpiData {
+  year                    Int
+  month                   Int
+  revenue                 Decimal? @db.Decimal(18, 2)
+  ad_spend                Decimal? @db.Decimal(18, 2)
+  leads                   Int?
+  agendas                 Int?
+  shows                   Int?
+  cierres                 Int?
+  meta_revenue            Decimal? @db.Decimal(18, 2)
+  day                     Int?
+  pct_leads_agendadas     Decimal? @db.Decimal(8, 2)
+  pct_agendadas_asistidas Decimal? @db.Decimal(8, 2)
+  close_rate_meta         Decimal? @db.Decimal(8, 2)
+  inversion_planeada      Decimal? @db.Decimal(18, 2)
+  roas_objetivo           Decimal? @db.Decimal(8, 2)
+
+  @@id([year, month])
+  @@map("kpi_data")
+}
+
+// Per-collaborator daily marketing + organic-closer figures. One row per
+// (date, member). `member` is the only row-level scope key in the dashboard.
+model DailyEntry {
+  date             DateTime @db.Date
+  member           String
+  ig_followers     Int?
+  posts            Int?
+  mensajes         Int?
+  follow_ups       Int?
+  bk_offers        Int?
+  gasto_meta       Decimal? @db.Decimal(18, 2)
+  gasto_google     Decimal? @db.Decimal(18, 2)
+  gasto_tiktok     Decimal? @db.Decimal(18, 2)
+  gasto_otros      Decimal? @db.Decimal(18, 2)
+  new_bk_organic   Int?
+  qual_bk_organic  Int?
+  today_bk_organic Int?
+  show_organic     Int?
+  sales_organic    Int?
+  revenue_organic  Decimal? @db.Decimal(18, 2)
+  cash_organic     Decimal? @db.Decimal(18, 2)
+  recurring_organic Decimal? @db.Decimal(18, 2)
+  pitches_organic  Int?
+  pitches_paid     Int?
+  reservas_organic Int?
+
+  @@id([date, member])
+  @@map("daily_entries")
+}
+
+// Individual ad-spend line items, grouped in the UI by (year, month). Carries a
+// surrogate id because rows are added/removed individually from the browser.
+model AdsEntry {
+  id          Int      @id @default(autoincrement())
+  year        Int?
+  month       Int?
+  fecha       DateTime? @db.Date
+  canal       String?
+  gasto       Decimal? @db.Decimal(18, 2)
+  impresiones Int?
+  clicks      Int?
+  revenue     Decimal? @db.Decimal(18, 2)
+
+  @@index([year, month])
+  @@index([fecha])
+  @@map("ads_entries")
+}
+
+// Company-wide daily closer ledger. One row per date.
+model DailyCloser {
+  date                   DateTime @id @db.Date
+  q_ventas_ht            Int?
+  valor_venta_ht         Decimal? @db.Decimal(18, 2)
+  upfront_cash_ht        Decimal? @db.Decimal(18, 2)
+  ventas_cash            Decimal? @db.Decimal(18, 2)
+  recurring_cash         Decimal? @db.Decimal(18, 2)
+  q_ventas_lt            Int?
+  valor_venta_lt         Decimal? @db.Decimal(18, 2)
+  total_clientes_activos Int?
+  q_reservas             Int?
+  cash_reservas          Decimal? @db.Decimal(18, 2)
+  q_reembolsos           Int?
+  valor_reembolsos       Decimal? @db.Decimal(18, 2)
+  agendas_organicas      Int?
+  agendas_meta           Int?
+  agendas_google         Int?
+  agendas_tiktok         Int?
+  agendas_otros          Int?
+  cal_organicas          Int?
+  cal_meta               Int?
+  cal_google             Int?
+  cal_tiktok             Int?
+  cal_otros              Int?
+  hoy_organicas          Int?
+  hoy_meta               Int?
+  hoy_google             Int?
+  hoy_tiktok             Int?
+  hoy_otros              Int?
+  show_organicas         Int?
+  show_meta              Int?
+  show_google            Int?
+  show_tiktok            Int?
+  show_otros             Int?
+  agendas_calificadas    Int?
+  agendas_final          Int?
+  citas_asistidas        Int?
+
+  @@map("daily_closer")
+}
