@@ -62,6 +62,28 @@ function runAdminBootstrap() {
   }
 }
 
+function runDailyImport() {
+  if (process.env.IMPORT_DAILY_METRICS_ON_START !== "1") {
+    console.log("[start-production] daily metrics import not enabled — skipping");
+    return;
+  }
+  console.log("[start-production] daily metrics import enabled — importing production exports");
+  const result = spawnSync("node", ["scripts/import-daily-metrics.mjs"], {
+    stdio: "inherit",
+    env: process.env,
+    shell: isWindows,
+  });
+
+  if (result.error) {
+    console.error("[start-production] failed to spawn daily metrics import:", result.error.message);
+    process.exit(1);
+  }
+  if ((result.status ?? 0) !== 0) {
+    console.error(`[start-production] daily metrics import exited with code ${result.status}`);
+    process.exit(result.status ?? 1);
+  }
+}
+
 function startNext() {
   console.log(`[start-production] starting Next.js on port ${PORT}`);
   const child = spawn("next", ["start", "-p", PORT], {
@@ -94,8 +116,9 @@ function startNext() {
 if (databaseIsConfigured()) {
   runMigrations();
   runAdminBootstrap();
+  runDailyImport();
 } else {
-  console.log("[start-production] DATABASE_URL not configured — skipping migrations and admin bootstrap");
+  console.log("[start-production] DATABASE_URL not configured — skipping migrations, admin bootstrap, and daily import");
 }
 
 startNext();
