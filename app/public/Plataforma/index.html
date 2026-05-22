@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Torre de Control — Unlocked</title>
 <link rel="icon" type="image/png" href="logo.png"/>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -17,11 +16,103 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect } = React;
-const { createClient } = supabase;
 
-const SUPABASE_URL = 'https://vluuftzeivluexuhdupu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsdXVmdHplaXZsdWV4dWhkdXB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTczNTAsImV4cCI6MjA4OTc3MzM1MH0.DlM-t41BzH0TBxaxiZBQfjg6l-zO0Cs17Uvn4FBZlkQ';
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// ─── Authenticated data client ───────────────────────────────────────────────
+// The browser no longer talks to Supabase directly. All reads/writes go through
+// same-origin Next routes (/api/dashboard/*) that enforce session + permissions
+// + data scope server-side. This `db` shim mirrors the small slice of the
+// Supabase query API the dashboard actually used, so call sites stay unchanged.
+const DASH_API = "/api/dashboard";
+const _post = (path, body) =>
+  fetch(DASH_API + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+async function _errFrom(r) {
+  const j = await r.json().catch(() => ({}));
+  return { message: j.error || `HTTP ${r.status}`, status: r.status };
+}
+const db = {
+  from(table) {
+    return {
+      // .select("*") — read a whole table (server scope-filters the rows).
+      select() {
+        return (async () => {
+          try {
+            const r = await fetch(
+              `${DASH_API}/select?table=${encodeURIComponent(table)}`,
+              { credentials: "same-origin" },
+            );
+            if (!r.ok) return { data: null, error: await _errFrom(r) };
+            const j = await r.json();
+            return { data: j.rows || [], error: null };
+          } catch (e) {
+            return { data: null, error: { message: String(e) } };
+          }
+        })();
+      },
+      // .upsert(values, {onConflict}) — insert or merge.
+      upsert(values, opts) {
+        return (async () => {
+          try {
+            const r = await _post("/mutate", {
+              op: "upsert",
+              table,
+              values,
+              onConflict: opts && opts.onConflict,
+            });
+            if (!r.ok) return { data: null, error: await _errFrom(r) };
+            return { data: null, error: null };
+          } catch (e) {
+            return { data: null, error: { message: String(e) } };
+          }
+        })();
+      },
+      // .insert(values) — supports both `await insert()` and `insert().select().single()`.
+      insert(values) {
+        const exec = async (single) => {
+          try {
+            const r = await _post("/mutate", { op: "insert", table, values });
+            if (!r.ok) return { data: null, error: await _errFrom(r) };
+            const j = await r.json();
+            const rows = j.rows || [];
+            return { data: single ? rows[0] || null : rows, error: null };
+          } catch (e) {
+            return { data: null, error: { message: String(e) } };
+          }
+        };
+        return {
+          select() {
+            return {
+              single: () => exec(true),
+              then: (res, rej) => exec(false).then(res, rej),
+            };
+          },
+          then: (res, rej) => exec(false).then(res, rej),
+        };
+      },
+      // .delete().eq(col,val) / .delete().match({...})
+      delete() {
+        const run = (match) =>
+          (async () => {
+            try {
+              const r = await _post("/mutate", { op: "delete", table, match });
+              if (!r.ok) return { data: null, error: await _errFrom(r) };
+              return { data: null, error: null };
+            } catch (e) {
+              return { data: null, error: { message: String(e) } };
+            }
+          })();
+        return {
+          eq: (col, val) => run({ [col]: val }),
+          match: (obj) => run(obj),
+        };
+      },
+    };
+  },
+};
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const MDAYS  = [31,28,31,30,31,30,31,31,30,31,30,31];
@@ -3114,6 +3205,29 @@ function App(){
   const [ready,setReady]=useState(false);
   const [closerData,setCloserData]=useState({});
   const [error,setError]=useState(null);
+  const [me,setMe]=useState(null);
+
+  // Identity + capabilities (drives the admin link and the scope banner). The
+  // server is the real authorization boundary; this only shapes the UI.
+  useEffect(()=>{
+    let alive=true;
+    fetch("/api/auth/me",{credentials:"same-origin"})
+      .then(r=>r.ok?r.json():null)
+      .then(d=>{if(alive&&d&&d.user)setMe(d.user);})
+      .catch(()=>{});
+    return()=>{alive=false;};
+  },[]);
+
+  const canManage=!!(me&&me.canManageUsers);
+  const caps=(me&&me.capabilities)||null;
+  const scopeLimited=!!(caps&&!caps.isGlobalData);
+  // Hide the Admin tab unless the user can manage users.
+  const visibleTabs=TABS.filter(t=>t.id!=="admin"||canManage);
+  const visibleMobileTabs=MOBILE_TABS.filter(t=>t&&(t.id!=="admin"||canManage));
+  // If the user landed on a now-hidden tab, fall back to the default view.
+  useEffect(()=>{
+    if(me&&!canManage&&tab==="admin")setTab("torre");
+  },[me,canManage,tab]);
 
   useEffect(()=>{
     (async()=>{
@@ -3433,7 +3547,7 @@ function App(){
           {/* Nav items */}
           <nav style={{padding:"10px 10px",flex:1}}>
             <Lbl style={{marginLeft:8,marginBottom:6}}>Navegación</Lbl>
-            {TABS.map(t=>{
+            {visibleTabs.map(t=>{
               const active=tab===t.id;
               const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
               return(
@@ -3514,6 +3628,14 @@ function App(){
 
           {/* Page content */}
           <div style={{padding:"20px 24px 60px",flex:1,overflowY:"auto",overflowX:"hidden"}} className="fade-in page-content">
+            {scopeLimited&&<div style={{marginBottom:16,background:C.amber+"14",border:`1px solid ${C.amber}55`,
+              borderRadius:10,padding:"11px 14px",display:"flex",alignItems:"center",gap:10}}>
+              <Icon name="lock" size={15} color={C.amber}/>
+              <div style={{fontSize:12,color:TXT,lineHeight:1.5}}>
+                <strong style={{fontWeight:800}}>Vista limitada.</strong>{" "}
+                {(caps&&caps.scopeSummary)||"Solo ves los datos asignados a tu alcance."} Si necesitas más acceso, pide a un admin que ajuste tu alcance.
+              </div>
+            </div>}
             {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
             {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
             {tab==="control" &&<ControlComercial/>}
@@ -3535,7 +3657,7 @@ function App(){
           display:"none",overflowX:"auto",
           boxShadow:"0 -4px 20px rgba(0,0,0,.2)"}}>
           <div style={{display:"flex",minWidth:"max-content",padding:"6px 4px 8px"}}>
-            {MOBILE_TABS.map(t=>{
+            {visibleMobileTabs.map(t=>{
               const active=tab===t.id;
               return(
                 <button key={t.id} onClick={()=>setTab(t.id)} style={{

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -24,11 +25,18 @@ DEFAULT_MEMBER = "Auto Ads"
 
 
 def parse_supabase_config(index_path: Path) -> tuple[str, str]:
+    env_url = os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    env_key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    if env_url and env_key:
+        return env_url.rstrip("/"), env_key
+
     text = index_path.read_text(encoding="utf-8")
     url_match = re.search(r"const SUPABASE_URL = '([^']+)'", text)
     key_match = re.search(r"const SUPABASE_KEY = '([^']+)'", text)
     if not url_match or not key_match:
-        raise RuntimeError(f"Could not find Supabase config in {index_path}")
+        raise RuntimeError(
+            "Could not find Supabase config. Set SUPABASE_URL and SUPABASE_ANON_KEY."
+        )
     return url_match.group(1).rstrip("/"), key_match.group(1)
 
 
