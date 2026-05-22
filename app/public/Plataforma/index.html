@@ -849,7 +849,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
 
   const roasCash=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
-  const roasUpfront=totalGasto>0&&totalUpfront>0?totalUpfront/totalGasto:null;
+  const roasUpfront=totalGasto>0&&dispHighT>0?dispHighT/totalGasto:null;
 
   const pctCumplProy=pv(proyeccion,metaMensual);
   const gapProy=proyeccion?proyeccion-metaMensual:null;
@@ -889,9 +889,12 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
         </div>
         <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Upfront Cash</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fbbf24",fontFamily:"'DM Mono',monospace"}}>{fD(totalUpfront)}</div>
+          <div onClick={cashApi?()=>openDrill("High Ticket","highTicket"):undefined}
+            role={cashApi?"button":undefined} tabIndex={cashApi?0:undefined}
+            onKeyDown={cashApi?(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDrill("High Ticket","highTicket");}}:undefined}
+            style={{textAlign:"center",cursor:cashApi?"pointer":"default"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Upfront Cash{cashApi?" ›":""}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fbbf24",fontFamily:"'DM Mono',monospace"}}>{fD(dispHighT)}</div>
           </div>
           <div onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):undefined}
             role={cashApi?"button":undefined} tabIndex={cashApi?0:undefined}
