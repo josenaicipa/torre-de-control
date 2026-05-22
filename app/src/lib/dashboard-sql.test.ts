@@ -25,6 +25,12 @@ describe("dashboard-sql", () => {
     );
   });
 
+  it("casts date placeholders for Postgres DATE columns", () => {
+    expect(buildUpsertSql("daily_entries", ["date", "member", "posts"], ["date", "member"])).toBe(
+      'INSERT INTO "daily_entries" ("date", "member", "posts") VALUES ($1::date, $2, $3) ON CONFLICT ("date", "member") DO UPDATE SET "posts" = EXCLUDED."posts"',
+    );
+  });
+
   it("builds protected deletes only with filters", () => {
     expect(buildDeleteSql("ads_entries", ["id"])).toBe('DELETE FROM "ads_entries" WHERE "id" = $1');
     expect(() => buildDeleteSql("ads_entries", [])).toThrow("refusing-unfiltered-delete");

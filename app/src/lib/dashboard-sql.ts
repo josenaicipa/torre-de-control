@@ -87,6 +87,10 @@ export function quoteIdent(name: string): string {
   return `"${name}"`;
 }
 
+function placeholderFor(table: DashboardTable, column: string, position: number): string {
+  return columnKind(table, column) === "date" ? `$${position}::date` : `$${position}`;
+}
+
 /** Coerce a JS value for binding to a column of the given kind. */
 export function coerceInputValue(kind: ColumnKind, value: unknown): unknown {
   if (value === undefined || value === null) return null;
@@ -187,7 +191,7 @@ export function buildUpsertSql(
 
   const t = quoteIdent(table);
   const cols = columns.map(quoteIdent).join(", ");
-  const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ");
+  const placeholders = columns.map((column, i) => placeholderFor(table, column, i + 1)).join(", ");
   const conflict = conflictColumns.map(quoteIdent).join(", ");
   const updateCols = columns.filter((c) => !conflictColumns.includes(c));
 
@@ -207,7 +211,7 @@ export function buildInsertSql(table: DashboardTable, columns: readonly string[]
   assertColumns(table, columns);
   const t = quoteIdent(table);
   const cols = columns.map(quoteIdent).join(", ");
-  const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ");
+  const placeholders = columns.map((column, i) => placeholderFor(table, column, i + 1)).join(", ");
   return `INSERT INTO ${t} (${cols}) VALUES (${placeholders}) RETURNING *`;
 }
 
