@@ -14,6 +14,7 @@ enum Role {
   ADMIN
   OPERATOR
   VIEWER
+  MENTOR
 }
 
 // Panel-controlled operational cargo. Drives what each user is allowed to see.
@@ -96,8 +97,16 @@ model User {
   ghlUserEmail String?
   ghlUserName  String?
 
+  isCollector  Boolean      @default(false)
+
   auditEvents     AuditEvent[]
   commercialNotes CommercialNote[]
+  mentor               Mentor?
+  recordedPayments     Payment[]                @relation("PaymentRecorder")
+  submittedProgress    ProgressUpdate[]         @relation("ProgressSubmitter")
+  reportedMetrics      StudentMonthlyMetrics[]  @relation("MetricsReporter")
+  resolvedTerminations TerminationAlert[]       @relation("TerminationResolver")
+  uploadedImports      ImportBatch[]            @relation("ImportUploader")
 
   @@index([role])
   @@index([position])
@@ -293,3 +302,310 @@ model DailyCloser {
 
   @@map("daily_closer")
 }
+
+// ─── Operaciones module ──────────────────────────────────────────────────────
+
+enum StudentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  DROPPED
+  EXTENDED
+  ACCESS_REVOKED
+}
+
+enum ScheduleStatus {
+  PENDING
+  PAID
+  PARTIAL
+  OVERDUE
+  WAIVED
+}
+
+enum ImportStatus {
+  PENDING
+  PREVIEW_READY
+  CONFIRMING
+  COMPLETED
+  ERRORED
+}
+
+enum ProgressLevel {
+  ALTO
+  MEDIO
+  BAJO
+  SIN_DATO
+}
+
+model Mentor {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  students        Student[]
+  progressUpdates ProgressUpdate[]
+
+  @@index([active])
+}
+
+model Program {
+  id                    String   @id @default(cuid())
+  slug                  String   @unique
+  name                  String
+  durationMonthsDefault Int      @default(12)
+  description           String?
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  students Student[]
+}
+
+model Student {
+  id                   String         @id @default(cuid())
+  fullName             String
+  email                String         @unique
+  phone                String?
+  startDate            DateTime       @db.Date
+  durationMonths       Int
+  endDate              DateTime       @db.Date
+  mentorId             String?
+  mentor               Mentor?        @relation(fields: [mentorId], references: [id], onDelete: SetNull)
+  programId            String?
+  program              Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  status               StudentStatus  @default(ACTIVE)
+  durationAssumed      Boolean        @default(false)
+  closedAt             DateTime?      @db.Date
+  legacyRowId          Int?
+  ghlContactId         String?
+  notes                String?
+  currentProgressLevel ProgressLevel  @default(SIN_DATO)
+  currentBottleneck    String?
+  personality          String?
+  legalName            String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  members             StudentMember[]
+  attributions        SaleAttribution[]
+  paymentSchedules    PaymentSchedule[]
+  payments            Payment[]
+  progressUpdates     ProgressUpdate[]
+  monthlyMetrics      StudentMonthlyMetrics[]
+  sales               Sale[]
+  terminations        TerminationAlert[]
+  promotedFromContact Contact?                @relation("ContactPromotion")
+
+  @@index([mentorId])
+  @@index([programId])
+  @@index([status])
+  @@index([legacyRowId])
+}
+
+model StudentMember {
+  id               String   @id @default(cuid())
+  studentId        String
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fullName         String
+  email            String?
+  phone            String?
+  isPrimaryContact Boolean  @default(false)
+  ghlContactId     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([studentId, email])
+  @@index([studentId])
+}
+
+model SaleAttribution {
+  id               String   @id @default(cuid())
+  studentId        String
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  collaboratorName String
+  role             String?
+  createdAt        DateTime @default(now())
+
+  @@unique([studentId, collaboratorName])
+  @@index([studentId])
+}
+
+model PaymentSchedule {
+  id                String         @id @default(cuid())
+  studentId         String
+  student           Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  installmentNumber Int
+  amountDue         Decimal        @db.Decimal(14, 2)
+  currency          String         @default("USD")
+  dueDate           DateTime       @db.Date
+  status            ScheduleStatus @default(PENDING)
+  amountPaid        Decimal        @default(0) @db.Decimal(14, 2)
+  paidAt            DateTime?
+  lastReminderAt    DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  payments     Payment[]
+  reminderLogs ReminderLog[]
+
+  @@index([studentId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model Payment {
+  id           String           @id @default(cuid())
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  scheduleId   String?
+  schedule     PaymentSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  amount       Decimal          @db.Decimal(14, 2)
+  currency     String           @default("USD")
+  paidAt       DateTime
+  method       String?
+  reference    String?
+  notes        String?
+  recordedById String?
+  recordedBy   User?            @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+
+  @@index([studentId])
+  @@index([paidAt])
+}
+
+model ProgressUpdate {
+  id                     String        @id @default(cuid())
+  studentId              String
+  student                Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentorId               String
+  mentor                 Mentor        @relation(fields: [mentorId], references: [id])
+  periodStart            DateTime      @db.Date
+  periodEnd              DateTime      @db.Date
+  notes                  String
+  rating                 Int?
+  progressLevel          ProgressLevel
+  bottleneck             String?
+  monthlyRevenue         Decimal?      @db.Decimal(14, 2)
+  monthlyRevenueCurrency String?
+  monthlyOrders          Int?
+  submittedAt            DateTime      @default(now())
+  submittedById          String?
+  submittedBy            User?         @relation("ProgressSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
+
+  @@index([studentId, periodEnd])
+  @@index([mentorId])
+}
+
+model StudentMonthlyMetrics {
+  id           String    @id @default(cuid())
+  studentId    String
+  student      Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  year         Int
+  month        Int
+  revenue      Decimal   @default(0) @db.Decimal(14, 2)
+  currency     String    @default("COP")
+  orders       Int       @default(0)
+  status       String?
+  notes        String?
+  reportedAt   DateTime?
+  reportedById String?
+  reportedBy   User?     @relation("MetricsReporter", fields: [reportedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([studentId, year, month, currency])
+  @@index([year, month])
+}
+
+model Contact {
+  id                  String   @id @default(cuid())
+  fullName            String
+  email               String?  @unique
+  phone               String?
+  source              String
+  notes               String?
+  promotedToStudentId String?  @unique
+  promotedToStudent   Student? @relation("ContactPromotion", fields: [promotedToStudentId], references: [id], onDelete: SetNull)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  sales Sale[]
+}
+
+model Sale {
+  id            String       @id @default(cuid())
+  studentId     String?
+  student       Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  contactId     String?
+  contact       Contact?     @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  amount        Decimal      @db.Decimal(14, 2)
+  currency      String       @default("USD")
+  saleDate      DateTime     @db.Date
+  product       String?
+  source        String
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  rawRow        Json?
+  createdAt     DateTime     @default(now())
+
+  @@index([studentId])
+  @@index([saleDate])
+  @@index([importBatchId])
+}
+
+model ImportBatch {
+  id              String       @id @default(cuid())
+  source          String
+  filename        String
+  uploadedById    String?
+  uploadedBy      User?        @relation("ImportUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  totalRows       Int
+  matchedRows     Int          @default(0)
+  createdContacts Int          @default(0)
+  skippedRows     Int          @default(0)
+  status          ImportStatus @default(PENDING)
+  errors          Json?
+  createdAt       DateTime     @default(now())
+  confirmedAt     DateTime?
+
+  sales Sale[]
+}
+
+model ReminderLog {
+  id                String          @id @default(cuid())
+  scheduleId        String
+  schedule          PaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  channel           String
+  recipientType     String
+  recipientContact  String
+  sentAt            DateTime        @default(now())
+  status            String
+  errorMessage      String?
+  providerMessageId String?
+
+  @@index([scheduleId])
+  @@index([sentAt])
+}
+
+model TerminationAlert {
+  id              String    @id @default(cuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  detectedAt      DateTime  @default(now())
+  reason          String
+  resolvedById    String?
+  resolvedBy      User?     @relation("TerminationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolution      String?
+  resolvedAt      DateTime?
+  resolutionNotes String?
+
+  @@index([studentId])
+  @@index([resolvedAt])
+}
+
