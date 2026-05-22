@@ -59,6 +59,29 @@ export async function createUserAction(formData: FormData) {
   revalidatePath("/admin/users");
 }
 
+export async function updateOwnProfileAction(formData: FormData) {
+  const actor = await requireUserAdmin();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const name = String(formData.get("name") ?? "").trim();
+
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Correo inválido");
+
+  const updated = await prisma.user.update({
+    where: { id: actor.id },
+    data: { email, name: name || null },
+    select: { email: true },
+  });
+  await prisma.auditEvent.create({
+    data: {
+      actorId: actor.id,
+      action: "user.profile_updated",
+      target: updated.email,
+      metadata: { self: true },
+    },
+  });
+  revalidatePath("/admin/users");
+}
+
 export async function updateUserAction(formData: FormData) {
   const actor = await requireUserAdmin();
   const id = String(formData.get("id") ?? "");

@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth";
 import { canManageUsers, defaultPermissionsForRole, PERMISSION_GROUPS } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { LogoutButton } from "@/app/dashboard/logout-button";
-import { createUserAction, toggleUserStatusAction, updateUserAction } from "./actions";
+import { createUserAction, toggleUserStatusAction, updateOwnProfileAction, updateUserAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +43,7 @@ export default async function UsersAdminPage() {
 
   const actor = await prisma.user.findUnique({
     where: { id: session.sub },
-    select: { role: true, permissions: true, active: true, email: true },
+    select: { role: true, permissions: true, active: true, email: true, name: true },
   });
   if (!actor?.active || !canManageUsers(actor.role, actor.permissions)) redirect("/dashboard");
 
@@ -78,11 +78,23 @@ export default async function UsersAdminPage() {
       </p>
 
       <section className="card admin-section">
+        <h2>Mi usuario</h2>
+        <p className="muted">Usa el correo corporativo de Naicipa para iniciar sesión y administrar accesos.</p>
+        <form action={updateOwnProfileAction} className="admin-form">
+          <div className="form-grid">
+            <div className="field"><label>Nombre</label><input name="name" defaultValue={actor.name ?? ""} placeholder="Nombre completo" /></div>
+            <div className="field"><label>Correo</label><input name="email" type="email" required defaultValue={actor.email} placeholder="jose@naicipa.com" /></div>
+          </div>
+          <button className="btn secondary" type="submit">Actualizar mi usuario</button>
+        </form>
+      </section>
+
+      <section className="card admin-section">
         <h2>Crear usuario</h2>
         <form action={createUserAction} className="admin-form">
           <div className="form-grid">
             <div className="field"><label>Nombre</label><input name="name" placeholder="Nombre completo" /></div>
-            <div className="field"><label>Correo</label><input name="email" type="email" required placeholder="usuario@unlockedecom.co" /></div>
+            <div className="field"><label>Correo</label><input name="email" type="email" required placeholder="usuario@naicipa.com" /></div>
             <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
             <div className="field"><label>Contraseña temporal</label><input name="password" type="password" required minLength={10} placeholder="mín. 10 caracteres" /></div>
           </div>
