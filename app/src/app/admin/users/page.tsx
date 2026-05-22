@@ -1,7 +1,15 @@
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { getSession } from "@/lib/auth";
-import { canManageUsers, defaultPermissionsForRole, PERMISSION_GROUPS } from "@/lib/permissions";
+import {
+  canManageUsers,
+  defaultPermissionsForPosition,
+  OPERATIONAL_POSITIONS,
+  DATA_SCOPES,
+  PERMISSION_GROUPS,
+  POSITION_LABELS,
+  SCOPE_LABELS,
+} from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { LogoutButton } from "@/app/dashboard/logout-button";
 import { createUserAction, toggleUserStatusAction, updateOwnProfileAction, updateUserAction } from "./actions";
@@ -13,6 +21,11 @@ const roleLabels: Record<Role, string> = {
   OPERATOR: "Operador",
   VIEWER: "Viewer",
 };
+
+interface OptionItem {
+  id: string;
+  label: string;
+}
 
 function PermissionCheckboxes({ selected }: { selected: string[] }) {
   return (
@@ -37,29 +50,104 @@ function PermissionCheckboxes({ selected }: { selected: string[] }) {
   );
 }
 
+function PositionSelect({ value }: { value?: string }) {
+  return (
+    <select name="position" defaultValue={value ?? "VIEWER"}>
+      {OPERATIONAL_POSITIONS.map((position) => (
+        <option key={position} value={position}>{POSITION_LABELS[position]}</option>
+      ))}
+    </select>
+  );
+}
+
+function ScopeSelect({ value }: { value?: string }) {
+  return (
+    <select name="dataScope" defaultValue={value ?? "OWN"}>
+      {DATA_SCOPES.map((scope) => (
+        <option key={scope} value={scope}>{SCOPE_LABELS[scope]}</option>
+      ))}
+    </select>
+  );
+}
+
+function RelationSelect({
+  name,
+  value,
+  placeholder,
+  options,
+}: {
+  name: string;
+  value?: string | null;
+  placeholder: string;
+  options: OptionItem[];
+}) {
+  return (
+    <select name={name} defaultValue={value ?? ""}>
+      <option value="">{placeholder}</option>
+      {options.map((option) => (
+        <option key={option.id} value={option.id}>{option.label}</option>
+      ))}
+    </select>
+  );
+}
+
 export default async function UsersAdminPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
   const actor = await prisma.user.findUnique({
     where: { id: session.sub },
-    select: { role: true, permissions: true, active: true, email: true, name: true },
-  });
-  if (!actor?.active || !canManageUsers(actor.role, actor.permissions)) redirect("/dashboard");
-
-  const users = await prisma.user.findMany({
-    orderBy: [{ active: "desc" }, { createdAt: "desc" }],
     select: {
-      id: true,
-      email: true,
-      name: true,
       role: true,
       permissions: true,
       active: true,
-      lastLoginAt: true,
-      createdAt: true,
+      email: true,
+      name: true,
+      ghlUserId: true,
+      ghlUserEmail: true,
+      ghlUserName: true,
     },
   });
+  if (!actor?.active || !canManageUsers(actor.role, actor.permissions)) redirect("/dashboard");
+
+  const [users, areas, teams] = await Promise.all([
+    prisma.user.findMany({
+      orderBy: [{ active: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        permissions: true,
+        active: true,
+        lastLoginAt: true,
+        createdAt: true,
+        position: true,
+        dataScope: true,
+        areaId: true,
+        teamId: true,
+        managerId: true,
+        ghlUserId: true,
+        ghlUserEmail: true,
+        ghlUserName: true,
+      },
+    }),
+    prisma.area.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.team.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, area: { select: { name: true } } },
+    }),
+  ]);
+
+  const areaOptions: OptionItem[] = areas.map((area) => ({ id: area.id, label: area.name }));
+  const teamOptions: OptionItem[] = teams.map((team) => ({
+    id: team.id,
+    label: team.area ? `${team.name} · ${team.area.name}` : team.name,
+  }));
+  const managerOptions: OptionItem[] = users
+    .filter((user) => user.active && (user.position === "DIRECTOR" || user.position === "ADMIN"))
+    .map((user) => ({ id: user.id, label: user.name || user.email }));
 
   return (
     <main className="container wide">
@@ -74,18 +162,22 @@ export default async function UsersAdminPage() {
 
       <h1 className="page-title">Usuarios y permisos</h1>
       <p className="muted">
-        Crea accesos, asigna rol y ajusta permisos por módulo. Los usuarios no se borran: se suspenden para conservar auditoría.
+        Crea accesos, asigna cargo y alcance de datos (amarrado a GHL) y ajusta permisos por módulo. Los usuarios no se
+        borran: se suspenden para conservar auditoría.
       </p>
 
       <section className="card admin-section">
         <h2>Mi usuario</h2>
-        <p className="muted">Usa el correo corporativo de Naicipa para iniciar sesión y administrar accesos.</p>
+        <p className="muted">Usa el correo corporativo de Naicipa para iniciar sesión y administrar accesos. Puedes mapear tu propia identidad de GHL aquí.</p>
         <form action={updateOwnProfileAction} className="admin-form">
           <div className="form-grid">
             <div className="field"><label>Nombre</label><input name="name" defaultValue={actor.name ?? ""} placeholder="Nombre completo" /></div>
             <div className="field"><label>Correo</label><input name="email" type="email" required defaultValue={actor.email} placeholder="jose@naicipa.com" /></div>
             <div className="field"><label>Nueva contraseña</label><input name="password" type="password" minLength={10} autoComplete="new-password" placeholder="déjalo vacío para no cambiar" /></div>
             <div className="field"><label>Confirmar contraseña</label><input name="passwordConfirm" type="password" minLength={10} autoComplete="new-password" placeholder="repite la nueva contraseña" /></div>
+            <div className="field"><label>GHL User ID</label><input name="ghlUserId" defaultValue={actor.ghlUserId ?? ""} placeholder="ID de usuario en GHL" /></div>
+            <div className="field"><label>GHL Email</label><input name="ghlUserEmail" type="email" defaultValue={actor.ghlUserEmail ?? ""} placeholder="correo en GHL" /></div>
+            <div className="field"><label>GHL Nombre</label><input name="ghlUserName" defaultValue={actor.ghlUserName ?? ""} placeholder="nombre en GHL" /></div>
           </div>
           <button className="btn secondary" type="submit">Actualizar mi usuario</button>
         </form>
@@ -98,9 +190,17 @@ export default async function UsersAdminPage() {
             <div className="field"><label>Nombre</label><input name="name" placeholder="Nombre completo" /></div>
             <div className="field"><label>Correo</label><input name="email" type="email" required placeholder="usuario@naicipa.com" /></div>
             <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+            <div className="field"><label>Cargo</label><PositionSelect value="VIEWER" /></div>
+            <div className="field"><label>Alcance</label><ScopeSelect value="OWN" /></div>
+            <div className="field"><label>Área</label><RelationSelect name="areaId" placeholder="Sin área" options={areaOptions} /></div>
+            <div className="field"><label>Equipo</label><RelationSelect name="teamId" placeholder="Sin equipo" options={teamOptions} /></div>
+            <div className="field"><label>Responsable / Director</label><RelationSelect name="managerId" placeholder="Sin responsable" options={managerOptions} /></div>
+            <div className="field"><label>GHL User ID</label><input name="ghlUserId" placeholder="ID de usuario en GHL" /></div>
+            <div className="field"><label>GHL Email</label><input name="ghlUserEmail" type="email" placeholder="correo en GHL" /></div>
+            <div className="field"><label>GHL Nombre</label><input name="ghlUserName" placeholder="nombre en GHL" /></div>
             <div className="field"><label>Contraseña temporal</label><input name="password" type="password" required minLength={10} placeholder="mín. 10 caracteres" /></div>
           </div>
-          <PermissionCheckboxes selected={defaultPermissionsForRole("VIEWER")} />
+          <PermissionCheckboxes selected={defaultPermissionsForPosition("VIEWER")} />
           <button className="btn" type="submit">Crear acceso</button>
         </form>
       </section>
@@ -113,14 +213,26 @@ export default async function UsersAdminPage() {
               <div>
                 <strong>{user.name || user.email}</strong>
                 <p className="muted">{user.email} · {roleLabels[user.role]} · {user.active ? "Activo" : "Suspendido"}</p>
-                <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por rol"}</p>
+                <p className="muted">Cargo: {POSITION_LABELS[user.position]} · Alcance: {SCOPE_LABELS[user.dataScope]}</p>
+                <p className="muted">GHL: {user.ghlUserId ? user.ghlUserId : "sin mapear"}{user.ghlUserName ? ` (${user.ghlUserName})` : ""}</p>
+                <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por cargo"}</p>
                 <p className="muted">Último acceso: {user.lastLoginAt ? user.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") : "nunca"}</p>
               </div>
               <form action={updateUserAction} className="inline-admin-form">
                 <input type="hidden" name="id" value={user.id} />
-                <label className="compact-field">Rol<select name="role" defaultValue={user.role}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                <PermissionCheckboxes selected={user.permissions.length ? user.permissions : defaultPermissionsForRole(user.role)} />
-                <button className="btn secondary" type="submit" disabled={user.id === session.sub}>Guardar permisos</button>
+                <div className="compact-grid">
+                  <label className="compact-field">Rol<select name="role" defaultValue={user.role}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  <label className="compact-field">Cargo<PositionSelect value={user.position} /></label>
+                  <label className="compact-field">Alcance<ScopeSelect value={user.dataScope} /></label>
+                  <label className="compact-field">Área<RelationSelect name="areaId" value={user.areaId} placeholder="Sin área" options={areaOptions} /></label>
+                  <label className="compact-field">Equipo<RelationSelect name="teamId" value={user.teamId} placeholder="Sin equipo" options={teamOptions} /></label>
+                  <label className="compact-field">Responsable<RelationSelect name="managerId" value={user.managerId} placeholder="Sin responsable" options={managerOptions.filter((option) => option.id !== user.id)} /></label>
+                  <label className="compact-field">GHL User ID<input name="ghlUserId" defaultValue={user.ghlUserId ?? ""} placeholder="ID en GHL" /></label>
+                  <label className="compact-field">GHL Email<input name="ghlUserEmail" type="email" defaultValue={user.ghlUserEmail ?? ""} placeholder="correo en GHL" /></label>
+                  <label className="compact-field">GHL Nombre<input name="ghlUserName" defaultValue={user.ghlUserName ?? ""} placeholder="nombre en GHL" /></label>
+                </div>
+                <PermissionCheckboxes selected={user.permissions.length ? user.permissions : defaultPermissionsForPosition(user.position)} />
+                <button className="btn secondary" type="submit" disabled={user.id === session.sub}>Guardar configuración</button>
               </form>
               <form action={toggleUserStatusAction}>
                 <input type="hidden" name="id" value={user.id} />

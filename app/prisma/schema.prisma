@@ -16,6 +16,55 @@ enum Role {
   VIEWER
 }
 
+// Panel-controlled operational cargo. Drives what each user is allowed to see.
+// Naming is fixed: Closer, Setter, Director, Admin, Viewer (never Comercial/Jefe).
+enum OperationalPosition {
+  ADMIN
+  DIRECTOR
+  CLOSER
+  SETTER
+  VIEWER
+}
+
+// How wide a user's data window is. The data-scope helper turns this into a
+// concrete backend filter descriptor.
+enum DataScope {
+  ALL // every record
+  AREA // limited to the user's area
+  TEAM // limited to the user's team
+  OWN // only the user's own GHL-attributed records
+  CUSTOM // bespoke rules (not yet configured -> denied by the helper)
+}
+
+// A top-level business area (e.g. Ventas, Marketing). Groups teams and users.
+model Area {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String?  @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams Team[]
+  users User[]
+}
+
+// A team inside an area (e.g. a closing squad). Optional area link.
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  areaId    String?
+  area      Area?    @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users User[]
+
+  @@unique([areaId, name])
+  @@index([areaId])
+}
+
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
@@ -28,10 +77,35 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  // Scoped-dashboard configuration (panel-controlled, tied to GHL).
+  position  OperationalPosition @default(VIEWER)
+  dataScope DataScope           @default(ALL)
+
+  areaId String?
+  area   Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  // Director / responsable above this user.
+  managerId String?
+  manager   User?   @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  reports   User[]  @relation("UserManager")
+
+  // GHL identity used to attribute records to this user under OWN scope.
+  ghlUserId    String?
+  ghlUserEmail String?
+  ghlUserName  String?
+
   auditEvents     AuditEvent[]
   commercialNotes CommercialNote[]
 
   @@index([role])
+  @@index([position])
+  @@index([dataScope])
+  @@index([areaId])
+  @@index([teamId])
+  @@index([managerId])
+  @@index([ghlUserId])
 }
 
 // Append-only trail of who did what.
