@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Primera Venta eCommerce – Unlocked Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+/* ── RESET & BASE ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: #000;
+  color: #F0EDE6;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── TOKENS ───────────────────────────────────────────────── */
+:root {
+  --black:      #000000;
+  --surface-1:  #0A0A0B;
+  --surface-2:  #111113;
+  --surface-3:  #18181C;
+  --border:     rgba(255,255,255,0.06);
+  --border-md:  rgba(255,255,255,0.10);
+  --gold:       #C9A84C;
+  --gold-light: #E2C06A;
+  --gold-dim:   rgba(201,168,76,0.12);
+  --gold-glow:  rgba(201,168,76,0.20);
+  --text-1:     #F0EDE6;
+  --text-2:     #9A9AA8;
+  --text-3:     #555565;
+  --radius:     3px;
+  --transition: 180ms ease;
+}
+
+/* ── SCROLLBAR ────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--black); }
+::-webkit-scrollbar-thumb { background: var(--text-3); border-radius: 2px; }
+
+/* ── TYPOGRAPHY ───────────────────────────────────────────── */
+.serif { font-family: 'Playfair Display', Georgia, serif; }
+.gold-text { color: var(--gold); }
+.gold-gradient {
+  background: linear-gradient(135deg, #E2C06A 0%, #C9A84C 50%, #A8863A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── LAYOUT ───────────────────────────────────────────────── */
+.wrap      { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+.wrap--sm  { max-width: 760px;  margin: 0 auto; padding: 0 24px; }
+.wrap--xs  { max-width: 600px;  margin: 0 auto; padding: 0 24px; }
+
+/* ── SECTION HEADER ───────────────────────────────────────── */
+.sh { text-align: center; margin-bottom: 64px; }
+.sh__tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--gold-dim); border: 1px solid rgba(201,168,76,0.25);
+  color: var(--gold); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 7px 16px; border-radius: 2px; margin-bottom: 22px;
+}
+.sh__tag::before { content:''; width:4px; height:4px; border-radius:50%; background:var(--gold); flex-shrink:0; }
+.sh__h { font-family:'Playfair Display',serif; font-size:clamp(30px,4.5vw,52px); font-weight:700; line-height:1.15; margin-bottom:16px; }
+.sh__p { font-size:16px; color:var(--text-2); max-width:520px; margin:0 auto; line-height:1.75; }
+
+/* ── DIVIDER ──────────────────────────────────────────────── */
+.rule { border:none; border-top:1px solid var(--border); }
+.rule--gold { border-color: rgba(201,168,76,0.2); }
+
+/* ── ANNOUNCEMENT BAR ─────────────────────────────────────── */
+.bar {
+  background: var(--gold);
+  color: #000; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  text-align: center; padding: 10px 20px;
+}
+
+/* ── HEADER ───────────────────────────────────────────────── */
+.hdr {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 0;
+  transition: background var(--transition);
+}
+.hdr__inner { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.logo { font-family:'Playfair Display',serif; font-size:17px; font-weight:700; letter-spacing:0.02em; color:var(--text-1); text-decoration:none; }
+.logo span { color:var(--gold); }
+.btn-hdr {
+  background: var(--gold); color: #000;
+  font-family:'Inter',sans-serif; font-size:11px; font-weight:700;
+  letter-spacing:0.1em; text-transform:uppercase;
+  border:none; padding:10px 22px; border-radius:var(--radius);
+  cursor:pointer; transition:all var(--transition); white-space:nowrap;
+}
+.btn-hdr:hover { background:var(--gold-light); transform:translateY(-1px); box-shadow:0 6px 24px var(--gold-glow); }
+.btn-hdr:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+
+/* ── HERO ─────────────────────────────────────────────────── */
+.hero {
+  min-height: 96vh; display:flex; align-items:center;
+  position: relative; overflow:hidden;
+  padding: 80px 0 100px;
+  background: radial-gradient(ellipse 90% 70% at 50% -10%, rgba(201,168,76,0.07) 0%, transparent 65%),
+              var(--black);
+}
+/* noise grain texture */
+.hero::before {
+  content:''; position:absolute; inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none; opacity:0.4;
+}
+.hero__inner { position:relative; text-align:center; }
+.hero__badge { margin-bottom:32px; }
+.hero__badge-pill {
+  display:inline-flex; align-items:center; gap:8px;
+  border:1px solid rgba(201,168,76,0.3);
+  background: rgba(201,168,76,0.06);
+  padding:8px 18px; border-radius:100px;
+  font-size:12px; color:var(--text-2); letter-spacing:0.04em;
+}
+.hero__badge-dot { width:6px; height:6px; border-radius:50%; background:var(--gold); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(0.8)} }
+.hero__h {
+  font-family:'Playfair Display',serif;
+  font-size: clamp(40px, 6vw, 80px);
+  font-weight:900; line-height:1.08;
+  letter-spacing:-0.025em;
+  margin-bottom:28px;
+}
+.hero__h em { font-style:italic; }
+.hero__sub {
+  font-size:clamp(15px,1.6vw,18px); color:var(--text-2);
+  max-width:580px; margin:0 auto 52px; line-height:1.75;
+}
+.hero__sub strong { color:var(--text-1); font-weight:600; }
+.hero__cta { display:flex; flex-direction:column; align-items:center; gap:12px; }
+.btn-primary {
+  display:inline-flex; align-items:center; gap:12px;
+  background:var(--gold); color:#000;
+  font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:0.08em; text-transform:uppercase;
+  padding:18px 52px; border-radius:var(--radius); border:none;
+  cursor:pointer; text-decoration:none;
+  transition:all var(--transition);
+  position:relative; overflow:hidden;
+}
+.btn-primary::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.15) 0%,transparent 60%);
+  opacity:0; transition:opacity var(--transition);
+}
+.btn-primary:hover { background:var(--gold-light); transform:translateY(-2px); box-shadow:0 16px 48px var(--gold-glow); }
+.btn-primary:hover::before { opacity:1; }
+.btn-primary:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+.btn-primary svg { transition:transform var(--transition); flex-shrink:0; }
+.btn-primary:hover svg { transform:translateX(4px); }
+.hero__micro { font-size:13px; color:var(--text-3); display:flex; align-items:center; gap:6px; }
+.hero__micro svg { color:var(--gold); flex-shrink:0; }
+
+/* ── PAIN STRIP ───────────────────────────────────────────── */
+.pain {
+  border-top:1px solid var(--border); border-bottom:1px solid var(--border);
+  background:var(--surface-1); padding:36px 0;
+}
+.pain p { text-align:center; font-size:16px; line-height:1.75; color:var(--text-2); max-width:720px; margin:0 auto; }
+.pain strong { color:var(--text-1); font-weight:600; }
+
+/* ── STATS ────────────────────────────────────────────────── */
+.stats { padding:80px 0; border-bottom:1px solid var(--border); }
+.stats__grid {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  border:1px solid var(--border);
+}
+.stats__item {
+  padding:48px 24px; text-align:center;
+  position:relative; cursor:default;
+  transition:background var(--transition);
+}
+.stats__item:not(:last-child) { border-right:1px solid var(--border); }
+.stats__item:hover { background:var(--surface-2); }
+.stats__item::after {
+  content:''; position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+  width:0; height:2px; background:var(--gold);
+  transition:width 300ms ease;
+}
+.stats__item:hover::after { width:40%; }
+.stats__n {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(44px,5.5vw,64px); font-weight:700;
+  line-height:1; margin-bottom:10px;
+  background:linear-gradient(135deg,#E2C06A,#C9A84C);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+.stats__l { font-size:11px; color:var(--text-3); letter-spacing:0.12em; text-transform:uppercase; font-weight:600; }
+
+/* ── VSL + FORM ───────────────────────────────────────────── */
+.vsl { padding:100px 0; border-bottom:1px solid var(--border); }
+.vsl__grid { display:grid; grid-template-columns:1.1fr 1fr; gap:72px; align-items:center; }
+.vsl__frame {
+  aspect-ratio:16/9;
+  background:var(--surface-2);
+  border:1px solid var(--border-md);
+  border-radius:6px;
+  position:relative; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+  cursor:pointer;
+  transition:border-color var(--transition), box-shadow var(--transition);
+}
+.vsl__frame:hover { border-color:rgba(201,168,76,0.3); box-shadow:0 0 48px rgba(201,168,76,0.06); }
+.vsl__frame::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(ellipse 70% 60% at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 70%);
+}
+.vsl__play-btn {
+  width:68px; height:68px; border-radius:50%;
+  background:var(--gold);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; z-index:1; cursor:pointer;
+  box-shadow:0 0 0 16px rgba(201,168,76,0.1), 0 0 0 32px rgba(201,168,76,0.04);
+  transition:transform var(--transition), box-shadow var(--transition);
+}
+.vsl__frame:hover .vsl__play-btn { transform:scale(1.06); box-shadow:0 0 0 20px rgba(201,168,76,0.12), 0 0 0 40px rgba(201,168,76,0.05); }
+.vsl__play-btn svg { fill:#000; margin-left:4px; }
+.vsl__cap { position:relative; z-index:1; font-size:12px; color:var(--text-3); letter-spacing:0.08em; text-transform:uppercase; }
+/* Form card */
+.form-card {
+  background:var(--surface-2);
+  border:1px solid var(--border-md);
+  border-radius:6px; padding:40px 36px;
+  position:relative; overflow:hidden;
+}
+.form-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+.form-card__title { font-family:'Playfair Display',serif; font-size:22px; font-weight:700; margin-bottom:4px; }
+.form-card__sub { font-size:13px; color:var(--text-3); margin-bottom:28px; }
+.form-tabs { display:flex; border-bottom:1px solid var(--border); margin-bottom:28px; }
+.form-tab { flex:1; text-align:center; padding:11px; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-3); cursor:pointer; transition:color var(--transition); }
+.form-tab.active { color:var(--gold); border-bottom:2px solid var(--gold); margin-bottom:-1px; }
+.fg { margin-bottom:14px; }
+.fg input {
+  width:100%; background:var(--surface-1); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 16px;
+  color:var(--text-1); font-family:'Inter',sans-serif; font-size:14px;
+  outline:none; transition:border-color var(--transition), box-shadow var(--transition);
+  -webkit-appearance:none;
+}
+.fg input::placeholder { color:var(--text-3); }
+.fg input:focus { border-color:rgba(201,168,76,0.5); box-shadow:0 0 0 3px rgba(201,168,76,0.08); }
+.form-btn {
+  width:100%; background:var(--gold); color:#000;
+  border:none; padding:16px; border-radius:var(--radius);
+  font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:0.08em; text-transform:uppercase;
+  cursor:pointer; margin-top:8px;
+  transition:all var(--transition);
+  position:relative; overflow:hidden;
+}
+.form-btn:hover { background:var(--gold-light); box-shadow:0 8px 32px var(--gold-glow); }
+.form-btn:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+.form-note { text-align:center; font-size:11px; color:var(--text-3); margin-top:12px; }
+
+/* ── PROBLEM ──────────────────────────────────────────────── */
+.problem { padding:100px 0; border-bottom:1px solid var(--border); background:var(--surface-1); }
+.problem__list { border:1px solid var(--border); }
+.pitem {
+  padding:28px 32px; border-bottom:1px solid var(--border);
+  display:flex; align-items:flex-start; gap:20px;
+  transition:background var(--transition), padding-left var(--transition);
+  cursor:default;
+}
+.pitem:last-child { border-bottom:none; }
+.pitem:hover { background:var(--surface-2); padding-left:38px; }
+.pitem__icon {
+  width:32px; height:32px; border-radius:50%;
+  border:1px solid rgba(201,168,76,0.25); background:var(--gold-dim);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; margin-top:2px;
+}
+.pitem__icon svg { color:var(--gold); }
+.pitem h3 { font-size:15px; font-weight:600; margin-bottom:5px; }
+.pitem p { font-size:14px; color:var(--text-2); line-height:1.65; }
+
+/* ── SYSTEM / PHASES ──────────────────────────────────────── */
+.system { padding:100px 0; border-bottom:1px solid var(--border); }
+.phases { display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--border); margin-top:64px; }
+.phase {
+  padding:40px 28px; position:relative; cursor:default;
+  transition:background var(--transition);
+  overflow:hidden;
+}
+.phase:not(:last-child) { border-right:1px solid var(--border); }
+.phase:hover { background:var(--surface-2); }
+.phase__line {
+  position:absolute; top:0; left:0; right:0; height:2px;
+  background:var(--gold); transform:scaleX(0); transform-origin:left;
+  transition:transform 300ms ease;
+}
+.phase:hover .phase__line { transform:scaleX(1); }
+.phase__num {
+  font-family:'Playfair Display',serif;
+  font-size:56px; font-weight:700; line-height:1;
+  color:rgba(201,168,76,0.10); margin-bottom:20px;
+  transition:color var(--transition);
+}
+.phase:hover .phase__num { color:rgba(201,168,76,0.18); }
+.phase__title { font-size:14px; font-weight:700; margin-bottom:6px; }
+.phase__out { font-size:11px; color:var(--gold); font-weight:600; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:14px; display:flex; align-items:center; gap:5px; }
+.phase__out::before { content:''; width:12px; height:1px; background:var(--gold); flex-shrink:0; }
+.phase__desc { font-size:13px; color:var(--text-2); line-height:1.65; }
+
+/* ── INCLUDES ─────────────────────────────────────────────── */
+.includes { padding:100px 0; border-bottom:1px solid var(--border); background:var(--surface-1); }
+.inc-grid { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--border); margin-top:64px; }
+.inc-item {
+  padding:32px; border-bottom:1px solid var(--border);
+  transition:background var(--transition); cursor:default;
+}
+.inc-item:nth-child(odd):not(:last-child) { border-right:1px solid var(--border); }
+.inc-item:nth-child(even) { border-right:none; }
+.inc-item:last-child:nth-child(odd) { border-right:1px solid var(--border); }
+.inc-item:nth-last-child(-n+2) { border-bottom:none; }
+.inc-item:hover { background:var(--surface-2); }
+.inc-item--bonus {
+  background:var(--gold-dim) !important;
+  border-color:rgba(201,168,76,0.2) !important;
+}
+.inc-icon {
+  width:36px; height:36px; margin-bottom:14px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:var(--radius);
+  border:1px solid rgba(201,168,76,0.2); background:var(--gold-dim);
+}
+.inc-icon svg { color:var(--gold); }
+.inc-title { font-size:15px; font-weight:700; margin-bottom:6px; }
+.inc-desc { font-size:13px; color:var(--text-2); line-height:1.65; margin-bottom:10px; }
+.inc-val { font-size:11px; color:var(--gold); font-weight:700; letter-spacing:0.08em; text-transform:uppercase; }
+/* Total row */
+.inc-total {
+  margin-top:40px;
+  border:1px solid rgba(201,168,76,0.2); background:var(--gold-dim);
+  padding:28px 36px; border-radius:4px;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:20px;
+}
+.inc-total__left p:first-child { font-size:14px; color:var(--text-2); margin-bottom:4px; }
+.inc-total__left p:first-child strong { color:var(--text-1); }
+.inc-total__left p:last-child { font-size:12px; color:var(--text-3); }
+.inc-total__price { font-family:'Playfair Display',serif; }
+.inc-total__price s { font-size:16px; color:var(--text-3); font-family:'Inter',sans-serif; font-weight:400; margin-right:6px; }
+.inc-total__price span { font-size:40px; font-weight:700; color:var(--gold); }
+
+/* ── TESTIMONIALS ─────────────────────────────────────────── */
+.testi { padding:100px 0; border-bottom:1px solid var(--border); }
+.testi__grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border:1px solid var(--border); margin-top:64px; }
+.tcard {
+  background:var(--black); padding:36px 28px;
+  display:flex; flex-direction:column; gap:16px;
+  transition:background var(--transition); cursor:default;
+  position:relative; overflow:hidden;
+}
+.tcard:hover { background:var(--surface-2); }
+.tcard::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg, var(--gold), var(--gold-light));
+  transform:scaleX(0); transform-origin:left; transition:transform 300ms ease;
+}
+.tcard:hover::before { transform:scaleX(1); }
+.tcard__stars { display:flex; gap:3px; }
+.tcard__stars svg { color:var(--gold); }
+.tcard__result { font-family:'Playfair Display',serif; font-size:24px; font-weight:700; color:var(--gold); }
+.tcard__quote { font-size:14px; color:var(--text-2); line-height:1.7; font-style:italic; }
+.tcard__author { margin-top:auto; }
+.tcard__name { font-size:13px; font-weight:700; color:var(--text-1); }
+.tcard__before { font-size:12px; color:var(--text-3); margin-top:2px; }
+
+/* ── ABOUT ────────────────────────────────────────────────── */
+.about { padding:100px 0; border-bottom:1px solid var(--border); background:var(--surface-1); }
+.about__grid { display:grid; grid-template-columns:1fr 1.35fr; gap:80px; align-items:center; }
+.about__img {
+  aspect-ratio:4/5; background:var(--surface-2);
+  border:1px solid var(--border); border-radius:6px;
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-3); font-size:13px; position:relative; overflow:hidden;
+}
+.about__img::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(to top, rgba(201,168,76,0.06) 0%, transparent 50%);
+}
+.about__img-label { position:relative; z-index:1; }
+.about__tag { margin-bottom:20px; }
+.about__h { font-family:'Playfair Display',serif; font-size:clamp(28px,3.5vw,44px); font-weight:700; line-height:1.2; margin-bottom:8px; }
+.about__role { font-size:12px; color:var(--gold); letter-spacing:0.1em; text-transform:uppercase; font-weight:600; margin-bottom:24px; display:flex; align-items:center; gap:8px; }
+.about__role::before { content:''; width:20px; height:1px; background:var(--gold); }
+.about__body { font-size:15px; color:var(--text-2); line-height:1.8; margin-bottom:36px; }
+.about__body strong { color:var(--text-1); font-weight:600; }
+.about__stats { display:flex; gap:40px; padding-top:28px; border-top:1px solid var(--border); }
+.about__stat-n { font-family:'Playfair Display',serif; font-size:32px; font-weight:700; color:var(--gold); }
+.about__stat-l { font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:0.1em; font-weight:600; margin-top:2px; }
+
+/* ── NOT FOR ──────────────────────────────────────────────── */
+.notfor { padding:80px 0; border-bottom:1px solid var(--border); }
+.notfor__grid { display:grid; grid-template-columns:1fr 1fr; gap:48px; }
+.notfor__col h3 { font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:20px; padding-bottom:12px; }
+.notfor__col.yes h3 { color:var(--gold); border-bottom:1px solid rgba(201,168,76,0.2); }
+.notfor__col.no h3 { color:var(--text-3); border-bottom:1px solid var(--border); }
+.ni { display:flex; gap:12px; margin-bottom:14px; font-size:14px; color:var(--text-2); line-height:1.55; }
+.ni__icon { flex-shrink:0; margin-top:1px; }
+.notfor__col.yes .ni__icon svg { color:var(--gold); }
+.notfor__col.no .ni__icon svg { color:var(--text-3); }
+.notfor__closer { text-align:center; margin-top:44px; font-size:16px; color:var(--text-2); }
+.notfor__closer strong { color:var(--text-1); font-weight:700; }
+
+/* ── PRICING ──────────────────────────────────────────────── */
+.pricing { padding:100px 0; border-bottom:1px solid var(--border); background:var(--surface-1); }
+.pricing__card {
+  max-width:560px; margin:64px auto 0;
+  background:var(--black); border-radius:8px;
+  position:relative; overflow:hidden;
+  box-shadow:0 0 0 1px rgba(201,168,76,0.25), 0 32px 80px rgba(201,168,76,0.06);
+}
+/* animated gradient border */
+.pricing__card::before {
+  content:''; position:absolute; inset:-1px; z-index:-1; border-radius:9px;
+  background:linear-gradient(135deg, rgba(201,168,76,0.6), rgba(201,168,76,0.1), rgba(201,168,76,0.6));
+  background-size:200% 200%;
+  animation:borderShimmer 4s linear infinite;
+}
+@keyframes borderShimmer {
+  0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%}
+}
+.pricing__top {
+  background:radial-gradient(ellipse 100% 100% at 50% 0%, rgba(201,168,76,0.1) 0%, transparent 70%);
+  border-bottom:1px solid rgba(201,168,76,0.15);
+  padding:40px; text-align:center;
+}
+.pricing__badge { font-size:10px; color:var(--gold); letter-spacing:0.16em; text-transform:uppercase; font-weight:700; margin-bottom:16px; }
+.pricing__price { font-family:'Playfair Display',serif; line-height:1; margin-bottom:12px; }
+.pricing__price sup { font-size:28px; color:var(--gold); vertical-align:super; }
+.pricing__price .amount { font-size:76px; font-weight:900; color:var(--text-1); }
+.pricing__price sub { font-size:18px; color:var(--text-3); font-family:'Inter',sans-serif; font-weight:400; }
+.pricing__term { font-size:13px; color:var(--text-3); }
+.pricing__term strong { color:var(--text-2); }
+.pricing__body { padding:40px; }
+.pf { display:flex; gap:14px; margin-bottom:20px; }
+.pf__check { flex-shrink:0; margin-top:2px; }
+.pf__check svg { color:var(--gold); }
+.pf__text { font-size:14px; color:var(--text-2); line-height:1.55; }
+.pf__text strong { color:var(--text-1); font-weight:600; }
+.pricing__rule { border:none; border-top:1px solid var(--border); margin:28px 0; }
+.pricing__cta {
+  display:block; width:100%; background:var(--gold); color:#000;
+  border:none; padding:18px; border-radius:var(--radius);
+  font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
+  letter-spacing:0.08em; text-transform:uppercase;
+  cursor:pointer; transition:all var(--transition);
+  position:relative; overflow:hidden;
+}
+.pricing__cta::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.2) 0%,transparent 60%);
+  opacity:0; transition:opacity var(--transition);
+}
+.pricing__cta:hover { background:var(--gold-light); box-shadow:0 12px 40px var(--gold-glow); }
+.pricing__cta:hover::before { opacity:1; }
+.pricing__cta:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+.pricing__guarantee { text-align:center; font-size:13px; color:var(--text-3); margin-top:16px; line-height:1.6; }
+.pricing__guarantee strong { color:var(--text-2); }
+
+/* ── FAQ ──────────────────────────────────────────────────── */
+.faq { padding:100px 0; border-bottom:1px solid var(--border); }
+.faq__list { margin-top:64px; border:1px solid var(--border); }
+.faq__item { border-bottom:1px solid var(--border); }
+.faq__item:last-child { border-bottom:none; }
+.faq__q {
+  width:100%; text-align:left; background:transparent; border:none;
+  padding:24px 32px; font-family:'Inter',sans-serif; font-size:15px; font-weight:600;
+  color:var(--text-1); cursor:pointer;
+  display:flex; justify-content:space-between; align-items:center; gap:24px;
+  transition:color var(--transition), background var(--transition);
+}
+.faq__q:hover { color:var(--gold); background:var(--surface-2); }
+.faq__q:focus-visible { outline:2px solid var(--gold); outline-offset:-2px; }
+.faq__icon { flex-shrink:0; transition:transform 250ms ease; color:var(--gold); }
+.faq__item.open .faq__icon { transform:rotate(45deg); }
+.faq__a {
+  padding:0 32px; max-height:0; overflow:hidden;
+  font-size:14px; color:var(--text-2); line-height:1.75;
+  transition:max-height 300ms ease, padding 300ms ease;
+}
+.faq__item.open .faq__a { max-height:300px; padding:0 32px 24px; }
+
+/* ── FOOTER ───────────────────────────────────────────────── */
+footer {
+  background:var(--surface-1); border-top:1px solid var(--border);
+  padding:56px 0; text-align:center;
+}
+.footer__logo { font-family:'Playfair Display',serif; font-size:20px; font-weight:700; margin-bottom:6px; }
+.footer__logo span { color:var(--gold); }
+.footer__tagline { font-size:11px; color:var(--text-3); letter-spacing:0.12em; text-transform:uppercase; margin-bottom:28px; }
+.footer__links { display:flex; justify-content:center; gap:28px; flex-wrap:wrap; margin-bottom:24px; }
+.footer__links a { font-size:13px; color:var(--text-3); text-decoration:none; transition:color var(--transition); }
+.footer__links a:hover { color:var(--text-2); }
+.footer__links a:focus-visible { outline:2px solid var(--gold); outline-offset:3px; }
+.footer__copy { font-size:12px; color:var(--text-3); }
+
+/* ── RESPONSIVE ───────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .stats__grid { grid-template-columns:1fr; }
+  .stats__item:not(:last-child) { border-right:none; border-bottom:1px solid var(--border); }
+  .vsl__grid { grid-template-columns:1fr; gap:40px; }
+  .phases { grid-template-columns:1fr 1fr; }
+  .phase:nth-child(odd) { border-right:1px solid var(--border); }
+  .phase:nth-child(even) { border-right:none; }
+  .phase:nth-child(1),.phase:nth-child(2) { border-bottom:1px solid var(--border); }
+  .inc-grid { grid-template-columns:1fr; }
+  .inc-item:nth-child(odd):not(:last-child) { border-right:none; }
+  .testi__grid { grid-template-columns:1fr; }
+  .about__grid { grid-template-columns:1fr; }
+  .about__img { max-height:300px; }
+  .notfor__grid { grid-template-columns:1fr; gap:32px; }
+}
+@media (max-width: 600px) {
+  .wrap,.wrap--sm,.wrap--xs { padding:0 16px; }
+  .phases { grid-template-columns:1fr; }
+  .phase:not(:last-child) { border-right:none; border-bottom:1px solid var(--border); }
+  .about__stats { flex-direction:column; gap:20px; }
+  .inc-total { flex-direction:column; align-items:flex-start; }
+  .hero__h { font-size:clamp(34px,9vw,60px); }
+  .btn-primary { padding:16px 32px; font-size:12px; }
+  .form-card { padding:28px 20px; }
+  .faq__q { padding:18px 20px; font-size:14px; }
+  .faq__a { padding:0 20px; }
+  .faq__item.open .faq__a { padding:0 20px 20px; }
+  .pricing__body { padding:28px 24px; }
+  .pricing__top { padding:32px 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ANNOUNCEMENT BAR -->
+<div class="bar" role="banner">
+  Precio de lanzamiento activo — $27 USD · Acceso inmediato · Garantía doble de 7 días
+</div>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="wrap">
+    <div class="hdr__inner">
+      <a href="#" class="logo" aria-label="Unlocked Academy inicio">Unlocked <span>Academy</span></a>
+      <button class="btn-hdr" onclick="document.getElementById('pricing').scrollIntoView({behavior:'smooth'})">
+        Entrar por $27 →
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero" aria-labelledby="hero-heading">
+  <div class="wrap">
+    <div class="hero__inner">
+
+      <div class="hero__badge">
+        <div class="hero__badge-pill">
+          <span class="hero__badge-dot" aria-hidden="true"></span>
+          +1.000 personas en LATAM ya ejecutaron este sistema
+        </div>
+      </div>
+
+      <h1 class="hero__h serif" id="hero-heading">
+        El sistema de 4 fases para<br/>
+        hacer tu <em class="gold-gradient">primera venta</em><br/>
+        sin quemar capital a ciegas
+      </h1>
+
+      <p class="hero__sub">
+        La razón por la que quemas $500–$1K USD en tus primeros meses de dropshipping
+        no es mala suerte — es que <strong>nadie te mostró el orden correcto.</strong>
+      </p>
+
+      <div class="hero__cta">
+        <a href="#pricing" class="btn-primary" role="button">
+          Quiero el acceso ahora
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        <span class="hero__micro" aria-label="Garantía incluida">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M13 4L6.5 11.5 3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Garantía de 7 días · Sin preguntas · Sin burocracia
+        </span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- PAIN STRIP -->
+<div class="pain" role="complementary">
+  <div class="wrap">
+    <p>
+      <strong>No es otro curso.</strong> Es el mapa operativo exacto que usamos en nuestras propias tiendas —
+      con el orden, los datos y el criterio que nadie te da en YouTube.
+    </p>
+  </div>
+</div>
+
+<!-- STATS -->
+<section class="stats" aria-label="Estadísticas">
+  <div class="wrap">
+    <div class="stats__grid">
+      <div class="stats__item">
+        <div class="stats__n" aria-label="Más de 10 años">10+</div>
+        <div class="stats__l">Años ejecutando eCommerce</div>
+      </div>
+      <div class="stats__item">
+        <div class="stats__n" aria-label="Más de 1000 alumnos">1.000+</div>
+        <div class="stats__l">Alumnos activos en LATAM</div>
+      </div>
+      <div class="stats__item">
+        <div class="stats__n" aria-label="Más de 5 millones USD">$5M+</div>
+        <div class="stats__l">USD en ventas generadas</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VSL + FORM -->
+<section class="vsl" aria-label="Presentación y acceso">
+  <div class="wrap">
+    <div class="vsl__grid">
+
+      <!-- VIDEO -->
+      <div class="vsl__frame" role="button" tabindex="0" aria-label="Reproducir video de presentación">
+        <div class="vsl__play-btn" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <span class="vsl__cap">Ver presentación completa</span>
+      </div>
+
+      <!-- FORM -->
+      <div class="form-card">
+        <h2 class="form-card__title serif">Empieza hoy</h2>
+        <p class="form-card__sub">Acceso inmediato · Sin suscripción · Pago único</p>
+        <div class="form-tabs" role="tablist">
+          <div class="form-tab active" role="tab" aria-selected="true">Datos</div>
+          <div class="form-tab" role="tab" aria-selected="false">Pago</div>
+        </div>
+        <form novalidate>
+          <div class="fg">
+            <label for="name" class="sr-only">Nombre y apellidos</label>
+            <input id="name" type="text" placeholder="Nombre y Apellidos" autocomplete="name"/>
+          </div>
+          <div class="fg">
+            <label for="email" class="sr-only">Correo electrónico</label>
+            <input id="email" type="email" placeholder="Correo Electrónico" autocomplete="email"/>
+          </div>
+          <div class="fg">
+            <label for="phone" class="sr-only">Número de WhatsApp</label>
+            <input id="phone" type="tel" placeholder="WhatsApp (con código de país)" autocomplete="tel"/>
+          </div>
+          <button type="submit" class="form-btn">Acceder por $27 USD →</button>
+        </form>
+        <p class="form-note">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="display:inline;vertical-align:-1px;color:#C9A84C" aria-hidden="true">
+            <path d="M8 1v7l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          Precio de lanzamiento. Puede subir sin previo aviso.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="problem" aria-labelledby="problem-heading">
+  <div class="wrap">
+    <div class="sh">
+      <div class="sh__tag">Este programa es para ti si…</div>
+      <h2 class="sh__h serif" id="problem-heading">¿Reconoces alguna<br/>de estas situaciones?</h2>
+    </div>
+    <div class="problem__list" role="list">
+
+      <div class="pitem" role="listitem">
+        <div class="pitem__icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <h3>Quieres vender online pero no sabes por dónde empezar</h3>
+          <p>Tienes las ganas pero no el mapa. No es falta de esfuerzo — es falta de orden.</p>
+        </div>
+      </div>
+
+      <div class="pitem" role="listitem">
+        <div class="pitem__icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <h3>Ya intentaste dropshipping y perdiste dinero</h3>
+          <p>Seguiste un tutorial, probaste productos al azar, gastaste en ads sin criterio. No fue culpa tuya.</p>
+        </div>
+      </div>
+
+      <div class="pitem" role="listitem">
+        <div class="pitem__icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <h3>Tienes tienda pero no tienes sistema ni claridad</h3>
+          <p>Sabes que algo no está bien, pero sin datos ni estructura no puedes saber qué ajustar.</p>
+        </div>
+      </div>
+
+      <div class="pitem" role="listitem">
+        <div class="pitem__icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M5 8h6M8 5v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div>
+          <h3>Ves resultados de otros y no entiendes por qué a ti no te funciona</h3>
+          <p>La diferencia no es suerte ni conexiones — es que ellos tienen el orden correcto.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- SYSTEM -->
+<section class="system" aria-labelledby="system-heading">
+  <div class="wrap">
+    <div class="sh">
+      <div class="sh__tag">El sistema en 4 fases</div>
+      <h2 class="sh__h serif" id="system-heading">El orden correcto.<br/>No más adivinar qué viene después.</h2>
+      <p class="sh__p">No es una colección de videos. Es una secuencia. Cada fase tiene un resultado concreto antes de pasar a la siguiente.</p>
+    </div>
+    <div class="phases" role="list">
+
+      <div class="phase" role="listitem">
+        <div class="phase__line" aria-hidden="true"></div>
+        <div class="phase__num" aria-hidden="true">01</div>
+        <h3 class="phase__title">Elige con criterio</h3>
+        <div class="phase__out">Producto validado con datos</div>
+        <p class="phase__desc">Qué vender, cómo validarlo y qué señales mirar antes de gastar un peso en publicidad.</p>
+      </div>
+
+      <div class="phase" role="listitem">
+        <div class="phase__line" aria-hidden="true"></div>
+        <div class="phase__num" aria-hidden="true">02</div>
+        <h3 class="phase__title">Monta tu tienda</h3>
+        <div class="phase__out">Tienda lista para convertir</div>
+        <p class="phase__desc">Cómo estructurar una tienda clara, rápida y hecha para vender — sin costos innecesarios.</p>
+      </div>
+
+      <div class="phase" role="listitem">
+        <div class="phase__line" aria-hidden="true"></div>
+        <div class="phase__num" aria-hidden="true">03</div>
+        <h3 class="phase__title">Lanza tráfico</h3>
+        <div class="phase__out">Primeras campañas activas</div>
+        <p class="phase__desc">Cómo traer visitas y dar tus primeros pasos para vender sin improvisar ni copiar a nadie.</p>
+      </div>
+
+      <div class="phase" role="listitem">
+        <div class="phase__line" aria-hidden="true"></div>
+        <div class="phase__num" aria-hidden="true">04</div>
+        <h3 class="phase__title">Lee datos y corrige</h3>
+        <div class="phase__out">Decisiones con información real</div>
+        <p class="phase__desc">Qué revisar, qué ajustar y cómo dejar de tomar decisiones a ciegas para empezar a escalar.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- INCLUDES -->
+<section class="includes" aria-labelledby="includes-heading">
+  <div class="wrap">
+    <div class="sh">
+      <div class="sh__tag">Lo que recibes hoy</div>
+      <h2 class="sh__h serif" id="includes-heading">Todo esto está incluido<br/>en tu acceso</h2>
+      <p class="sh__p">No es solo el curso. Es todo lo que necesitas para arrancar sin perderte en el camino.</p>
+    </div>
+    <div class="inc-grid" role="list">
+
+      <div class="inc-item" role="listitem">
+        <div class="inc-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+        </div>
+        <h3 class="inc-title">Sistema completo en 4 fases</h3>
+        <p class="inc-desc">5+ horas de contenido grabado, ordenado por fases. Cada módulo tiene un entregable concreto antes de avanzar.</p>
+        <div class="inc-val">Acceso inmediato</div>
+      </div>
+
+      <div class="inc-item" role="listitem">
+        <div class="inc-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="inc-title">12 sesiones en vivo al mes</h3>
+        <p class="inc-desc">4 veces al mes revisamos tu tienda en tiempo real. Con micrófono, con preguntas, con dirección clara.</p>
+        <div class="inc-val">Valor: $97 USD</div>
+      </div>
+
+      <div class="inc-item" role="listitem">
+        <div class="inc-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 12V4l6-2 6 2v8l-6 2-6-2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 2v12" stroke="currentColor" stroke-width="1.5"/></svg>
+        </div>
+        <h3 class="inc-title">Calculadora de precios rentables</h3>
+        <p class="inc-desc">Sabe exactamente cuánto cobrar por cada producto antes de venderlo. Sin adivinar si estás ganando o perdiendo dinero.</p>
+        <div class="inc-val">Valor: $47 USD</div>
+      </div>
+
+      <div class="inc-item" role="listitem">
+        <div class="inc-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="inc-title">Plantilla de control diario</h3>
+        <p class="inc-desc">El mismo tablero que usamos en nuestras tiendas para tomar decisiones con datos reales, no con intuición.</p>
+        <div class="inc-val">Valor: $37 USD</div>
+      </div>
+
+      <div class="inc-item" role="listitem">
+        <div class="inc-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0z" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <h3 class="inc-title">Comunidad privada</h3>
+        <p class="inc-desc">Acceso al grupo exclusivo donde puedes preguntar, compartir avances y recibir apoyo de personas en el mismo proceso.</p>
+        <div class="inc-val">Valor: $29 USD</div>
+      </div>
+
+      <div class="inc-item inc-item--bonus" role="listitem">
+        <div class="inc-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.8 3.6L14 6.4l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8L8 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        </div>
+        <h3 class="inc-title" style="color:var(--gold)">Bono: Financiamos tu importación</h3>
+        <p class="inc-desc">Si llegas a +300 pedidos al mes, financiamos la importación de tus propios productos. Pasas de dropshipping a marca propia sin descapitalizarte.</p>
+        <div class="inc-val">Solo para alumnos activos</div>
+      </div>
+
+    </div>
+    <div class="inc-total">
+      <div class="inc-total__left">
+        <p><strong>Valor total de todos los bonos</strong></p>
+        <p>6 meses de acceso completo · Pago único · Sin suscripción</p>
+      </div>
+      <div class="inc-total__price serif">
+        <s>$113</s><span> $27 <small style="font-size:18px;color:var(--text-3);font-family:'Inter',sans-serif;font-weight:400">USD</small></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="testi" aria-labelledby="testi-heading">
+  <div class="wrap">
+    <div class="sh">
+      <div class="sh__tag">Resultados reales</div>
+      <h2 class="sh__h serif" id="testi-heading">Personas reales.<br/><em>Resultados concretos.</em></h2>
+      <p class="sh__p">No empezaron sabiendo nada. Empezaron exactamente desde donde estás tú ahora.</p>
+    </div>
+    <div class="testi__grid" role="list">
+
+      <article class="tcard" role="listitem">
+        <div class="tcard__stars" aria-label="5 estrellas">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+        </div>
+        <div class="tcard__result">+$10K USD / mes</div>
+        <p class="tcard__quote">"Si se puede muchachos, con dedicación y accionando las cosas funcionan. Hace un año estos números eran impensables para mí."</p>
+        <div class="tcard__author">
+          <div class="tcard__name">Carlos</div>
+          <div class="tcard__before">Antes: sin ventas online → Q4 primer año</div>
+        </div>
+      </article>
+
+      <article class="tcard" role="listitem">
+        <div class="tcard__stars" aria-label="5 estrellas">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+        </div>
+        <div class="tcard__result">COP $30M en 2 meses</div>
+        <p class="tcard__quote">"Me ayudaron a construir una empresa rentable y sostenible en el tiempo. Agradecida con Juan Sebastián y Jose David."</p>
+        <div class="tcard__author">
+          <div class="tcard__name">María</div>
+          <div class="tcard__before">Antes: mamá en casa sin ingresos propios</div>
+        </div>
+      </article>
+
+      <article class="tcard" role="listitem">
+        <div class="tcard__stars" aria-label="4 de 5 estrellas">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8z" stroke="currentColor" stroke-width="1"/></svg>
+        </div>
+        <div class="tcard__result">+$10K USD / mes</div>
+        <p class="tcard__quote">"Llegando a números que no imaginábamos, aprendiendo cada día cómo funciona el negocio y seguir creciendo con la ayuda de los mentores."</p>
+        <div class="tcard__author">
+          <div class="tcard__name">Andrés</div>
+          <div class="tcard__before">Antes: empleado 9-5 → 30 días después</div>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section class="about" aria-labelledby="about-heading">
+  <div class="wrap">
+    <div class="about__grid">
+      <div class="about__img" role="img" aria-label="Foto de Jose Naicipa">
+        <span class="about__img-label">Jose Naicipa</span>
+      </div>
+      <div>
+        <div class="sh__tag about__tag">Quién lo enseña</div>
+        <h2 class="about__h serif" id="about-heading">Jose Naicipa</h2>
+        <div class="about__role">Empresario digital · Mentor eCommerce LATAM</div>
+        <p class="about__body">
+          Antes de esto tuve una farmacia familiar, un bar, un restaurante. Me endeudé. Lo perdí.
+          <strong>Trabajaba 12 horas al día y al final del mes los números no cuadraban.</strong><br/><br/>
+          Cuando llegué al eCommerce lo hice sin manual. Probé productos que no vendieron. Gasté dinero
+          siguiendo a <em>"expertos"</em> que nunca mostraron sus tiendas reales. Hasta que dejé de copiar
+          estrategias sueltas y construí un sistema propio —
+          <strong>fase por fase, con datos, sin adivinar.</strong><br/><br/>
+          Hoy llevo 10 años ejecutando ese sistema. He ayudado a más de 1.000 personas a replicarlo.
+          Juntos hemos generado más de USD$5 millones en ventas.
+        </p>
+        <div class="about__stats">
+          <div>
+            <div class="about__stat-n serif">10+</div>
+            <div class="about__stat-l">Años en eCommerce</div>
+          </div>
+          <div>
+            <div class="about__stat-n serif">1.000+</div>
+            <div class="about__stat-l">Alumnos activos</div>
+          </div>
+          <div>
+            <div class="about__stat-n serif">$5M+</div>
+            <div class="about__stat-l">En ventas generadas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- NOT FOR -->
+<section class="notfor" aria-labelledby="notfor-heading">
+  <div class="wrap--sm">
+    <div class="sh">
+      <div class="sh__tag">Honestidad ante todo</div>
+      <h2 class="sh__h serif" id="notfor-heading">Esto no es para todos</h2>
+    </div>
+    <div class="notfor__grid">
+      <div class="notfor__col yes">
+        <h3>Sí es para ti</h3>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          Quieres tu primera venta y no sabes por dónde empezar
+        </div>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          Intentaste antes y perdiste dinero — quieres hacerlo bien esta vez
+        </div>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          Puedes dedicar 2–3 horas semanales a implementar el sistema
+        </div>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          Buscas un sistema probado, no más contenido suelto de YouTube
+        </div>
+      </div>
+      <div class="notfor__col no">
+        <h3>No es para ti</h3>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          No puedes dedicar al menos 2–3 horas a la semana
+        </div>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          Ya tienes una tienda rentable y buscas escalar a 6 cifras
+        </div>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          Esperas resultados sin esfuerzo ni aprendizaje
+        </div>
+        <div class="ni">
+          <span class="ni__icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+          Buscas atajos mágicos en lugar de un método real
+        </div>
+      </div>
+    </div>
+    <p class="notfor__closer">Si ninguna de las negativas te describe, <strong>esto fue hecho para ti.</strong></p>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing" aria-labelledby="pricing-heading">
+  <div class="wrap">
+    <div class="sh">
+      <div class="sh__tag">Precio de lanzamiento</div>
+      <h2 class="sh__h serif" id="pricing-heading">Una inversión de $27.<br/><em>Un sistema para siempre.</em></h2>
+      <p class="sh__p">Este precio es de lanzamiento. Cuando llegue a su precio normal, no habrá forma de acceder por este valor.</p>
+    </div>
+    <div class="pricing__card">
+      <div class="pricing__top">
+        <div class="pricing__badge">Acceso completo · 6 meses de membresía</div>
+        <div class="pricing__price serif" aria-label="27 dólares USD">
+          <sup>$</sup><span class="amount">27</span><sub> USD</sub>
+        </div>
+        <div class="pricing__term"><strong>Pago único</strong> · Sin suscripción · Sin cobros extras · Sin letra chica</div>
+      </div>
+      <div class="pricing__body">
+        <div class="pf">
+          <span class="pf__check" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pf__text"><strong>Sistema completo en 4 fases</strong> — ruta grabada, ordenada, con entregables claros</span>
+        </div>
+        <div class="pf">
+          <span class="pf__check" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pf__text"><strong>12 sesiones en vivo al mes</strong> — revisamos tu tienda con micrófono en tiempo real</span>
+        </div>
+        <div class="pf">
+          <span class="pf__check" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pf__text"><strong>Calculadora de precios rentables</strong> — valor $47 USD</span>
+        </div>
+        <div class="pf">
+          <span class="pf__check" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pf__text"><strong>Plantilla de control diario</strong> — valor $37 USD</span>
+        </div>
+        <div class="pf">
+          <span class="pf__check" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="pf__text"><strong>Comunidad privada</strong> — valor $29 USD</span>
+        </div>
+        <div class="pf">
+          <span class="pf__check" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.8 3.6L14 6.4l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8L8 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+          <span class="pf__text"><strong>Bono financiamiento de importación</strong> — si llegas a +300 pedidos/mes te financiamos</span>
+        </div>
+        <hr class="pricing__rule"/>
+        <button class="pricing__cta" onclick="document.querySelector('#pricing .form-card, .vsl')?.scrollIntoView({behavior:'smooth'})">
+          Entrar ahora por $27 USD →
+        </button>
+        <p class="pricing__guarantee">
+          <strong>Garantía doble de 7 días.</strong><br/>
+          Si no es para ti, te devolvemos el dinero completo — sin preguntas.<br/>
+          Y si encuentras algo mejor por el mismo valor, también.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq" aria-labelledby="faq-heading">
+  <div class="wrap--sm">
+    <div class="sh">
+      <div class="sh__tag">Preguntas frecuentes</div>
+      <h2 class="sh__h serif" id="faq-heading">Todo lo que necesitas<br/>saber antes de entrar</h2>
+      <p class="sh__p">Si tienes una duda, probablemente ya está respondida aquí.</p>
+    </div>
+    <div class="faq__list" role="list">
+
+      <div class="faq__item" role="listitem">
+        <button class="faq__q" aria-expanded="false">
+          ¿Necesito experiencia previa?
+          <svg class="faq__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="faq__a">No importa de dónde partes. Si ya intentaste y perdiste dinero, el sistema te muestra exactamente qué estuvo mal. Si es tu primera vez, la Fase 1 arranca desde cero — paso a paso, a tu ritmo.</div>
+      </div>
+
+      <div class="faq__item" role="listitem">
+        <button class="faq__q" aria-expanded="false">
+          ¿Qué incluye exactamente el pago de $27 USD?
+          <svg class="faq__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="faq__a">El sistema completo en 4 fases, acceso a las 12 sesiones en vivo mensuales durante 6 meses, los 3 bonos (calculadora, plantilla, comunidad) y el bono especial de financiamiento de importación. Todo por un solo pago.</div>
+      </div>
+
+      <div class="faq__item" role="listitem">
+        <button class="faq__q" aria-expanded="false">
+          ¿Cuándo obtengo acceso después de pagar?
+          <svg class="faq__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="faq__a">Inmediatamente. En el momento en que se confirma tu pago, recibes acceso a todo el contenido y la comunidad. No hay esperas.</div>
+      </div>
+
+      <div class="faq__item" role="listitem">
+        <button class="faq__q" aria-expanded="false">
+          Las sesiones en vivo ¿son grabadas o solo en tiempo real?
+          <svg class="faq__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="faq__a">Son en vivo, pero todas quedan grabadas en tu área de membresía. Si no puedes asistir en tiempo real, puedes ver la grabación cuando quieras.</div>
+      </div>
+
+      <div class="faq__item" role="listitem">
+        <button class="faq__q" aria-expanded="false">
+          ¿Hay pagos ocultos o cobros automáticos?
+          <svg class="faq__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="faq__a">No. Un solo pago de $27 USD. Sin suscripción. Sin letra chica. Pagas una vez y tienes acceso completo durante 6 meses.</div>
+      </div>
+
+      <div class="faq__item" role="listitem">
+        <button class="faq__q" aria-expanded="false">
+          ¿Con cuánto presupuesto adicional debería arrancar?
+          <svg class="faq__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="faq__a">Los $27 USD son el acceso al sistema. Para lanzar campañas de publicidad necesitarás presupuesto adicional — cuánto depende de tu ritmo y mercado. El sistema te enseña a usarlo con criterio, no a quemarlo a ciegas.</div>
+      </div>
+
+      <div class="faq__item" role="listitem">
+        <button class="faq__q" aria-expanded="false">
+          ¿Esto es diferente a la mentoría 1 a 1 de Jose?
+          <svg class="faq__icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <div class="faq__a">Sí. La mentoría 1 a 1 es personalizada y tiene otro precio. Este programa es el sistema estructurado para quienes están empezando — el camino claro sin necesidad de atención exclusiva.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer__logo serif">Unlocked <span>Academy</span></div>
+  <div class="footer__tagline">Desbloquea tu mente</div>
+  <nav class="footer__links" aria-label="Links legales">
+    <a href="#">Políticas de Privacidad</a>
+    <a href="#">Términos y Condiciones</a>
+    <a href="#">Descargo de Responsabilidad</a>
+  </nav>
+  <div class="footer__copy">© 2026 Unlocked Academy · Todos los derechos reservados</div>
+</footer>
+
+<!-- ── SCRIPTS ─────────────────────────────────────────────── -->
+<script>
+  // FAQ accordion
+  document.querySelectorAll('.faq__q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.faq__item');
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq__item.open').forEach(el => {
+        el.classList.remove('open');
+        el.querySelector('.faq__q').setAttribute('aria-expanded','false');
+      });
+      if (!isOpen) {
+        item.classList.add('open');
+        btn.setAttribute('aria-expanded','true');
+      }
+    });
+  });
+
+  // Sticky header opacity on scroll
+  const hdr = document.querySelector('.hdr');
+  window.addEventListener('scroll', () => {
+    hdr.style.background = window.scrollY > 60
+      ? 'rgba(0,0,0,0.96)'
+      : 'rgba(0,0,0,0.88)';
+  }, { passive: true });
+</script>
+</body>
+</html>

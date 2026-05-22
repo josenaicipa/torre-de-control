@@ -1,0 +1,3546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torre de Control — Unlocked</title>
+<link rel="icon" type="image/png" href="logo.png"/>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+const { createClient } = supabase;
+
+const SUPABASE_URL = 'https://vluuftzeivluexuhdupu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsdXVmdHplaXZsdWV4dWhkdXB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTczNTAsImV4cCI6MjA4OTc3MzM1MH0.DlM-t41BzH0TBxaxiZBQfjg6l-zO0Cs17Uvn4FBZlkQ';
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const MDAYS  = [31,28,31,30,31,30,31,31,30,31,30,31];
+const CANALES= ["Meta","TikTok","Google","YouTube","Orgánico","Otro"];
+const TEAM   = ["Karen","Luisa","Valen","Carlos","Dahiana","Otro"];
+
+// ─── Control Comercial (cross-origin audit notes) ────────────────────────────
+const CONTROL_NOTES_URL="https://metrics.unlockedecom.co/api/commercial-control-notes";
+const CONTROL_PIPELINE_URL="https://metrics.unlockedecom.co/api/commercial-control-pipeline";
+const CONTROL_SYNC_URL="https://metrics.unlockedecom.co/api/commercial-control-sync-ghl";
+const COMERCIAL_CLOSERS=["Carlos","Daryi","Karen","Luisa","Valen","Dahiana","Otro"];
+// Outcomes mirror the real GHL pipeline "CAPTACIÓN Y VENTAS" stage names exactly.
+// Keeping them identical avoids invented mappings when syncing to GHL.
+// Legacy values (Pendiente, Atendido, Cierre, HOT seguimiento, Reagendado, No califica)
+// are still accepted by the backend for historical notes but are not surfaced here.
+const COMERCIAL_OUTCOMES=[
+  {v:"Registrados Sin Agenda",     c:"#94A3B8"},
+  {v:"Agendados No Calificados",   c:"#F59E0B"},
+  {v:"Sesión Agendada",            c:"#3B82F6"},
+  {v:"Seguimiento Call Confirmer", c:"#F97316"},
+  {v:"Seguimiento Reagenda",       c:"#8B5CF6"},
+  {v:"Agenda Confirmada",          c:"#14B8A6"},
+  {v:"No calificado/Descartado",   c:"#64748B"},
+  {v:"No Show",                    c:"#EF4444"},
+  {v:"Seguimiento PostAgenda",     c:"#FB923C"},
+  {v:"Reserva",                    c:"#06B6D4"},
+  {v:"Consiguiendo Dinero",        c:"#A855F7"},
+  {v:"Ingreso a Cuotas",           c:"#16A34A"},
+  {v:"Ingreso Full",               c:"#22C55E"},
+  {v:"Ingreso Gratis",             c:"#10B981"},
+];
+const COMERCIAL_OUTCOME_SET=new Set(COMERCIAL_OUTCOMES.map(o=>o.v));
+const COMERCIAL_LEGACY_OUTCOME_MAP={
+  Pendiente:"Sesión Agendada",
+  Atendido:"Seguimiento PostAgenda",
+  "HOT seguimiento":"Consiguiendo Dinero",
+  Cierre:"Ingreso Full",
+  "No show":"No Show",
+  Reagendado:"Seguimiento Reagenda",
+  "No califica":"No calificado/Descartado",
+};
+const normalizeComercialOutcome=v=>COMERCIAL_OUTCOME_SET.has(v)?v:(COMERCIAL_LEGACY_OUTCOME_MAP[v]||COMERCIAL_OUTCOMES[0].v);
+const COMERCIAL_BUCKETS=[
+  {k:"por_atender", label:"Por atender", c:"#3B82F6"},
+  {k:"atendido",    label:"Atendido",    c:"#22C55E"},
+  {k:"follow_up",   label:"Follow-up",   c:"#F97316"},
+  {k:"no_show",     label:"No show",     c:"#EF4444"},
+  {k:"cerrado",     label:"Cerrado",     c:"#16A34A"},
+  {k:"perdido",     label:"Perdido",     c:"#64748B"},
+];
+
+const BRAND="#E03A18",BRAND2="#C82A0A"; // Unlocked brand red
+const THEMES={
+  dark:{BG:"#07090F",SURFACE:"#0E1117",SURFACE2:"#141925",BORDER:"#1C2333",BORDER2:"#222B3A",TXT:"#F1F5F9",TXT2:"#94A3B8",TXT3:"#475569"},
+  light:{BG:"#F7F7F5",SURFACE:"#ffffff",SURFACE2:"#F4F4F2",BORDER:"#E5E4DF",BORDER2:"#EDECE8",TXT:"#111110",TXT2:"#5C5C52",TXT3:"#9C9B93"},
+};
+let BG,SURFACE,SURFACE2,BORDER,BORDER2,TXT,TXT2,TXT3,IS_DARK=false;
+const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];BG=t.BG;SURFACE=t.SURFACE;SURFACE2=t.SURFACE2;BORDER=t.BORDER;BORDER2=t.BORDER2;TXT=t.TXT;TXT2=t.TXT2;TXT3=t.TXT3;};
+applyTheme(false);
+const C={gold:BRAND,green:"#22C55E",amber:"#F59E0B",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F97316",pink:"#EC4899"};
+const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Daryi:C.gold,Otro:"#64748b",
+  "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Uribe":C.gold,"Juan Diego Afanador":C.blue};
+
+// ─── Manual Collaborator Reports (Por Colaborador) ──────────────────────────────
+// Karen is the marketing/IG setter; Carlos Velez, Daryi Uribe and Juan Diego Afanador
+// are the high-ticket closers. Karen's id is preserved as "Karen" for backward
+// compatibility; legacy ids "Carlos" / "Daryi" still resolve to the new closer names.
+const MARKETING_COLLABORATORS=[
+  {id:"Karen",label:"Karen Anquiz",color:C.purple,role:"marketing"},
+];
+const COMMERCIAL_COLLABORATORS=[
+  {id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"},
+  {id:"Daryi Uribe",label:"Daryi Uribe",color:C.gold,role:"closer",legacy:"Daryi"},
+  {id:"Juan Diego Afanador",label:"Juan Diego Afanador",color:C.blue,role:"closer"},
+];
+const MANUAL_COLLABORATORS=[...MARKETING_COLLABORATORS,...COMMERCIAL_COLLABORATORS];
+const MARKETING_MEMBER_IDS=new Set(MARKETING_COLLABORATORS.map(c=>c.id));
+const COMMERCIAL_MEMBER_IDS=new Set([
+  ...COMMERCIAL_COLLABORATORS.map(c=>c.id),
+  ...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),
+]);
+const MEMBER_LABELS={
+  "Karen":"Karen Anquiz",
+  "Carlos":"Carlos Velez",
+  "Daryi":"Daryi Uribe",
+};
+MANUAL_COLLABORATORS.forEach(c=>{MEMBER_LABELS[c.id]=c.label;});
+const memberLabel=m=>MEMBER_LABELS[m]||m;
+const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
+const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
+
+const nv=v=>{const x=Number(v);return(!v&&v!==0)||isNaN(x)?null:x};
+const dv=(a,b)=>{const x=nv(a),y=nv(b);return(!x||!y||y===0)?null:x/y};
+const pv=(a,b)=>{const r=dv(a,b);return r==null?null:r*100};
+const fD=v=>{const x=nv(v);if(x==null)return"—";return"$"+Math.round(Math.abs(x)).toLocaleString("en-US")};
+const fP=(v,d=1)=>{const x=nv(v);if(x==null)return"—";return x.toFixed(d)+"%"};
+const fX=(v,d=2)=>{const x=nv(v);if(x==null)return"—";return x.toFixed(d)+"x"};
+const fN=v=>{const x=nv(v);if(x==null)return"—";return Math.round(x).toLocaleString()};
+const sumF=(arr,k)=>arr.reduce((s,r)=>s+(nv(r[k])||0),0);
+const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
+const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
+const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+
+const blankEntry=()=>({
+  igFollowers:0,posts:0,mensajes:0,followUps:0,bkOffers:0,
+  gastoMeta:0,gastoGoogle:0,gastoTikTok:0,gastoOtros:0,
+  // Closer manual fields (only used by commercial collaborators). Persisted
+  // through repurposed daily_entries columns — see rowToEntry/saveEntry.
+  agendas:0,calificadas:0,agendasHoy:0,showUps:0,
+  ventasHT:0,valorVentaHT:0,upfrontCash:0,recurringCash:0,
+  pendDiaAnterior:0,pendAcumulados:0,reservas:0,
+});
+
+const blankCloser=()=>({
+  q_ventas_ht:0,valor_venta_ht:0,upfront_cash_ht:0,ventas_cash:0,recurring_cash:0,
+  q_ventas_lt:0,valor_venta_lt:0,total_clientes_activos:0,
+  q_reservas:0,cash_reservas:0,
+  q_reembolsos:0,valor_reembolsos:0,
+  agendas_organicas:0,agendas_meta:0,agendas_google:0,agendas_tiktok:0,agendas_otros:0,
+  cal_organicas:0,cal_meta:0,cal_google:0,cal_tiktok:0,cal_otros:0,
+  hoy_organicas:0,hoy_meta:0,hoy_google:0,hoy_tiktok:0,hoy_otros:0,
+  show_organicas:0,show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
+});
+
+const rowToEntry=row=>{
+  return {
+    member:row.member,date:row.date,
+    // Marketing fields
+    igFollowers:row.ig_followers||0,
+    posts:row.posts||0,mensajes:row.mensajes||0,followUps:row.follow_ups||0,bkOffers:row.bk_offers||0,
+    gastoMeta:row.gasto_meta||0,gastoGoogle:row.gasto_google||0,gastoTikTok:row.gasto_tiktok||0,gastoOtros:row.gasto_otros||0,
+    // Closer manual fields are stored in repurposed daily_entries columns:
+    //   agendas → new_bk_organic, calificadas → qual_bk_organic,
+    //   agendasHoy → today_bk_organic, showUps → show_organic,
+    //   ventasHT → sales_organic, valorVentaHT → revenue_organic,
+    //   upfrontCash → cash_organic, recurringCash → recurring_organic,
+    //   pendDiaAnterior → pitches_organic, pendAcumulados → pitches_paid,
+    //   reservas → reservas_organic.
+    // followUps (column follow_ups) is shared with the marketing schema but stored
+    // per-member so closer follow-ups and Karen's follow-ups stay on separate rows.
+    agendas:row.new_bk_organic||0,
+    calificadas:row.qual_bk_organic||0,
+    agendasHoy:row.today_bk_organic||0,
+    showUps:row.show_organic||0,
+    ventasHT:row.sales_organic||0,
+    valorVentaHT:row.revenue_organic||0,
+    upfrontCash:row.cash_organic||0,
+    recurringCash:row.recurring_organic||0,
+    pendDiaAnterior:row.pitches_organic||0,
+    pendAcumulados:row.pitches_paid||0,
+    reservas:row.reservas_organic||0,
+  };
+};
+
+// ─── SVG ICONS ────────────────────────────────────────────────────────────────
+const ICON_PATHS={
+  home:'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10',
+  dollar:'M12 1v22 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+  rocket:'M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11A22.35 22.35 0 0 1 12 15z M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0 M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5',
+  calendar:'M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18',
+  users:'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  filter:'M22 3H2l8 9.46V19l4 2v-8.54L22 3z',
+  barChart:'M18 20V10 M12 20V4 M6 20v-6',
+  trendUp:'M23 6l-9.5 9.5-5-5L1 18 M17 6h6v6',
+  settings:'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  chart:'M18 20V10 M12 20V4 M6 20v-6',
+  megaphone:'M3 11l19-9-9 19-2-8-8-2z',
+  user:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  lock:'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4',
+  clipboardCheck:'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2 M9 4h6v4H9z M9 14l2 2 4-4',
+};
+const Icon=({name,size=16,color="currentColor",strokeWidth=1.8})=>(
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    {(ICON_PATHS[name]||"").split(" M").map((seg,i)=>(
+      <path key={i} d={i===0?seg:"M"+seg}/>
+    ))}
+  </svg>
+);
+
+// ─── UI ATOMS ─────────────────────────────────────────────────────────────────
+const Card=({children,style={}})=>(
+  <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:16,
+    padding:"20px 22px",boxShadow:"0 4px 24px rgba(0,0,0,.35)",...style}}>{children}</div>
+);
+const Lbl=({children,style={}})=>(
+  <div style={{fontSize:9,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
+    fontFamily:"'Inter',sans-serif",fontWeight:600,marginBottom:5,...style}}>{children}</div>
+);
+const Stat=({label,value,sub,color=C.gold,size="md"})=>(
+  <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:12,
+    padding:size==="lg"?"18px 20px":"13px 16px",position:"relative",overflow:"hidden",
+    flex:1,minWidth:0}}>
+    <div style={{position:"absolute",top:0,left:0,width:3,bottom:0,
+      background:color,borderRadius:"12px 0 0 12px"}}/>
+    <div style={{paddingLeft:10}}>
+      <Lbl style={{marginBottom:4}}>{label}</Lbl>
+      <div style={{fontSize:size==="lg"?28:20,fontWeight:800,color,
+        fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.03em"}}>{value}</div>
+      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:4,fontFamily:"'Inter',sans-serif"}}>{sub}</div>}
+    </div>
+  </div>
+);
+const Barz=({value,max,color=C.gold,h=6,label,right})=>{
+  const p=Math.min(100,Math.max(0,((value||0)/(max||1))*100));
+  return(
+    <div>
+      {(label||right)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        {label&&<span style={{fontSize:11,color:TXT2,fontWeight:500}}>{label}</span>}
+        {right&&<span style={{fontSize:11,color,fontFamily:"'Inter',sans-serif",fontWeight:600}}>{right}</span>}
+      </div>}
+      <div style={{background:BORDER2,borderRadius:100,height:h,overflow:"hidden"}}>
+        <div style={{width:p+"%",height:"100%",background:color,borderRadius:100,
+          transition:"width 1s cubic-bezier(.2,.8,.2,1)"}}/>
+      </div>
+    </div>
+  );
+};
+const Inp=({label,value,onChange,prefix,hint,type="number"})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    <Lbl>{label}</Lbl>
+    <div style={{display:"flex",alignItems:"center",background:SURFACE2,
+      border:`1px solid ${BORDER}`,borderRadius:9,overflow:"hidden",height:38}}>
+      {prefix&&<span style={{padding:"0 10px",color:TXT3,fontSize:12,fontFamily:"'Inter',sans-serif",
+        borderRight:`1px solid ${BORDER}`,height:"100%",display:"flex",alignItems:"center",
+        background:BG,fontWeight:500}}>{prefix}</span>}
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder="0"
+        style={{flex:1,background:"transparent",border:"none",outline:"none",color:TXT,
+          fontSize:13,padding:"0 11px",fontFamily:"'Inter',sans-serif",fontWeight:500}}/>
+    </div>
+    {hint&&<div style={{fontSize:10,color:TXT3}}>{hint}</div>}
+  </div>
+);
+const STit=({icon,title,sub,right})=>(
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:3,height:16,background:BRAND,borderRadius:2,flexShrink:0}}/>
+        <span style={{fontSize:13,fontWeight:700,color:TXT,letterSpacing:"-0.02em"}}>{title}</span>
+      </div>
+      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:3,marginLeft:11}}>{sub}</div>}
+    </div>
+    {right}
+  </div>
+);
+const MemberBadge=({name,size="sm"})=>{
+  const col=TEAM_COLORS[name]||C.amber;
+  return(
+    <div style={{display:"inline-flex",alignItems:"center",gap:6,background:col+"18",
+      border:`1px solid ${col}35`,borderRadius:7,padding:size==="lg"?"7px 13px":"4px 10px"}}>
+      <div style={{width:size==="lg"?8:6,height:size==="lg"?8:6,borderRadius:100,background:col}}/>
+      <span style={{fontSize:size==="lg"?12:10,color:col,fontFamily:"'Inter',sans-serif",fontWeight:600,letterSpacing:"0.01em"}}>{name}</span>
+    </div>
+  );
+};
+
+// ─── DAILY ENTRY FORM ─────────────────────────────────────────────────────────
+const DailyEntryForm=({year,month,allDaily,onSave})=>{
+  const [member,setMember]=useState(TEAM[0]);
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankEntry());
+  const [saved,setSaved]=useState(false);
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{
+    const existing=allDaily[`${date}:${member}`];
+    setForm(existing?{...blankEntry(),...existing}:blankEntry());
+    setSaved(false);
+  },[member,date,allDaily]);
+
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const totalGasto=(form.gastoMeta||0)+(form.gastoGoogle||0)+(form.gastoTikTok||0)+(form.gastoOtros||0);
+
+  const handleSave=async()=>{
+    setSaving(true);
+    const entry={...form,member,date};
+    const ok=await onSave(`${date}:${member}`,entry);
+    setSaving(false);
+    if(ok!==false){setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="📣" title="Marketing" sub="Una entrada por día por miembro"/>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Miembro del equipo</Lbl>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+              {TEAM.map(m=>{
+                const col=TEAM_COLORS[m]||C.amber;const sel=member===m;
+                return(<button key={m} onClick={()=>setMember(m)} style={{
+                  background:sel?col+"15":SURFACE2,border:`1.5px solid ${sel?col:BORDER}`,
+                  borderRadius:8,padding:"7px 15px",cursor:"pointer",color:sel?col:TXT2,
+                  fontSize:12,fontFamily:"'Epilogue',sans-serif",fontWeight:sel?700:500,
+                  transition:"all .15s"}}>{m}</button>);
+              })}
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          {allDaily[`${date}:${member}`]&&(
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",
+              paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
+              Editando entrada existente
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="📱" title="Actividad del día"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+          <Inp label="# IG Seguidores" value={form.igFollowers} onChange={v=>sf("igFollowers",v)}/>
+          <Inp label="# Posts + CTA" value={form.posts} onChange={v=>sf("posts",v)}/>
+          <Inp label="# Mensajes Diarios" value={form.mensajes} onChange={v=>sf("mensajes",v)}/>
+          <Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+          <Inp label="# Booking Offers" value={form.bkOffers} onChange={v=>sf("bkOffers",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="📊" title="Gasto Ads por Canal"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+          <Inp label="Meta Ads $" prefix="$" value={form.gastoMeta} onChange={v=>sf("gastoMeta",v)}/>
+          <Inp label="Google Ads $" prefix="$" value={form.gastoGoogle} onChange={v=>sf("gastoGoogle",v)}/>
+          <Inp label="TikTok Ads $" prefix="$" value={form.gastoTikTok} onChange={v=>sf("gastoTikTok",v)}/>
+          <Inp label="Otros $" prefix="$" value={form.gastoOtros} onChange={v=>sf("gastoOtros",v)}/>
+        </div>
+        {totalGasto>0&&(
+          <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:8}}>
+            {[{l:"Meta",v:form.gastoMeta,c:"#1877F2"},{l:"Google",v:form.gastoGoogle,c:"#34A853"},
+              {l:"TikTok",v:form.gastoTikTok,c:"#010101"},{l:"Otros",v:form.gastoOtros,c:C.purple}]
+              .filter(x=>x.v>0).map(x=>(
+                <Barz key={x.l} value={x.v} max={totalGasto} color={x.c} h={7}
+                  label={x.l} right={`${fD(x.v)} · ${fP(pv(x.v,totalGasto))}`}/>
+              ))}
+          </div>
+        )}
+      </Card>
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:saving?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${member} · ${date}`}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
+          Marketing guardado ✓
+        </div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── RESUMEN EQUIPO ───────────────────────────────────────────────────────────
+const ResumenEquipo=({year,month,allDaily})=>{
+  const [view,setView]=useState("resumen");
+  const prefix=`${year}-${String(month+1).padStart(2,"0")}`;
+  const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+  const byMember={};TEAM.forEach(m=>{byMember[m]=[];});
+  entries.forEach(e=>{if(byMember[e.member])byMember[e.member].push(e);});
+
+  const memberTotals=TEAM.map(m=>{
+    const rows=byMember[m];if(!rows.length)return null;
+    const t={member:m,days:rows.length,
+      posts:sumF(rows,"posts"),mensajes:sumF(rows,"mensajes"),
+      followUps:sumF(rows,"followUps"),bkOffers:sumF(rows,"bkOffers"),
+      newBk:sumF(rows,"newBkTotal"),qualBk:sumF(rows,"qualBkTotal"),
+      shows:sumF(rows,"showsTotal"),investment:sumF(rows,"paidBkInvestment")};
+    t.showRate=t.qualBk>0?pv(t.shows,t.qualBk):null;
+    t.qualRate=t.newBk>0?pv(t.qualBk,t.newBk):null;
+    t.msgPerDay=t.days>0?t.mensajes/t.days:0;
+    return t;
+  }).filter(Boolean);
+
+  const team=memberTotals.reduce((a,m)=>({
+    mensajes:(a.mensajes||0)+m.mensajes,followUps:(a.followUps||0)+m.followUps,
+    bkOffers:(a.bkOffers||0)+m.bkOffers,newBk:(a.newBk||0)+m.newBk,
+    qualBk:(a.qualBk||0)+m.qualBk,shows:(a.shows||0)+m.shows,posts:(a.posts||0)+m.posts
+  }),{});
+  const teamShowRate=pv(team.shows,team.qualBk),teamQualRate=pv(team.qualBk,team.newBk),dm=MDAYS[month];
+  const byDate={};entries.forEach(e=>{if(!byDate[e.date])byDate[e.date]={};byDate[e.date][e.member]=e;});
+  const sortedDates=Object.keys(byDate).sort().reverse();
+  const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
+    borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
+    fontSize:11,fontFamily:"'Epilogue',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",gap:6}}>
+        {[["resumen","Resumen"],["miembro","Por miembro"],["historial","Historial"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
+        ))}
+      </div>
+
+      {entries.length===0&&(
+        <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
+          Sin entradas para {MONTHS[month]} {year}.<br/>
+          <span style={{fontSize:10,marginTop:6,display:"block"}}>El equipo debe usar "Entrada Diaria" para registrar.</span>
+        </div></Card>
+      )}
+
+      {view==="resumen"&&entries.length>0&&(
+        <>
+          {teamShowRate!=null&&teamShowRate<40&&(
+            <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:12,
+              padding:"13px 16px",display:"flex",gap:10,alignItems:"flex-start"}}>
+              <Icon name="megaphone" size={18} color={C.amber} strokeWidth={2}/>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:3}}>
+                  Show-up rate: {fP(teamShowRate)} — target ≥ 60%
+                </div>
+                <div style={{fontSize:11,color:"#7f1d1d",lineHeight:1.7}}>
+                  {fN(team.shows)} shows de {fN(team.qualBk)} quality bookings.
+                </div>
+              </div>
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:9}}>
+            <Stat label="New Bookings"  value={fN(team.newBk)}    color={C.purple}/>
+            <Stat label="Quality Bk"    value={fN(team.qualBk)}   color={C.teal}/>
+            <Stat label="Show Ups"      value={fN(team.shows)}    color={C.green}/>
+            <Stat label="Show-up Rate"  value={fP(teamShowRate)}  color={cH(teamShowRate,60,40)}/>
+            <Stat label="% Calificados" value={fP(teamQualRate)}  color={cH(teamQualRate,50,20)}/>
+            <Stat label="Bk Offers"     value={fN(team.bkOffers)} color={C.orange}/>
+            <Stat label="Follow-ups"    value={fN(team.followUps)} color={C.blue}/>
+            <Stat label="Mensajes"      value={fN(team.mensajes)} color={TXT2}/>
+          </div>
+          <Card>
+            <STit icon="🎯" title="Actividad vs targets"/>
+            <div style={{display:"flex",flexDirection:"column",gap:13}}>
+              {[
+                {l:"Mensajes/día",v:dv(team.mensajes,dm),t:60*memberTotals.length,max:100*memberTotals.length,c:cH(dv(team.mensajes,dm),60,40)},
+                {l:"Follow-ups/día",v:dv(team.followUps,dm),t:175,max:300,c:cH(dv(team.followUps,dm),150,100)},
+                {l:"Bk Offers/día",v:dv(team.bkOffers,dm),t:5*memberTotals.length,max:10*memberTotals.length,c:cH(dv(team.bkOffers,dm),5,3)},
+                {l:"Show-up Rate",v:teamShowRate,t:70,max:100,c:cH(teamShowRate,60,40)},
+                {l:"% Calificados",v:teamQualRate,t:50,max:100,c:cH(teamQualRate,50,20)},
+              ].map(r=>(
+                <Barz key={r.l} value={r.v} max={r.max} color={r.c} h={8}
+                  label={r.l} right={`${(r.v||0).toFixed(1)} / ${r.t} target`}/>
+              ))}
+            </div>
+          </Card>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(195px,1fr))",gap:10}}>
+            {memberTotals.map(m=>(
+              <Card key={m.member} style={{padding:"14px 16px",cursor:"pointer"}} onClick={()=>setView("miembro")}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <MemberBadge name={m.member} size="lg"/>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días</span>
+                </div>
+                {[["New Bk",fN(m.newBk),C.purple],["Quality Bk",fN(m.qualBk),C.teal],
+                  ["Shows",fN(m.shows),C.green],["Show %",fP(m.showRate),cH(m.showRate,60,40)]].map(([l,v,c])=>(
+                  <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                    <span style={{fontSize:10,color:TXT2}}>{l}</span>
+                    <span style={{fontSize:11,color:c,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{v}</span>
+                  </div>
+                ))}
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {view==="miembro"&&entries.length>0&&(
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {memberTotals.map(m=>(
+            <Card key={m.member}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <MemberBadge name={m.member} size="lg"/>
+                <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días / {dm} del mes</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8,marginBottom:14}}>
+                <Stat label="New Bookings"  value={fN(m.newBk)}    color={C.purple} size="sm"/>
+                <Stat label="Quality Bk"    value={fN(m.qualBk)}   color={C.teal}   size="sm"/>
+                <Stat label="Show Ups"      value={fN(m.shows)}    color={C.green}  size="sm"/>
+                <Stat label="Show-up Rate"  value={fP(m.showRate)} color={cH(m.showRate,60,40)} size="sm"/>
+                <Stat label="% Calificados" value={fP(m.qualRate)} color={cH(m.qualRate,50,20)} size="sm"/>
+                <Stat label="Mensajes"      value={fN(m.mensajes)} color={TXT2}     size="sm"/>
+                <Stat label="Follow-ups"    value={fN(m.followUps)} color={C.blue}  size="sm"/>
+                <Stat label="Bk Offers"     value={fN(m.bkOffers)} color={C.orange} size="sm"/>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {[
+                  {l:"Mensajes/día vs 60",v:m.msgPerDay,max:100,c:cH(m.msgPerDay,60,40)},
+                  {l:"Show-up Rate vs 60%",v:m.showRate,max:100,c:cH(m.showRate,60,40)},
+                  {l:"% Calificados vs 50%",v:m.qualRate,max:100,c:cH(m.qualRate,50,20)},
+                ].map(r=>(
+                  <Barz key={r.l} value={r.v} max={r.max} color={r.c} h={6}
+                    label={r.l} right={`${(r.v||0).toFixed(1)}%`}/>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {view==="historial"&&entries.length>0&&(
+        <div style={{display:"flex",flexDirection:"column",gap:9}}>
+          {sortedDates.map(date=>(
+            <Card key={date} style={{padding:"12px 16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{date}</span>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {Object.keys(byDate[date]).map(m=><MemberBadge key={m} name={m}/>)}
+                </div>
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace",width:"100%"}}>
+                  <thead>
+                    <tr style={{borderBottom:`1px solid ${BORDER}`}}>
+                      {["Miembro","Mensajes","Follow-ups","Bk Offers","New Bk","Quality Bk","Shows","Show %"].map(h=>(
+                        <th key={h} style={{padding:"4px 10px",color:TXT3,textAlign:"left",
+                          fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(byDate[date]).map(([mem,e])=>{
+                      const sr=pv(e.showsTotal,e.qualBkTotal);
+                      return(
+                        <tr key={mem} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                          <td style={{padding:"6px 10px"}}><MemberBadge name={mem}/></td>
+                          <td style={{padding:"6px 10px",color:cH(e.mensajes,60,40)}}>{fN(e.mensajes)}</td>
+                          <td style={{padding:"6px 10px",color:C.blue}}>{fN(e.followUps)}</td>
+                          <td style={{padding:"6px 10px",color:C.orange}}>{fN(e.bkOffers)}</td>
+                          <td style={{padding:"6px 10px",color:C.purple,fontWeight:700}}>{fN(e.newBkTotal)}</td>
+                          <td style={{padding:"6px 10px",color:C.teal,fontWeight:700}}>{fN(e.qualBkTotal)}</td>
+                          <td style={{padding:"6px 10px",color:C.green,fontWeight:700}}>{fN(e.showsTotal)}</td>
+                          <td style={{padding:"6px 10px",color:cH(sr,60,40),fontWeight:700}}>{fP(sr)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── TORRE CEO ────────────────────────────────────────────────────────────────
+const Row2=({label,value,color=TXT,bold=false,bg=null})=>(
+  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+    padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`}}>
+    <span style={{fontSize:10,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{label}</span>
+    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace"}}>{value}</span>
+  </div>
+);
+const SectionTitle=({children})=>(
+  <div style={{background:"#1e2a4a",color:"#fff",padding:"6px 10px",fontSize:10,
+    fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
+    fontFamily:"'Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
+);
+
+const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
+  const [editConfig,setEditConfig]=useState(false);
+  const [cfg,setCfg]=useState({});
+  const [savingCfg,setSavingCfg]=useState(false);
+
+  useEffect(()=>{
+    setCfg({
+      metaMensual:kpi.meta?.revenue||"150000",
+      inversionPlaneada:kpi.inversion_planeada||"0",
+      roasObj:kpi.roas_objetivo||"4",
+      pctLeadsAg:kpi.pct_leads_agendadas||"45",
+      pctAgAsis:kpi.pct_agendadas_asistidas||"70",
+      closeRateMeta:kpi.close_rate_meta||"25",
+      day:kpi.day||new Date().getDate(),
+    });
+  },[kpi]);
+
+  const prefix=`${year}-${String(month+1).padStart(2,"0")}`;
+  const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+  const dailyEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+
+  const totalCash=sumF(closerEntries,"ventas_cash");
+  const totalValorHT=sumF(closerEntries,"valor_venta_ht");
+  const totalValorLT=sumF(closerEntries,"valor_venta_lt");
+  const totalValor=totalValorHT+totalValorLT;
+  const totalVentas=sumF(closerEntries,"q_ventas_ht");
+  const totalLeads=sumF(closerEntries,"agendas_calificadas");
+  const totalAgendas=sumF(closerEntries,"agendas_final");
+  const totalAsistidas=sumF(closerEntries,"citas_asistidas");
+  // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
+  const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
+  const totalGastoGoogle=sumF(dailyEntries,"gastoGoogle");
+  const totalGastoTiktok=sumF(dailyEntries,"gastoTikTok");
+  const totalGastoOtros=sumF(dailyEntries,"gastoOtros");
+  const totalGasto=totalGastoMeta+totalGastoGoogle+totalGastoTiktok+totalGastoOtros;
+
+  const metaMensual=nv(cfg.metaMensual)||150000;
+  const inversionPlaneada=nv(cfg.inversionPlaneada)||0;
+  const roasObj=nv(cfg.roasObj)||4;
+  const pctLeadsAg=nv(cfg.pctLeadsAg)||45;
+  const pctAgAsis=nv(cfg.pctAgAsis)||70;
+  const closeRateMeta=nv(cfg.closeRateMeta)||25;
+  const day=nv(cfg.day)||new Date().getDate();
+
+  const ticketProm=totalVentas>0?totalValor/totalVentas:0;
+  const pctTranscurrido=day/dm;
+  const metaEsperadaHoy=metaMensual*pctTranscurrido;
+  const gapVsRitmo=totalCash-metaEsperadaHoy;
+  const proyeccion=day>0&&totalCash>0?(totalCash/day)*dm:null;
+  const pctCumpl=pv(totalCash,metaMensual);
+
+  const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
+  const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;
+  const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;
+
+  const roasReal=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const invEsperadaHoy=inversionPlaneada*pctTranscurrido;
+  const gapInversion=totalGasto-invEsperadaHoy;
+
+  const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
+  const ventasUniMeta=ticketProm>0?metaMensual/ticketProm:0;
+  const asistidaMeta=closeRateMeta>0?ventasUniMeta/(closeRateMeta/100):0;
+  const agendaMeta=pctAgAsis>0?asistidaMeta/(pctAgAsis/100):0;
+  const leadsMeta=pctLeadsAg>0?agendaMeta/(pctLeadsAg/100):0;
+  const leadsPorDolar=metaMensual>0?leadsMeta/metaMensual:0;
+
+  const roasCash=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
+  const roasUpfront=totalGasto>0&&totalUpfront>0?totalUpfront/totalGasto:null;
+
+  const pctCumplProy=pv(proyeccion,metaMensual);
+  const gapProy=proyeccion?proyeccion-metaMensual:null;
+
+  const funnelRows=[
+    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
+    {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
+    {l:"Citas asistidas",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
+    {l:"Citas agend. calificadas",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
+    {l:"Leads calificados",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+  ];
+
+  const handleSaveCfg=async()=>{
+    setSavingCfg(true);
+    await onSaveConfig({
+      meta_revenue:nv(cfg.metaMensual),
+      inversion_planeada:nv(cfg.inversionPlaneada),
+      roas_objetivo:nv(cfg.roasObj),
+      pct_leads_agendadas:nv(cfg.pctLeadsAg),
+      pct_agendadas_asistidas:nv(cfg.pctAgAsis),
+      close_rate_meta:nv(cfg.closeRateMeta),
+      day:nv(cfg.day),
+    });
+    setSavingCfg(false);
+    setEditConfig(false);
+  };
+
+  const block={background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.04)"};
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* HEADER */}
+      <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",borderRadius:12,padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:11,color:"#94a3b8",letterSpacing:"0.18em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace",marginBottom:3}}>Torre de Control — Comercial</div>
+          <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
+        </div>
+        <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Upfront Cash</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fbbf24",fontFamily:"'DM Mono',monospace"}}>{fD(totalUpfront)}</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Low Ticket</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(totalValorLT)}</div>
+          </div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Día</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'DM Mono',monospace"}}>{day}/{dm}</div>
+          </div>
+          {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
+        </div>
+      </div>
+
+      {/* CONFIG EDIT PANEL */}
+      {editConfig&&(
+        <div style={{...block,padding:"16px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <span style={{fontSize:12,fontWeight:700,color:TXT}}>Configuración del mes</span>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={handleSaveCfg} disabled={savingCfg} style={{background:BRAND,color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:700,opacity:savingCfg?0.7:1}}>{savingCfg?"...":"✓ Guardar"}</button>
+              <button onClick={()=>setEditConfig(false)} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",color:TXT2}}>Cancelar</button>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10}}>
+            <Inp label="Meta mensual $" prefix="$" value={cfg.metaMensual} onChange={v=>setCfg(p=>({...p,metaMensual:v}))}/>
+            <Inp label="Inversión planeada $" prefix="$" value={cfg.inversionPlaneada} onChange={v=>setCfg(p=>({...p,inversionPlaneada:v}))}/>
+            <Inp label="ROAS objetivo" value={cfg.roasObj} onChange={v=>setCfg(p=>({...p,roasObj:v}))}/>
+            <Inp label="Día actual del mes" value={cfg.day} onChange={v=>setCfg(p=>({...p,day:v}))}/>
+            <Inp label="% Leads → Agendadas meta" value={cfg.pctLeadsAg} onChange={v=>setCfg(p=>({...p,pctLeadsAg:v}))} hint="%"/>
+            <Inp label="% Agendadas → Asistidas meta" value={cfg.pctAgAsis} onChange={v=>setCfg(p=>({...p,pctAgAsis:v}))} hint="%"/>
+            <Inp label="Close Rate meta" value={cfg.closeRateMeta} onChange={v=>setCfg(p=>({...p,closeRateMeta:v}))} hint="%"/>
+          </div>
+        </div>
+      )}
+
+      {/* TOP GRID: CONFIG + REALIDAD */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+
+        {/* CONFIGURACIÓN */}
+        <div style={block}>
+          <SectionTitle>Configuración</SectionTitle>
+          <Row2 label="Mes" value={MONTHS[month]}/>
+          <Row2 label="Año" value={year}/>
+          <Row2 label="Días del mes" value={dm}/>
+          <Row2 label="Meta mensual ventas ($)" value={fD(metaMensual)} bold color={BRAND}/>
+          <Row2 label="ROAS objetivo" value={`${roasObj}x`}/>
+          <Row2 label="% Leads → Agendadas (meta)" value={fP(pctLeadsAg)}/>
+          <Row2 label="% Agendadas → Asistidas (meta)" value={fP(pctAgAsis)}/>
+          <Row2 label="Close rate (meta)" value={fP(closeRateMeta)}/>
+          <Row2 label="Leads necesarios por dólar" value={leadsPorDolar>0?leadsPorDolar.toFixed(5):"—"}/>
+        </div>
+
+        {/* REALIDAD DEL MES */}
+        <div style={block}>
+          <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
+          <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
+          <Row2 label="Ventas $ (cash cobrado)" value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label="Upfront Cash HT" value={fD(totalUpfront)} color={C.green}/>
+          <Row2 label="Cash Low Ticket" value={fD(totalValorLT)} color={C.teal}/>
+          <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
+          <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
+          <Row2 label="Citas agendadas reales" value={fN(totalAgendas)}/>
+          <Row2 label="Citas Show Up (asistidas)" value={fN(totalAsistidas)}/>
+          <Row2 label="Ticket promedio (comprometido)" value={fD(ticketProm)} bold/>
+          <Row2 label="Close rate real" value={fP(closeRateReal)} bold color={cH(closeRateReal,closeRateMeta*0.9,closeRateMeta*0.7)}/>
+        </div>
+      </div>
+
+      {/* RITMO + PROYECCIÓN */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+
+        <div style={block}>
+          <SectionTitle>Ritmo del mes (tiempo + dinero)</SectionTitle>
+          <Row2 label="Fecha hoy" value={today()}/>
+          <Row2 label="Días totales mes" value={dm}/>
+          <Row2 label="Día del mes" value={day}/>
+          <Row2 label="% mes transcurrido" value={fP(pctTranscurrido*100,1)}/>
+          <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
+          <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
+          <Row2 label="Meta esperada a hoy ($)" value={fD(metaEsperadaHoy)} bold/>
+          <Row2 label="Ventas reales acumuladas ($)" value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label="Gap vs ritmo ($)" value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
+        </div>
+
+        <div style={block}>
+          <SectionTitle>Proyección fin de mes (si seguimos así)</SectionTitle>
+          <div style={{padding:"18px 14px",display:"flex",flexDirection:"column",gap:0}}>
+            <Row2 label="Ventas proyectadas fin de mes ($)" value={proyeccion?fD(proyeccion):"—"} bold color={proyeccion&&proyeccion>=metaMensual?C.green:C.red}/>
+            <Row2 label="% cumplimiento proyectado" value={fP(pctCumplProy)} bold color={cH(pctCumplProy,85,65)}/>
+            <Row2 label="Gap proyectado vs meta ($)" value={gapProy!=null?fD(gapProy):"—"} bold color={gapProy!=null&&gapProy>=0?C.green:C.red} bg={gapProy!=null&&gapProy>=0?"#f0fdf4":"#fef2f2"}/>
+          </div>
+          {totalCash>0&&(
+            <div style={{padding:"0 10px 12px"}}>
+              <Barz value={totalCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`Cash actual: ${fP(pctCumpl)}`} right={fD(totalCash)}/>
+              {proyeccion&&<div style={{marginTop:6}}><Barz value={proyeccion} max={metaMensual} color={C.blue} h={5} label={`Proyección: ${fP(pctCumplProy)}`} right={fD(proyeccion)}/></div>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* FUNNEL A HOY */}
+      <div style={block}>
+        <SectionTitle>Funnel a hoy — Plan vs Real · Día {day}/{dm} ({fP(pctTranscurrido*100,0)} transcurrido)</SectionTitle>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+            <thead>
+              <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                {["Métrica","Requerido a hoy","Real a hoy","Gap","Estado"].map(h=>(
+                  <th key={h} style={{padding:"9px 14px",color:TXT3,textAlign:h==="Métrica"?"left":"center",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {funnelRows.map(r=>{
+                const gap=r.real-r.req;
+                const pctR=r.req>0?(r.real/r.req)*100:null;
+                const fmt=v=>r.fmt==="$"?fD(v):fN(v);
+                return(
+                  <tr key={r.l} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                    <td style={{padding:"10px 14px",color:TXT,fontWeight:600}}>{r.l}</td>
+                    <td style={{padding:"10px 14px",color:TXT2,textAlign:"center"}}>{fmt(r.req)}</td>
+                    <td style={{padding:"10px 14px",color:TXT,fontWeight:700,textAlign:"center"}}>{fmt(r.real)}</td>
+                    <td style={{padding:"10px 14px",color:gap>=0?C.green:C.red,fontWeight:700,textAlign:"center",background:gap>=0?"#f0fdf4":"#fef2f2"}}>
+                      {gap>=0?"▲":"▼"} {fmt(Math.abs(gap))}
+                    </td>
+                    <td style={{padding:"10px 14px",textAlign:"center"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
+                        <div style={{background:"#ebe9e3",borderRadius:100,height:5,width:60,overflow:"hidden"}}>
+                          <div style={{width:Math.min(100,pctR||0)+"%",height:"100%",background:cH(pctR,90,70)}}/>
+                        </div>
+                        <span style={{fontSize:10,color:cH(pctR,90,70),fontWeight:600}}>{fP(pctR,0)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* SALUD DEL EMBUDO + ADS */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+
+        <div style={block}>
+          <SectionTitle>Salud del embudo — Meta vs Real · Ticket promedio: {fD(ticketProm)}</SectionTitle>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+            <thead>
+              <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                {["Métrica","Meta","Real","Estado"].map(h=>(
+                  <th key={h} style={{padding:"8px 12px",color:TXT3,textAlign:h==="Métrica"?"left":"center",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                {l:"% Leads → Agendadas",meta:pctLeadsAg,real:pctLeadsAgReal},
+                {l:"% Agendadas → Asistidas",meta:pctAgAsis,real:pctAgAsisReal},
+                {l:"Close Rate",meta:closeRateMeta,real:closeRateReal},
+              ].map(r=>{
+                const color=cH(r.real,r.meta*0.95,r.meta*0.75);
+                return(
+                  <tr key={r.l} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                    <td style={{padding:"9px 12px",color:TXT,fontWeight:600}}>{r.l}</td>
+                    <td style={{padding:"9px 12px",color:TXT2,textAlign:"center"}}>{fP(r.meta)}</td>
+                    <td style={{padding:"9px 12px",textAlign:"center",background:r.real!=null?(r.real>=r.meta*0.95?"#f0fdf4":"#fef2f2"):"transparent"}}>
+                      <span style={{color,fontWeight:700}}>{fP(r.real)}</span>
+                    </td>
+                    <td style={{padding:"9px 12px",textAlign:"center"}}>
+                      <div style={{background:"#ebe9e3",borderRadius:100,height:5,overflow:"hidden",width:50,margin:"0 auto"}}>
+                        <div style={{width:Math.min(100,r.real||0)+"%",height:"100%",background:color}}/>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={block}>
+          <SectionTitle>Apoyo — Control Ads & ROAS</SectionTitle>
+          <Row2 label="Inversión planeada mes ($)" value={fD(inversionPlaneada)}/>
+          <Row2 label="Inversión Ads real acumulada ($)" value={fD(totalGasto)} bold/>
+          <Row2 label="Inversión Ads esperada a hoy ($)" value={fD(invEsperadaHoy)}/>
+          <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={gapInversion>500?C.red:gapInversion<-500?C.green:TXT} bg={gapInversion>500?"#fef2f2":gapInversion<-500?"#f0fdf4":"transparent"}/>
+          <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+            <thead>
+              <tr style={{background:SURFACE2}}>
+                {["","Cash Total","Upfront Cash","Comprometido HT"].map(h=>(
+                  <th key={h} style={{padding:"6px 10px",color:TXT3,textAlign:"center",fontSize:8,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{borderTop:`1px solid ${BORDER}`}}>
+                <td style={{padding:"9px 10px",color:TXT2,fontSize:10}}>ROAS real</td>
+                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasCash,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasCash)}</td>
+                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasUpfront,roasObj*0.5,roasObj*0.3),fontWeight:700}}>{fX(roasUpfront)}</td>
+                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasComprometido,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasComprometido)}</td>
+              </tr>
+              <tr style={{borderTop:`1px solid ${BORDER2}`}}>
+                <td style={{padding:"9px 10px",color:TXT3,fontSize:9}}>ROAS objetivo</td>
+                <td colSpan={3} style={{padding:"9px 10px",textAlign:"center",color:TXT2,fontWeight:600}}>{roasObj}x</td>
+              </tr>
+            </tbody>
+          </table>
+          {totalGasto>0&&(
+            <div style={{padding:"10px 12px",display:"flex",flexDirection:"column",gap:7}}>
+              {[{l:"Meta",v:totalGastoMeta,c:"#1877F2"},{l:"Google",v:totalGastoGoogle,c:"#34A853"},{l:"TikTok",v:totalGastoTiktok,c:"#333"},{l:"Otros",v:totalGastoOtros,c:C.purple}]
+                .filter(x=>x.v>0).map(x=>(
+                  <Barz key={x.l} value={x.v} max={totalGasto} color={x.c} h={6}
+                    label={x.l} right={`${fD(x.v)} · ${fP(pv(x.v,totalGasto))}`}/>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* MODELO OBJETIVO */}
+      <div style={block}>
+        <SectionTitle>Modelo objetivo del embudo (plan)</SectionTitle>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
+          {[
+            {l:"Leads requeridos para meta",v:leadsMeta,fmt:"n"},
+            {l:"Citas agendadas requeridas",v:agendaMeta,fmt:"n"},
+            {l:"Citas asistidas requeridas",v:asistidaMeta,fmt:"n"},
+            {l:"Ventas requeridas (unidades)",v:ventasUniMeta,fmt:"n"},
+          ].map(r=>(
+            <div key={r.l} style={{padding:"14px 16px",borderRight:`1px solid ${BORDER}`,textAlign:"center"}}>
+              <div style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>{r.l}</div>
+              <div style={{fontSize:24,fontWeight:800,color:BRAND,fontFamily:"'DM Mono',monospace"}}>{r.fmt==="$"?fD(r.v):fN(r.v)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
+// ─── FUNNEL ───────────────────────────────────────────────────────────────────
+const FunnelView=({f,onUpdate})=>{
+  const rev=nv(f.revenue),ads=nv(f.adSpend),leads=nv(f.leads),ag=nv(f.agendas),shows=nv(f.shows),cierres=nv(f.cierres);
+  const metrics=[
+    {l:"ROAS",v:fX(dv(rev,ads)),c:cH(dv(rev,ads),3.5,2.5),h:"Revenue/Ads"},
+    {l:"CPL",v:fD(dv(ads,leads)),c:cL(dv(ads,leads),5,15),h:"Ads/Leads"},
+    {l:"Costo/Agenda",v:fD(dv(ads,ag)),c:TXT2,h:"Ads/Agendas"},
+    {l:"Costo/Show",v:fD(dv(ads,shows)),c:TXT2,h:"Ads/Shows"},
+    {l:"Costo/Cierre",v:fD(dv(ads,cierres)),c:cL(dv(ads,cierres),200,400),h:"Ads/Cierres"},
+    {l:"Show-up Rate",v:fP(pv(shows,ag)),c:cH(pv(shows,ag),60,40),h:"Shows/Agendas"},
+    {l:"Close Rate",v:fP(pv(cierres,shows)),c:cH(pv(cierres,shows),25,15),h:"Cierres/Shows"},
+    {l:"Lead-to-Close",v:fP(pv(cierres,leads)),c:C.orange,h:"Cierres/Leads"},
+  ];
+  const stages=[{l:"Leads",v:leads,c:C.purple},{l:"Agendas",v:ag,c:C.blue},{l:"Shows",v:shows,c:C.green},{l:"Cierres",v:cierres,c:C.amber}];
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="📥" title="Datos del mes"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+          <Inp label="Revenue $"  value={f.revenue}  onChange={v=>onUpdate("revenue",v)}  prefix="$"/>
+          <Inp label="Ad Spend $" value={f.adSpend}  onChange={v=>onUpdate("adSpend",v)}  prefix="$"/>
+          <Inp label="Leads"      value={f.leads}    onChange={v=>onUpdate("leads",v)}/>
+          <Inp label="Agendas"    value={f.agendas}  onChange={v=>onUpdate("agendas",v)}/>
+          <Inp label="Shows"      value={f.shows}    onChange={v=>onUpdate("shows",v)}/>
+          <Inp label="Cierres"    value={f.cierres}  onChange={v=>onUpdate("cierres",v)}/>
+        </div>
+      </Card>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(162px,1fr))",gap:9}}>
+        {metrics.map(m=><Stat key={m.l} label={m.l} value={m.v} sub={m.h} color={m.v==="—"?TXT3:m.c}/>)}
+      </div>
+      {(leads||ag||shows||cierres)&&(
+        <Card>
+          <STit icon="🔽" title="Funnel visual"/>
+          <div style={{display:"flex",alignItems:"flex-start",gap:5,justifyContent:"center",flexWrap:"wrap"}}>
+            {stages.map((s,i)=>(
+              <div key={s.l} style={{display:"flex",alignItems:"center",gap:5,flex:"1 1 0",minWidth:65}}>
+                <div style={{flex:1,background:`${s.c}10`,border:`1.5px solid ${s.c}30`,borderRadius:10,padding:"11px 7px",textAlign:"center"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:s.c,fontFamily:"'DM Mono',monospace"}}>{s.v!=null?fN(s.v):"—"}</div>
+                  <div style={{fontSize:8,color:TXT3,marginTop:2,textTransform:"uppercase",letterSpacing:"0.1em"}}>{s.l}</div>
+                  {i>0&&stages[i-1].v&&s.v&&<div style={{fontSize:8,color:TXT3,marginTop:2}}>{fP(pv(s.v,stages[i-1].v))} conv</div>}
+                </div>
+                {i<stages.length-1&&<div style={{color:BORDER,fontSize:14,flexShrink:0}}>▸</div>}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+// ─── ADS VIEW ─────────────────────────────────────────────────────────────────
+const AdsView=({entries,onAdd,onRemove})=>{
+  const [form,setForm]=useState({fecha:today(),canal:"Meta",gasto:"",impresiones:"",clicks:"",revenue:""});
+  const [saving,setSaving]=useState(false);
+  const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const add=async()=>{
+    if(!form.gasto)return;
+    setSaving(true);
+    await onAdd({...form});
+    setForm(p=>({...p,gasto:"",impresiones:"",clicks:"",revenue:""}));
+    setSaving(false);
+  };
+  const tots={gasto:sumF(entries,"gasto"),revenue:sumF(entries,"revenue"),impr:sumF(entries,"impresiones"),clicks:sumF(entries,"clicks")};
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="➕" title="Nueva entrada"/>
+        <div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={form.fecha} onChange={e=>sf("fecha",e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Canal</Lbl>
+            <select value={form.canal} onChange={e=>sf("canal",e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
+              {CANALES.map(c=><option key={c}>{c}</option>)}
+            </select>
+          </div>
+          {[["gasto","Gasto","$"],["impresiones","Impr."],["clicks","Clicks"],["revenue","Revenue","$"]].map(([k,l,p])=>(
+            <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>{l}</Lbl>
+              <div style={{display:"flex",alignItems:"center",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",height:36}}>
+                {p&&<span style={{padding:"0 7px",color:TXT3,fontSize:11,background:BORDER2,borderRight:`1px solid ${BORDER}`,fontFamily:"'DM Mono',monospace"}}>{p}</span>}
+                <input type="number" value={form[k]} onChange={e=>sf(k,e.target.value)} placeholder="0"
+                  style={{background:"transparent",border:"none",outline:"none",color:TXT,fontSize:12,padding:"0 8px",width:82,fontFamily:"'DM Mono',monospace"}}/>
+              </div>
+            </div>
+          ))}
+          <button onClick={add} disabled={saving} style={{background:C.gold,color:"#fff",border:"none",
+            borderRadius:8,padding:"0 16px",height:36,fontWeight:800,fontSize:12,cursor:"pointer",
+            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 6px ${C.gold}40`,opacity:saving?0.7:1}}>
+            {saving?"...":"+ Agregar"}
+          </button>
+        </div>
+      </Card>
+      {entries.length>0&&(
+        <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:9}}>
+            <Stat label="Total Gasto"   value={fD(tots.gasto)}   color={C.red}/>
+            <Stat label="Total Revenue" value={fD(tots.revenue)} color={C.green}/>
+            <Stat label="ROAS"          value={fX(dv(tots.revenue,tots.gasto))} color={cH(dv(tots.revenue,tots.gasto),3.5,2.5)}/>
+            <Stat label="CTR Prom."     value={fP(pv(tots.clicks,tots.impr))}   color={cH(pv(tots.clicks,tots.impr),2,1)}/>
+          </div>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+                <thead>
+                  <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                    {["Fecha","Canal","Gasto","Impr","Clicks","CTR","CPC","Revenue","ROAS",""].map(h=>(
+                      <th key={h} style={{padding:"9px 13px",color:TXT3,textAlign:"left",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e,i)=>{
+                    const g=nv(e.gasto),cl=nv(e.clicks),im=nv(e.impresiones),rv=nv(e.revenue);
+                    const ctr=pv(cl,im),cpc=dv(g,cl),ro=dv(rv,g);
+                    return(
+                      <tr key={e.id||i} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{e.fecha}</td>
+                        <td style={{padding:"8px 13px",color:TXT}}>{e.canal}</td>
+                        <td style={{padding:"8px 13px",color:C.red}}>{fD(g)}</td>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{im?.toLocaleString()||"—"}</td>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{cl?.toLocaleString()||"—"}</td>
+                        <td style={{padding:"8px 13px",color:cH(ctr,2,1)}}>{fP(ctr)}</td>
+                        <td style={{padding:"8px 13px",color:TXT2}}>{fD(cpc)}</td>
+                        <td style={{padding:"8px 13px",color:C.green,fontWeight:700}}>{fD(rv)}</td>
+                        <td style={{padding:"8px 13px",color:cH(ro,3.5,2.5),fontWeight:700}}>{fX(ro)}</td>
+                        <td style={{padding:"8px 13px"}}>
+                          <button onClick={()=>onRemove(e.id)} style={{background:"transparent",border:"none",color:TXT3,cursor:"pointer",fontSize:14}}>×</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ─── HISTÓRICO ────────────────────────────────────────────────────────────────
+const HistoricoView=({allKpi,allDaily})=>{
+  const rows=Object.entries(allKpi).filter(([k])=>k.startsWith("kpi:")).map(([k,d])=>{
+    const [,ym]=k.split(":");const [y,mi]=ym.split("-").map(Number);
+    const prefix=`${y}-${String(mi+1).padStart(2,"0")}`;
+    const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+    return{key:ym,label:`${MONTHS[mi].substring(0,3)} ${y}`,
+      rev:nv(d.funnel?.revenue),ads:nv(d.funnel?.adSpend),meta:nv(d.meta?.revenue),
+      newBk:sumF(entries,"newBkTotal"),qBk:sumF(entries,"qualBkTotal"),shows:sumF(entries,"showsTotal"),
+      clients:entries.length>0?Math.max(...entries.map(e=>nv(e.activeClients)||0)):null};
+  }).sort((a,b)=>a.key.localeCompare(b.key));
+  const maxRev=Math.max(...rows.map(r=>r.rev||r.meta||0),1);
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {rows.length===0&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>Sin datos históricos aún.</div></Card>}
+      {rows.length>0&&(
+        <>
+          <Card>
+            <STit icon="📈" title="Tendencia revenue"/>
+            <div style={{display:"flex",alignItems:"flex-end",gap:10,height:110,paddingBottom:4}}>
+              {rows.map(r=>{
+                const rH=r.rev?Math.max(4,(r.rev/maxRev)*90):0;
+                const mH=r.meta?Math.max(3,(r.meta/maxRev)*90):0;
+                const c=cH(pv(r.rev,r.meta),85,60);
+                return(
+                  <div key={r.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:40}}>
+                    <div style={{fontSize:8,color:c,fontFamily:"'DM Mono',monospace",textAlign:"center"}}>{fD(r.rev)}</div>
+                    <div style={{width:"100%",display:"flex",alignItems:"flex-end",justifyContent:"center",gap:2}}>
+                      {r.meta&&<div style={{width:"38%",height:mH,background:BORDER,borderRadius:"3px 3px 0 0",minHeight:2}}/>}
+                      {r.rev&&<div style={{width:"38%",height:rH,background:c,borderRadius:"3px 3px 0 0"}}/>}
+                    </div>
+                    <div style={{fontSize:8,color:TXT3,textAlign:"center"}}>{r.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:12,marginTop:4}}>
+              <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:7,height:7,background:BORDER,borderRadius:2,border:`1px solid ${TXT3}`}}/><span style={{fontSize:8,color:TXT3}}>Meta</span></div>
+              <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:7,height:7,background:C.green,borderRadius:2}}/><span style={{fontSize:8,color:TXT3}}>Real</span></div>
+            </div>
+          </Card>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <div style={{padding:"13px 16px 7px",borderBottom:`1px solid ${BORDER}`}}>
+              <STit icon="🗂" title="Histórico mensual"/>
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+                <thead>
+                  <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                    {["Mes","Meta","Revenue","Cumpl.","Ads","ROAS","New Bk","QB","Shows","Show%","Clients"].map(h=>(
+                      <th key={h} style={{padding:"9px 13px",color:TXT3,textAlign:"left",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r=>{
+                    const c=cH(pv(r.rev,r.meta),85,60),sR=pv(r.shows,r.qBk);
+                    return(
+                      <tr key={r.key} style={{borderBottom:`1px solid ${BORDER2}`}}>
+                        <td style={{padding:"9px 13px",color:TXT,fontWeight:700}}>{r.label}</td>
+                        <td style={{padding:"9px 13px",color:TXT3}}>{fD(r.meta)}</td>
+                        <td style={{padding:"9px 13px",color:C.gold,fontWeight:700}}>{fD(r.rev)}</td>
+                        <td style={{padding:"9px 13px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{background:"#ebe9e3",borderRadius:100,height:4,width:42,overflow:"hidden"}}>
+                              <div style={{width:Math.min(100,pv(r.rev,r.meta)||0)+"%",height:"100%",background:c}}/>
+                            </div>
+                            <span style={{color:c,fontSize:11}}>{fP(pv(r.rev,r.meta))}</span>
+                          </div>
+                        </td>
+                        <td style={{padding:"9px 13px",color:C.red}}>{fD(r.ads)}</td>
+                        <td style={{padding:"9px 13px",color:cH(dv(r.rev,r.ads),3.5,2.5)}}>{fX(dv(r.rev,r.ads))}</td>
+                        <td style={{padding:"9px 13px",color:C.purple}}>{fN(r.newBk)}</td>
+                        <td style={{padding:"9px 13px",color:C.teal}}>{fN(r.qBk)}</td>
+                        <td style={{padding:"9px 13px",color:C.green}}>{fN(r.shows)}</td>
+                        <td style={{padding:"9px 13px",color:cH(sR,60,40)}}>{fP(sR)}</td>
+                        <td style={{padding:"9px 13px",color:C.blue}}>{fN(r.clients)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ─── CLOSER ENTRY FORM ────────────────────────────────────────────────────────
+const CloserEntryForm=({year,month,allCloser,onSave})=>{
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankCloser());
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    const ex=allCloser[date];
+    setForm(ex?{...blankCloser(),...ex}:blankCloser());
+    setSaved(false);
+  },[date,allCloser]);
+
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const totalValorHT=(form.valor_venta_ht||0);
+  const totalValorLT=(form.valor_venta_lt||0);
+  const totalValor=totalValorHT+totalValorLT;
+  const totalVentasHT=(form.q_ventas_ht||0);
+  const totalVentasLT=(form.q_ventas_lt||0);
+
+  const handleSave=async()=>{
+    setSaving(true);
+    await onSave(date,{...form,date});
+    setSaving(false);setSaved(true);
+    setTimeout(()=>setSaved(false),2500);
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="💼" title="Area Comercial" sub="Una entrada por día — ventas y clientes"/>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          {allCloser[date]&&(
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
+              Editando entrada existente
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {(totalValor>0||totalVentasHT>0||totalVentasLT>0)&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
+          <Stat label="# Ventas HT" value={fN(totalVentasHT)} color={C.purple}/>
+          <Stat label="$ Venta HT" value={fD(totalValorHT)} color={BRAND}/>
+          <Stat label="Upfront Cash HT" value={fD(form.upfront_cash_ht)} color={C.green}/>
+          <Stat label="Cash Collected HT" value={fD(form.ventas_cash)} color={C.teal}/>
+          <Stat label="# Ventas LT" value={fN(totalVentasLT)} color={C.blue}/>
+          <Stat label="$ Venta LT" value={fD(totalValorLT)} color={C.blue}/>
+          <Stat label="Valor Total" value={fD(totalValor)} color={BRAND} bold/>
+        </div>
+      )}
+
+      <Card>
+        <STit icon="💰" title="High Ticket"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Ventas HT" value={form.q_ventas_ht} onChange={v=>sf("q_ventas_ht",v)}/>
+          <Inp label="$ Venta HT" prefix="$" value={form.valor_venta_ht} onChange={v=>sf("valor_venta_ht",v)}/>
+          <Inp label="Upfront Cash HT" prefix="$" value={form.upfront_cash_ht} onChange={v=>sf("upfront_cash_ht",v)}/>
+          <Inp label="Cash Collected HT" prefix="$" value={form.ventas_cash} onChange={v=>sf("ventas_cash",v)}/>
+          <Inp label="Recurring Cash" prefix="$" value={form.recurring_cash} onChange={v=>sf("recurring_cash",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="🎯" title="Low Ticket"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Ventas LT" value={form.q_ventas_lt} onChange={v=>sf("q_ventas_lt",v)}/>
+          <Inp label="$ Venta LT" prefix="$" value={form.valor_venta_lt} onChange={v=>sf("valor_venta_lt",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="🔖" title="Reservas"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Reservas" value={form.q_reservas} onChange={v=>sf("q_reservas",v)}/>
+          <Inp label="$ Cash Collected Reservas" prefix="$" value={form.cash_reservas} onChange={v=>sf("cash_reservas",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="↩️" title="Reembolsos"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Reembolsos" value={form.q_reembolsos} onChange={v=>sf("q_reembolsos",v)}/>
+          <Inp label="$ Valor Reembolsos" prefix="$" value={form.valor_reembolsos} onChange={v=>sf("valor_reembolsos",v)}/>
+        </div>
+      </Card>
+
+      <Card>
+        <STit icon="👥" title="Clientes"/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
+          <Inp label="# Total de Clientes Activos" value={form.total_clientes_activos} onChange={v=>sf("total_clientes_activos",v)}/>
+        </div>
+      </Card>
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:saving?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Área Comercial guardada ✓</div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── AGENDAS / LEADS ──────────────────────────────────────────────────────────
+const AG_CANALES=["Orgánicas","Meta","Google","TikTok","Otros"];
+const AG_CANAL_KEYS=["organicas","meta","google","tiktok","otros"];
+const AG_CANAL_COLORS={"Orgánicas":C.green,"Meta":"#1877F2","Google":"#34A853","TikTok":"#010101","Otros":C.purple};
+
+const AgendasLeadsForm=({allCloser,onSave})=>{
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankCloser());
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    const ex=allCloser[date];
+    setForm(ex?{...blankCloser(),...ex}:blankCloser());
+    setSaved(false);
+  },[date,allCloser]);
+
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const totalAgendas=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`agendas_${c}`]||0),0);
+  const totalCal=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`cal_${c}`]||0),0);
+  const totalHoy=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`hoy_${c}`]||0),0);
+  const totalShow=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`show_${c}`]||0),0);
+  const showRate=totalHoy>0?pv(totalShow,totalHoy):null;
+  const calRate=totalAgendas>0?pv(totalCal,totalAgendas):null;
+
+  const handleSave=async()=>{
+    setSaving(true);
+    await onSave(date,{...form,date});
+    setSaving(false);setSaved(true);
+    setTimeout(()=>setSaved(false),2500);
+  };
+
+  const CanalGrid=({prefix,label})=>(
+    <Card>
+      <STit icon="📅" title={label}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:11}}>
+        {AG_CANALES.map((canal,i)=>(
+          <div key={canal}>
+            <div style={{fontSize:9,fontWeight:700,color:AG_CANAL_COLORS[canal],
+              fontFamily:"'Inter',sans-serif",letterSpacing:"0.06em",
+              textTransform:"uppercase",marginBottom:4}}>{canal}</div>
+            <Inp label={`# ${label} ${canal}`} value={form[`${prefix}_${AG_CANAL_KEYS[i]}`]}
+              onChange={v=>sf(`${prefix}_${AG_CANAL_KEYS[i]}`,v)}/>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="📅" title="Agendas / Leads" sub="Una entrada por día — pipeline por canal"/>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+          </div>
+          {allCloser[date]&&(
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+              <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
+              Editando entrada existente
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {(totalAgendas>0||totalCal>0||totalShow>0)&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
+          <Stat label="Total Agendas" value={fN(totalAgendas)} color={C.blue}/>
+          <Stat label="Cualificadas" value={fN(totalCal)} color={C.purple}/>
+          <Stat label="Hoy (en agenda)" value={fN(totalHoy)} color={C.teal}/>
+          <Stat label="Show Ups" value={fN(totalShow)} color={C.green}/>
+          <Stat label="Show Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
+          <Stat label="% Cualif." value={fP(calRate)} color={cH(calRate,50,30)}/>
+        </div>
+      )}
+
+      <CanalGrid prefix="agendas" label="Agendas"/>
+      <CanalGrid prefix="cal" label="Cualificadas"/>
+      <CanalGrid prefix="hoy" label="Agendas Hoy"/>
+      <CanalGrid prefix="show" label="Show Ups"/>
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:saving?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Agendas guardadas ✓</div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── DETALLE DIARIO ────────────────────────────────────────────────────────────
+const DetalleView=({allDaily,allCloser,year,month})=>{
+  const dm=MDAYS[month];
+  const pad=n=>String(n).padStart(2,"0");
+  const mp=`${year}-${pad(month+1)}`;
+  const DOW=["D","L","M","M","J","V","S"];
+  const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
+  const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
+
+  const dayData=Array.from({length:dm},(_,i)=>{
+    const d=`${mp}-${pad(i+1)}`;
+    const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(d+":")).map(([,v])=>v);
+    // Marketing aggregates skip commercial collaborators so closer rows don't
+    // inflate mensajes/follow-ups/ig in the Detalle Diario marketing section.
+    const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member));
+    const closer=allCloser[d]||{};
+    const sd=f=>sumF(entries,f);
+    const sdMkt=f=>sumF(mktEntries,f);
+    const totalGastoDay=sd("gastoMeta")+sd("gastoGoogle")+sd("gastoTikTok")+sd("gastoOtros");
+    return{day:i+1,d,entries,mktEntries,closer,sd,sdMkt,totalGastoDay};
+  });
+
+  const cellTxt=(v,fmt)=>{
+    if(v===null||v===undefined||v===0)return null;
+    if(fmt==="$")return fD(v);
+    if(fmt==="%")return fP(v);
+    return fN(v);
+  };
+
+  // For ratio rows (cost/rate), total uses monthly aggregates instead of day average
+  const rowTotalVal=(row)=>{
+    if(row.totFn) return row.totFn();
+    if(row.fmt==="%"){
+      const vals=dayData.map(d=>row.fn(d)).filter(v=>v!==null&&v!==undefined);
+      return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+    }
+    const t=dayData.reduce((s,d)=>{const v=row.fn(d);return s+(v||0);},0);
+    return t||null;
+  };
+
+  // Monthly aggregates for cost calculations
+  const mGastoMeta=dayData.reduce((s,d)=>s+d.sd("gastoMeta"),0);
+  const mGastoGoogle=dayData.reduce((s,d)=>s+d.sd("gastoGoogle"),0);
+  const mGastoTikTok=dayData.reduce((s,d)=>s+d.sd("gastoTikTok"),0);
+  const mGastoOtros=dayData.reduce((s,d)=>s+d.sd("gastoOtros"),0);
+  const mGastoTotal=mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros;
+  const mAgTotal=dayData.reduce((s,d)=>{const ks=["organicas","meta","google","tiktok","otros"];return s+ks.reduce((a,c)=>a+(d.closer[`agendas_${c}`]||0),0);},0);
+  const mAgMeta=dayData.reduce((s,d)=>s+(d.closer.agendas_meta||0),0);
+  const mAgGoogle=dayData.reduce((s,d)=>s+(d.closer.agendas_google||0),0);
+  const mAgTikTok=dayData.reduce((s,d)=>s+(d.closer.agendas_tiktok||0),0);
+  const mAgOtros=dayData.reduce((s,d)=>s+(d.closer.agendas_otros||0),0);
+  const mCalTotal=dayData.reduce((s,d)=>s+(d.closer.agendas_calificadas||0),0);
+  const mCalMeta=dayData.reduce((s,d)=>s+(d.closer.cal_meta||0),0);
+  const mCalGoogle=dayData.reduce((s,d)=>s+(d.closer.cal_google||0),0);
+  const mCalTikTok=dayData.reduce((s,d)=>s+(d.closer.cal_tiktok||0),0);
+  const mCalOtros=dayData.reduce((s,d)=>s+(d.closer.cal_otros||0),0);
+  const mShows=dayData.reduce((s,d)=>s+(d.closer.citas_asistidas||0),0);
+  const mVentasHT=dayData.reduce((s,d)=>s+(d.closer.q_ventas_ht||0),0);
+  const mValorHT=dayData.reduce((s,d)=>s+(d.closer.valor_venta_ht||0),0);
+  const mCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0);
+  const mRecurring=dayData.reduce((s,d)=>s+(d.closer.recurring_cash||0),0);
+
+  const GROUPS=[
+    {title:"Gasto Publicitario",bg:"#1e40af",rows:[
+      {l:"$ Total Gasto",fn:d=>d.totalGastoDay||null,fmt:"$"},
+      {l:"Meta",fn:d=>d.sd("gastoMeta")||null,fmt:"$",sub:true},
+      {l:"Google",fn:d=>d.sd("gastoGoogle")||null,fmt:"$",sub:true},
+      {l:"TikTok",fn:d=>d.sd("gastoTikTok")||null,fmt:"$",sub:true},
+      {l:"Otros",fn:d=>d.sd("gastoOtros")||null,fmt:"$",sub:true},
+    ]},
+    {title:"Actividad Marketing",bg:"#6d28d9",rows:[
+      {l:"# IG Seguidores",fn:d=>d.sdMkt("igFollowers")||null,fmt:"n"},
+      {l:"# Posts + CTA",fn:d=>d.sdMkt("posts")||null,fmt:"n"},
+      {l:"# Mensajes",fn:d=>d.sdMkt("mensajes")||null,fmt:"n"},
+      {l:"# Follow Ups",fn:d=>d.sdMkt("followUps")||null,fmt:"n"},
+      {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
+    ]},
+    {title:"Agendas / Leads",bg:"#0f766e",rows:[
+      {l:"Agendas Total",fn:d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||null;},fmt:"n"},
+      {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true},
+      {l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true},
+      {l:"Google",fn:d=>d.closer.agendas_google||null,fmt:"n",sub:true},
+      {l:"TikTok",fn:d=>d.closer.agendas_tiktok||null,fmt:"n",sub:true},
+      {l:"Otros",fn:d=>d.closer.agendas_otros||null,fmt:"n",sub:true},
+      {l:"Cualificadas Total",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
+      {l:"% Cualificadas",fn:d=>{const t=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return t>0?pv(d.closer.agendas_calificadas||0,t):null;},fmt:"%",
+        totFn:()=>mAgTotal>0?pv(mCalTotal,mAgTotal):null},
+      {l:"Hoy (en agenda)",fn:d=>d.closer.agendas_final||null,fmt:"n"},
+      {l:"Show Ups",fn:d=>d.closer.citas_asistidas||null,fmt:"n"},
+      {l:"% Show Up Rate",fn:d=>{const h=d.closer.agendas_final||0,s=d.closer.citas_asistidas||0;return h>0?pv(s,h):null;},fmt:"%",
+        totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mShows,mHoy):null;}},
+    ]},
+    {title:"Costos por Lead",bg:"#92400e",rows:[
+      {l:"CPL (Costo/Agenda)",fn:d=>{const ag=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return ag>0?d.totalGastoDay/ag:null;},fmt:"$",
+        totFn:()=>mAgTotal>0?mGastoTotal/mAgTotal:null},
+      {l:"CPL Meta",fn:d=>d.closer.agendas_meta>0?d.sd("gastoMeta")/d.closer.agendas_meta:null,fmt:"$",sub:true,
+        totFn:()=>mAgMeta>0?mGastoMeta/mAgMeta:null},
+      {l:"CPL Google",fn:d=>d.closer.agendas_google>0?d.sd("gastoGoogle")/d.closer.agendas_google:null,fmt:"$",sub:true,
+        totFn:()=>mAgGoogle>0?mGastoGoogle/mAgGoogle:null},
+      {l:"CPL TikTok",fn:d=>d.closer.agendas_tiktok>0?d.sd("gastoTikTok")/d.closer.agendas_tiktok:null,fmt:"$",sub:true,
+        totFn:()=>mAgTikTok>0?mGastoTikTok/mAgTikTok:null},
+      {l:"CPL Otros",fn:d=>d.closer.agendas_otros>0?d.sd("gastoOtros")/d.closer.agendas_otros:null,fmt:"$",sub:true,
+        totFn:()=>mAgOtros>0?mGastoOtros/mAgOtros:null},
+      {l:"CP Cualificada",fn:d=>{const cal=d.closer.agendas_calificadas||0;return cal>0?d.totalGastoDay/cal:null;},fmt:"$",
+        totFn:()=>mCalTotal>0?mGastoTotal/mCalTotal:null},
+      {l:"CP Cualif. Meta",fn:d=>d.closer.cal_meta>0?d.sd("gastoMeta")/d.closer.cal_meta:null,fmt:"$",sub:true,
+        totFn:()=>mCalMeta>0?mGastoMeta/mCalMeta:null},
+      {l:"CP Cualif. Google",fn:d=>d.closer.cal_google>0?d.sd("gastoGoogle")/d.closer.cal_google:null,fmt:"$",sub:true,
+        totFn:()=>mCalGoogle>0?mGastoGoogle/mCalGoogle:null},
+      {l:"CP Cualif. TikTok",fn:d=>d.closer.cal_tiktok>0?d.sd("gastoTikTok")/d.closer.cal_tiktok:null,fmt:"$",sub:true,
+        totFn:()=>mCalTikTok>0?mGastoTikTok/mCalTikTok:null},
+      {l:"CP Cualif. Otros",fn:d=>d.closer.cal_otros>0?d.sd("gastoOtros")/d.closer.cal_otros:null,fmt:"$",sub:true,
+        totFn:()=>mCalOtros>0?mGastoOtros/mCalOtros:null},
+    ]},
+    {title:"Ventas — Area Comercial",bg:"#c2410c",rows:[
+      {l:"# Ventas HT",fn:d=>d.closer.q_ventas_ht||null,fmt:"n"},
+      {l:"$ Venta HT",fn:d=>d.closer.valor_venta_ht||null,fmt:"$"},
+      {l:"Upfront Cash HT",fn:d=>d.closer.upfront_cash_ht||null,fmt:"$"},
+      {l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||null,fmt:"$"},
+      {l:"Recurring Cash",fn:d=>d.closer.recurring_cash||null,fmt:"$"},
+      {l:"Cash + Recurring",fn:d=>{const t=(d.closer.ventas_cash||0)+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
+        totFn:()=>mCashHT+mRecurring||null},
+      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
+        totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
+      {l:"% Closing Rate",fn:d=>{const s=d.closer.citas_asistidas||0,v=d.closer.q_ventas_ht||0;return s>0?pv(v,s):null;},fmt:"%",
+        totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
+      {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
+      {l:"$ Venta LT",fn:d=>d.closer.valor_venta_lt||null,fmt:"$"},
+      {l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"},
+      {l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||null,fmt:"$"},
+      {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
+      {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
+      {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
+    ]},
+  ];
+
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
+  const HDR_TXT="#f1f5f9";
+  const thBase={padding:"5px 3px",textAlign:"center",fontSize:9,fontWeight:700,
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"3px 4px",textAlign:"right",fontSize:9,fontFamily:"'DM Mono',monospace",
+    borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:21};
+  const stickyCol={position:"sticky",left:0,zIndex:2};
+
+  return(
+    <div>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+        {MONTHS[month]} {year} · Scroll horizontal para ver todos los días
+      </div>
+      <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
+        height:"calc(100vh - 160px)"}}>
+        <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
+          <thead style={{position:"sticky",top:0,zIndex:10}}>
+            <tr>
+              <th style={{...thBase,...stickyCol,background:HDR_BG,color:HDR_TXT,textAlign:"left",
+                padding:"8px 10px",minWidth:165,zIndex:11,borderRight:`2px solid ${BORDER}`}}>
+                KPI
+              </th>
+              {dayData.map(d=>(
+                <th key={d.day} style={{...thBase,
+                  background:isWeekend(d.d)?WKD_BG:HDR_BG,
+                  color:isWeekend(d.d)?"#94A3B8":HDR_TXT,minWidth:38}}>
+                  <div style={{opacity:0.6}}>{getDoW(d.d)}</div>
+                  <div>{d.day}</div>
+                </th>
+              ))}
+              <th style={{...thBase,background:BRAND,color:"#fff",minWidth:62,
+                borderLeft:`2px solid ${BORDER}`}}>
+                Total / Mes
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {GROUPS.map(g=>(
+              <React.Fragment key={g.title}>
+                <tr>
+                  <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
+                    fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    {g.title}
+                  </td>
+                </tr>
+                {g.rows.map(row=>{
+                  const tot=rowTotalVal(row);
+                  return(
+                    <tr key={row.l}>
+                      <td style={{...tdBase,...stickyCol,textAlign:"left",
+                        paddingLeft:row.sub?20:10,
+                        color:row.sub?TXT2:TXT,
+                        fontWeight:row.sub?400:600,
+                        fontSize:row.sub?8:9,
+                        background:SURFACE,
+                        borderRight:`2px solid ${BORDER}`,
+                        fontFamily:"'Inter',sans-serif",
+                        whiteSpace:"nowrap"}}>
+                        {row.l}
+                      </td>
+                      {dayData.map(d=>{
+                        const v=row.fn(d);
+                        const txt=cellTxt(v,row.fmt);
+                        return(
+                          <td key={d.day} style={{...tdBase,
+                            background:isWeekend(d.d)?WKD_BG:SURFACE,
+                            color:txt?TXT:TXT3}}>
+                            {txt||"·"}
+                          </td>
+                        );
+                      })}
+                      <td style={{...tdBase,background:SURFACE2,
+                        color:tot?TXT:TXT3,fontWeight:700,
+                        borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                        {cellTxt(tot,row.fmt)||"—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ─── DETALLE POR COLABORADOR ──────────────────────────────────────────────────
+// Manual collaborator reporting center.
+//   - Marketing role (Karen Anquiz, stored as "Karen"): IG / posts / mensajes /
+//     follow ups / booking offers. Ad spend is automatic (sync job) and shown
+//     read-only.
+//   - Closer role (Carlos Velez, Daryi Uribe, Juan Diego Afanador): agendas,
+//     calificadas, agendas hoy, show ups, ventas HT, $ venta HT, upfront/cash,
+//     recurring cash, follow ups, pendientes cierre día anterior, pendientes
+//     cierre acumulados, reservas.
+// Persists through onSave(`${date}:${memberId}`, entry) → daily_entries (the
+// closer fields reuse the schema columns mapped in rowToEntry/saveEntry).
+// Detalle Diario continues to aggregate daily_closer for commercial totals and
+// filters commercial members out of its marketing rows so closer activity
+// here does not inflate the marketing aggregates there.
+
+const closerCanonId=m=>{
+  if(!m)return m;
+  const cl=COMMERCIAL_COLLABORATORS.find(c=>c.legacy===m);
+  return cl?cl.id:m;
+};
+
+const DetalleColaborador=({allDaily,year,month,onSave})=>{
+  const [view,setView]=useState("llenar"); // llenar | tabla | dia
+  const dm=MDAYS[month];
+  const pad=n=>String(n).padStart(2,"0");
+  const mp=`${year}-${pad(month+1)}`;
+
+  const entriesByCollab={};
+  MANUAL_COLLABORATORS.forEach(c=>{entriesByCollab[c.id]=[];});
+  Object.entries(allDaily)
+    .filter(([k])=>k.startsWith(mp+"-"))
+    .forEach(([,v])=>{
+      if(!v||!v.member)return;
+      const cid=closerCanonId(v.member);
+      if(entriesByCollab[cid])entriesByCollab[cid].push(v);
+    });
+
+  const monthEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(mp+"-")).map(([,v])=>v);
+  const mGastoMeta=sumF(monthEntries,"gastoMeta");
+  const mGastoGoogle=sumF(monthEntries,"gastoGoogle");
+  const mGastoTikTok=sumF(monthEntries,"gastoTikTok");
+  const mGastoOtros=sumF(monthEntries,"gastoOtros");
+  const monthAdSpend={meta:mGastoMeta,google:mGastoGoogle,tiktok:mGastoTikTok,otros:mGastoOtros,
+    total:mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros};
+
+  const collabAgg=cid=>{
+    const rows=entriesByCollab[cid]||[];
+    const s=k=>sumF(rows,k);
+    return{
+      member:cid,days:rows.length,
+      igFollowers:s("igFollowers"),posts:s("posts"),mensajes:s("mensajes"),
+      followUps:s("followUps"),bkOffers:s("bkOffers"),
+      agendas:s("agendas"),calificadas:s("calificadas"),agendasHoy:s("agendasHoy"),
+      showUps:s("showUps"),
+      ventasHT:s("ventasHT"),valorVentaHT:s("valorVentaHT"),
+      upfrontCash:s("upfrontCash"),recurringCash:s("recurringCash"),
+      pendDiaAnterior:s("pendDiaAnterior"),pendAcumulados:s("pendAcumulados"),
+      reservas:s("reservas"),
+    };
+  };
+
+  const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
+    borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
+    fontSize:11,fontFamily:"'Inter',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[["llenar","Llenar reporte"],["tabla","Tabla mensual"],["dia","Detalle por día"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
+        ))}
+      </div>
+      {view==="llenar"&&<LlenarReporte allDaily={allDaily} onSave={onSave} monthAdSpend={monthAdSpend}/>}
+      {view==="tabla"&&<TablaMensual collabAgg={collabAgg} monthAdSpend={monthAdSpend} year={year} month={month}/>}
+      {view==="dia"&&<DetallePorDia entriesByCollab={entriesByCollab} year={year} month={month} dm={dm} mp={mp} pad={pad}/>}
+    </div>
+  );
+};
+
+// ─── LLENAR REPORTE (manual collaborator daily form) ──────────────────────────
+const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
+  const [collabId,setCollabId]=useState(MANUAL_COLLABORATORS[0].id);
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankEntry());
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    const existing=allDaily[`${date}:${collabId}`];
+    setForm(existing?{...blankEntry(),...existing}:blankEntry());
+    setSaved(false);
+  },[collabId,date,allDaily]);
+
+  const collab=MANUAL_COLLABORATORS.find(c=>c.id===collabId)||MANUAL_COLLABORATORS[0];
+  const role=collab.role;
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const handleSave=async()=>{
+    setSaving(true);
+    const ok=await onSave(`${date}:${collabId}`,{...form,member:collabId,date});
+    setSaving(false);
+    if(ok!==false){setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  };
+
+  const dayEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(date+":")).map(([,v])=>v);
+  const dayMeta=sumF(dayEntries,"gastoMeta"),dayGoogle=sumF(dayEntries,"gastoGoogle"),
+    dayTk=sumF(dayEntries,"gastoTikTok"),dayOt=sumF(dayEntries,"gastoOtros");
+  const dayTotal=dayMeta+dayGoogle+dayTk+dayOt;
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="🧑‍💼" title="Reporte manual" sub="Una entrada por día por colaborador"/>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <Lbl>Colaborador</Lbl>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:5}}>
+              {MANUAL_COLLABORATORS.map(c=>{
+                const sel=collabId===c.id;
+                return(<button key={c.id} onClick={()=>setCollabId(c.id)} style={{
+                  background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
+                  borderRadius:8,padding:"7px 13px",cursor:"pointer",color:sel?c.color:TXT2,
+                  fontSize:12,fontFamily:"'Inter',sans-serif",fontWeight:sel?700:500,
+                  display:"inline-flex",alignItems:"center",gap:7,
+                  transition:"all .15s"}}>
+                  <span style={{width:7,height:7,borderRadius:100,background:c.color,display:"inline-block"}}/>
+                  <span>{c.label}</span>
+                  <span style={{fontSize:9,color:sel?c.color:TXT3,letterSpacing:"0.08em",textTransform:"uppercase",marginLeft:2}}>
+                    {c.role==="marketing"?"Marketing":"Closer"}
+                  </span>
+                </button>);
+              })}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-end"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              <Lbl>Fecha</Lbl>
+              <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+                style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                  color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+            </div>
+            {allDaily[`${date}:${collabId}`]&&(
+              <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",
+                paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+                <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
+                Editando entrada existente
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {role==="marketing"&&(
+        <>
+          <Card>
+            <STit icon="📱" title="Actividad Marketing" sub={`Llenado por ${collab.label}`}/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# IG Seguidores" value={form.igFollowers} onChange={v=>sf("igFollowers",v)}/>
+              <Inp label="# Posts + CTA" value={form.posts} onChange={v=>sf("posts",v)}/>
+              <Inp label="# Mensajes Diarios" value={form.mensajes} onChange={v=>sf("mensajes",v)}/>
+              <Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+              <Inp label="# Booking Offers" value={form.bkOffers} onChange={v=>sf("bkOffers",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="📊" title="Gasto Ads (automático)" sub="No se llena manualmente — viene de la sincronización Meta/Google/TikTok"/>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.6,marginBottom:11}}>
+              El gasto publicitario y los costos por lead se calculan automáticamente a partir de la integración con cada plataforma. Karen no tiene que registrarlos a mano.
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:9}}>
+              <Stat label="Meta hoy" value={fD(dayMeta)} color="#1877F2" size="sm"/>
+              <Stat label="Google hoy" value={fD(dayGoogle)} color="#34A853" size="sm"/>
+              <Stat label="TikTok hoy" value={fD(dayTk)} color={TXT2} size="sm"/>
+              <Stat label="Otros hoy" value={fD(dayOt)} color={C.purple} size="sm"/>
+              <Stat label="Total hoy" value={fD(dayTotal)} color={BRAND} size="sm"/>
+              <Stat label="Total mes" value={fD(monthAdSpend.total)} color={BRAND} size="sm"/>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {role==="closer"&&(
+        <>
+          <Card>
+            <STit icon="📅" title="Agendas / Leads" sub={`Llenado por ${collab.label}`}/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Agendas" value={form.agendas} onChange={v=>sf("agendas",v)}/>
+              <Inp label="# Calificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
+              <Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>
+              <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="💰" title="Ventas — Área Comercial"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Ventas HT" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
+              <Inp label="$ Venta HT" prefix="$" value={form.valorVentaHT} onChange={v=>sf("valorVentaHT",v)}/>
+              <Inp label="Upfront / Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
+              <Inp label="Recurring Cash $" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>
+              <Inp label="# Reservas (opcional)" value={form.reservas} onChange={v=>sf("reservas",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="🔁" title="Follow Ups y Pendientes de Cierre"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+              <Inp label="# Pendientes cierre (día anterior)" value={form.pendDiaAnterior} onChange={v=>sf("pendDiaAnterior",v)}/>
+              <Inp label="# Pendientes cierre (acumulados)" value={form.pendAcumulados} onChange={v=>sf("pendAcumulados",v)}/>
+            </div>
+          </Card>
+        </>
+      )}
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:saving?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${collab.label} · ${date}`}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
+          Reporte guardado ✓
+        </div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── TABLA MENSUAL (KPI rows × collaborator columns) ──────────────────────────
+const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
+  const cellTxt=(v,fmt)=>{
+    if(v===null||v===undefined||v===0||(typeof v==="number"&&isNaN(v)))return null;
+    if(fmt==="$")return fD(v);
+    if(fmt==="%")return fP(v);
+    return fN(v);
+  };
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const HDR_TXT="#f1f5f9";
+  const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'DM Mono',monospace",
+    borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:23};
+  const stickyCol={position:"sticky",left:0,zIndex:2};
+
+  const aggByCollab={};
+  MANUAL_COLLABORATORS.forEach(c=>{aggByCollab[c.id]=collabAgg(c.id);});
+  const marketingCols=MARKETING_COLLABORATORS;
+  const closerCols=COMMERCIAL_COLLABORATORS;
+  const allCols=[...marketingCols,...closerCols];
+
+  const sumCloser=k=>closerCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
+  const sumMarketing=k=>marketingCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
+
+  const SECTIONS=[
+    {title:"Actividad Marketing",bg:"#6d28d9",role:"marketing",rows:[
+      {l:"Días con registro",k:"days",fmt:"n"},
+      {l:"# IG Seguidores",k:"igFollowers",fmt:"n"},
+      {l:"# Posts + CTA",k:"posts",fmt:"n"},
+      {l:"# Mensajes",k:"mensajes",fmt:"n"},
+      {l:"# Follow Ups",k:"followUps",fmt:"n"},
+      {l:"# Booking Offers",k:"bkOffers",fmt:"n"},
+    ]},
+    {title:"Agendas / Leads",bg:"#0f766e",role:"closer",rows:[
+      {l:"# Agendas",k:"agendas",fmt:"n"},
+      {l:"# Calificadas",k:"calificadas",fmt:"n"},
+      {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
+      {l:"# Show Ups",k:"showUps",fmt:"n"},
+    ]},
+    {title:"Ventas — Área Comercial",bg:"#c2410c",role:"closer",rows:[
+      {l:"# Ventas HT",k:"ventasHT",fmt:"n"},
+      {l:"$ Venta HT",k:"valorVentaHT",fmt:"$"},
+      {l:"Upfront / Cash Collected",k:"upfrontCash",fmt:"$"},
+      {l:"Recurring Cash",k:"recurringCash",fmt:"$"},
+      {l:"# Follow Ups",k:"followUps",fmt:"n"},
+      {l:"Pendientes cierre día anterior",k:"pendDiaAnterior",fmt:"n"},
+      {l:"Pendientes cierre acumulados",k:"pendAcumulados",fmt:"n"},
+      {l:"# Reservas",k:"reservas",fmt:"n"},
+    ]},
+  ];
+
+  const ADS_ROWS=[
+    {l:"$ Total Gasto",v:monthAdSpend.total,fmt:"$"},
+    {l:"Meta",v:monthAdSpend.meta,fmt:"$",sub:true},
+    {l:"Google",v:monthAdSpend.google,fmt:"$",sub:true},
+    {l:"TikTok",v:monthAdSpend.tiktok,fmt:"$",sub:true},
+    {l:"Otros",v:monthAdSpend.otros,fmt:"$",sub:true},
+  ];
+  const totalAgendas=sumCloser("agendas");
+  const totalCal=sumCloser("calificadas");
+  const COSTS_ROWS=[
+    {l:"CPL (Costo / Agenda)",v:totalAgendas>0?monthAdSpend.total/totalAgendas:null,fmt:"$"},
+    {l:"CP Cualificada",v:totalCal>0?monthAdSpend.total/totalCal:null,fmt:"$"},
+  ];
+
+  return(
+    <div>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+        {MONTHS[month]} {year} · {allCols.length} colaboradores · acumulado mensual manual
+      </div>
+      <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
+        height:"calc(100vh - 200px)"}}>
+        <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
+          <thead style={{position:"sticky",top:0,zIndex:10}}>
+            <tr>
+              <th style={{...thBase,...stickyCol,background:HDR_BG,color:HDR_TXT,textAlign:"left",
+                padding:"8px 10px",minWidth:215,zIndex:11,borderRight:`2px solid ${BORDER}`}}>
+                KPI
+              </th>
+              {allCols.map(c=>{
+                const agg=aggByCollab[c.id];
+                return(
+                  <th key={c.id} style={{...thBase,background:HDR_BG,color:HDR_TXT,minWidth:120,padding:"8px 8px"}}>
+                    <div style={{display:"inline-flex",alignItems:"center",gap:6}}>
+                      <span style={{width:7,height:7,borderRadius:100,background:c.color,display:"inline-block"}}/>
+                      <span>{c.label}</span>
+                    </div>
+                    <div style={{opacity:0.55,fontSize:8,fontWeight:500,marginTop:2}}>
+                      {c.role==="marketing"?"Marketing":"Closer"} · {agg.days} días
+                    </div>
+                  </th>
+                );
+              })}
+              <th style={{...thBase,background:BRAND,color:"#fff",minWidth:110,
+                borderLeft:`2px solid ${BORDER}`,padding:"8px 8px"}}>
+                Total / Mes
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {SECTIONS.map(g=>(
+              <React.Fragment key={g.title}>
+                <tr>
+                  <td colSpan={allCols.length+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
+                    fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    {g.title}
+                  </td>
+                </tr>
+                {g.rows.map(row=>{
+                  const includeCol=c=>g.role===c.role;
+                  const tot=g.role==="marketing"?(sumMarketing(row.k)||null):(sumCloser(row.k)||null);
+                  return(
+                    <tr key={row.l}>
+                      <td style={{...tdBase,...stickyCol,textAlign:"left",
+                        paddingLeft:row.sub?20:10,
+                        color:row.sub?TXT2:TXT,
+                        fontWeight:row.sub?400:600,
+                        fontSize:row.sub?9:10,
+                        background:SURFACE,
+                        borderRight:`2px solid ${BORDER}`,
+                        fontFamily:"'Inter',sans-serif",
+                        whiteSpace:"nowrap"}}>
+                        {row.l}
+                      </td>
+                      {allCols.map(c=>{
+                        if(!includeCol(c))return(
+                          <td key={c.id} style={{...tdBase,background:SURFACE,color:TXT3}}>—</td>
+                        );
+                        const v=aggByCollab[c.id][row.k];
+                        const txt=cellTxt(v,row.fmt);
+                        return(
+                          <td key={c.id} style={{...tdBase,background:SURFACE,color:txt?TXT:TXT3}}>
+                            {txt||"·"}
+                          </td>
+                        );
+                      })}
+                      <td style={{...tdBase,background:SURFACE2,
+                        color:tot?TXT:TXT3,fontWeight:700,
+                        borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                        {cellTxt(tot,row.fmt)||"—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+
+            <tr>
+              <td colSpan={allCols.length+2} style={{background:"#1e40af",color:"#fff",padding:"5px 10px",
+                fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                Gasto Publicitario (automático · total mes)
+              </td>
+            </tr>
+            {ADS_ROWS.map(row=>(
+              <tr key={row.l}>
+                <td style={{...tdBase,...stickyCol,textAlign:"left",
+                  paddingLeft:row.sub?20:10,
+                  color:row.sub?TXT2:TXT,
+                  fontWeight:row.sub?400:600,
+                  fontSize:row.sub?9:10,
+                  background:SURFACE,
+                  borderRight:`2px solid ${BORDER}`,
+                  fontFamily:"'Inter',sans-serif",
+                  whiteSpace:"nowrap"}}>
+                  {row.l}
+                </td>
+                {allCols.map(c=>(
+                  <td key={c.id} style={{...tdBase,background:SURFACE,color:TXT3}}>—</td>
+                ))}
+                <td style={{...tdBase,background:SURFACE2,
+                  color:row.v?TXT:TXT3,fontWeight:700,
+                  borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                  {cellTxt(row.v,row.fmt)||"—"}
+                </td>
+              </tr>
+            ))}
+
+            <tr>
+              <td colSpan={allCols.length+2} style={{background:"#92400e",color:"#fff",padding:"5px 10px",
+                fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                Costos por Lead (automático · total mes)
+              </td>
+            </tr>
+            {COSTS_ROWS.map(row=>(
+              <tr key={row.l}>
+                <td style={{...tdBase,...stickyCol,textAlign:"left",
+                  paddingLeft:10,
+                  color:TXT,fontWeight:600,fontSize:10,
+                  background:SURFACE,
+                  borderRight:`2px solid ${BORDER}`,
+                  fontFamily:"'Inter',sans-serif",
+                  whiteSpace:"nowrap"}}>
+                  {row.l}
+                </td>
+                {allCols.map(c=>(
+                  <td key={c.id} style={{...tdBase,background:SURFACE,color:TXT3}}>—</td>
+                ))}
+                <td style={{...tdBase,background:SURFACE2,
+                  color:row.v?TXT:TXT3,fontWeight:700,
+                  borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                  {cellTxt(row.v,row.fmt)||"—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ─── DETALLE POR DÍA (collaborator-specific day-by-day KPIs) ──────────────────
+const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
+  const [picked,setPicked]=useState(MANUAL_COLLABORATORS[0].id);
+  const collab=MANUAL_COLLABORATORS.find(c=>c.id===picked)||MANUAL_COLLABORATORS[0];
+  const role=collab.role;
+
+  const rowsM=entriesByCollab[picked]||[];
+  const byDate={};
+  rowsM.forEach(e=>{if(e&&e.date)byDate[e.date]=e;});
+  const days=Array.from({length:dm},(_,i)=>{
+    const d=`${mp}-${pad(i+1)}`;
+    return{day:i+1,d,e:byDate[d]||null};
+  });
+
+  const DOW=["D","L","M","M","J","V","S"];
+  const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
+  const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
+  const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
+
+  const cellTxt=(v,fmt)=>{
+    if(v===null||v===undefined||v===0||(typeof v==="number"&&isNaN(v)))return null;
+    if(fmt==="$")return fD(v);
+    if(fmt==="%")return fP(v);
+    return fN(v);
+  };
+
+  const MARKETING_ROWS=[
+    {title:"Actividad Marketing",bg:"#6d28d9",rows:[
+      {l:"# IG Seguidores",fn:d=>d.e?d.e.igFollowers:0,fmt:"n"},
+      {l:"# Posts + CTA",fn:d=>d.e?d.e.posts:0,fmt:"n"},
+      {l:"# Mensajes",fn:d=>d.e?d.e.mensajes:0,fmt:"n"},
+      {l:"# Follow Ups",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
+      {l:"# Booking Offers",fn:d=>d.e?d.e.bkOffers:0,fmt:"n"},
+    ]},
+  ];
+  const CLOSER_ROWS=[
+    {title:"Agendas / Leads",bg:"#0f766e",rows:[
+      {l:"# Agendas",fn:d=>d.e?d.e.agendas:0,fmt:"n"},
+      {l:"# Calificadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
+      {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
+    ]},
+    {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
+      {l:"# Ventas HT",fn:d=>d.e?d.e.ventasHT:0,fmt:"n"},
+      {l:"$ Venta HT",fn:d=>d.e?d.e.valorVentaHT:0,fmt:"$"},
+      {l:"Upfront / Cash Collected",fn:d=>d.e?d.e.upfrontCash:0,fmt:"$"},
+      {l:"Recurring Cash",fn:d=>d.e?d.e.recurringCash:0,fmt:"$"},
+      {l:"# Follow Ups",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
+      {l:"Pend. cierre día anterior",fn:d=>d.e?d.e.pendDiaAnterior:0,fmt:"n"},
+      {l:"Pend. cierre acumulados",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"},
+      {l:"# Reservas",fn:d=>d.e?d.e.reservas:0,fmt:"n"},
+    ]},
+  ];
+  const ROWS=role==="marketing"?MARKETING_ROWS:CLOSER_ROWS;
+  const totForRow=row=>days.reduce((s,d)=>s+(row.fn(d)||0),0)||null;
+
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const HDR_TXT="#f1f5f9";
+  const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'DM Mono',monospace",
+    borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:23};
+  const stickyCol={position:"sticky",left:0,zIndex:2};
+
+  return(
+    <div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
+        <span style={{fontSize:10,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
+          fontFamily:"'Inter',sans-serif",fontWeight:600,marginRight:4}}>Colaborador</span>
+        {MANUAL_COLLABORATORS.map(c=>{
+          const sel=picked===c.id;
+          return(<button key={c.id} onClick={()=>setPicked(c.id)} style={{
+            background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
+            borderRadius:8,padding:"5px 12px",cursor:"pointer",color:sel?c.color:TXT2,
+            fontSize:11,fontFamily:"'Inter',sans-serif",fontWeight:sel?700:500,
+            display:"inline-flex",alignItems:"center",gap:7,
+            transition:"all .15s"}}>
+            <span style={{width:6,height:6,borderRadius:100,background:c.color,display:"inline-block"}}/>
+            <span>{c.label}</span>
+          </button>);
+        })}
+      </div>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+        {collab.label} · {MONTHS[month]} {year} · {rowsM.length} días con registro
+      </div>
+      <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
+        height:"calc(100vh - 220px)"}}>
+        <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
+          <thead style={{position:"sticky",top:0,zIndex:10}}>
+            <tr>
+              <th style={{...thBase,...stickyCol,background:HDR_BG,color:HDR_TXT,textAlign:"left",
+                padding:"8px 10px",minWidth:175,zIndex:11,borderRight:`2px solid ${BORDER}`}}>
+                KPI
+              </th>
+              {days.map(d=>(
+                <th key={d.day} style={{...thBase,
+                  background:isWeekend(d.d)?WKD_BG:HDR_BG,
+                  color:isWeekend(d.d)?"#94A3B8":HDR_TXT,minWidth:38}}>
+                  <div style={{opacity:0.6}}>{getDoW(d.d)}</div>
+                  <div>{d.day}</div>
+                </th>
+              ))}
+              <th style={{...thBase,background:BRAND,color:"#fff",minWidth:80,
+                borderLeft:`2px solid ${BORDER}`}}>
+                Total / Mes
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {ROWS.map(g=>(
+              <React.Fragment key={g.title}>
+                <tr>
+                  <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
+                    fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    {g.title}
+                  </td>
+                </tr>
+                {g.rows.map(row=>{
+                  const tot=totForRow(row);
+                  return(
+                    <tr key={row.l}>
+                      <td style={{...tdBase,...stickyCol,textAlign:"left",
+                        paddingLeft:10,
+                        color:TXT,fontWeight:600,fontSize:10,
+                        background:SURFACE,
+                        borderRight:`2px solid ${BORDER}`,
+                        fontFamily:"'Inter',sans-serif",
+                        whiteSpace:"nowrap"}}>
+                        {row.l}
+                      </td>
+                      {days.map(d=>{
+                        const v=row.fn(d);
+                        const txt=cellTxt(v,row.fmt);
+                        return(
+                          <td key={d.day} style={{...tdBase,
+                            background:isWeekend(d.d)?WKD_BG:SURFACE,
+                            color:txt?TXT:TXT3,fontSize:9}}>
+                            {txt||"·"}
+                          </td>
+                        );
+                      })}
+                      <td style={{...tdBase,background:SURFACE2,
+                        color:tot?TXT:TXT3,fontWeight:700,
+                        borderLeft:`2px solid ${BORDER}`,textAlign:"right"}}>
+                        {cellTxt(tot,row.fmt)||"—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
+const ADMIN_PIN = "1234"; // ← cambia este PIN cuando quieras
+
+const AdminView=({allDaily,onSave,onDelete})=>{
+  const [pin,setPin]=useState("");
+  const [authed,setAuthed]=useState(false);
+  const [pinError,setPinError]=useState(false);
+  const [filterMember,setFilterMember]=useState("Todos");
+  const [filterDate,setFilterDate]=useState("");
+  const [editing,setEditing]=useState(null);
+  const [form,setForm]=useState({});
+  const [saving,setSaving]=useState(false);
+  const [deleting,setDeleting]=useState(null);
+
+  const tryPin=()=>{
+    if(pin===ADMIN_PIN){setAuthed(true);setPinError(false);}
+    else{setPinError(true);setPin("");}
+  };
+
+  const entries=Object.entries(allDaily)
+    .map(([k,v])=>({key:k,...v}))
+    .filter(e=>filterMember==="Todos"||e.member===filterMember)
+    .filter(e=>!filterDate||e.date===filterDate)
+    .sort((a,b)=>b.date.localeCompare(a.date)||a.member.localeCompare(b.member));
+
+  const startEdit=entry=>{setEditing(entry.key);setForm({...entry});};
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+
+  const saveEdit=async()=>{
+    setSaving(true);
+    const newBk=(form.newBkOrganic||0)+(form.newBkPaid||0);
+    const qualBk=(form.qualBkOrganic||0)+(form.qualBkPaid||0);
+    const shows=(form.showOrganic||0)+(form.showPaid||0);
+    const entry={...form,
+      newBkTotal:newBk,qualBkTotal:qualBk,showsTotal:shows,
+      bkInboundTotal:(form.bkInboundOrganic||0)+(form.bkInboundPaid||0),
+    };
+    await onSave(`${form.date}:${form.member}`,entry);
+    setSaving(false);setEditing(null);
+  };
+
+  const handleDelete=async entry=>{
+    if(!window.confirm(`¿Eliminar entrada de ${entry.member} del ${entry.date}?`))return;
+    setDeleting(entry.key);
+    await onDelete(entry.date,entry.member);
+    setDeleting(null);
+  };
+
+  if(!authed)return(
+    <Card>
+      <div style={{textAlign:"center",padding:"50px 20px"}}>
+        <div style={{width:52,height:52,borderRadius:14,background:BORDER2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+          <Icon name="lock" size={22} color={TXT3}/>
+        </div>
+        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>Panel Admin</div>
+        <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace",marginBottom:24}}>
+          Solo el administrador puede acceder aquí
+        </div>
+        <input type="password" value={pin}
+          onChange={e=>{setPin(e.target.value);setPinError(false);}}
+          onKeyDown={e=>e.key==="Enter"&&tryPin()}
+          placeholder="PIN de administrador"
+          style={{background:SURFACE2,border:`1.5px solid ${pinError?C.red:BORDER}`,
+            borderRadius:9,color:TXT,padding:"11px 18px",fontSize:14,outline:"none",
+            fontFamily:"'DM Mono',monospace",textAlign:"center",width:220,display:"block",margin:"0 auto"}}/>
+        {pinError&&<div style={{fontSize:11,color:C.red,marginTop:7,fontFamily:"'DM Mono',monospace"}}>
+          PIN incorrecto — intenta de nuevo
+        </div>}
+        <button onClick={tryPin} style={{marginTop:14,background:C.gold,color:"#fff",border:"none",
+          borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
+          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`}}>
+          Entrar
+        </button>
+      </div>
+    </Card>
+  );
+
+  const EDIT_FIELDS=[
+    {k:"posts",l:"Posts + CTA"},{k:"mensajes",l:"Mensajes"},{k:"followUps",l:"Follow-ups"},{k:"bkOffers",l:"Bk Offers"},
+    {k:"newBkOrganic",l:"New Bk Orgánico"},{k:"newBkPaid",l:"New Bk Paid"},
+    {k:"qualBkOrganic",l:"Quality Bk Orgánico"},{k:"qualBkPaid",l:"Quality Bk Paid"},
+    {k:"todayBkOrganic",l:"Today Bk Orgánico"},{k:"todayBkPaid",l:"Today Bk Paid"},
+    {k:"showOrganic",l:"Shows Orgánico"},{k:"showPaid",l:"Shows Paid"},
+    {k:"pitchesOrganic",l:"Pitches Orgánico"},{k:"pitchesPaid",l:"Pitches Paid"},
+    {k:"bkInboundOrganic",l:"Inbound Orgánico"},{k:"bkInboundPaid",l:"Inbound Paid"},
+    {k:"bkOutbound",l:"Outbound"},{k:"paidBkInvestment",l:"Inversión Ads $",p:"$"},
+    {k:"paidBkCount",l:"# Paid Bookings"},{k:"activeClients",l:"Clientes Activos"},
+    {k:"igFollowers",l:"IG Followers (k)"},{k:"offerPrice",l:"Precio Oferta $",p:"$"},
+  ];
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="🔐" title="Panel Admin" sub="Visualiza, edita o elimina cualquier entrada del equipo"/>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Miembro</Lbl>
+            <select value={filterMember} onChange={e=>setFilterMember(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
+                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
+              <option>Todos</option>
+              {TEAM.map(m=><option key={m}>{m}</option>)}
+            </select>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            <Lbl>Fecha</Lbl>
+            <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)}
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
+                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace",height:36}}/>
+          </div>
+          {filterDate&&(
+            <button onClick={()=>setFilterDate("")}
+              style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,
+                color:TXT2,padding:"7px 12px",fontSize:11,cursor:"pointer",
+                fontFamily:"'Epilogue',sans-serif",height:36}}>× Limpiar</button>
+          )}
+          <div style={{marginLeft:"auto",fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace",paddingBottom:6}}>
+            {entries.length} entradas encontradas
+          </div>
+        </div>
+      </Card>
+
+      {entries.length===0&&(
+        <Card><div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
+          fontFamily:"'DM Mono',monospace"}}>No hay entradas con esos filtros.</div></Card>
+      )}
+
+      {entries.map(entry=>(
+        <Card key={entry.key} style={{padding:"16px 20px"}}>
+          {editing===entry.key?(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <MemberBadge name={entry.member} size="lg"/>
+                  <span style={{fontSize:12,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
+                  <span style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace"}}>✏️ Modo edición</span>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={saveEdit} disabled={saving} style={{background:C.green,color:"#fff",
+                    border:"none",borderRadius:8,padding:"8px 18px",fontWeight:800,fontSize:12,
+                    cursor:"pointer",fontFamily:"'Epilogue',sans-serif",opacity:saving?0.7:1}}>
+                    {saving?"Guardando...":"✓ Guardar cambios"}
+                  </button>
+                  <button onClick={()=>setEditing(null)} style={{background:"transparent",
+                    border:`1px solid ${BORDER}`,borderRadius:8,padding:"8px 14px",fontSize:12,
+                    cursor:"pointer",color:TXT2,fontFamily:"'Epilogue',sans-serif"}}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+                {EDIT_FIELDS.map(f=>(
+                  <Inp key={f.k} label={f.l} prefix={f.p} value={form[f.k]||""} onChange={v=>sf(f.k,v)}/>
+                ))}
+              </div>
+            </div>
+          ):(
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <MemberBadge name={entry.member} size="lg"/>
+                  <span style={{fontSize:13,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>startEdit(entry)} style={{background:C.gold+"15",
+                    border:`1px solid ${C.gold}40`,borderRadius:7,padding:"6px 14px",fontSize:11,
+                    cursor:"pointer",color:C.gold,fontFamily:"'Epilogue',sans-serif",fontWeight:700}}>
+                    ✏️ Editar
+                  </button>
+                  <button onClick={()=>handleDelete(entry)} disabled={deleting===entry.key}
+                    style={{background:C.red+"10",border:`1px solid ${C.red}30`,borderRadius:7,
+                      padding:"6px 14px",fontSize:11,cursor:"pointer",color:C.red,
+                      fontFamily:"'Epilogue',sans-serif",fontWeight:700,opacity:deleting===entry.key?0.5:1}}>
+                    {deleting===entry.key?"...":"🗑 Eliminar"}
+                  </button>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
+                {[
+                  ["Mensajes",    entry.mensajes,       TXT2],
+                  ["Follow-ups",  entry.followUps,      C.blue],
+                  ["Bk Offers",   entry.bkOffers,       C.orange],
+                  ["New Bk",      entry.newBkTotal,     C.purple],
+                  ["Quality Bk",  entry.qualBkTotal,    C.teal],
+                  ["Shows",       entry.showsTotal,     C.green],
+                  ["Show-up %",   fP(pv(entry.showsTotal,entry.qualBkTotal)), cH(pv(entry.showsTotal,entry.qualBkTotal),60,40)],
+                  ["% Calif.",    fP(pv(entry.qualBkTotal,entry.newBkTotal)), cH(pv(entry.qualBkTotal,entry.newBkTotal),50,20)],
+                  ["Posts",       entry.posts,          TXT3],
+                  ["Pitches",     (entry.pitchesOrganic||0)+(entry.pitchesPaid||0), C.blue],
+                  ["Clientes",    entry.activeClients,  C.blue],
+                  ["Inv. Ads",    fD(entry.paidBkInvestment), C.red],
+                  ["Paid Bk #",   entry.paidBkCount,   C.orange],
+                  ["IG Followers",entry.igFollowers,    C.purple],
+                  ["Precio",      fD(entry.offerPrice), C.gold],
+                ].map(([l,v,c])=>(
+                  <div key={l} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+                    borderRadius:8,padding:"9px 12px"}}>
+                    <Lbl style={{marginBottom:2}}>{l}</Lbl>
+                    <div style={{fontSize:16,fontWeight:700,color:c,fontFamily:"'DM Mono',monospace"}}>
+                      {typeof v==="string"?v:fN(v)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+};
+
+// ─── CONTROL COMERCIAL (audit-only — does NOT write to GHL) ────────────────
+const ControlComercial=()=>{
+  const [date,setDate]=useState(today());
+  const [pipeline,setPipeline]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const [savedFlag,setSavedFlag]=useState(false);
+  const [activeItemId,setActiveItemId]=useState(null);
+  const [syncGhl,setSyncGhl]=useState(true);
+  const [syncStatus,setSyncStatus]=useState(null);
+  const [showAllGhlNotes,setShowAllGhlNotes]=useState(false);
+  const [form,setForm]=useState({
+    lead:"",closer:COMERCIAL_CLOSERS[0],appointmentAt:"",
+    outcome:normalizeComercialOutcome(""),nextAction:"",followUpAt:"",note:"",
+  });
+  const sf=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const loadPipeline=async(d)=>{
+    setLoading(true);
+    try{
+      const r=await fetch(`${CONTROL_PIPELINE_URL}?date=${encodeURIComponent(d||date)}`,{method:"GET"});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const j=await r.json();
+      if(!j.ok)throw new Error(j.error||"API error");
+      setPipeline(j);
+      setLoadError(null);
+    }catch(e){
+      setLoadError("No se pudo conectar al pipeline. ("+(e.message||"error")+")");
+      setPipeline(null);
+    }
+    setLoading(false);
+  };
+
+  useEffect(()=>{loadPipeline(date);/* eslint-disable-next-line */},[date]);
+
+  const openUpdate=item=>{
+    setActiveItemId(item.id);
+    setShowAllGhlNotes(false);
+    setForm({
+      lead:item.lead||"",
+      closer:item.closer||COMERCIAL_CLOSERS[0],
+      appointmentAt:item.appointmentAt||"",
+      outcome:normalizeComercialOutcome(item.outcome||""),
+      nextAction:item.nextAction||"",
+      followUpAt:item.followUpAt?String(item.followUpAt).slice(0,10):"",
+      note:item.note||"",
+    });
+  };
+  const closeUpdate=()=>{setActiveItemId(null);setShowAllGhlNotes(false);};
+
+  const handleSave=async()=>{
+    if(!form.lead.trim()){alert("Falta el lead/cliente");return;}
+    setSaving(true);
+    setSyncStatus(null);
+    const activeNow=activeItemId?(pipeline&&Array.isArray(pipeline.items)?pipeline.items.find(it=>it.id===activeItemId):null):null;
+    const currentStageNow=activeNow?(activeNow.stage||(activeNow.pipelineStage!==activeNow.bucket?activeNow.pipelineStage:"")||activeNow.ghlStatus||""):"";
+    const followUpAtIso=form.followUpAt?`${form.followUpAt}T09:00:00`:null;
+    const payload={
+      date,
+      appointmentAt:form.appointmentAt||null,
+      lead:form.lead.trim(),
+      closer:form.closer,
+      outcome:form.outcome,
+      nextAction:form.nextAction.trim(),
+      followUpAt:followUpAtIso,
+      note:form.note.trim(),
+      source:"dashboard",
+      contactId:(activeNow&&activeNow.contactId)||null,
+      opportunityId:(activeNow&&activeNow.opportunityId)||null,
+      email:(activeNow&&activeNow.email)||null,
+      phone:(activeNow&&activeNow.phone)||null,
+      currentStage:currentStageNow||null,
+    };
+    try{
+      const r=await fetch(CONTROL_NOTES_URL,{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify(payload),
+      });
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const j=await r.json();
+      if(!j.ok)throw new Error("API error");
+      setSavedFlag(true);
+      // Sync to GHL after internal save (best-effort, never fails the save).
+      if(syncGhl && activeNow && activeNow.contactId){
+        try{
+          const token=(typeof localStorage!=="undefined"
+            ?(localStorage.getItem("unlocked_admin_token")
+              ||localStorage.getItem("commercial_control_sync_token")
+              ||"")
+            :"");
+          const syncHeaders={"content-type":"application/json"};
+          if(token)syncHeaders["X-Unlocked-Dashboard-Admin-Token"]=token;
+          const syncPayload={
+            contactId:activeNow.contactId,
+            opportunityId:activeNow.opportunityId||null,
+            lead:payload.lead,
+            closer:payload.closer,
+            outcome:payload.outcome,
+            nextAction:payload.nextAction,
+            followUpAt:payload.followUpAt,
+            note:payload.note,
+            date:payload.date,
+            appointmentAt:payload.appointmentAt,
+            currentStage:payload.currentStage,
+          };
+          const sr=await fetch(CONTROL_SYNC_URL,{
+            method:"POST",
+            headers:syncHeaders,
+            body:JSON.stringify(syncPayload),
+          });
+          if(sr.status===401){
+            setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL necesita token de sync."});
+          }else if(sr.status===503){
+            setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL no configurado en servidor."});
+          }else if(!sr.ok){
+            setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL respondió "+sr.status+"."});
+          }else{
+            const sj=await sr.json().catch(()=>({ok:false}));
+            if(sj&&sj.ok){
+              const oks=(Array.isArray(sj.actions)?sj.actions:[]).filter(a=>a&&a.ok).map(a=>a.kind);
+              setSyncStatus({kind:"ok",msg:oks.length?("GHL sincronizado: "+oks.join(", ")):"GHL: nada que sincronizar."});
+            }else{
+              setSyncStatus({kind:"warn",msg:"Guardado interno OK · GHL no aceptó la sincronización."});
+            }
+          }
+        }catch(_){
+          setSyncStatus({kind:"warn",msg:"Guardado interno OK · no se pudo contactar al sync de GHL."});
+        }
+      }else if(syncGhl && activeNow && !activeNow.contactId){
+        setSyncStatus({kind:"warn",msg:"Guardado interno OK · sin contactId para sincronizar."});
+      }
+      setActiveItemId(null);
+      await loadPipeline(date);
+      setTimeout(()=>setSavedFlag(false),2200);
+    }catch(e){
+      alert("Error guardando: "+(e.message||"error"));
+    }
+    setSaving(false);
+  };
+
+  const fmtTime=iso=>{
+    if(!iso)return "—";
+    const m=String(iso).match(/T(\d{2}):(\d{2})/)||String(iso).match(/\s(\d{2}):(\d{2})/);
+    return m?`${m[1]}:${m[2]}`:"—";
+  };
+  const fmtDate=iso=>{
+    if(!iso)return "—";
+    return String(iso).slice(0,10)||"—";
+  };
+  const bucketMeta=k=>COMERCIAL_BUCKETS.find(b=>b.k===k)||COMERCIAL_BUCKETS[0];
+  const outcomeColor=v=>(COMERCIAL_OUTCOMES.find(o=>o.v===v)||{}).c||"#64748B";
+
+  const items=(pipeline&&Array.isArray(pipeline.items))?pipeline.items:[];
+  const stats=(pipeline&&pipeline.stats)||{
+    total:0,porAtender:0,atendidos:0,pendientes:0,followUp:0,
+    hot:0,noShow:0,cerrados:0,sinProximaAccion:0,
+  };
+  const closers=(pipeline&&Array.isArray(pipeline.closers))?pipeline.closers:[];
+  const source=(pipeline&&pipeline.source)||{agenda:"manual-only",fresh:false,warnings:[]};
+
+  const byBucket=COMERCIAL_BUCKETS.reduce((acc,b)=>{acc[b.k]=[];return acc;},{});
+  items.forEach(it=>{
+    const k=byBucket[it.bucket]?it.bucket:"por_atender";
+    byBucket[k].push(it);
+  });
+
+  const activeItem=activeItemId?items.find(it=>it.id===activeItemId)||null:null;
+  const activePipelineStage=activeItem&&activeItem.pipelineStage!==activeItem.bucket?activeItem.pipelineStage:"";
+  const activeStage=activeItem?(activeItem.stage||activePipelineStage||activeItem.ghlStatus||""):"";
+
+  const fieldBox={background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+    color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
+    fontFamily:"'Inter',sans-serif",fontWeight:500,height:38,width:"100%"};
+
+  const renderItemCard=(it)=>{
+    const meta=bucketMeta(it.bucket);
+    const noNext=!it.nextAction||!String(it.nextAction).trim();
+    const hasRisk=Array.isArray(it.riskFlags)&&it.riskFlags.length>0;
+    const tempBadge=it.temperature==="HOT"?{c:C.red,label:"HOT"}:
+      it.temperature==="WARM"?{c:C.amber,label:"WARM"}:null;
+    return(
+      <div key={it.id} className="cc-pipeline-card" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+        borderRadius:10,padding:"10px 12px 10px 16px",position:"relative",overflow:"hidden",flexShrink:0}}>
+        <div className="cc-pipeline-card-rail" style={{position:"absolute",left:0,top:0,bottom:0,width:1,background:meta.c}}/>
+        <div className="cc-pipeline-card-head" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
+          <div className="cc-pipeline-card-headinfo" style={{display:"flex",alignItems:"center",gap:8,minWidth:0,flexWrap:"wrap"}}>
+            <span className="cc-pipeline-time" style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(it.appointmentAt)}</span>
+            <span className="cc-pipeline-lead-name" style={{fontSize:13,fontWeight:600,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={it.lead}>{it.lead||"—"}</span>
+            {tempBadge&&<span style={{fontSize:9,fontWeight:800,letterSpacing:"0.08em",
+              color:tempBadge.c,background:tempBadge.c+"18",border:`1px solid ${tempBadge.c}40`,
+              padding:"2px 6px",borderRadius:6}}>{tempBadge.label}</span>}
+          </div>
+          <button className="cc-pipeline-card-actualizar" onClick={()=>openUpdate(it)} style={{background:BRAND+"15",
+            border:`1px solid ${BRAND}40`,borderRadius:7,padding:"3px 9px",fontSize:10,
+            cursor:"pointer",color:BRAND,fontFamily:"'Inter',sans-serif",fontWeight:700,whiteSpace:"nowrap"}}>
+            Actualizar
+          </button>
+        </div>
+        <div className="cc-pipeline-card-meta" style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:TXT3,marginBottom:6,flexWrap:"wrap"}}>
+          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:TXT2}}>{it.closer||"Sin asignar"}</span>
+          {it.ghlStatus&&<><span>•</span><span>{it.ghlStatus}</span></>}
+          {it.stage&&it.stage!==it.ghlStatus&&<><span>•</span><span title={it.stage}>{String(it.stage).slice(0,18)}</span></>}
+          {it.automationSource==="manual"&&<><span>•</span><span style={{color:C.amber,fontWeight:700}}>MANUAL</span></>}
+        </div>
+        {(it.outcome||it.nextAction||it.followUpAt||it.note)&&(
+          <div style={{paddingTop:6,borderTop:`1px dashed ${BORDER}`,display:"flex",flexDirection:"column",gap:4}}>
+            {it.outcome&&<div style={{fontSize:11,fontWeight:700,color:outcomeColor(it.outcome)}}>{it.outcome}</div>}
+            {it.nextAction&&<div style={{fontSize:11,color:TXT}}>→ {it.nextAction}</div>}
+            {it.followUpAt&&<div style={{fontSize:10,color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>Follow-up: {fmtDate(it.followUpAt)}</div>}
+            {it.note&&<div style={{fontSize:10,color:TXT2,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{it.note}</div>}
+          </div>
+        )}
+        {hasRisk&&(
+          <div style={{marginTop:6,fontSize:10,fontWeight:700,color:C.red,letterSpacing:"0.04em"}}>
+            ⚠ {it.riskFlags.join(" · ")}
+          </div>
+        )}
+        {!hasRisk&&noNext&&(it.bucket==="atendido"||it.bucket==="follow_up"||it.bucket==="no_show")&&(
+          <div style={{marginTop:6,fontSize:10,fontWeight:700,color:C.amber}}>
+            ⚠ Falta próxima acción
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const sourceBadge=(()=>{
+    if(source.agenda==="appointments")return{c:C.green,label:"GHL agenda en vivo"};
+    if(source.agenda==="crm-calls-fallback")return{c:C.amber,label:"Fallback: CRM calls"};
+    return{c:C.red,label:"Solo notas manuales"};
+  })();
+
+  return(
+    <div className="cc-control" style={{display:"flex",flexDirection:"column",gap:14}}>
+
+      {/* Concept banner */}
+      <Card style={{borderColor:BRAND+"55",background:BRAND+"08"}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+          <div style={{width:30,height:30,borderRadius:8,background:BRAND+"22",
+            display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <Icon name="clipboardCheck" size={14} color={BRAND}/>
+          </div>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:BRAND,letterSpacing:"-0.01em",marginBottom:3}}>
+              Pipeline operativo del día
+            </div>
+            <div style={{fontSize:11,color:TXT2,lineHeight:1.55}}>
+              GHL alimenta la cola; el closer confirma resultado y próximo paso. <b>Puede sincronizar nota/tarea/etapa con GHL cuando está activado.</b> Esto es la capa operativa diaria — no es Excel.
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Controls bar */}
+      <Card>
+        <div className="cc-controls-bar" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Fecha operativa</Lbl>
+              <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+                style={{...fieldBox,width:170}}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Fuente</Lbl>
+              <span style={{fontSize:11,fontWeight:700,color:sourceBadge.c,
+                background:sourceBadge.c+"15",border:`1px solid ${sourceBadge.c}40`,
+                padding:"7px 11px",borderRadius:8}}>
+                {sourceBadge.label}{source.fresh?"":" · stale"}
+              </span>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <button onClick={()=>loadPipeline(date)} disabled={loading} style={{
+              background:"transparent",border:`1px solid ${BORDER}`,borderRadius:10,
+              padding:"9px 16px",fontWeight:600,fontSize:12,cursor:"pointer",
+              color:TXT2,fontFamily:"'Inter',sans-serif",opacity:loading?0.5:1}}>
+              ↻ {loading?"Cargando...":"Refrescar"}
+            </button>
+            {savedFlag&&<div style={{fontSize:11,color:C.green,fontWeight:700}}>✓ Guardado</div>}
+            {syncStatus&&(
+              <div style={{fontSize:11,fontWeight:700,
+                color:syncStatus.kind==="ok"?C.green:C.amber,
+                background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
+                border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
+                padding:"6px 10px",borderRadius:8,
+                fontFamily:"'Inter',sans-serif"}}>
+                {syncStatus.msg}
+              </div>
+            )}
+          </div>
+        </div>
+        {Array.isArray(source.warnings)&&source.warnings.length>0&&(
+          <div style={{marginTop:10,fontSize:11,color:C.amber,lineHeight:1.5}}>
+            {source.warnings.map((w,i)=>(<div key={i}>⚠ {w}</div>))}
+          </div>
+        )}
+      </Card>
+
+      {/* KPI cards */}
+      <div className="cc-kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
+        <Stat label="Total en pipeline" value={fN(stats.total)} color={C.blue}/>
+        <Stat label="Por atender" value={fN(stats.porAtender)} color={C.amber}/>
+        <Stat label="Atendidos" value={fN(stats.atendidos)} color={C.green}/>
+        <Stat label="Follow-up / HOT" value={fN(stats.followUp)} sub={stats.hot?`HOT: ${stats.hot}`:""} color={C.orange}/>
+        <Stat label="Cerrados" value={fN(stats.cerrados)} color={C.green}/>
+        <Stat label="No show" value={fN(stats.noShow)} color={C.red}/>
+        <Stat label="Sin próxima acción" value={fN(stats.sinProximaAccion)} color={stats.sinProximaAccion>0?C.red:TXT3}/>
+      </div>
+
+      {/* Errors / loading / empty */}
+      {loadError&&(
+        <Card style={{borderColor:C.red+"55",background:C.red+"08"}}>
+          <div style={{fontSize:12,color:C.red,fontWeight:500}}>{loadError}</div>
+        </Card>
+      )}
+      {loading&&!loadError&&!pipeline&&(
+        <Card>
+          <div style={{textAlign:"center",padding:"24px",color:TXT3,fontSize:12,
+            fontFamily:"'Inter',sans-serif"}}>Cargando pipeline...</div>
+        </Card>
+      )}
+
+      {/* Closer scorecards */}
+      {closers.length>0&&(
+        <Card>
+          <STit title="Disciplina por closer" sub="Score 0-100 según show, follow-up y cierres del día"/>
+          <div className="cc-closer-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10}}>
+            {closers.map(c=>{
+              const scoreColor=c.score>=70?C.green:c.score>=45?C.amber:C.red;
+              return(
+                <div key={c.closer} className="cc-closer-card" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+                  borderRadius:10,padding:"11px 13px"}}>
+                  <div className="cc-closer-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
+                    <span className="cc-closer-name" style={{fontSize:12,fontWeight:700,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}} title={c.closer}>{c.closer}</span>
+                    <span className="cc-closer-score" style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Inter',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
+                  </div>
+                  <Barz value={c.score} max={100} color={scoreColor} h={5}/>
+                  <div className="cc-closer-metrics" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:4,marginTop:8,fontSize:10}}>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Total</Lbl><div style={{fontWeight:700,color:TXT}}>{c.total}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Cerrados</Lbl><div style={{fontWeight:700,color:C.green}}>{c.cerrados}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Pendientes</Lbl><div style={{fontWeight:700,color:c.porAtender>0?C.amber:TXT3}}>{c.porAtender}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Atendidos</Lbl><div style={{fontWeight:700,color:C.blue}}>{c.atendidos}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>No show</Lbl><div style={{fontWeight:700,color:c.noShow>0?C.red:TXT3}}>{c.noShow}</div></div>
+                    <div className="cc-closer-metric"><Lbl style={{marginBottom:1}}>Sin acción</Lbl><div style={{fontWeight:700,color:c.sinProximaAccion>0?C.red:TXT3}}>{c.sinProximaAccion}</div></div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* Update form (only when a card is being edited) */}
+      {activeItemId&&(
+        <Card style={{borderColor:BRAND+"55"}}>
+          <STit title="Actualizar registro" sub="Muestra datos de GHL para identificar el contacto. Se guarda en el panel interno y, si está activado, sincroniza con GHL."
+            right={<button onClick={closeUpdate} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:8,
+              padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Cerrar</button>}/>
+          {activeItem&&(
+            <div className="cc-ghl-readonly" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
+              borderRadius:10,padding:"10px 12px",marginBottom:10,display:"flex",flexDirection:"column",gap:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",color:BRAND,
+                  background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 7px",borderRadius:6}}>
+                  DATOS GHL
+                </span>
+                <span style={{fontSize:10,color:TXT3,fontFamily:"'Inter',sans-serif"}}>
+                  solo lectura · para ubicar el contacto en GHL
+                </span>
+              </div>
+              <div className="cc-ghl-readonly-grid" style={{display:"grid",
+                gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
+                <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
+                  <Lbl>Email</Lbl>
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
+                    title={activeItem.email||""}>{activeItem.email||"—"}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
+                  <Lbl>Teléfono</Lbl>
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
+                    title={activeItem.phone||""}>{activeItem.phone||"—"}</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
+                  <Lbl>Etapa GHL</Lbl>
+                  <div style={{fontSize:12,color:TXT,fontWeight:600,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}
+                    title={activeStage||""}>{activeStage||"—"}</div>
+                </div>
+              </div>
+              {(activeItem.contactId||activeItem.opportunityId)&&(
+                <div style={{display:"flex",gap:10,flexWrap:"wrap",fontSize:10,color:TXT3,
+                  fontFamily:"'JetBrains Mono',monospace",paddingTop:4,borderTop:`1px dashed ${BORDER}`}}>
+                  {activeItem.contactId&&<span style={{userSelect:"all"}} title="contactId">
+                    contact: {String(activeItem.contactId).slice(0,10)}…
+                  </span>}
+                  {activeItem.opportunityId&&<span style={{userSelect:"all"}} title="opportunityId">
+                    opp: {String(activeItem.opportunityId).slice(0,10)}…
+                  </span>}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="cc-update-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10}}>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Lead</Lbl>
+              <input type="text" value={form.lead}
+                onChange={e=>sf("lead",e.target.value)} style={fieldBox}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Closer</Lbl>
+              <input type="text" value={form.closer}
+                onChange={e=>sf("closer",e.target.value)} style={fieldBox}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Resultado</Lbl>
+              <select value={form.outcome} onChange={e=>sf("outcome",e.target.value)}
+                style={{...fieldBox,cursor:"pointer"}}>
+                {COMERCIAL_OUTCOMES.map(o=><option key={o.v} value={o.v}>{o.v}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Próxima acción</Lbl>
+              <input type="text" value={form.nextAction}
+                onChange={e=>sf("nextAction",e.target.value)}
+                placeholder="Ej. enviar oferta, llamar..." style={fieldBox}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <Lbl>Follow-up</Lbl>
+              <input type="date" value={form.followUpAt}
+                onChange={e=>sf("followUpAt",e.target.value)} style={fieldBox}/>
+            </div>
+          </div>
+          {activeItem&&(activeItem.ghlNote||activeItem.fathomNote)!==undefined&&(()=>{
+            const ghlNotesArr=Array.isArray(activeItem.ghlNotes)?activeItem.ghlNotes.filter(n=>n&&String(n.body||"").trim()):[];
+            const fallbackNote=String(activeItem.ghlNote||"").trim();
+            const notes=ghlNotesArr.length>0
+              ?ghlNotesArr
+              :(fallbackNote?[{id:"",body:fallbackNote,createdAt:""}]:[]);
+            const latestBody=(notes[0]&&notes[0].body)||fallbackNote||"";
+            const noteCount=notes.length;
+            const hasMultiple=noteCount>1;
+            const fmtNoteDate=(s)=>{
+              if(!s) return "";
+              const d=new Date(s);
+              if(Number.isNaN(d.getTime())) return "";
+              try{return d.toLocaleDateString("es",{day:"2-digit",month:"short",year:"2-digit"});}
+              catch(_e){return "";}
+            };
+            return(
+            <div className="cc-external-notes" style={{display:"grid",
+              gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,marginTop:10}}>
+              <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+                padding:"8px 10px",display:"flex",flexDirection:"column",gap:6,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",color:BRAND,
+                    background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
+                    NOTA GHL
+                  </span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
+                  {hasMultiple&&(
+                    <span style={{fontSize:9,fontWeight:700,color:TXT2,
+                      background:BORDER,border:`1px solid ${BORDER}`,
+                      padding:"1px 6px",borderRadius:999,fontFamily:"'Inter',sans-serif"}}>
+                      {noteCount} notas
+                    </span>
+                  )}
+                  {hasMultiple&&(
+                    <button type="button"
+                      onClick={()=>setShowAllGhlNotes(v=>!v)}
+                      style={{marginLeft:"auto",background:"transparent",
+                        border:`1px solid ${BORDER}`,borderRadius:6,
+                        padding:"2px 8px",fontSize:10,fontWeight:700,color:TXT2,
+                        cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>
+                      {showAllGhlNotes?"Ocultar":"Ver todas"}
+                    </button>
+                  )}
+                </div>
+                {!showAllGhlNotes&&(
+                  <div style={{fontSize:12,color:latestBody?TXT:TXT3,whiteSpace:"pre-wrap",
+                    wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
+                    maxHeight:140,overflowY:"auto"}}>
+                    {latestBody||"Sin nota GHL para este contacto."}
+                  </div>
+                )}
+                {showAllGhlNotes&&(
+                  <div style={{display:"flex",flexDirection:"column",gap:6,
+                    maxHeight:280,overflowY:"auto",paddingRight:2}}>
+                    {notes.map((n,i)=>{
+                      const dt=fmtNoteDate(n.createdAt);
+                      return(
+                        <div key={n.id||`gn-${i}`} style={{background:SURFACE,
+                          border:`1px solid ${BORDER}`,borderRadius:8,padding:"7px 9px",
+                          display:"flex",flexDirection:"column",gap:3,minWidth:0}}>
+                          {dt&&(
+                            <div style={{fontSize:9,fontWeight:700,color:TXT3,
+                              letterSpacing:"0.04em",fontFamily:"'JetBrains Mono',monospace"}}>
+                              {dt}
+                            </div>
+                          )}
+                          <div style={{fontSize:12,color:TXT,whiteSpace:"pre-wrap",
+                            wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4}}>
+                            {n.body}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+                padding:"8px 10px",display:"flex",flexDirection:"column",gap:4,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",color:BRAND,
+                    background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
+                    NOTA FATHOM
+                  </span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
+                </div>
+                <div style={{fontSize:12,color:activeItem.fathomNote?TXT:TXT3,whiteSpace:"pre-wrap",
+                  wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
+                  maxHeight:140,overflowY:"auto"}}>
+                  {activeItem.fathomNote||"Sin contexto de llamada (Fathom)."}
+                </div>
+              </div>
+            </div>
+            );
+          })()}
+          <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:10}}>
+            <Lbl>Nuestra nota para subir a GHL</Lbl>
+            <textarea value={form.note} onChange={e=>sf("note",e.target.value)} rows={2}
+              placeholder="Lo que escribas aquí se guarda en el panel y se sincroniza a GHL como nota nueva."
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+                color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
+                fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
+          </div>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
+            <button onClick={handleSave} disabled={saving} style={{
+              background:BRAND,color:"#fff",border:"none",borderRadius:10,
+              padding:"10px 22px",fontWeight:700,fontSize:13,
+              cursor:saving?"wait":"pointer",fontFamily:"'Inter',sans-serif",
+              opacity:saving?0.6:1}}>
+              {saving?"Guardando...":(syncGhl?"Guardar y sincronizar":"Guardar registro")}
+            </button>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",
+              fontFamily:"'Inter',sans-serif",userSelect:"none"}}>
+              <input type="checkbox" checked={syncGhl}
+                onChange={e=>setSyncGhl(e.target.checked)}
+                style={{width:16,height:16,cursor:"pointer",accentColor:BRAND}}/>
+              <span style={{display:"flex",flexDirection:"column",gap:1}}>
+                <span style={{fontSize:12,fontWeight:700,color:TXT}}>Sincronizar con GHL</span>
+                <span style={{fontSize:10,color:TXT3,lineHeight:1.35}}>
+                  crea nota/tarea y mueve etapa cuando aplique
+                </span>
+              </span>
+            </label>
+            {syncStatus&&(
+              <div style={{fontSize:11,fontWeight:700,
+                color:syncStatus.kind==="ok"?C.green:C.amber,
+                background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
+                border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
+                padding:"6px 10px",borderRadius:8,
+                fontFamily:"'Inter',sans-serif"}}>
+                {syncStatus.msg}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Pipeline columns — horizontal scroll on mobile, grid on desktop */}
+      {!loading&&!loadError&&items.length===0&&(
+        <Card>
+          <div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
+            fontFamily:"'Inter',sans-serif"}}>
+            Sin items en pipeline para <b style={{color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>{date}</b>.
+          </div>
+        </Card>
+      )}
+
+      {items.length>0&&(
+        <div className="cc-pipeline-board" style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:6}}>
+          {COMERCIAL_BUCKETS.map(b=>{
+            const list=byBucket[b.k]||[];
+            return(
+              <div key={b.k} className="cc-pipeline-col" style={{flex:"0 0 280px",maxWidth:320,
+                background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:14,
+                padding:"12px 12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+                <div className="cc-pipeline-col-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:6,height:6,borderRadius:100,background:b.c}}/>
+                    <span style={{fontSize:12,fontWeight:700,color:TXT,letterSpacing:"-0.01em"}}>{b.label}</span>
+                  </div>
+                  <span style={{fontSize:10,color:TXT3,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{list.length}</span>
+                </div>
+                <div className="cc-pipeline-list" style={{display:"flex",flexDirection:"column",gap:8,maxHeight:520,overflowY:"auto"}}>
+                  {list.length===0&&(
+                    <div className="cc-pipeline-empty" style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Inter',sans-serif"}}>—</div>
+                  )}
+                  {list.map(renderItemCard)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+// ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
+const TABS=[
+  {id:"torre",   l:"Torre CEO",          icon:"home"},
+  {id:"closer",  l:"Area Comercial",     icon:"dollar"},
+  {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
+  {id:"entrada", l:"Marketing",          icon:"rocket"},
+  {id:"agendas", l:"Agendas / Leads",    icon:"calendar"},
+  {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
+  {id:"funnel",  l:"Funnel",             icon:"filter"},
+  {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
+  {id:"colab",   l:"Por Colaborador",    icon:"users"},
+  {id:"hist",    l:"Histórico",          icon:"trendUp"},
+  {id:"admin",   l:"Admin",              icon:"settings"},
+];
+
+const MOBILE_TABS=[
+  TABS.find(t=>t.id==="control"),
+  TABS.find(t=>t.id==="torre"),
+  TABS.find(t=>t.id==="closer"),
+  TABS.find(t=>t.id==="agendas"),
+  TABS.find(t=>t.id==="entrada"),
+  TABS.find(t=>t.id==="equipo"),
+  TABS.find(t=>t.id==="funnel"),
+  TABS.find(t=>t.id==="detalle"),
+  TABS.find(t=>t.id==="colab"),
+  TABS.find(t=>t.id==="hist"),
+  TABS.find(t=>t.id==="admin"),
+].filter(Boolean);
+
+function App(){
+  const [isDark,setIsDark]=useState(()=>localStorage.getItem("theme")==="dark");
+  applyTheme(isDark);
+  const toggleTheme=()=>{const n=!isDark;setIsDark(n);localStorage.setItem("theme",n?"dark":"light");};
+  const [tab,setTab]=useState("torre");
+  const [year,setYear]=useState(new Date().getFullYear());
+  const [month,setMonth]=useState(new Date().getMonth());
+  const [kpiData,setKpiData]=useState({});
+  const [daily,setDaily]=useState({});
+  const [ready,setReady]=useState(false);
+  const [closerData,setCloserData]=useState({});
+  const [error,setError]=useState(null);
+
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const [{data:kpiRows,error:e1},{data:dailyRows,error:e2},{data:adsRows,error:e3},{data:closerRows,error:e4}]=await Promise.all([
+          db.from("kpi_data").select("*"),
+          db.from("daily_entries").select("*"),
+          db.from("ads_entries").select("*"),
+          db.from("daily_closer").select("*"),
+        ]);
+        if(e1||e2||e3||e4)throw new Error("DB error");
+        const kpiObj={};
+        kpiRows?.forEach(row=>{
+          const key=`kpi:${row.year}-${row.month}`;
+          kpiObj[key]={
+            funnel:{revenue:row.revenue?.toString()||"",adSpend:row.ad_spend?.toString()||"",
+              leads:row.leads?.toString()||"",agendas:row.agendas?.toString()||"",
+              shows:row.shows?.toString()||"",cierres:row.cierres?.toString()||""},
+            meta:{revenue:row.meta_revenue?.toString()||"150000"},
+            day:row.day||new Date().getDate(),ads:[],
+            pct_leads_agendadas:row.pct_leads_agendadas?.toString()||"45",
+            pct_agendadas_asistidas:row.pct_agendadas_asistidas?.toString()||"70",
+            close_rate_meta:row.close_rate_meta?.toString()||"25",
+            inversion_planeada:row.inversion_planeada?.toString()||"0",
+            roas_objetivo:row.roas_objetivo?.toString()||"4",
+          };
+        });
+        adsRows?.forEach(row=>{
+          const key=`kpi:${row.year}-${row.month}`;
+          if(!kpiObj[key])kpiObj[key]={funnel:{revenue:"",adSpend:"",leads:"",agendas:"",shows:"",cierres:""},meta:{revenue:"150000"},day:new Date().getDate(),ads:[]};
+          kpiObj[key].ads.push({id:row.id,fecha:row.fecha,canal:row.canal,
+            gasto:row.gasto||0,impresiones:row.impresiones||0,clicks:row.clicks||0,revenue:row.revenue||0});
+        });
+        const dailyObj={};
+        dailyRows?.forEach(row=>{dailyObj[`${row.date}:${row.member}`]=rowToEntry(row);});
+        const closerObj={};
+        closerRows?.forEach(row=>{closerObj[row.date]=row;});
+        setCloserData(closerObj);
+        setKpiData(kpiObj);
+        setDaily(dailyObj);
+      }catch(e){
+        setError("Error conectando a la base de datos. Verifica tu conexión a internet.");
+        console.error(e);
+      }
+      setReady(true);
+    })();
+  },[]);
+
+  const kk=`kpi:${year}-${month}`;
+  const kpi=kpiData[kk]||{funnel:{revenue:"",adSpend:"",leads:"",agendas:"",shows:"",cierres:""},meta:{revenue:"150000"},day:new Date().getDate(),ads:[]};
+
+  const upKpi=async(f,v)=>{
+    const nd={...kpiData,[kk]:{...kpi,funnel:{...kpi.funnel,[f]:v}}};
+    setKpiData(nd);
+    const k=nd[kk];
+    await db.from("kpi_data").upsert({
+      year,month,
+      revenue:nv(k.funnel.revenue),ad_spend:nv(k.funnel.adSpend),
+      leads:nv(k.funnel.leads),agendas:nv(k.funnel.agendas),
+      shows:nv(k.funnel.shows),cierres:nv(k.funnel.cierres),
+      meta_revenue:nv(k.meta.revenue),day:k.day,
+    },{onConflict:"year,month"});
+  };
+
+  const saveEntry=async(key,entry)=>{
+    const nd={...daily,[key]:entry};
+    setDaily(nd);
+    // Marketing columns are always written; closer columns get the manual values
+    // when present (commercial collaborators) or default to 0 (marketing rows).
+    const {error}=await db.from("daily_entries").upsert({
+      date:entry.date,member:entry.member,
+      ig_followers:entry.igFollowers||0,
+      posts:entry.posts||0,mensajes:entry.mensajes||0,
+      follow_ups:entry.followUps||0,bk_offers:entry.bkOffers||0,
+      gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
+      gasto_tiktok:entry.gastoTikTok||0,gasto_otros:entry.gastoOtros||0,
+      new_bk_organic:entry.agendas||0,
+      qual_bk_organic:entry.calificadas||0,
+      today_bk_organic:entry.agendasHoy||0,
+      show_organic:entry.showUps||0,
+      sales_organic:entry.ventasHT||0,
+      revenue_organic:entry.valorVentaHT||0,
+      cash_organic:entry.upfrontCash||0,
+      recurring_organic:entry.recurringCash||0,
+      pitches_organic:entry.pendDiaAnterior||0,
+      pitches_paid:entry.pendAcumulados||0,
+      reservas_organic:entry.reservas||0,
+    },{onConflict:"date,member"});
+    if(error){alert("Error guardando: "+error.message);return false;}
+    return true;
+  };
+
+  const saveCloserEntry=async(date,data)=>{
+    // compute totals from channel splits (keep old columns in sync for Torre CEO)
+    const agendas_calificadas=(data.cal_organicas||0)+(data.cal_meta||0)+(data.cal_google||0)+(data.cal_tiktok||0)+(data.cal_otros||0);
+    const agendas_final=(data.hoy_organicas||0)+(data.hoy_meta||0)+(data.hoy_google||0)+(data.hoy_tiktok||0)+(data.hoy_otros||0);
+    const citas_asistidas=(data.show_organicas||0)+(data.show_meta||0)+(data.show_google||0)+(data.show_tiktok||0)+(data.show_otros||0);
+    const merged={...data,agendas_calificadas,agendas_final,citas_asistidas};
+    const nd={...closerData,[date]:merged};
+    setCloserData(nd);
+    await db.from("daily_closer").upsert({
+      date:data.date||date,
+      q_ventas_ht:data.q_ventas_ht||0,valor_venta_ht:data.valor_venta_ht||0,
+      upfront_cash_ht:data.upfront_cash_ht||0,ventas_cash:data.ventas_cash||0,recurring_cash:data.recurring_cash||0,
+      q_ventas_lt:data.q_ventas_lt||0,valor_venta_lt:data.valor_venta_lt||0,
+      total_clientes_activos:data.total_clientes_activos||0,
+      q_reservas:data.q_reservas||0,cash_reservas:data.cash_reservas||0,
+      q_reembolsos:data.q_reembolsos||0,valor_reembolsos:data.valor_reembolsos||0,
+      agendas_organicas:data.agendas_organicas||0,agendas_meta:data.agendas_meta||0,
+      agendas_google:data.agendas_google||0,agendas_tiktok:data.agendas_tiktok||0,agendas_otros:data.agendas_otros||0,
+      cal_organicas:data.cal_organicas||0,cal_meta:data.cal_meta||0,
+      cal_google:data.cal_google||0,cal_tiktok:data.cal_tiktok||0,cal_otros:data.cal_otros||0,
+      hoy_organicas:data.hoy_organicas||0,hoy_meta:data.hoy_meta||0,
+      hoy_google:data.hoy_google||0,hoy_tiktok:data.hoy_tiktok||0,hoy_otros:data.hoy_otros||0,
+      show_organicas:data.show_organicas||0,show_meta:data.show_meta||0,
+      show_google:data.show_google||0,show_tiktok:data.show_tiktok||0,show_otros:data.show_otros||0,
+      agendas_calificadas,agendas_final,citas_asistidas,
+    },{onConflict:"date"});
+  };
+
+  const saveKpiConfig=async(configObj)=>{
+    const nd={...kpiData,[kk]:{...kpi,
+      meta:{revenue:configObj.meta_revenue?.toString()||kpi.meta.revenue},
+      day:configObj.day||kpi.day,
+      pct_leads_agendadas:configObj.pct_leads_agendadas?.toString()||kpi.pct_leads_agendadas,
+      pct_agendadas_asistidas:configObj.pct_agendadas_asistidas?.toString()||kpi.pct_agendadas_asistidas,
+      close_rate_meta:configObj.close_rate_meta?.toString()||kpi.close_rate_meta,
+      inversion_planeada:configObj.inversion_planeada?.toString()||kpi.inversion_planeada,
+      roas_objetivo:configObj.roas_objetivo?.toString()||kpi.roas_objetivo,
+    }};
+    setKpiData(nd);
+    await db.from("kpi_data").upsert({
+      year,month,
+      meta_revenue:configObj.meta_revenue,
+      day:configObj.day,
+      pct_leads_agendadas:configObj.pct_leads_agendadas,
+      pct_agendadas_asistidas:configObj.pct_agendadas_asistidas,
+      close_rate_meta:configObj.close_rate_meta,
+      inversion_planeada:configObj.inversion_planeada,
+      roas_objetivo:configObj.roas_objetivo,
+      revenue:nv(kpi.funnel.revenue),
+      ad_spend:nv(kpi.funnel.adSpend),
+      leads:nv(kpi.funnel.leads),
+      agendas:nv(kpi.funnel.agendas),
+      shows:nv(kpi.funnel.shows),
+      cierres:nv(kpi.funnel.cierres),
+    },{onConflict:"year,month"});
+  };
+
+  const addAd=async(e)=>{
+    const {data}=await db.from("ads_entries").insert({
+      year,month,fecha:e.fecha,canal:e.canal,
+      gasto:nv(e.gasto)||0,impresiones:nv(e.impresiones)||0,
+      clicks:nv(e.clicks)||0,revenue:nv(e.revenue)||0,
+    }).select().single();
+    const nd={...kpiData,[kk]:{...kpi,ads:[...(kpi.ads||[]),{...e,id:data?.id}]}};
+    setKpiData(nd);
+  };
+
+  const rmAd=async(id)=>{
+    await db.from("ads_entries").delete().eq("id",id);
+    const nd={...kpiData,[kk]:{...kpi,ads:(kpi.ads||[]).filter(e=>e.id!==id)}};
+    setKpiData(nd);
+  };
+
+  const deleteEntry=async(date,member)=>{
+    await db.from("daily_entries").delete().match({date,member});
+    const key=`${date}:${member}`;
+    const nd={...daily};
+    delete nd[key];
+    setDaily(nd);
+  };
+
+  const allKpi=Object.fromEntries(Object.entries(kpiData).filter(([k])=>k.startsWith("kpi:")));
+  const prefix=`${year}-${String(month+1).padStart(2,"0")}`;
+  const mEntries=Object.entries(daily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+  const mShows=sumF(mEntries,"showsTotal"),mQual=sumF(mEntries,"qualBkTotal");
+  const alertShow=mQual>0&&pv(mShows,mQual)<40;
+
+  if(!ready)return(
+    <div style={{display:"flex",justifyContent:"center",alignItems:"center",
+      height:"100vh",background:BG,flexDirection:"column",gap:20}}>
+      <img src="logo.png" alt="Unlocked" style={{width:52,height:52,objectFit:"contain"}}
+        onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
+      <div style={{display:"none",width:48,height:48,borderRadius:14,
+        background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
+        alignItems:"center",justifyContent:"center",
+        fontSize:20,fontWeight:900,color:"#fff",boxShadow:`0 0 30px ${BRAND}40`}}>U</div>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+        <div style={{color:TXT,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:600,letterSpacing:"-0.01em"}}>
+          Torre de Control
+        </div>
+        <div style={{color:TXT3,fontFamily:"'Inter',sans-serif",fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>
+          Cargando datos...
+        </div>
+      </div>
+    </div>
+  );
+
+  if(error)return(
+    <div style={{display:"flex",justifyContent:"center",alignItems:"center",height:"100vh",background:BG}}>
+      <div style={{background:SURFACE,border:`1px solid ${C.red}40`,borderRadius:16,padding:"32px 36px",
+        textAlign:"center",maxWidth:400}}>
+        <div style={{width:44,height:44,borderRadius:12,background:C.red+"18",display:"flex",
+          alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
+          <Icon name="megaphone" size={20} color={C.red}/>
+        </div>
+        <div style={{color:C.red,fontSize:12,lineHeight:1.8,fontFamily:"'Inter',sans-serif"}}>{error}</div>
+      </div>
+    </div>
+  );
+
+  return(
+    <>
+      <style>{`
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        html,body{background:${BG};font-family:'Inter',sans-serif;color:${TXT};height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+        ::-webkit-scrollbar{width:5px;height:5px}
+        ::-webkit-scrollbar-track{background:${BG}}
+        ::-webkit-scrollbar-thumb{background:${BORDER2};border-radius:4px}
+        ::-webkit-scrollbar-thumb:hover{background:#2D3A50}
+        input[type=number]{-moz-appearance:textfield}
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+        input::placeholder{color:${TXT3}}
+        input:focus,select:focus{outline:none;border-color:${BRAND}!important;box-shadow:0 0 0 3px ${BRAND}20!important}
+        select option{background:${SURFACE2};color:${TXT}}
+        button{transition:all .15s ease}
+        .fade-in{animation:fi .22s ease}
+        @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+        .sidebar-item:hover{background:${SURFACE2}!important;color:${TXT}!important}
+        .sidebar-item.active{background:${BRAND}18!important;color:${BRAND}!important;border-left:2px solid ${BRAND}!important}
+        .tab-btn:hover{background:${SURFACE2}!important}
+        @media (max-width:767px){
+          .sidebar{display:none!important}
+          .main-content{margin-left:0!important}
+          .mobile-nav{display:flex!important}
+          .mobile-topbar-extra{display:none!important}
+          .page-content{padding:12px 12px 96px!important}
+          .cc-control{gap:10px!important}
+          .cc-control > div{border-radius:14px!important;padding:14px!important}
+          .cc-controls-bar{align-items:stretch!important;gap:12px!important}
+          .cc-controls-bar > div{width:100%!important;display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:10px!important}
+          .cc-controls-bar input[type=date]{width:100%!important;height:42px!important;font-size:14px!important}
+          .cc-controls-bar button{width:100%!important;justify-content:center!important;padding:11px 14px!important}
+          .cc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+          .cc-closer-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:8px!important;overflow:visible!important;padding-bottom:0!important;scroll-snap-type:none!important}
+          .cc-closer-card{min-width:0!important;width:100%!important;padding:12px!important;border-radius:14px!important}
+          .cc-closer-head{align-items:flex-start!important;margin-bottom:10px!important}
+          .cc-closer-name{max-width:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;font-size:13px!important;line-height:1.25!important;padding-top:2px!important}
+          .cc-closer-score{font-size:22px!important;line-height:1!important;min-width:42px!important;text-align:right!important}
+          .cc-closer-metrics{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;margin-top:10px!important;font-size:11px!important}
+          .cc-closer-metric{background:${SURFACE}!important;border:1px solid ${BORDER}!important;border-radius:10px!important;padding:7px 6px!important;min-width:0!important;text-align:left!important}
+          .cc-closer-metric > div:first-child{font-size:8px!important;letter-spacing:.08em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+          .cc-closer-metric > div:last-child{font-size:15px!important;line-height:1.1!important}
+          .cc-update-grid{grid-template-columns:minmax(0,1fr)!important}
+          .cc-pipeline-board{display:flex!important;flex-direction:column!important;overflow-x:visible!important;gap:12px!important;padding-bottom:0!important}
+          .cc-pipeline-col{flex:1 1 auto!important;width:100%!important;max-width:none!important;padding:12px!important;border-radius:16px!important}
+          .cc-pipeline-col-head{padding-bottom:2px!important}
+          .cc-pipeline-list{max-height:none!important;overflow-y:visible!important;gap:8px!important}
+          .cc-pipeline-empty{padding:8px 0!important}
+          .cc-pipeline-card{padding:12px!important;border-radius:14px!important;overflow:visible!important}
+          .cc-pipeline-card-rail{display:none!important}
+          .cc-pipeline-card-head{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:start!important;gap:10px!important;margin-bottom:8px!important}
+          .cc-pipeline-card-headinfo{display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;align-items:start!important;gap:4px 8px!important;min-width:0!important}
+          .cc-pipeline-time{font-size:13px!important;line-height:1.2!important;padding-top:1px!important}
+          .cc-pipeline-lead-name{max-width:none!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;font-size:14px!important;line-height:1.25!important}
+          .cc-pipeline-card-actualizar{font-size:11px!important;padding:6px 10px!important;border-radius:999px!important}
+          .cc-pipeline-card-meta{font-size:11px!important;line-height:1.45!important;margin-bottom:7px!important}
+        }
+        @media (min-width:768px){
+          .mobile-nav{display:none!important}
+          .mobile-period-bar{display:none!important}
+        }
+      `}</style>
+      <div style={{height:"100vh",background:BG,color:TXT,display:"flex",overflow:"hidden"}}>
+
+        {/* Sidebar */}
+        <div className="sidebar" style={{width:220,flexShrink:0,background:SURFACE,borderRight:`1px solid ${BORDER}`,
+          display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:100,
+          overflowY:"auto"}}>
+
+          {/* Logo */}
+          <div style={{padding:"20px 18px 16px",borderBottom:`1px solid ${BORDER}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <img src="logo.png" alt="Unlocked" style={{width:30,height:30,objectFit:"contain"}}
+                onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
+              <div style={{display:"none",width:30,height:30,borderRadius:8,
+                background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
+                alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>U</div>
+              <div>
+                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED</div>
+                <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Command Center</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Month/Year selectors */}
+          <div style={{padding:"14px 14px 10px",borderBottom:`1px solid ${BORDER}`}}>
+            <Lbl style={{marginBottom:8}}>Período</Lbl>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <select value={month} onChange={e=>setMonth(Number(e.target.value))}
+                style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                  color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
+                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+              </select>
+              <select value={year} onChange={e=>setYear(Number(e.target.value))}
+                style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                  color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
+                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Nav items */}
+          <nav style={{padding:"10px 10px",flex:1}}>
+            <Lbl style={{marginLeft:8,marginBottom:6}}>Navegación</Lbl>
+            {TABS.map(t=>{
+              const active=tab===t.id;
+              const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
+              return(
+                <button key={t.id} onClick={()=>setTab(t.id)}
+                  className={`sidebar-item${active?" active":""}`}
+                  style={{width:"100%",textAlign:"left",background:active?BRAND+"18":"transparent",
+                    border:"none",borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
+                    borderRadius:active?"0 9px 9px 0":"0 9px 9px 0",
+                    padding:"9px 12px",cursor:"pointer",
+                    color:active?BRAND:TXT2,fontSize:12,fontWeight:active?700:500,
+                    fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                    gap:9,marginBottom:2,position:"relative",transition:"all .15s"}}>
+                  <Icon name={t.icon} size={15} color={active?BRAND:TXT3}/>
+                  <span>{t.l}</span>
+                  {hasAlert&&<span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+                    width:6,height:6,background:C.red,borderRadius:100}}/>}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Footer info */}
+          <div style={{padding:"12px 16px",borderTop:`1px solid ${BORDER}`}}>
+            <div style={{fontSize:9,color:TXT3,letterSpacing:"0.05em",lineHeight:1.6,marginBottom:10}}>
+              <div style={{color:TXT2,fontWeight:600,marginBottom:2}}>{MONTHS[month]} {year}</div>
+              <div>Día {kpi.day} de {MDAYS[month]}</div>
+              {kpi.funnel.revenue&&<div style={{color:BRAND,fontWeight:600,marginTop:2}}>{fD(nv(kpi.funnel.revenue))} revenue</div>}
+            </div>
+            <button onClick={toggleTheme} style={{
+              width:"100%",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+              padding:"8px 10px",cursor:"pointer",color:TXT2,fontSize:11,fontWeight:600,
+              fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",gap:8,
+              transition:"all .15s"}}>
+              <Icon name={isDark?"trendUp":"barChart"} size={13} color={TXT3}/>
+              {isDark?"Modo Claro":"Modo Oscuro"}
+            </button>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="main-content" style={{flex:1,marginLeft:220,height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {/* Top bar */}
+          <div style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,
+            padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",
+            position:"sticky",top:0,zIndex:50}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
+              <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
+                {TABS.find(t=>t.id===tab)?.l}
+              </div>
+              <div className="mobile-topbar-extra" style={{fontSize:10,color:TXT3,marginTop:4,letterSpacing:"0.02em"}}>
+                {MONTHS[month].toUpperCase()} {year} · DÍA {kpi.day} DE {MDAYS[month]}
+                {mQual>0&&<> · <span style={{color:cH(pv(mShows,mQual),60,40)}}>{fP(pv(mShows,mQual))} show-up</span></>}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile period bar */}
+          <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
+            {tab!=="control"&&<button onClick={()=>setTab("control")} style={{
+              background:BRAND,color:"#fff",border:"none",borderRadius:9,padding:"8px 10px",
+              fontSize:11,fontWeight:800,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
+              Control Comercial
+            </button>}
+            <select value={month} onChange={e=>setMonth(Number(e.target.value))}
+              style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
+                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+              {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
+            </select>
+            <select value={year} onChange={e=>setYear(Number(e.target.value))}
+              style={{width:80,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
+                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+              {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
+            </select>
+          </div>
+
+          {/* Page content */}
+          <div style={{padding:"20px 24px 60px",flex:1,overflowY:"auto",overflowX:"hidden"}} className="fade-in page-content">
+            {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
+            {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
+            {tab==="control" &&<ControlComercial/>}
+            {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
+            {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
+            {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
+            {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
+            {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
+            {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
+            {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
+            {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+          </div>
+        </div>
+
+        {/* Mobile bottom nav */}
+        <div className="mobile-nav" style={{
+          position:"fixed",bottom:0,left:0,right:0,zIndex:200,
+          background:SURFACE,borderTop:`1px solid ${BORDER}`,
+          display:"none",overflowX:"auto",
+          boxShadow:"0 -4px 20px rgba(0,0,0,.2)"}}>
+          <div style={{display:"flex",minWidth:"max-content",padding:"6px 4px 8px"}}>
+            {MOBILE_TABS.map(t=>{
+              const active=tab===t.id;
+              return(
+                <button key={t.id} onClick={()=>setTab(t.id)} style={{
+                  display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+                  background:"transparent",border:"none",cursor:"pointer",
+                  padding:"6px 12px",borderRadius:10,minWidth:t.id==="control"?104:72,
+                  color:active?BRAND:TXT3,
+                  transition:"all .15s",flexShrink:0}}>
+                  <Icon name={t.icon} size={20} color={active?BRAND:TXT3}/>
+                  <span style={{fontSize:9,fontWeight:active?700:500,
+                    fontFamily:"'Inter',sans-serif",letterSpacing:"0.01em",
+                    color:active?BRAND:TXT3,whiteSpace:"nowrap"}}>{t.l}</span>
+                  {active&&<div style={{width:16,height:2,background:BRAND,borderRadius:2}}/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
