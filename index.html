@@ -3238,7 +3238,12 @@ function App(){
           db.from("ads_entries").select("*"),
           db.from("daily_closer").select("*"),
         ]);
-        if(e1||e2||e3||e4)throw new Error("DB error");
+        const dataError=e1||e2||e3||e4;
+        if(dataError){
+          if(dataError.status===401){window.location.href="/login?next=/";return;}
+          if(dataError.status===403)throw new Error(dataError.message||"No tienes permiso para ver estos datos.");
+          throw new Error(dataError.message||"DB error");
+        }
         const kpiObj={};
         kpiRows?.forEach(row=>{
           const key=`kpi:${row.year}-${row.month}`;
