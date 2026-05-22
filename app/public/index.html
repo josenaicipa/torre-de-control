@@ -2228,12 +2228,9 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
 };
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-const ADMIN_PIN = "1234"; // ← cambia este PIN cuando quieras
-
 const AdminView=({allDaily,onSave,onDelete})=>{
-  const [pin,setPin]=useState("");
   const [authed,setAuthed]=useState(false);
-  const [pinError,setPinError]=useState(false);
+  const [authState,setAuthState]=useState("checking");
   const [filterMember,setFilterMember]=useState("Todos");
   const [filterDate,setFilterDate]=useState("");
   const [editing,setEditing]=useState(null);
@@ -2241,10 +2238,20 @@ const AdminView=({allDaily,onSave,onDelete})=>{
   const [saving,setSaving]=useState(false);
   const [deleting,setDeleting]=useState(null);
 
-  const tryPin=()=>{
-    if(pin===ADMIN_PIN){setAuthed(true);setPinError(false);}
-    else{setPinError(true);setPin("");}
-  };
+  useEffect(()=>{
+    let alive=true;
+    fetch("/api/auth/me",{credentials:"same-origin"})
+      .then(async res=>{
+        if(!alive)return;
+        if(res.status===401){setAuthState("login");return;}
+        if(!res.ok){setAuthState("error");return;}
+        const data=await res.json().catch(()=>({}));
+        if(data?.user?.canManageUsers){setAuthed(true);setAuthState("ok");}
+        else{setAuthState("forbidden");}
+      })
+      .catch(()=>alive&&setAuthState("error"));
+    return()=>{alive=false;};
+  },[]);
 
   const entries=Object.entries(allDaily)
     .map(([k,v])=>({key:k,...v}))
@@ -2275,34 +2282,33 @@ const AdminView=({allDaily,onSave,onDelete})=>{
     setDeleting(null);
   };
 
-  if(!authed)return(
+  if(!authed){
+    const isChecking=authState==="checking";
+    const title=isChecking?"Validando acceso admin":authState==="forbidden"?"Tu usuario no tiene permisos de admin":"Inicia sesión como admin";
+    const subtitle=isChecking?"Revisando tu sesión segura…":authState==="forbidden"?"Pide a un admin que te active permisos de usuarios":"El PIN fue removido; el acceso depende de tu usuario y permisos";
+    return(
     <Card>
       <div style={{textAlign:"center",padding:"50px 20px"}}>
         <div style={{width:52,height:52,borderRadius:14,background:BORDER2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-          <Icon name="lock" size={22} color={TXT3}/>
+          <Icon name={isChecking?"users":"lock"} size={22} color={TXT3}/>
         </div>
-        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>Panel Admin</div>
+        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>{title}</div>
         <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace",marginBottom:24}}>
-          Solo el administrador puede acceder aquí
+          {subtitle}
         </div>
-        <input type="password" value={pin}
-          onChange={e=>{setPin(e.target.value);setPinError(false);}}
-          onKeyDown={e=>e.key==="Enter"&&tryPin()}
-          placeholder="PIN de administrador"
-          style={{background:SURFACE2,border:`1.5px solid ${pinError?C.red:BORDER}`,
-            borderRadius:9,color:TXT,padding:"11px 18px",fontSize:14,outline:"none",
-            fontFamily:"'DM Mono',monospace",textAlign:"center",width:220,display:"block",margin:"0 auto"}}/>
-        {pinError&&<div style={{fontSize:11,color:C.red,marginTop:7,fontFamily:"'DM Mono',monospace"}}>
-          PIN incorrecto — intenta de nuevo
-        </div>}
-        <button onClick={tryPin} style={{marginTop:14,background:C.gold,color:"#fff",border:"none",
-          borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`}}>
-          Entrar
-        </button>
+        {!isChecking&&authState!=="forbidden"&&<a href="/login" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
+          border:"none",borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
+          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`,textDecoration:"none"}}>
+          Iniciar sesión
+        </a>}
+        {!isChecking&&authState==="forbidden"&&<a href="/" style={{display:"inline-flex",alignItems:"center",gap:8,background:SURFACE2,color:TXT,
+          border:`1px solid ${BORDER}`,borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
+          fontFamily:"'Epilogue',sans-serif",textDecoration:"none"}}>
+          Volver al dashboard
+        </a>}
       </div>
     </Card>
-  );
+  );}
 
   const EDIT_FIELDS=[
     {k:"posts",l:"Posts + CTA"},{k:"mensajes",l:"Mensajes"},{k:"followUps",l:"Follow-ups"},{k:"bkOffers",l:"Bk Offers"},
