@@ -53,11 +53,11 @@ describe("resolveDashboardAccess — permissions", () => {
     expect(readOnly.canWrite).toBe(false);
   });
 
-  it("allows legacy empty-permission users to read but not write", () => {
+  it("fails closed for empty-permission non-admin users", () => {
     const none = resolveDashboardAccess(
       actor({ position: "CLOSER", dataScope: "OWN", ghlUserName: "Carlos Velez", permissions: [] }),
     );
-    expect(none.canRead).toBe(true);
+    expect(none.canRead).toBe(false);
     expect(none.canWrite).toBe(false);
   });
 });

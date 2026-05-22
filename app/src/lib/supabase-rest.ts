@@ -1,35 +1,20 @@
-// Server-side Supabase PostgREST client.
+// Server-side Supabase PostgREST export client.
 //
-// Server-only by construction: it is imported solely by Node route handlers and
-// references the anon key, which must never reach the browser bundle.
-//
-// The browser dashboard used to talk to Supabase directly with the anon key,
-// which let anyone read/write every table. All access now goes through
-// authenticated same-origin Next routes that use this server-only client.
-//
-// The anon key is RLS-gated and was already committed in public/index.html, so
-// keeping it as a server fallback introduces no new secret. Prefer real env
-// values when present. Never expose these values to the browser and never log
-// them.
-
-const FALLBACK_URL = "https://vluuftzeivluexuhdupu.supabase.co";
-const FALLBACK_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsdXVmdHplaXZsdWV4dWhkdXB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTczNTAsImV4cCI6MjA4OTc3MzM1MH0.DlM-t41BzH0TBxaxiZBQfjg6l-zO0Cs17Uvn4FBZlkQ";
+// This legacy helper is used only by scripts/backfill-dashboard-rds.ts to read
+// old Supabase rows during explicit migration/backfill runs. It must never be
+// imported by browser code, and it has no hardcoded fallback credentials: the
+// operator must provide env vars at runtime.
 
 function baseUrl(): string {
-  return (
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    FALLBACK_URL
-  ).replace(/\/+$/, "");
+  const value = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!value) throw new SupabaseRestError("supabase-url-missing", 500);
+  return value.replace(/\/+$/, "");
 }
 
 function anonKey(): string {
-  return (
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    FALLBACK_ANON_KEY
-  );
+  const value = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!value) throw new SupabaseRestError("supabase-anon-key-missing", 500);
+  return value;
 }
 
 export class SupabaseRestError extends Error {

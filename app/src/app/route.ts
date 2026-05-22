@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getSession } from "@/lib/auth";
+import { getDashboardActor } from "@/lib/dashboard-actor";
+import { resolveDashboardAccess } from "@/lib/dashboard-access";
 
 // The dashboard shell (public/index.html) is gated by middleware, but we also
 // check the session here as defense-in-depth: if middleware is ever bypassed or
@@ -10,8 +11,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session) {
+  const actorResult = await getDashboardActor();
+  const access = actorResult ? resolveDashboardAccess(actorResult.actor) : null;
+  if (!access?.canRead) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("next", "/");
     return Response.redirect(loginUrl, 302);

@@ -107,12 +107,14 @@ async function main() {
   const { prisma } = await import("../src/lib/prisma.js");
   const user = await prisma.user.upsert({
     where: { email: normalizedEmail },
-    update: { passwordHash, role: "ADMIN", active: true, name: name ?? undefined },
+    update: { passwordHash, role: "ADMIN", position: "ADMIN", dataScope: "ALL", active: true, name: name ?? undefined },
     create: {
       email: normalizedEmail,
       name: name ?? null,
       passwordHash,
       role: "ADMIN",
+      position: "ADMIN",
+      dataScope: "ALL",
       active: true,
     },
   });

@@ -79,7 +79,7 @@ model User {
 
   // Scoped-dashboard configuration (panel-controlled, tied to GHL).
   position  OperationalPosition @default(VIEWER)
-  dataScope DataScope           @default(ALL)
+  dataScope DataScope           @default(OWN)
 
   areaId String?
   area   Area?   @relation(fields: [areaId], references: [id], onDelete: SetNull)

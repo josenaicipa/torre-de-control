@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getDashboardActor } from "@/lib/dashboard-actor";
+import { resolveDashboardAccess } from "@/lib/dashboard-access";
 import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  const session = await getSession();
-  if (session) {
+  const actorResult = await getDashboardActor();
+  const access = actorResult ? resolveDashboardAccess(actorResult.actor) : null;
+  if (access?.canRead) {
     redirect("/");
   }
 

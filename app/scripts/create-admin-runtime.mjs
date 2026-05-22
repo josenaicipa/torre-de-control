@@ -42,6 +42,8 @@ try {
     update: {
       passwordHash,
       role: "ADMIN",
+      position: "ADMIN",
+      dataScope: "ALL",
       active: true,
       name,
     },
@@ -50,6 +52,8 @@ try {
       name: name ?? null,
       passwordHash,
       role: "ADMIN",
+      position: "ADMIN",
+      dataScope: "ALL",
       active: true,
     },
   });

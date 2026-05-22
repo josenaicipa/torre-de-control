@@ -1,5 +1,4 @@
 import { getSession } from "@/lib/auth";
-import type { SessionPayload } from "@/lib/session";
 import type { DashboardActor } from "@/lib/dashboard-access";
 
 // Loads the *active* database user behind the current session and shapes it into
@@ -8,26 +7,7 @@ import type { DashboardActor } from "@/lib/dashboard-access";
 // database so a suspended or downgraded user loses access immediately.
 
 export interface ActorResult {
-  session: SessionPayload;
   actor: DashboardActor;
-}
-
-// Fallback used only when no database is configured (e.g. a stripped-down
-// environment). A genuine ADMIN session still gets global access; everyone else
-// fails closed with no permissions.
-function actorFromSession(session: SessionPayload): DashboardActor | null {
-  if (session.role !== "ADMIN") return null;
-  return {
-    role: "ADMIN",
-    permissions: [],
-    position: "ADMIN",
-    dataScope: "ALL",
-    name: null,
-    email: session.email,
-    ghlUserName: null,
-    areaName: null,
-    teamName: null,
-  };
 }
 
 export async function getDashboardActor(): Promise<ActorResult | null> {
@@ -35,8 +15,7 @@ export async function getDashboardActor(): Promise<ActorResult | null> {
   if (!session) return null;
 
   if (!process.env.DATABASE_URL) {
-    const actor = actorFromSession(session);
-    return actor ? { session, actor } : null;
+    return null;
   }
 
   try {
@@ -70,10 +49,10 @@ export async function getDashboardActor(): Promise<ActorResult | null> {
       areaName: user.area?.name ?? null,
       teamName: user.team?.name ?? null,
     };
-    return { session, actor };
+    return { actor };
   } catch {
-    // Database unreachable: fall back to session-only (admin -> global, else null).
-    const actor = actorFromSession(session);
-    return actor ? { session, actor } : null;
+    // Database unreachable: fail closed. Session claims alone are not enough to
+    // prove the user is still active or still has the same permissions/scope.
+    return null;
   }
 }

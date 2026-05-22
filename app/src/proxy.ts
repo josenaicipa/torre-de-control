@@ -52,5 +52,5 @@ export async function proxy(req: NextRequest) {
 // Static assets (/_next, /logo.png, fonts, favicon) are not listed and stay
 // public so the login page and shell can load.
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/api/:path*"],
+  matcher: ["/", "/dashboard/:path*", "/admin/:path*", "/api/:path*"],
 };
