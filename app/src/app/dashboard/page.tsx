@@ -36,7 +36,8 @@ export default async function DashboardPage() {
     <main className="container">
       <div className="topbar">
         <span className="brand">Torre de Control</span>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {session.role === "ADMIN" ? <a className="btn secondary" href="/admin/users">Usuarios</a> : null}
           <span className="muted">{session.email}</span>
           <LogoutButton />
         </div>
