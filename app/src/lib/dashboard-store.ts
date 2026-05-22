@@ -202,10 +202,10 @@ export async function checkDashboardTable(table: string): Promise<TableHealth> {
   if (!isDashboardTable(table)) return { ok: false, error: "not-a-dashboard-table" };
   try {
     const prisma = await db();
-    const rows = await prisma.$queryRawUnsafe<Row[]>(
-      `SELECT 1 AS ok FROM ${quoteIdent(table)} LIMIT 1`,
+    const rows = await prisma.$queryRawUnsafe<Array<{ count: number | bigint }>>(
+      `SELECT COUNT(*)::int AS count FROM ${quoteIdent(table)}`,
     );
-    return { ok: true, rows: rows.length };
+    return { ok: true, rows: Number(rows[0]?.count ?? 0) };
   } catch {
     return { ok: false, error: "rds-table-unreadable" };
   }
