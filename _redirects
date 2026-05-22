@@ -1,6 +1,0 @@
-/api/* https://3ddm3fzqeg.us-east-1.awsapprunner.com/api/:splat 200
-/login https://3ddm3fzqeg.us-east-1.awsapprunner.com/login 200
-/login/* https://3ddm3fzqeg.us-east-1.awsapprunner.com/login/:splat 200
-/admin/users https://3ddm3fzqeg.us-east-1.awsapprunner.com/admin/users 200
-/admin/users/* https://3ddm3fzqeg.us-east-1.awsapprunner.com/admin/users/:splat 200
-/_next/* https://3ddm3fzqeg.us-east-1.awsapprunner.com/_next/:splat 200
