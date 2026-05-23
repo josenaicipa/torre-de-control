@@ -218,7 +218,8 @@ observed denied; see "Known blockers" above). Applying the stack requires an
 elevated principal with at least:
 
 - `cloudformation:CreateStack` / `UpdateStack` / `DescribeStacks` /
-  `DeleteStack` / `CreateChangeSet` / `ExecuteChangeSet`
+  `DeleteStack` / `CreateChangeSet` / `ExecuteChangeSet` /
+  `GetTemplateSummary` (used by `aws cloudformation deploy`)
 - `iam:CreateRole` / `DeleteRole` / `AttachRolePolicy` / `PutRolePolicy` /
   `PassRole` (for the task execution and task roles; needs `CAPABILITY_NAMED_IAM`)
 - `ec2:CreateSecurityGroup` / `AuthorizeSecurityGroupIngress` /
