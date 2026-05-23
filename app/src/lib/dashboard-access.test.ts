@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  canReadDashboard,
+  canWriteDashboard,
   isMemberAllowed,
   resolveDashboardAccess,
   type DashboardActor,
@@ -59,6 +61,32 @@ describe("resolveDashboardAccess — permissions", () => {
     );
     expect(none.canRead).toBe(false);
     expect(none.canWrite).toBe(false);
+  });
+});
+
+describe("resolveDashboardAccess — MENTOR isolation", () => {
+  it("denies commercial dashboard reads even with a legacy read permission", () => {
+    const mentor = actor({ role: "MENTOR", position: "VIEWER", permissions: ["dashboard.read"] });
+    expect(canReadDashboard(mentor)).toBe(false);
+  });
+
+  it("denies commercial dashboard writes even with a legacy write permission", () => {
+    const mentor = actor({ role: "MENTOR", position: "VIEWER", permissions: ["dashboard.write"] });
+    expect(canWriteDashboard(mentor)).toBe(false);
+  });
+
+  it("permits explicitly elevated MENTOR users with ADMIN position", () => {
+    const mentorAdmin = actor({ role: "MENTOR", position: "ADMIN", permissions: [] });
+    expect(canReadDashboard(mentorAdmin)).toBe(true);
+    expect(canWriteDashboard(mentorAdmin)).toBe(true);
+  });
+
+  it("does not make a MENTOR readable when ALL remains stored as legacy scope", () => {
+    const a = resolveDashboardAccess(
+      actor({ role: "MENTOR", position: "VIEWER", dataScope: "ALL", permissions: ["dashboard.read"] }),
+    );
+    expect(a.canRead).toBe(false);
+    expect(a.canWrite).toBe(false);
   });
 });
 
