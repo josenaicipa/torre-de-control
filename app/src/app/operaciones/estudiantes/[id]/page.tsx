@@ -31,7 +31,6 @@ export default async function StudentDetailPage({
     where: { id },
     include: {
       mentorUser: { select: { id: true, name: true, email: true } },
-      program: { select: { id: true, slug: true, name: true } },
       members: true,
       _count: {
         select: {
@@ -94,7 +93,7 @@ export default async function StudentDetailPage({
   );
 }
 
-function InfoTab({ student }: { student: { fullName: string; email: string; phone: string | null; durationMonths: number; status: string; legalName: string | null; notes: string | null; personality: string | null; ghlContactId: string | null; program: { name: string } | null } }) {
+function InfoTab({ student }: { student: { fullName: string; email: string; phone: string | null; durationMonths: number; status: string; legalName: string | null; notes: string | null; personality: string | null; ghlContactId: string | null } }) {
   return (
     <dl className="grid grid-cols-2 gap-4 text-sm">
       <div>
@@ -107,7 +106,7 @@ function InfoTab({ student }: { student: { fullName: string; email: string; phon
       </div>
       <div>
         <dt className="font-medium text-slate-500">Programa</dt>
-        <dd className="text-slate-900">{student.program?.name ?? "—"}</dd>
+        <dd className="text-slate-900">Nivel 5 + Clases Avanzadas</dd>
       </div>
       <div>
         <dt className="font-medium text-slate-500">Duración</dt>

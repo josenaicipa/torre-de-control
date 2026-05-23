@@ -45,7 +45,6 @@ export default async function EstudiantesPage({
       take: pageSize,
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
-        program: { select: { id: true, name: true } },
       },
     }),
     prisma.student.count({ where: scoped as never }),
@@ -123,7 +122,6 @@ export default async function EstudiantesPage({
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Nombre</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Email</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Mentor</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Programa</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Inicio</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Fin</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Estado</th>
@@ -132,7 +130,7 @@ export default async function EstudiantesPage({
           <tbody className="divide-y divide-slate-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
                   No hay estudiantes para mostrar.
                 </td>
               </tr>
@@ -146,7 +144,6 @@ export default async function EstudiantesPage({
                   </td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.email}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.mentorUser?.name ?? s.mentorUser?.email ?? "—"}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{s.program?.name ?? "—"}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.startDate.toISOString().slice(0, 10)}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.endDate.toISOString().slice(0, 10)}</td>
                   <td className="px-4 py-2 text-sm">

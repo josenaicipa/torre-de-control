@@ -381,19 +381,6 @@ enum ProgressLevel {
   SIN_DATO
 }
 
-model Program {
-  id                    String   @id @default(cuid())
-  slug                  String   @unique
-  name                  String
-  durationMonthsDefault Int      @default(12)
-  description           String?
-  active                Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  students Student[]
-}
-
 model Student {
   id                   String         @id @default(cuid())
   fullName             String
@@ -404,8 +391,6 @@ model Student {
   endDate              DateTime       @db.Date
   mentorUserId         String?
   mentorUser           User?          @relation("StudentMentor", fields: [mentorUserId], references: [id], onDelete: SetNull)
-  programId            String?
-  program              Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
   status               StudentStatus  @default(ACTIVE)
   durationAssumed      Boolean        @default(false)
   closedAt             DateTime?      @db.Date
@@ -430,7 +415,6 @@ model Student {
   promotedFromContact Contact?                @relation("ContactPromotion")
 
   @@index([mentorUserId])
-  @@index([programId])
   @@index([status])
   @@index([legacyRowId])
 }

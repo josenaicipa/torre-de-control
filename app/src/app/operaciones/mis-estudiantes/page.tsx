@@ -11,7 +11,6 @@ export default async function MisEstudiantesPage() {
   if (!actor.mentorUserId) redirect("/operaciones");
   const students = await prisma.student.findMany({
     where: { mentorUserId: actor.mentorUserId },
-    include: { program: { select: { name: true } } },
     orderBy: { fullName: "asc" },
   });
   return (
@@ -34,7 +33,7 @@ export default async function MisEstudiantesPage() {
             ) : students.map((s) => (
               <tr key={s.id}>
                 <td className="px-4 py-2 text-sm"><a href={`/operaciones/estudiantes/${s.id}`} className="font-medium text-slate-900 hover:underline">{s.fullName}</a></td>
-                <td className="px-4 py-2 text-sm text-slate-600">{s.program?.name ?? "—"}</td>
+                <td className="px-4 py-2 text-sm text-slate-600">Nivel 5 + Clases Avanzadas</td>
                 <td className="px-4 py-2 text-sm text-slate-600">{s.status}</td>
                 <td className="px-4 py-2 text-sm text-slate-600">{s.endDate.toISOString().slice(0, 10)}</td>
               </tr>
