@@ -79,20 +79,35 @@ jobs:
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Update App Runner service
+        id: deploy
         run: |
           set -euo pipefail
-          aws apprunner update-service \
+          OPERATION_ID="$(aws apprunner update-service \
             --region "${AWS_REGION}" \
             --service-arn "${APP_RUNNER_SERVICE_ARN}" \
             --source-configuration "ImageRepository={ImageIdentifier=${{ steps.image.outputs.image_uri }},ImageRepositoryType=ECR,ImageConfiguration={Port=3000}},AuthenticationConfiguration={AccessRoleArn=${APP_RUNNER_ACCESS_ROLE_ARN}}" \
             --query 'OperationId' \
-            --output text
+            --output text)"
+          echo "operation_id=${OPERATION_ID}" >> "$GITHUB_OUTPUT"
+          echo "${OPERATION_ID}"
 
       - name: Wait for App Runner to be running on new image
         run: |
           set -euo pipefail
           EXPECTED_IMAGE="${{ steps.image.outputs.image_uri }}"
+          OPERATION_ID="${{ steps.deploy.outputs.operation_id }}"
           for attempt in $(seq 1 60); do
+            OPERATION_STATUS="$(aws apprunner list-operations \
+              --region "${AWS_REGION}" \
+              --service-arn "${APP_RUNNER_SERVICE_ARN}" \
+              --query "OperationSummaryList[?Id=='${OPERATION_ID}'].Status | [0]" \
+              --output text)"
+            echo "operation=${OPERATION_ID} status=${OPERATION_STATUS}"
+            if [[ "${OPERATION_STATUS}" == "FAILED" || "${OPERATION_STATUS}" == "ROLLBACK_SUCCEEDED" || "${OPERATION_STATUS}" == "ROLLBACK_FAILED" ]]; then
+              echo "App Runner deploy failed with operation status: ${OPERATION_STATUS}" >&2
+              exit 1
+            fi
+
             SERVICE_JSON="$(aws apprunner describe-service \
               --region "${AWS_REGION}" \
               --service-arn "${APP_RUNNER_SERVICE_ARN}" \

@@ -21,8 +21,11 @@ import crypto from "node:crypto";
 const LEGACY_PATH =
   "/home/ubuntu/proyectos/unlocked-dashboard/cloud-automation/payments-lead-join.json";
 const IMAGE_SEED_PATH = "scripts/payment-transactions-seed.json";
-const DEFAULT_PATH = fs.existsSync(IMAGE_SEED_PATH) ? IMAGE_SEED_PATH : LEGACY_PATH;
+const HAS_IMAGE_SEED = fs.existsSync(IMAGE_SEED_PATH);
+const HAS_LEGACY_FILE = fs.existsSync(LEGACY_PATH);
+const DEFAULT_PATH = HAS_IMAGE_SEED ? IMAGE_SEED_PATH : LEGACY_PATH;
 const DATA_PATH = process.env.TORRE_PAYMENTS_JOIN_PATH || DEFAULT_PATH;
+const DATA_PATH_WAS_EXPLICIT = Boolean(process.env.TORRE_PAYMENTS_JOIN_PATH);
 
 const HIGH_TICKET_RESERVA_THRESHOLD = 450;
 const OFFICIAL_SOURCES = new Set(["hotmart", "stripe"]);
@@ -168,6 +171,10 @@ function bySource(transactions) {
 
 async function main() {
   if (!fs.existsSync(DATA_PATH)) {
+    if (!DATA_PATH_WAS_EXPLICIT && !HAS_IMAGE_SEED && !HAS_LEGACY_FILE) {
+      console.log("[payments-import] no seed file available in this image — skipping import");
+      return;
+    }
     throw new Error(`[payments-import] data file not found: ${DATA_PATH}`);
   }
 

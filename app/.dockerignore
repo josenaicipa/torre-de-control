@@ -7,3 +7,4 @@ coverage
 !.env.example
 npm-debug.log*
 .DS_Store
+scripts/payment-transactions-seed.json
