@@ -1646,12 +1646,37 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
 
 // ─── DETALLE DIARIO ────────────────────────────────────────────────────────────
 const DetalleView=({allDaily,allCloser,year,month})=>{
+  const [cash,setCash]=useState(null);
   const dm=MDAYS[month];
   const pad=n=>String(n).padStart(2,"0");
   const mp=`${year}-${pad(month+1)}`;
   const DOW=["D","L","M","M","J","V","S"];
   const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
   const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
+
+  useEffect(()=>{
+    let active=true;
+    setCash(null);
+    fetch(`/api/payments/summary?year=${year}&month=${month+1}`,{credentials:"same-origin"})
+      .then(r=>r.ok?r.json():null)
+      .then(j=>{if(active)setCash(j);})
+      .catch(()=>{if(active)setCash({available:false});});
+    return()=>{active=false;};
+  },[year,month]);
+
+  const cashGroups=(cash&&cash.available&&cash.groups)||{};
+  const localPayDate=iso=>{
+    if(!iso)return null;
+    try{return new Date(iso).toLocaleDateString("en-CA",{timeZone:"America/Bogota"});}
+    catch(e){return String(iso).slice(0,10);}
+  };
+  const ledgerByDay={};
+  const addLedger=(metric,rows)=>{(rows||[]).forEach(r=>{const d=localPayDate(r.paidAt);if(!d)return;ledgerByDay[d]=ledgerByDay[d]||{};ledgerByDay[d][metric]=(ledgerByDay[d][metric]||0)+(Number(r.amountUsd)||0);});};
+  addLedger("cashCollected",cashGroups.cashCollected);
+  addLedger("highTicket",cashGroups.highTicket);
+  addLedger("lowTicket",cashGroups.lowTicket);
+  addLedger("reservas",cashGroups.reservas);
+  addLedger("reviewRequired",cashGroups.reviewRequired);
 
   const dayData=Array.from({length:dm},(_,i)=>{
     const d=`${mp}-${pad(i+1)}`;
@@ -1660,10 +1685,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     // inflate mensajes/follow-ups/ig in the Detalle Diario marketing section.
     const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member));
     const closer=allCloser[d]||{};
+    const ledger=ledgerByDay[d]||{};
     const sd=f=>sumF(entries,f);
     const sdMkt=f=>sumF(mktEntries,f);
     const totalGastoDay=sd("gastoMeta")+sd("gastoGoogle")+sd("gastoTikTok")+sd("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,closer,sd,sdMkt,totalGastoDay};
+    return{day:i+1,d,entries,mktEntries,closer,ledger,sd,sdMkt,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -1703,7 +1729,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mShows=dayData.reduce((s,d)=>s+(d.closer.citas_asistidas||0),0);
   const mVentasHT=dayData.reduce((s,d)=>s+(d.closer.q_ventas_ht||0),0);
   const mValorHT=dayData.reduce((s,d)=>s+(d.closer.valor_venta_ht||0),0);
-  const mCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0);
+  const mLedgerCash=dayData.reduce((s,d)=>s+(d.ledger.cashCollected||0),0);
+  const mLedgerHT=dayData.reduce((s,d)=>s+(d.ledger.highTicket||0),0);
+  const mLedgerLT=dayData.reduce((s,d)=>s+(d.ledger.lowTicket||0),0);
+  const mLedgerReservas=dayData.reduce((s,d)=>s+(d.ledger.reservas||0),0);
+  const mCashHT=mLedgerHT||dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0);
   const mRecurring=dayData.reduce((s,d)=>s+(d.closer.recurring_cash||0),0);
 
   const GROUPS=[
@@ -1761,19 +1791,19 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     {title:"Ventas — Area Comercial",bg:"#c2410c",rows:[
       {l:"# Ventas HT",fn:d=>d.closer.q_ventas_ht||null,fmt:"n"},
       {l:"$ Venta HT",fn:d=>d.closer.valor_venta_ht||null,fmt:"$"},
-      {l:"Upfront Cash HT",fn:d=>d.closer.upfront_cash_ht||null,fmt:"$"},
-      {l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||null,fmt:"$"},
+      {l:"Upfront Cash HT",fn:d=>d.ledger.highTicket||d.closer.upfront_cash_ht||null,fmt:"$",totFn:()=>mLedgerHT||null},
+      {l:"Cash Collected HT",fn:d=>d.ledger.highTicket||d.closer.ventas_cash||null,fmt:"$",totFn:()=>mLedgerHT||mCashHT||null},
       {l:"Recurring Cash",fn:d=>d.closer.recurring_cash||null,fmt:"$"},
-      {l:"Cash + Recurring",fn:d=>{const t=(d.closer.ventas_cash||0)+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
+      {l:"Cash + Recurring",fn:d=>{const c=d.ledger.highTicket||d.closer.ventas_cash||0;const t=c+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
         totFn:()=>mCashHT+mRecurring||null},
-      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
+      {l:"% Cash Collected",fn:d=>{const c=d.ledger.highTicket||d.closer.ventas_cash||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
         totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
       {l:"% Closing Rate",fn:d=>{const s=d.closer.citas_asistidas||0,v=d.closer.q_ventas_ht||0;return s>0?pv(v,s):null;},fmt:"%",
         totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
       {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
-      {l:"$ Venta LT",fn:d=>d.closer.valor_venta_lt||null,fmt:"$"},
+      {l:"$ Venta LT",fn:d=>d.ledger.lowTicket||d.closer.valor_venta_lt||null,fmt:"$",totFn:()=>mLedgerLT||null},
       {l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"},
-      {l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||null,fmt:"$"},
+      {l:"$ Cash Reservas",fn:d=>d.ledger.reservas||d.closer.cash_reservas||null,fmt:"$",totFn:()=>mLedgerReservas||null},
       {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
       {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
       {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
@@ -1794,6 +1824,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {MONTHS[month]} {year} · Scroll horizontal para ver todos los días
       </div>
+      {cash&&cash.available&&(
+        <div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
+          Cash/Upfront/Low Ticket/Reservas en este detalle se llenan desde el ledger real de pagos; si Valentina pone dato manual, queda solo como referencia para verificar.
+        </div>
+      )}
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
         height:"calc(100vh - 160px)"}}>
         <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
