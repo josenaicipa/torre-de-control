@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --color-bg: oklch(98% 0.005 250);
   --color-surface: oklch(100% 0 0);
