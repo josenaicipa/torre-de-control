@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Torre de Control v2 — ECS/Fargate + Application Load Balancer.
+  Torre de Control v2 - ECS/Fargate + Application Load Balancer.
   Reviewable migration target away from App Runner. This template only
   describes infrastructure; it does not modify the existing App Runner
   service or RDS instance other than adding one additive ingress rule that
@@ -136,7 +136,7 @@ Resources:
   AlbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub "${ProjectName} ALB — public HTTP ingress"
+      GroupDescription: !Sub "${ProjectName} ALB - public HTTP ingress"
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
