@@ -792,6 +792,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const totalCash=sumF(closerEntries,"ventas_cash");
   const totalValorHT=sumF(closerEntries,"valor_venta_ht");
   const totalValorLT=sumF(closerEntries,"valor_venta_lt");
+  const totalReservasManual=sumF(closerEntries,"cash_reservas");
   const totalValor=totalValorHT+totalValorLT;
   const totalVentas=sumF(closerEntries,"q_ventas_ht");
   const totalLeads=sumF(closerEntries,"agendas_calificadas");
@@ -824,6 +825,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const dispReservas=cashApi?cashApi.reservas:null;
   const reviewCount=cashApi&&cashApi.counts?cashApi.counts.reviewRequired:0;
   const reviewAmount=cashApi?cashApi.reviewRequired:0;
+  const manualCommercialCash=totalCash+totalUpfront+totalValorLT+totalReservasManual;
+  const hasManualCommercialCash=manualCommercialCash>0;
   const openDrill=(title,key)=>{if(!cashApi)return;setDrill({title,rows:cashGroups[key]||[]});};
 
   const ticketProm=totalVentas>0?totalValor/totalVentas:0;
@@ -910,6 +913,21 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
         </div>
       </div>
+
+      {/* DATO COMERCIAL MANUAL — keep auto cash as source of truth, but flag manual entries for validation */}
+      {cashApi&&hasManualCommercialCash&&(
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
+          background:C.amber+"10",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:18}}>📝</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato comercial manual para verificar</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>Valentina registró/actualizó datos manuales en Área Comercial. El cash oficial lo seguimos tomando del ledger de pagos; revisar que el dato manual no duplique ni contradiga la realidad.</div>
+            </div>
+          </div>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
+        </div>
+      )}
 
       {/* PAGOS A REVISAR — amber alert, clickable to open the reviewRequired drill-down */}
       {reviewCount>0&&(
@@ -1417,6 +1435,7 @@ const CloserEntryForm=({year,month,allCloser,onSave})=>{
   const totalValor=totalValorHT+totalValorLT;
   const totalVentasHT=(form.q_ventas_ht||0);
   const totalVentasLT=(form.q_ventas_lt||0);
+  const manualCashInput=(form.upfront_cash_ht||0)+(form.ventas_cash||0)+(form.valor_venta_lt||0)+(form.cash_reservas||0);
 
   const handleSave=async()=>{
     setSaving(true);
@@ -1444,6 +1463,16 @@ const CloserEntryForm=({year,month,allCloser,onSave})=>{
           )}
         </div>
       </Card>
+
+      {manualCashInput>0&&(
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,background:C.amber+"12",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"11px 13px"}}>
+          <span style={{fontSize:18,lineHeight:1}}>📝</span>
+          <div>
+            <div style={{fontSize:12,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato manual: verificar contra pagos reales</div>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.45}}>Este dato lo está llenando Valentina manualmente para operación comercial. El Cash Collected oficial sale del ledger Hotmart/Stripe/Manual; antes de tomar decisiones, validar que no esté duplicado o desactualizado.</div>
+          </div>
+        </div>
+      )}
 
       {(totalValor>0||totalVentasHT>0||totalVentasLT>0)&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
