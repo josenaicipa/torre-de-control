@@ -1,0 +1,34 @@
+import { prisma } from "@/lib/prisma";
+import { getActor } from "@/lib/actor";
+import { redirect } from "next/navigation";
+import { NuevoEstudianteForm } from "./nuevo-form";
+
+export const dynamic = "force-dynamic";
+
+export default async function NuevoEstudiantePage() {
+  const actor = await getActor();
+  if (!actor) redirect("/login");
+  if (actor.role !== "ADMIN" && actor.role !== "OPERATOR") {
+    redirect("/operaciones/estudiantes");
+  }
+
+  const [mentors, programs] = await Promise.all([
+    prisma.mentor.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.program.findMany({
+      where: { active: true },
+      select: { id: true, slug: true, name: true, durationMonthsDefault: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return (
+    <div className="max-w-2xl">
+      <h1 className="mb-6 text-2xl font-bold text-slate-900">Nuevo estudiante</h1>
+      <NuevoEstudianteForm mentors={mentors} programs={programs} />
+    </div>
+  );
+}
