@@ -19,11 +19,25 @@ interface OperationsShellProps {
   eyebrow?: string;
 }
 
-const DASHBOARD_ITEMS = [
-  { href: "/", label: "Torre CEO" },
-  { href: "/", label: "Control Comercial" },
-  { href: "/", label: "Marketing" },
-  { href: "/", label: "Agendas / Leads" },
+const BRAND = "#E03A18";
+const TXT = "#111110";
+const TXT2 = "#5C5C52";
+const TXT3 = "#9C9B93";
+const SURFACE = "#FFFFFF";
+const BORDER = "#E5E4DF";
+
+// Query tab ids match app/public/index.html so links land on the requested view.
+const LEGACY_TABS = [
+  { id: "torre", label: "Torre CEO", href: "/" },
+  { id: "closer", label: "Area Comercial", href: "/?tab=closer" },
+  { id: "control", label: "Control Comercial", href: "/?tab=control" },
+  { id: "entrada", label: "Marketing", href: "/?tab=entrada" },
+  { id: "agendas", label: "Agendas / Leads", href: "/?tab=agendas" },
+  { id: "equipo", label: "Resumen Equipo", href: "/?tab=equipo" },
+  { id: "funnel", label: "Funnel", href: "/?tab=funnel" },
+  { id: "detalle", label: "Detalle Diario", href: "/?tab=detalle" },
+  { id: "colab", label: "Por Colaborador", href: "/?tab=colab" },
+  { id: "hist", label: "Histórico", href: "/?tab=hist" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -34,54 +48,57 @@ export function OperationsShell({
   children,
   actor,
   navItems,
-  title = "Operaciones",
-  eyebrow = "Command Center",
 }: OperationsShellProps) {
   const pathname = usePathname();
+  const operationItems = navItems.filter((item) => item.href !== "/admin/users");
+  const showAdmin = actor.role === "ADMIN" || navItems.some((item) => item.href === "/admin/users");
 
   return (
-    <div className="min-h-screen bg-[#f6f7f9] text-slate-950 md:bg-[#0f1115]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col border-r border-white/10 bg-[#15171d] text-white md:flex">
-        <div className="border-b border-white/10 px-[18px] py-5">
+    <div className="flex min-h-screen bg-[#f7f7f5] text-[#111110]">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col overflow-y-auto border-r border-[#e5e4df] bg-white md:flex">
+        <div className="border-b border-[#e5e4df] px-[18px] pb-4 pt-5">
           <Link href="/" className="flex items-center gap-2.5 no-underline">
-            <span className="grid h-[30px] w-[30px] place-items-center rounded-lg bg-gradient-to-br from-[#e03a18] to-[#f58a00] text-[13px] font-black text-white">
-              U
-            </span>
+            <img src="/logo.png" alt="Unlocked" className="h-[30px] w-[30px] object-contain" />
             <span>
-              <span className="block text-[11px] font-black leading-none tracking-[-0.02em] text-white">UNLOCKED</span>
-              <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+              <span className="block text-[11px] font-extrabold leading-none tracking-normal text-[#111110]">UNLOCKED</span>
+              <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.08em] text-[#9c9b93]">
                 Command Center
               </span>
             </span>
           </Link>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-2.5 py-2.5">
-          <p className="mb-1.5 ml-2 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Dashboard</p>
-          <div className="space-y-0.5">
-            {DASHBOARD_ITEMS.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="flex items-center rounded-r-[9px] border-l-2 border-transparent px-3 py-2.5 text-xs font-medium text-slate-300 no-underline transition hover:bg-white/5 hover:text-white"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
+        <nav className="flex-1 px-2.5 py-2.5">
+          <p className="mb-1.5 ml-2 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#9c9b93]">
+            Navegación
+          </p>
+          {LEGACY_TABS.map((item) => (
+            <a
+              key={item.id}
+              href={item.href}
+              className="mb-0.5 block rounded-r-[9px] border-l-2 border-transparent px-3 py-[9px] text-xs font-medium text-[#5c5c52] no-underline transition hover:bg-[#f4f4f1] hover:text-[#111110]"
+            >
+              {item.label}
+            </a>
+          ))}
 
-          <p className="mb-1.5 ml-2 mt-5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">Operaciones</p>
-          <div className="space-y-0.5">
-            {navItems.map((item) => {
+          <div className="mb-0.5 flex flex-col">
+            <div
+              className="flex items-center rounded-r-[9px] border-l-2 border-[#e03a18] bg-[#e03a18]/10 px-3 py-[9px] text-xs font-bold text-[#e03a18]"
+            >
+              <span className="flex-1">Operaciones</span>
+              <span className="text-[10px] opacity-60">▼</span>
+            </div>
+            {operationItems.map((item) => {
               const active = isActive(pathname, item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center rounded-r-[9px] border-l-2 px-3 py-2.5 text-xs font-medium no-underline transition ${
+                  className={`block rounded-r-[9px] py-[7px] pl-[37px] pr-3 text-xs font-medium no-underline transition ${
                     active
-                      ? "border-[#e03a18] bg-[#e03a18]/15 text-[#ff5a35]"
-                      : "border-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+                      ? "bg-[#e03a18]/10 text-[#e03a18]"
+                      : "text-[#5c5c52] hover:bg-[#e03a18]/5 hover:text-[#111110]"
                   }`}
                 >
                   {item.label}
@@ -89,47 +106,43 @@ export function OperationsShell({
               );
             })}
           </div>
+
+          {showAdmin && (
+            <Link
+              href="/admin/users"
+              className={`mt-1 block rounded-r-[9px] border-l-2 px-3 py-[9px] text-xs font-medium no-underline transition ${
+                pathname === "/admin/users"
+                  ? "border-[#e03a18] bg-[#e03a18]/10 font-bold text-[#e03a18]"
+                  : "border-transparent text-[#5c5c52] hover:bg-[#f4f4f1] hover:text-[#111110]"
+              }`}
+            >
+              Admin
+            </Link>
+          )}
         </nav>
 
-        <div className="border-t border-white/10 px-4 py-3 text-[10px] leading-5 text-slate-400">
-          <p className="truncate text-slate-300">{actor.email}</p>
-          <p className="font-bold uppercase tracking-[0.08em] text-slate-500">{actor.role}</p>
+        <div className="border-t border-[#e5e4df] px-4 py-3 text-[10px] leading-5 text-[#9c9b93]">
+          <p className="truncate text-[#5c5c52]">{actor.email}</p>
+          <p className="font-bold uppercase tracking-[0.08em]">{actor.role}</p>
         </div>
       </aside>
 
-      <div className="md:ml-[220px]">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:border-white/10 md:bg-[#15171d] md:px-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#e03a18]">{eyebrow}</p>
-              <h1 className="truncate text-base font-black tracking-[-0.03em] text-slate-950 md:text-white">{title}</h1>
-            </div>
-            <div className="hidden min-w-0 text-right md:block">
-              <p className="truncate text-xs font-semibold text-slate-200">{actor.email}</p>
-              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{actor.role}</p>
-            </div>
-          </div>
-        </header>
+      <main className="min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 pb-24 md:ml-[220px] md:p-8">
+        {children}
+      </main>
 
-        <main className="min-h-[calc(100vh-57px)] overflow-x-auto bg-slate-50 p-4 pb-24 md:p-6 md:pb-8">
-          <div className="mx-auto max-w-[1380px] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
-            {children}
-          </div>
-        </main>
-      </div>
-
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex overflow-x-auto border-t border-slate-200 bg-white md:hidden">
-        <Link href="/" className="min-w-[92px] px-3 py-2 text-center text-[11px] font-bold text-slate-500 no-underline">
+      <nav className="fixed inset-x-0 bottom-0 z-50 flex overflow-x-auto border-t border-[#e5e4df] bg-white md:hidden">
+        <a href="/" className="min-w-[92px] px-3 py-2 text-center text-[11px] font-bold text-[#5c5c52] no-underline">
           Dashboard
-        </Link>
-        {navItems.map((item) => {
+        </a>
+        {operationItems.map((item) => {
           const active = isActive(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
               className={`min-w-[92px] px-3 py-2 text-center text-[11px] font-bold no-underline ${
-                active ? "text-[#e03a18]" : "text-slate-500"
+                active ? "text-[#e03a18]" : "text-[#5c5c52]"
               }`}
             >
               {item.label}

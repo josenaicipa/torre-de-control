@@ -3367,6 +3367,12 @@ const TABS=[
   {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
   {id:"colab",   l:"Por Colaborador",    icon:"users"},
   {id:"hist",    l:"Histórico",          icon:"trendUp"},
+  {id:"operaciones", l:"Operaciones", icon:"users", children:[
+    {id:"operaciones-estudiantes", l:"Estudiantes", href:"/operaciones/estudiantes"},
+    {id:"operaciones-cartera", l:"Cartera", href:"/operaciones/cartera"},
+    {id:"operaciones-mentores", l:"Mentores", href:"/operaciones/mentores"},
+    {id:"operaciones-importar", l:"Importar Excel", href:"/operaciones/importar"},
+  ]},
   {id:"admin",   l:"Admin",              icon:"settings"},
 ];
 
@@ -3381,6 +3387,7 @@ const MOBILE_TABS=[
   TABS.find(t=>t.id==="detalle"),
   TABS.find(t=>t.id==="colab"),
   TABS.find(t=>t.id==="hist"),
+  TABS.find(t=>t.id==="operaciones"),
   TABS.find(t=>t.id==="admin"),
 ].filter(Boolean);
 
@@ -3388,7 +3395,11 @@ function App(){
   const [isDark,setIsDark]=useState(()=>localStorage.getItem("theme")==="dark");
   applyTheme(isDark);
   const toggleTheme=()=>{const n=!isDark;setIsDark(n);localStorage.setItem("theme",n?"dark":"light");};
-  const [tab,setTab]=useState("torre");
+  const [tab,setTab]=useState(()=>{
+    const requested=new URLSearchParams(window.location.search).get("tab");
+    return TABS.some(t=>t.id===requested&&!t.children)?requested:"torre";
+  });
+  const [openSubmenu,setOpenSubmenu]=useState(null);
   const [year,setYear]=useState(new Date().getFullYear());
   const [month,setMonth]=useState(new Date().getMonth());
   const [kpiData,setKpiData]=useState({});
@@ -3746,6 +3757,49 @@ function App(){
             {visibleTabs.map(t=>{
               const active=tab===t.id;
               const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
+              if(t.href){
+                return(
+                  <a key={t.id} href={t.href}
+                    className="sidebar-item"
+                    style={{width:"100%",textAlign:"left",background:"transparent",
+                      borderLeft:"2px solid transparent",borderRadius:"0 9px 9px 0",
+                      padding:"9px 12px",color:TXT2,fontSize:12,fontWeight:500,
+                      fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                      gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s"}}>
+                    <Icon name={t.icon} size={15} color={TXT3}/>
+                    <span>{t.l}</span>
+                  </a>
+                );
+              }
+              if(t.children&&t.children.length>0){
+                const expanded=openSubmenu===t.id;
+                return(
+                  <div key={t.id} style={{display:"flex",flexDirection:"column",marginBottom:2}}>
+                    <button onClick={()=>setOpenSubmenu(expanded?null:t.id)}
+                      className={`sidebar-item${expanded?" active":""}`}
+                      style={{width:"100%",textAlign:"left",background:expanded?BRAND+"18":"transparent",
+                        border:"none",borderLeft:expanded?`2px solid ${BRAND}`:"2px solid transparent",
+                        borderRadius:"0 9px 9px 0",padding:"9px 12px",cursor:"pointer",
+                        color:expanded?BRAND:TXT2,fontSize:12,fontWeight:expanded?700:500,
+                        fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                        gap:9,transition:"all .15s"}}>
+                      <Icon name={t.icon} size={15} color={expanded?BRAND:TXT3}/>
+                      <span style={{flex:1}}>{t.l}</span>
+                      <span style={{fontSize:10,opacity:.6}}>{expanded?"▼":"▶"}</span>
+                    </button>
+                    {expanded&&t.children.map(c=>(
+                      <a key={c.id} href={c.href}
+                        style={{padding:"7px 12px 7px 37px",fontSize:12,color:TXT2,
+                          fontFamily:"'Inter',sans-serif",fontWeight:500,
+                          textDecoration:"none",display:"block",borderRadius:"0 9px 9px 0"}}
+                        onMouseEnter={e=>e.currentTarget.style.background=BRAND+"10"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        {c.l}
+                      </a>
+                    ))}
+                  </div>
+                );
+              }
               return(
                 <button key={t.id} onClick={()=>setTab(t.id)}
                   className={`sidebar-item${active?" active":""}`}
@@ -3855,6 +3909,20 @@ function App(){
           <div style={{display:"flex",minWidth:"max-content",padding:"6px 4px 8px"}}>
             {visibleMobileTabs.map(t=>{
               const active=tab===t.id;
+              if(t.children&&t.children.length>0){
+                return(
+                  <a key={t.id} href={t.children[0].href} style={{
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+                    background:"transparent",border:"none",cursor:"pointer",
+                    padding:"6px 12px",borderRadius:10,minWidth:92,
+                    color:TXT3,textDecoration:"none",transition:"all .15s",flexShrink:0}}>
+                    <Icon name={t.icon} size={20} color={TXT3}/>
+                    <span style={{fontSize:9,fontWeight:500,
+                      fontFamily:"'Inter',sans-serif",letterSpacing:"0.01em",
+                      color:TXT3,whiteSpace:"nowrap"}}>{t.l}</span>
+                  </a>
+                );
+              }
               return(
                 <button key={t.id} onClick={()=>setTab(t.id)} style={{
                   display:"flex",flexDirection:"column",alignItems:"center",gap:3,
