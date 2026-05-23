@@ -1,0 +1,199 @@
+name: Deploy Torre de Control (ECS/Fargate)
+
+# Manual-only. This workflow does NOT replace the App Runner deploy
+# (.github/workflows/deploy.yml) — App Runner remains production until cutover.
+# It builds/pushes a new image and rolls the ECS service to it, and only works
+# once the CloudFormation stack (infra/aws/ecs-fargate-torre.yml) already
+# exists. Provisioning the stack itself is done out-of-band with elevated AWS
+# permissions via scripts/aws/deploy-ecs-fargate-stack.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: CloudFormation stack name created from infra/aws/ecs-fargate-torre.yml
+        required: true
+        default: torre-de-control-v2-ecs
+      aws_region:
+        description: AWS region of the stack
+        required: true
+        default: us-east-1
+
+concurrency:
+  group: torre-de-control-ecs
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_ACCOUNT_ID: "861273430072"
+  ECR_REPOSITORY: torre-de-control-v2
+
+jobs:
+  deploy:
+    name: Build, push image, and roll ECS service
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci --include=dev
+
+      - name: Validate Prisma schema
+        working-directory: app
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+        run: npx prisma validate
+
+      - name: Verify tests and types
+        working-directory: app
+        run: npm run verify
+
+      - name: Build Next.js app
+        working-directory: app
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.aws_region }}
+
+      - name: Confirm CloudFormation stack exists
+        id: stack
+        run: |
+          set -euo pipefail
+          STACK_NAME="${{ github.event.inputs.stack_name }}"
+          REGION="${{ github.event.inputs.aws_region }}"
+          if ! aws cloudformation describe-stacks \
+              --region "${REGION}" --stack-name "${STACK_NAME}" >/dev/null 2>&1; then
+            echo "Stack '${STACK_NAME}' not found in ${REGION}." >&2
+            echo "Provision it first with scripts/aws/deploy-ecs-fargate-stack.sh." >&2
+            exit 1
+          fi
+          get_output() {
+            aws cloudformation describe-stacks \
+              --region "${REGION}" --stack-name "${STACK_NAME}" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue | [0]" \
+              --output text
+          }
+          CLUSTER="$(get_output ClusterName)"
+          SERVICE="$(get_output ServiceName)"
+          TASK_DEF_ARN="$(get_output TaskDefinitionArn)"
+          ALB_DNS="$(get_output LoadBalancerDNSName)"
+          for pair in "ClusterName=${CLUSTER}" "ServiceName=${SERVICE}" \
+                      "TaskDefinitionArn=${TASK_DEF_ARN}" "LoadBalancerDNSName=${ALB_DNS}"; do
+            value="${pair#*=}"
+            if [[ -z "${value}" || "${value}" == "None" ]]; then
+              echo "Missing stack output: ${pair%%=*}" >&2
+              exit 1
+            fi
+          done
+          {
+            echo "cluster=${CLUSTER}"
+            echo "service=${SERVICE}"
+            echo "task_def_arn=${TASK_DEF_ARN}"
+            echo "alb_dns=${ALB_DNS}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        id: image
+        env:
+          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${IMAGE_TAG::7}"
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${SHORT_SHA}"
+          docker build -f app/Dockerfile -t "${IMAGE_URI}" app
+          docker push "${IMAGE_URI}"
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+
+      - name: Render and register new task definition
+        id: taskdef
+        env:
+          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          TASK_DEF_ARN: ${{ steps.stack.outputs.task_def_arn }}
+          IMAGE_URI: ${{ steps.image.outputs.image_uri }}
+        run: |
+          set -euo pipefail
+          # Take the stack-managed task definition, swap only the container
+          # image, and register a new revision. CloudFormation still owns the
+          # base definition; this revision is a roll-forward to the new image.
+          aws ecs describe-task-definition \
+            --region "${AWS_REGION}" \
+            --task-definition "${TASK_DEF_ARN}" \
+            --query 'taskDefinition' --output json > current-taskdef.json
+
+          jq --arg IMAGE "${IMAGE_URI}" '
+            .containerDefinitions[0].image = $IMAGE
+            | {
+                family,
+                taskRoleArn,
+                executionRoleArn,
+                networkMode,
+                containerDefinitions,
+                requiresCompatibilities,
+                cpu,
+                memory,
+                runtimePlatform
+              }
+            | with_entries(select(.value != null))
+          ' current-taskdef.json > new-taskdef.json
+
+          NEW_TASK_DEF_ARN="$(aws ecs register-task-definition \
+            --region "${AWS_REGION}" \
+            --cli-input-json file://new-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)"
+          echo "new_task_def_arn=${NEW_TASK_DEF_ARN}" >> "$GITHUB_OUTPUT"
+          echo "Registered: ${NEW_TASK_DEF_ARN}"
+
+      - name: Update ECS service
+        env:
+          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          CLUSTER: ${{ steps.stack.outputs.cluster }}
+          SERVICE: ${{ steps.stack.outputs.service }}
+          NEW_TASK_DEF_ARN: ${{ steps.taskdef.outputs.new_task_def_arn }}
+        run: |
+          set -euo pipefail
+          aws ecs update-service \
+            --region "${AWS_REGION}" \
+            --cluster "${CLUSTER}" \
+            --service "${SERVICE}" \
+            --task-definition "${NEW_TASK_DEF_ARN}" \
+            --query 'service.serviceName' --output text
+
+      - name: Wait for service to stabilize
+        env:
+          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          CLUSTER: ${{ steps.stack.outputs.cluster }}
+          SERVICE: ${{ steps.stack.outputs.service }}
+        run: |
+          set -euo pipefail
+          aws ecs wait services-stable \
+            --region "${AWS_REGION}" \
+            --cluster "${CLUSTER}" \
+            --services "${SERVICE}"
+
+      - name: Smoke test ALB health
+        env:
+          ALB_DNS: ${{ steps.stack.outputs.alb_dns }}
+        run: |
+          set -euo pipefail
+          curl -fsS -m 20 "http://${ALB_DNS}/api/health"
