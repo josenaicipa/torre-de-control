@@ -1,0 +1,115 @@
+name: Deploy Torre de Control
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: torre-de-control-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "861273430072"
+  ECR_REPOSITORY: torre-de-control-v2
+  APP_RUNNER_SERVICE_ARN: arn:aws:apprunner:us-east-1:861273430072:service/torre-de-control-v2/107c3d23a3204f5f8f5c3d03ccbb7f49
+  APP_RUNNER_ACCESS_ROLE_ARN: arn:aws:iam::861273430072:role/TorreAppRunnerECRAccessRole
+  HEALTHCHECK_URL: https://control.unlockedecom.co/api/health
+
+jobs:
+  deploy:
+    name: Build, push image, and deploy App Runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci --include=dev
+
+      - name: Validate Prisma schema
+        working-directory: app
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+        run: npx prisma validate
+
+      - name: Verify tests and types
+        working-directory: app
+        run: npm run verify
+
+      - name: Build Next.js app
+        working-directory: app
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        id: image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${IMAGE_TAG::7}"
+          IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${SHORT_SHA}"
+          docker build -f app/Dockerfile -t "${IMAGE_URI}" app
+          docker push "${IMAGE_URI}"
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Update App Runner service
+        run: |
+          set -euo pipefail
+          aws apprunner update-service \
+            --region "${AWS_REGION}" \
+            --service-arn "${APP_RUNNER_SERVICE_ARN}" \
+            --source-configuration "ImageRepository={ImageIdentifier=${{ steps.image.outputs.image_uri }},ImageRepositoryType=ECR,ImageConfiguration={Port=3000}},AuthenticationConfiguration={AccessRoleArn=${APP_RUNNER_ACCESS_ROLE_ARN}}" \
+            --query 'OperationId' \
+            --output text
+
+      - name: Wait for App Runner to be running on new image
+        run: |
+          set -euo pipefail
+          EXPECTED_IMAGE="${{ steps.image.outputs.image_uri }}"
+          for attempt in $(seq 1 60); do
+            SERVICE_JSON="$(aws apprunner describe-service \
+              --region "${AWS_REGION}" \
+              --service-arn "${APP_RUNNER_SERVICE_ARN}" \
+              --query 'Service.{Status:Status,Image:SourceConfiguration.ImageRepository.ImageIdentifier}' \
+              --output json)"
+            echo "${SERVICE_JSON}"
+            STATUS="$(python -c 'import json,sys; print(json.load(sys.stdin)["Status"])' <<< "${SERVICE_JSON}")"
+            IMAGE="$(python -c 'import json,sys; print(json.load(sys.stdin)["Image"])' <<< "${SERVICE_JSON}")"
+            if [[ "${STATUS}" == "RUNNING" && "${IMAGE}" == "${EXPECTED_IMAGE}" ]]; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "App Runner did not reach RUNNING with expected image in time" >&2
+          exit 1
+
+      - name: Smoke test production health
+        run: |
+          set -euo pipefail
+          curl -fsS "${HEALTHCHECK_URL}"
