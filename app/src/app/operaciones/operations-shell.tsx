@@ -1,5 +1,21 @@
 "use client";
 
+import {
+  BarChart2,
+  BookOpen,
+  Briefcase,
+  Calendar,
+  ClipboardCheck,
+  DollarSign,
+  Filter,
+  History,
+  Home,
+  Megaphone,
+  Settings,
+  User,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,6 +35,14 @@ interface OperationsShellProps {
   eyebrow?: string;
 }
 
+interface SidebarItemProps {
+  href: string;
+  label: string;
+  Icon?: LucideIcon;
+  active: boolean;
+  isSubitem?: boolean;
+}
+
 const BRAND = "#E03A18";
 const TXT = "#111110";
 const TXT2 = "#5C5C52";
@@ -27,21 +51,55 @@ const SURFACE = "#FFFFFF";
 const BORDER = "#E5E4DF";
 
 // Query tab ids match app/public/index.html so links land on the requested view.
-const LEGACY_TABS = [
-  { id: "torre", label: "Torre CEO", href: "/" },
-  { id: "closer", label: "Area Comercial", href: "/?tab=closer" },
-  { id: "control", label: "Control Comercial", href: "/?tab=control" },
-  { id: "entrada", label: "Marketing", href: "/?tab=entrada" },
-  { id: "agendas", label: "Agendas / Leads", href: "/?tab=agendas" },
-  { id: "equipo", label: "Resumen Equipo", href: "/?tab=equipo" },
-  { id: "funnel", label: "Funnel", href: "/?tab=funnel" },
-  { id: "detalle", label: "Detalle Diario", href: "/?tab=detalle" },
-  { id: "colab", label: "Por Colaborador", href: "/?tab=colab" },
-  { id: "hist", label: "Histórico", href: "/?tab=hist" },
+const LEGACY_TABS: Array<{
+  id: string;
+  label: string;
+  href: string;
+  Icon: LucideIcon;
+}> = [
+  { id: "torre", label: "Torre CEO", href: "/", Icon: Home },
+  { id: "closer", label: "Area Comercial", href: "/?tab=closer", Icon: DollarSign },
+  { id: "control", label: "Control Comercial", href: "/?tab=control", Icon: ClipboardCheck },
+  { id: "entrada", label: "Marketing", href: "/?tab=entrada", Icon: Megaphone },
+  { id: "agendas", label: "Agendas / Leads", href: "/?tab=agendas", Icon: Calendar },
+  { id: "equipo", label: "Resumen Equipo", href: "/?tab=equipo", Icon: Users },
+  { id: "funnel", label: "Funnel", href: "/?tab=funnel", Icon: Filter },
+  { id: "detalle", label: "Detalle Diario", href: "/?tab=detalle", Icon: BarChart2 },
+  { id: "colab", label: "Por Colaborador", href: "/?tab=colab", Icon: User },
+  { id: "hist", label: "Histórico", href: "/?tab=hist", Icon: History },
 ];
 
 function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function SidebarItem({
+  href,
+  label,
+  Icon,
+  active,
+  isSubitem = false,
+}: SidebarItemProps) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: isSubitem ? "6px 16px 6px 44px" : "8px 16px",
+        fontSize: isSubitem ? 13 : 14,
+        fontWeight: active ? 700 : 500,
+        color: active ? BRAND : TXT2,
+        backgroundColor: active ? "rgba(224, 58, 24, 0.10)" : "transparent",
+        borderLeft: active ? `2px solid ${BRAND}` : "2px solid transparent",
+        textDecoration: "none",
+      }}
+    >
+      {Icon && <Icon size={15} color={active ? BRAND : TXT3} />}
+      <span>{label}</span>
+    </Link>
+  );
 }
 
 export function OperationsShell({
@@ -50,80 +108,138 @@ export function OperationsShell({
   navItems,
 }: OperationsShellProps) {
   const pathname = usePathname();
-  const operationItems = navItems.filter((item) => item.href !== "/admin/users");
-  const showAdmin = actor.role === "ADMIN" || navItems.some((item) => item.href === "/admin/users");
+  const operationItems = navItems.filter(
+    (item) => item.href !== "/admin/users" && item.href !== "/operaciones/mis-estudiantes",
+  );
+  const operationsActive = pathname.startsWith("/operaciones");
+  const showAdmin =
+    actor.role === "ADMIN" || navItems.some((item) => item.href === "/admin/users");
 
   return (
-    <div className="flex min-h-screen bg-[#f7f7f5] text-[#111110]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col overflow-y-auto border-r border-[#e5e4df] bg-white md:flex">
-        <div className="border-b border-[#e5e4df] px-[18px] pb-4 pt-5">
-          <Link href="/" className="flex items-center gap-2.5 no-underline">
-            <img src="/logo.png" alt="Unlocked" className="h-[30px] w-[30px] object-contain" />
+    <div className="flex min-h-screen bg-[#f7f7f5]" style={{ color: TXT }}>
+      <aside
+        className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col overflow-y-auto md:flex"
+        style={{ backgroundColor: SURFACE, borderRight: `1px solid ${BORDER}` }}
+      >
+        <div style={{ padding: "20px 18px 16px", borderBottom: `1px solid ${BORDER}` }}>
+          <Link
+            href="/"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              color: TXT,
+              textDecoration: "none",
+            }}
+          >
+            <img src="/logo.png" alt="Unlocked" style={{ height: 30, width: 30, objectFit: "contain" }} />
             <span>
-              <span className="block text-[11px] font-extrabold leading-none tracking-normal text-[#111110]">UNLOCKED</span>
-              <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.08em] text-[#9c9b93]">
+              <span style={{ display: "block", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>
+                UNLOCKED
+              </span>
+              <span
+                style={{
+                  display: "block",
+                  marginTop: 2,
+                  color: TXT3,
+                  fontSize: 9,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
                 Command Center
               </span>
             </span>
           </Link>
         </div>
 
-        <nav className="flex-1 px-2.5 py-2.5">
-          <p className="mb-1.5 ml-2 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#9c9b93]">
+        <nav style={{ display: "flex", flex: 1, flexDirection: "column", padding: "14px 0 10px" }}>
+          <p
+            style={{
+              margin: "0 16px 8px",
+              color: TXT3,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+            }}
+          >
             Navegación
           </p>
           {LEGACY_TABS.map((item) => (
-            <a
+            <SidebarItem
               key={item.id}
               href={item.href}
-              className="mb-0.5 block rounded-r-[9px] border-l-2 border-transparent px-3 py-[9px] text-xs font-medium text-[#5c5c52] no-underline transition hover:bg-[#f4f4f1] hover:text-[#111110]"
-            >
-              {item.label}
-            </a>
+              label={item.label}
+              Icon={item.Icon}
+              active={false}
+            />
           ))}
 
-          <div className="mb-0.5 flex flex-col">
+          <div style={{ display: "flex", flexDirection: "column" }}>
             <div
-              className="flex items-center rounded-r-[9px] border-l-2 border-[#e03a18] bg-[#e03a18]/10 px-3 py-[9px] text-xs font-bold text-[#e03a18]"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 16px",
+                backgroundColor: operationsActive ? "rgba(224, 58, 24, 0.10)" : "transparent",
+                borderLeft: operationsActive ? `2px solid ${BRAND}` : "2px solid transparent",
+                color: operationsActive ? BRAND : TXT2,
+                fontSize: 14,
+                fontWeight: operationsActive ? 700 : 500,
+              }}
             >
-              <span className="flex-1">Operaciones</span>
-              <span className="text-[10px] opacity-60">▼</span>
+              <Briefcase size={15} color={operationsActive ? BRAND : TXT3} />
+              <span style={{ flex: 1 }}>Operaciones</span>
+              <span style={{ fontSize: 10, opacity: 0.6 }}>▼</span>
             </div>
-            {operationItems.map((item) => {
-              const active = isActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block rounded-r-[9px] py-[7px] pl-[37px] pr-3 text-xs font-medium no-underline transition ${
-                    active
-                      ? "bg-[#e03a18]/10 text-[#e03a18]"
-                      : "text-[#5c5c52] hover:bg-[#e03a18]/5 hover:text-[#111110]"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+            {operationItems.map((item) => (
+              <SidebarItem
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                active={isActive(pathname, item.href)}
+                isSubitem
+              />
+            ))}
           </div>
 
+          {actor.role === "MENTOR" && (
+            <SidebarItem
+              href="/operaciones/mis-estudiantes"
+              label="Mis Estudiantes"
+              Icon={BookOpen}
+              active={isActive(pathname, "/operaciones/mis-estudiantes")}
+            />
+          )}
+
           {showAdmin && (
-            <Link
+            <SidebarItem
               href="/admin/users"
-              className={`mt-1 block rounded-r-[9px] border-l-2 px-3 py-[9px] text-xs font-medium no-underline transition ${
-                pathname === "/admin/users"
-                  ? "border-[#e03a18] bg-[#e03a18]/10 font-bold text-[#e03a18]"
-                  : "border-transparent text-[#5c5c52] hover:bg-[#f4f4f1] hover:text-[#111110]"
-              }`}
-            >
-              Admin
-            </Link>
+              label="Admin"
+              Icon={Settings}
+              active={isActive(pathname, "/admin/users")}
+            />
           )}
         </nav>
 
-        <div className="border-t border-[#e5e4df] px-4 py-3 text-[10px] leading-5 text-[#9c9b93]">
-          <p className="truncate text-[#5c5c52]">{actor.email}</p>
-          <p className="font-bold uppercase tracking-[0.08em]">{actor.role}</p>
+        <div
+          style={{
+            borderTop: `1px solid ${BORDER}`,
+            padding: "12px 16px",
+            color: TXT3,
+            fontSize: 10,
+            lineHeight: "20px",
+          }}
+        >
+          <p className="truncate" style={{ margin: 0, color: TXT2 }}>
+            {actor.email}
+          </p>
+          <p style={{ margin: 0, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            {actor.role}
+          </p>
         </div>
       </aside>
 
@@ -131,19 +247,39 @@ export function OperationsShell({
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex overflow-x-auto border-t border-[#e5e4df] bg-white md:hidden">
-        <a href="/" className="min-w-[92px] px-3 py-2 text-center text-[11px] font-bold text-[#5c5c52] no-underline">
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 flex overflow-x-auto md:hidden"
+        style={{ backgroundColor: SURFACE, borderTop: `1px solid ${BORDER}` }}
+      >
+        <Link
+          href="/"
+          style={{
+            minWidth: 92,
+            padding: "8px 12px",
+            color: TXT2,
+            fontSize: 11,
+            fontWeight: 700,
+            textAlign: "center",
+            textDecoration: "none",
+          }}
+        >
           Dashboard
-        </a>
+        </Link>
         {operationItems.map((item) => {
           const active = isActive(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`min-w-[92px] px-3 py-2 text-center text-[11px] font-bold no-underline ${
-                active ? "text-[#e03a18]" : "text-[#5c5c52]"
-              }`}
+              style={{
+                minWidth: 92,
+                padding: "8px 12px",
+                color: active ? BRAND : TXT2,
+                fontSize: 11,
+                fontWeight: 700,
+                textAlign: "center",
+                textDecoration: "none",
+              }}
             >
               {item.label}
             </Link>
