@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     );
 
     const where: Record<string, unknown> = {};
-    if (query.mentorId) where.mentorId = query.mentorId;
+    if (query.mentorUserId) where.mentorUserId = query.mentorUserId;
     if (query.programId) where.programId = query.programId;
     if (query.status) where.status = query.status;
     if (query.search) {
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         include: {
-          mentor: { select: { id: true, name: true } },
+          mentorUser: { select: { id: true, name: true, email: true } },
           program: { select: { id: true, slug: true, name: true } },
         },
       }),
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
         startDate,
         durationMonths: body.durationMonths,
         endDate,
-        mentorId: body.mentorId ?? null,
+        mentorUserId: body.mentorUserId ?? null,
         programId: body.programId ?? null,
         ghlContactId: body.ghlContactId ?? null,
         notes: body.notes ?? null,
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
         legalName: body.legalName ?? null,
       },
       include: {
-        mentor: { select: { id: true, name: true } },
+        mentorUser: { select: { id: true, name: true, email: true } },
         program: { select: { id: true, slug: true, name: true } },
       },
     });
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
       target: student.id,
       metadata: {
         email: student.email,
-        mentorId: student.mentorId,
+        mentorUserId: student.mentorUserId,
         programId: student.programId,
       },
     });

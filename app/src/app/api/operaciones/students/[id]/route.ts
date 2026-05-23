@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: Params) {
     const student = await prisma.student.findUnique({
       where: { id },
       include: {
-        mentor: { select: { id: true, name: true, email: true } },
+        mentorUser: { select: { id: true, name: true, email: true } },
         program: { select: { id: true, slug: true, name: true } },
         members: true,
         _count: {
@@ -41,7 +41,7 @@ export async function GET(_req: Request, { params }: Params) {
       },
     });
     if (!student) return jsonError(404, "Estudiante no encontrado");
-    if (!canAccessStudent(actor, student.mentorId)) {
+    if (!canAccessStudent(actor, student.mentorUserId)) {
       throw new ForbiddenError("Sin acceso a este estudiante");
     }
     return NextResponse.json({ student });
@@ -59,7 +59,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const existing = await prisma.student.findUnique({
       where: { id },
-      select: { mentorId: true, startDate: true, durationMonths: true },
+      select: { mentorUserId: true, startDate: true, durationMonths: true },
     });
     if (!existing) return jsonError(404, "Estudiante no encontrado");
 
@@ -83,7 +83,7 @@ export async function PATCH(req: Request, { params }: Params) {
       where: { id },
       data: data as never,
       include: {
-        mentor: { select: { id: true, name: true } },
+        mentorUser: { select: { id: true, name: true, email: true } },
         program: { select: { id: true, slug: true, name: true } },
       },
     });

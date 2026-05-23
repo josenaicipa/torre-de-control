@@ -9,16 +9,16 @@ export default async function MentoresPage() {
   const actor = await getActor();
   if (!actor) redirect("/login");
 
-  const mentors = await prisma.mentor.findMany({
-    orderBy: { name: "asc" },
+  const mentors = await prisma.user.findMany({
+    where: { role: "MENTOR" },
+    orderBy: [{ active: "desc" }, { name: "asc" }],
     select: {
       id: true,
       name: true,
       email: true,
-      phone: true,
+      ghlUserName: true,
       active: true,
-      user: { select: { id: true, email: true, active: true } },
-      _count: { select: { students: true } },
+      _count: { select: { studentsAsMentor: true } },
     },
   });
 

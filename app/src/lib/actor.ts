@@ -17,7 +17,7 @@ export interface ActorContext {
   areaId: string | null;
   teamId: string | null;
   ghlUserName: string | null;
-  mentorId: string | null;
+  mentorUserId: string | null;
   isCollector: boolean;
 }
 
@@ -44,14 +44,8 @@ export async function getActor(): Promise<ActorContext | null> {
   });
   if (!user || !user.active) return null;
 
-  let mentorId: string | null = null;
-  if (user.role === "MENTOR") {
-    const mentor = await prisma.mentor.findUnique({
-      where: { userId: user.id },
-      select: { id: true, active: true },
-    });
-    if (mentor?.active) mentorId = mentor.id;
-  }
+  // A mentor's User id is now the foreign key used for Operaciones scope.
+  const mentorUserId: string | null = user.role === "MENTOR" ? user.id : null;
 
   return {
     userId: user.id,
@@ -64,7 +58,7 @@ export async function getActor(): Promise<ActorContext | null> {
     areaId: user.areaId,
     teamId: user.teamId,
     ghlUserName: user.ghlUserName,
-    mentorId,
+    mentorUserId,
     isCollector: user.isCollector,
   };
 }

@@ -10,21 +10,21 @@ import type { Role } from "@prisma/client";
 export interface ActorContext {
   userId: string;
   role: Role;
-  mentorId: string | null; // Si role=MENTOR, el id de su Mentor row vinculado
+  mentorUserId: string | null; // Si role=MENTOR, es el propio User id.
 }
 
 /**
  * Devuelve el filtro Prisma `where` a aplicar a queries de Student.
- * Para MENTOR: { mentorId: actor.mentorId }
+ * Para MENTOR: { mentorUserId: actor.mentorUserId }
  * Para otros: {} (sin restricción)
  *
- * Si el actor es MENTOR pero no tiene mentorId vinculado, retorna { id: "__none__" }
+ * Si el actor es MENTOR pero no tiene mentorUserId, retorna { id: "__none__" }
  * (filtro imposible) para no exponer ningún estudiante.
  */
 export function studentScopeFor(actor: ActorContext): Record<string, unknown> {
   if (actor.role !== "MENTOR") return {};
-  if (!actor.mentorId) return { id: "__none__" };
-  return { mentorId: actor.mentorId };
+  if (!actor.mentorUserId) return { id: "__none__" };
+  return { mentorUserId: actor.mentorUserId };
 }
 
 /**
@@ -33,11 +33,11 @@ export function studentScopeFor(actor: ActorContext): Record<string, unknown> {
  */
 export function canAccessStudent(
   actor: ActorContext,
-  studentMentorId: string | null,
+  studentMentorUserId: string | null,
 ): boolean {
   if (actor.role !== "MENTOR") return true;
-  if (!actor.mentorId) return false;
-  return studentMentorId === actor.mentorId;
+  if (!actor.mentorUserId) return false;
+  return studentMentorUserId === actor.mentorUserId;
 }
 
 /**

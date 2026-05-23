@@ -112,7 +112,7 @@ export default async function UsersAdminPage() {
   });
   if (!actor?.active || !canManageUsers(actor.role, actor.permissions)) redirect("/dashboard");
 
-  const [users, areas, teams, mentorsAll] = await Promise.all([
+  const [users, areas, teams] = await Promise.all([
     prisma.user.findMany({
       orderBy: [{ active: "desc" }, { createdAt: "desc" }],
       select: {
@@ -133,7 +133,6 @@ export default async function UsersAdminPage() {
         ghlUserEmail: true,
         ghlUserName: true,
         isCollector: true,
-        mentor: { select: { id: true, name: true } },
       },
     }),
     prisma.area.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -141,11 +140,6 @@ export default async function UsersAdminPage() {
       where: { active: true },
       orderBy: { name: "asc" },
       select: { id: true, name: true, area: { select: { name: true } } },
-    }),
-    prisma.mentor.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, email: true, userId: true },
     }),
   ]);
 
@@ -157,11 +151,6 @@ export default async function UsersAdminPage() {
   const managerOptions: OptionItem[] = users
     .filter((user) => user.active && (user.position === "DIRECTOR" || user.position === "ADMIN"))
     .map((user) => ({ id: user.id, label: user.name || user.email }));
-  const mentorLinkOptions = (currentUserId: string | null): OptionItem[] =>
-    mentorsAll
-      .filter((mentor) => !mentor.userId || mentor.userId === currentUserId)
-      .map((mentor) => ({ id: mentor.id, label: `${mentor.name} (${mentor.email})` }));
-
   return (
     <main className="container wide">
       <div className="topbar">
@@ -226,10 +215,6 @@ export default async function UsersAdminPage() {
                 <span>Recibe recordatorios y reportes de cartera</span>
               </label>
             </div>
-            <div className="field">
-              <label>Vincular con Mentor</label>
-              <RelationSelect name="mentorLinkId" placeholder="No vincular" options={mentorLinkOptions(null)} />
-            </div>
           </div>
           <PermissionCheckboxes selected={defaultPermissionsForPosition("VIEWER")} />
           <button className="btn" type="submit">Crear acceso</button>
@@ -246,7 +231,7 @@ export default async function UsersAdminPage() {
                 <p className="muted">{user.email} · {roleLabels[user.role]} · {user.active ? "Activo" : "Suspendido"}</p>
                 <p className="muted">Cargo: {POSITION_LABELS[user.position]} · Alcance: {SCOPE_LABELS[user.dataScope]}</p>
                 <p className="muted">GHL: {user.ghlUserId ? user.ghlUserId : "sin mapear"}{user.ghlUserName ? ` (${user.ghlUserName})` : ""}</p>
-                <p className="muted">Cartera: {user.isCollector ? "Encargado de cobro" : "No"} · Mentor: {user.mentor?.name ?? "sin vincular"}</p>
+                <p className="muted">Cartera: {user.isCollector ? "Encargado de cobro" : "No"}</p>
                 <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por cargo"}</p>
                 <p className="muted">Último acceso: {user.lastLoginAt ? user.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") : "nunca"}</p>
               </div>
@@ -268,15 +253,6 @@ export default async function UsersAdminPage() {
                       <input type="checkbox" name="isCollector" defaultChecked={user.isCollector} />
                       <span>Cobra</span>
                     </span>
-                  </label>
-                  <label className="compact-field">
-                    Mentor vinculado
-                    <RelationSelect
-                      name="mentorLinkId"
-                      value={user.mentor?.id ?? null}
-                      placeholder="No vincular"
-                      options={mentorLinkOptions(user.id)}
-                    />
                   </label>
                 </div>
                 <PermissionCheckboxes selected={user.permissions.length ? user.permissions : defaultPermissionsForPosition(user.position)} />

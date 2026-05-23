@@ -13,9 +13,9 @@ export default async function NuevoEstudiantePage() {
   }
 
   const [mentors, programs] = await Promise.all([
-    prisma.mentor.findMany({
-      where: { active: true },
-      select: { id: true, name: true },
+    prisma.user.findMany({
+      where: { role: "MENTOR", active: true },
+      select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
     prisma.program.findMany({
