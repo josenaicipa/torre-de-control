@@ -234,25 +234,32 @@ export async function updateOwnProfileAction(formData: FormData) {
     if (password !== passwordConfirm) throw new Error("Las contraseñas no coinciden");
   }
 
-  const updated = await prisma.user.update({
-    where: { id: actor.id },
-    data: {
-      email,
-      name: name || null,
-      ghlUserId,
-      ghlUserEmail,
-      ghlUserName,
-      ...(password ? { passwordHash: hashPassword(password) } : {}),
-    },
-    select: { email: true },
-  });
-  await prisma.auditEvent.create({
-    data: {
-      actorId: actor.id,
-      action: password ? "user.password_updated" : "user.profile_updated",
-      target: updated.email,
-      metadata: { self: true, ghlUserId },
-    },
+  const isCollectorRaw = formData.get("isCollector");
+  const wantCollector = isCollectorRaw === "on" || isCollectorRaw === "true";
+
+  await prisma.$transaction(async (tx) => {
+    await assertCollectorAvailable(tx, wantCollector, actor.id);
+    const updated = await tx.user.update({
+      where: { id: actor.id },
+      data: {
+        email,
+        name: name || null,
+        ghlUserId,
+        ghlUserEmail,
+        ghlUserName,
+        isCollector: wantCollector,
+        ...(password ? { passwordHash: hashPassword(password) } : {}),
+      },
+      select: { email: true },
+    });
+    await tx.auditEvent.create({
+      data: {
+        actorId: actor.id,
+        action: password ? "user.password_updated" : "user.profile_updated",
+        target: updated.email,
+        metadata: { self: true, ghlUserId, isCollector: wantCollector },
+      },
+    });
   });
   revalidatePath("/admin/users");
 }
