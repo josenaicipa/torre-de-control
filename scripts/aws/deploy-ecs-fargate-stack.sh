@@ -24,6 +24,7 @@
 #   MEMORY                      default 512
 #   IMPORT_PAYMENT_TRANSACTIONS_ON_START  default 1
 #   HEALTH_CHECK_PATH           default /api/health
+#   ACM_CERTIFICATE_ARN         optional; when set, creates/updates HTTPS listener on 443
 set -euo pipefail
 
 AWS_REGION="${AWS_REGION:-us-east-1}"
@@ -37,6 +38,7 @@ CPU="${CPU:-256}"
 MEMORY="${MEMORY:-512}"
 IMPORT_PAYMENT_TRANSACTIONS_ON_START="${IMPORT_PAYMENT_TRANSACTIONS_ON_START:-1}"
 HEALTH_CHECK_PATH="${HEALTH_CHECK_PATH:-/api/health}"
+ACM_CERTIFICATE_ARN="${ACM_CERTIFICATE_ARN:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_FILE="${TEMPLATE_FILE:-${SCRIPT_DIR}/../../infra/aws/ecs-fargate-torre.yml}"
@@ -83,6 +85,11 @@ echo "  desired count:  ${DESIRED_COUNT}"
 echo "  cpu/memory:     ${CPU}/${MEMORY}"
 echo "  payment import: ${IMPORT_PAYMENT_TRANSACTIONS_ON_START}"
 echo "  health path:    ${HEALTH_CHECK_PATH}"
+if [[ -n "${ACM_CERTIFICATE_ARN}" ]]; then
+  echo "  acm cert:       ${ACM_CERTIFICATE_ARN}"
+else
+  echo "  acm cert:       [not set; HTTPS listener disabled]"
+fi
 echo "  DATABASE_URL:   [provided, not shown]"
 echo "  AUTH_SECRET:    [provided, not shown]"
 
@@ -106,7 +113,8 @@ aws cloudformation deploy \
     "DatabaseUrl=${DATABASE_URL}" \
     "AuthSecret=${AUTH_SECRET}" \
     "ImportPaymentTransactionsOnStart=${IMPORT_PAYMENT_TRANSACTIONS_ON_START}" \
-    "HealthCheckPath=${HEALTH_CHECK_PATH}"
+    "HealthCheckPath=${HEALTH_CHECK_PATH}" \
+    "AcmCertificateArn=${ACM_CERTIFICATE_ARN}"
 
 echo "Stack deploy complete. Stack outputs:"
 aws cloudformation describe-stacks \
