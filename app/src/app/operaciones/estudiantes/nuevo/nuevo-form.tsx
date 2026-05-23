@@ -4,14 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 interface Mentor { id: string; name: string | null; email: string }
-interface Program { id: string; slug: string; name: string; durationMonthsDefault: number }
 
 export function NuevoEstudianteForm({
   mentors,
-  programs,
 }: {
   mentors: Mentor[];
-  programs: Program[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -24,7 +21,6 @@ export function NuevoEstudianteForm({
 
     const form = e.currentTarget;
     const fd = new FormData(form);
-    const programId = (fd.get("programId") as string) || null;
     const mentorUserId = (fd.get("mentorUserId") as string) || null;
 
     const body = {
@@ -34,7 +30,6 @@ export function NuevoEstudianteForm({
       startDate: fd.get("startDate") as string,
       durationMonths: Number(fd.get("durationMonths")),
       mentorUserId,
-      programId,
       legalName: (fd.get("legalName") as string) || null,
       notes: (fd.get("notes") as string) || null,
     };
@@ -86,16 +81,13 @@ export function NuevoEstudianteForm({
         </div>
       </div>
 
+      <div>
+        <p className="mt-2 text-xs text-slate-500">
+          Todos los estudiantes son enrolados automáticamente en <strong>Nivel 5</strong> y <strong>Clases Avanzadas</strong> al crearse.
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Programa</label>
-          <select name="programId" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
-            <option value="">— Sin programa —</option>
-            {programs.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
         <div>
           <label className="block text-sm font-medium text-slate-700">Mentor líder</label>
           <select name="mentorUserId" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">

@@ -12,23 +12,16 @@ export default async function NuevoEstudiantePage() {
     redirect("/operaciones/estudiantes");
   }
 
-  const [mentors, programs] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: "MENTOR", active: true },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.program.findMany({
-      where: { active: true },
-      select: { id: true, slug: true, name: true, durationMonthsDefault: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const mentors = await prisma.user.findMany({
+    where: { role: "MENTOR", active: true },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: "asc" },
+  });
 
   return (
     <div className="max-w-2xl">
       <h1 className="mb-6 text-2xl font-bold text-slate-900">Nuevo estudiante</h1>
-      <NuevoEstudianteForm mentors={mentors} programs={programs} />
+      <NuevoEstudianteForm mentors={mentors} />
     </div>
   );
 }

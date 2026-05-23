@@ -27,7 +27,6 @@ export async function GET(_req: Request, { params }: Params) {
       where: { id },
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
-        program: { select: { id: true, slug: true, name: true } },
         members: true,
         _count: {
           select: {
@@ -84,7 +83,6 @@ export async function PATCH(req: Request, { params }: Params) {
       data: data as never,
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
-        program: { select: { id: true, slug: true, name: true } },
       },
     });
 

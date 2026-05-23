@@ -28,7 +28,6 @@ export async function GET(req: Request) {
 
     const where: Record<string, unknown> = {};
     if (query.mentorUserId) where.mentorUserId = query.mentorUserId;
-    if (query.programId) where.programId = query.programId;
     if (query.status) where.status = query.status;
     if (query.search) {
       where.OR = [
@@ -47,7 +46,6 @@ export async function GET(req: Request) {
         take: query.pageSize,
         include: {
           mentorUser: { select: { id: true, name: true, email: true } },
-          program: { select: { id: true, slug: true, name: true } },
         },
       }),
       prisma.student.count({ where: scoped as never }),
@@ -84,7 +82,6 @@ export async function POST(req: Request) {
         durationMonths: body.durationMonths,
         endDate,
         mentorUserId: body.mentorUserId ?? null,
-        programId: body.programId ?? null,
         ghlContactId: body.ghlContactId ?? null,
         notes: body.notes ?? null,
         personality: body.personality ?? null,
@@ -92,7 +89,6 @@ export async function POST(req: Request) {
       },
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
-        program: { select: { id: true, slug: true, name: true } },
       },
     });
 
@@ -103,7 +99,6 @@ export async function POST(req: Request) {
       metadata: {
         email: student.email,
         mentorUserId: student.mentorUserId,
-        programId: student.programId,
       },
     });
 
