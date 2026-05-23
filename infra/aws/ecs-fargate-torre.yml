@@ -1,0 +1,327 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Torre de Control v2 - ECS/Fargate + Application Load Balancer.
+  Reviewable migration target away from App Runner. This template only
+  describes infrastructure; it does not modify the existing App Runner
+  service or RDS instance other than adding one additive ingress rule that
+  lets the ECS tasks reach the existing RDS security group on 5432.
+  Secrets (DatabaseUrl, AuthSecret) are NoEcho parameters supplied at deploy
+  time. No real secret values are stored in this file.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: torre-de-control-v2
+    Description: Name prefix for created resources (cluster, service, log group).
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC that hosts the public subnets and the existing RDS instance.
+
+  PublicSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: >-
+      Public subnets (at least two AZs) for the internet-facing ALB and the
+      Fargate tasks (assign-public-IP path to ECR/logs).
+
+  ExistingRdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: >-
+      Security group attached to the existing RDS instance
+      (torre-control-v2-db). The stack adds an additive 5432 ingress rule
+      from the ECS task SG to this group; nothing else on RDS is changed.
+
+  ContainerImage:
+    Type: String
+    Description: >-
+      Full ECR image URI to run, e.g.
+      861273430072.dkr.ecr.us-east-1.amazonaws.com/torre-de-control-v2:<sha>
+
+  ContainerPort:
+    Type: Number
+    Default: 3000
+    Description: Port the Next.js container listens on.
+
+  DesiredCount:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    Description: Number of Fargate tasks the service keeps running.
+
+  Cpu:
+    Type: String
+    Default: "256"
+    AllowedValues: ["256", "512", "1024", "2048", "4096"]
+    Description: Fargate task CPU units (must pair with a valid Memory value).
+
+  Memory:
+    Type: String
+    Default: "512"
+    Description: Fargate task memory (MiB); must be a valid pairing for Cpu.
+
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: RDS PostgreSQL connection string (DATABASE_URL). Never logged.
+
+  AuthSecret:
+    Type: String
+    NoEcho: true
+    Description: Application signing secret (AUTH_SECRET). Never logged.
+
+  ImportPaymentTransactionsOnStart:
+    Type: String
+    Default: "1"
+    AllowedValues: ["0", "1"]
+    Description: >-
+      Maps to IMPORT_PAYMENT_TRANSACTIONS_ON_START. "1" runs the cash-ledger
+      import on container start; "0" skips it.
+
+  HealthCheckPath:
+    Type: String
+    Default: /api/health
+    Description: ALB target group health check path served by the app.
+
+  AcmCertificateArn:
+    Type: String
+    Default: ""
+    Description: >-
+      Optional ACM certificate ARN for an HTTPS listener on port 443. Leave
+      empty until the DNS-validated certificate is ISSUED.
+
+Conditions:
+  HasAcmCertificate: !Not [!Equals [!Ref AcmCertificateArn, ""]]
+
+Resources:
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${ProjectName}"
+      RetentionInDays: 30
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${ProjectName}-cluster"
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ecs-execution"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ecs-task"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${ProjectName} ALB - public HTTP ingress"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Public HTTP to the load balancer
+        - !If
+          - HasAcmCertificate
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 0.0.0.0/0
+            Description: Public HTTPS to the load balancer
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-alb-sg"
+
+  EcsTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${ProjectName} ECS Fargate tasks"
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-ecs-sg"
+
+  AlbToEcsIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EcsTaskSecurityGroup
+      IpProtocol: tcp
+      FromPort: !Ref ContainerPort
+      ToPort: !Ref ContainerPort
+      SourceSecurityGroupId: !Ref AlbSecurityGroup
+      Description: Allow ALB to reach the ECS task container port
+
+  EcsToRdsIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ExistingRdsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref EcsTaskSecurityGroup
+      Description: !Sub "Allow ${ProjectName} ECS tasks to reach RDS PostgreSQL"
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${ProjectName}-alb"
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets: !Ref PublicSubnetIds
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-alb"
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ProjectName}-tg"
+      VpcId: !Ref VpcId
+      TargetType: ip
+      Protocol: HTTP
+      Port: !Ref ContainerPort
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckPort: traffic-port
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasAcmCertificate
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref AcmCertificateArn
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Ref ProjectName
+      Cpu: !Ref Cpu
+      Memory: !Ref Memory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ContainerDefinitions:
+        - Name: !Ref ProjectName
+          Image: !Ref ContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: !Sub "${ContainerPort}"
+            - Name: DATABASE_URL
+              Value: !Ref DatabaseUrl
+            - Name: AUTH_SECRET
+              Value: !Ref AuthSecret
+            - Name: IMPORT_PAYMENT_TRANSACTIONS_ON_START
+              Value: !Ref ImportPaymentTransactionsOnStart
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: app
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      ServiceName: !Sub "${ProjectName}-service"
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 120
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Ref PublicSubnetIds
+          SecurityGroups:
+            - !Ref EcsTaskSecurityGroup
+      LoadBalancers:
+        - ContainerName: !Ref ProjectName
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroup
+
+Outputs:
+  LoadBalancerDNSName:
+    Description: Public DNS name of the ALB (http://<dns>/api/health).
+    Value: !GetAtt LoadBalancer.DNSName
+
+  ClusterName:
+    Description: ECS cluster name.
+    Value: !Ref Cluster
+
+  ServiceName:
+    Description: ECS service name.
+    Value: !GetAtt Service.Name
+
+  TaskDefinitionArn:
+    Description: ARN of the current task definition revision.
+    Value: !Ref TaskDefinition
+
+  TargetGroupArn:
+    Description: ARN of the ALB target group.
+    Value: !Ref TargetGroup
