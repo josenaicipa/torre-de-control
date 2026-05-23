@@ -1,13 +1,13 @@
 name: Deploy Torre de Control (ECS/Fargate)
 
-# Manual-only. This workflow does NOT replace the App Runner deploy
-# (.github/workflows/deploy.yml) — App Runner remains production until cutover.
-# It builds/pushes a new image and rolls the ECS service to it, and only works
-# once the CloudFormation stack (infra/aws/ecs-fargate-torre.yml) already
-# exists. Provisioning the stack itself is done out-of-band with elevated AWS
-# permissions via scripts/aws/deploy-ecs-fargate-stack.sh.
+# Production deploy for the post-App-Runner architecture. It builds/pushes a
+# new image and rolls the existing ECS/Fargate service to it. The CloudFormation
+# stack itself is provisioned out-of-band with elevated AWS permissions via
+# scripts/aws/deploy-ecs-fargate-stack.sh.
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       stack_name:
@@ -28,6 +28,8 @@ permissions:
 
 env:
   AWS_ACCOUNT_ID: "861273430072"
+  AWS_REGION: ${{ github.event.inputs.aws_region || 'us-east-1' }}
+  STACK_NAME: ${{ github.event.inputs.stack_name || 'torre-de-control-v2-ecs' }}
   ECR_REPOSITORY: torre-de-control-v2
 
 jobs:
@@ -70,14 +72,14 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ github.event.inputs.aws_region }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Confirm CloudFormation stack exists
         id: stack
         run: |
           set -euo pipefail
-          STACK_NAME="${{ github.event.inputs.stack_name }}"
-          REGION="${{ github.event.inputs.aws_region }}"
+          STACK_NAME="${STACK_NAME}"
+          REGION="${AWS_REGION}"
           if ! aws cloudformation describe-stacks \
               --region "${REGION}" --stack-name "${STACK_NAME}" >/dev/null 2>&1; then
             echo "Stack '${STACK_NAME}' not found in ${REGION}." >&2
@@ -115,7 +117,7 @@ jobs:
       - name: Build and push Docker image
         id: image
         env:
-          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          AWS_REGION: ${{ env.AWS_REGION }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -128,7 +130,7 @@ jobs:
       - name: Render and register new task definition
         id: taskdef
         env:
-          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          AWS_REGION: ${{ env.AWS_REGION }}
           TASK_DEF_ARN: ${{ steps.stack.outputs.task_def_arn }}
           IMAGE_URI: ${{ steps.image.outputs.image_uri }}
         run: |
@@ -166,7 +168,7 @@ jobs:
 
       - name: Update ECS service
         env:
-          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          AWS_REGION: ${{ env.AWS_REGION }}
           CLUSTER: ${{ steps.stack.outputs.cluster }}
           SERVICE: ${{ steps.stack.outputs.service }}
           NEW_TASK_DEF_ARN: ${{ steps.taskdef.outputs.new_task_def_arn }}
@@ -181,7 +183,7 @@ jobs:
 
       - name: Wait for service to stabilize
         env:
-          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          AWS_REGION: ${{ env.AWS_REGION }}
           CLUSTER: ${{ steps.stack.outputs.cluster }}
           SERVICE: ${{ steps.stack.outputs.service }}
         run: |
