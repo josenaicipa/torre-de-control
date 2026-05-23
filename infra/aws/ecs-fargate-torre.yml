@@ -82,6 +82,16 @@ Parameters:
     Default: /api/health
     Description: ALB target group health check path served by the app.
 
+  AcmCertificateArn:
+    Type: String
+    Default: ""
+    Description: >-
+      Optional ACM certificate ARN for an HTTPS listener on port 443. Leave
+      empty until the DNS-validated certificate is ISSUED.
+
+Conditions:
+  HasAcmCertificate: !Not [!Equals [!Ref AcmCertificateArn, ""]]
+
 Resources:
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -134,6 +144,14 @@ Resources:
           ToPort: 80
           CidrIp: 0.0.0.0/0
           Description: Public HTTP to the load balancer
+        - !If
+          - HasAcmCertificate
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 0.0.0.0/0
+            Description: Public HTTPS to the load balancer
+          - !Ref AWS::NoValue
       Tags:
         - Key: Name
           Value: !Sub "${ProjectName}-alb-sg"
@@ -206,6 +224,20 @@ Resources:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 80
       Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: HasAcmCertificate
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref AcmCertificateArn
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
