@@ -119,10 +119,14 @@ export function isAdmin(actor: Pick<DashboardActor, "role" | "position">): boole
 }
 
 export function canReadDashboard(actor: DashboardActor): boolean {
+  // A mentor requires an explicit ADMIN position to reach commercial data,
+  // even if old permission grants remain stored on the user.
+  if (actor.role === "MENTOR" && actor.position !== "ADMIN") return false;
   return isAdmin(actor) || actor.permissions.includes("dashboard.read");
 }
 
 export function canWriteDashboard(actor: DashboardActor): boolean {
+  if (actor.role === "MENTOR" && actor.position !== "ADMIN") return false;
   return isAdmin(actor) || actor.permissions.includes("dashboard.write");
 }
 

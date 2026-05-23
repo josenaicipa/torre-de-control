@@ -1,28 +1,46 @@
 /**
- * Resuelve ActorContext desde la session. Para MENTOR busca el Mentor row vinculado.
+ * Resolves shared auth context for Operaciones routes and server components.
+ * Authorization remains domain-specific; this loader only reads fresh DB state.
  */
 import { prisma } from "./prisma";
 import { getSession } from "./auth";
-import type { Role } from "@prisma/client";
+import type { DataScope, OperationalPosition, Role } from "@prisma/client";
 
 export interface ActorContext {
   userId: string;
   email: string;
+  name: string | null;
   role: Role;
+  position: OperationalPosition;
+  dataScope: DataScope;
+  permissions: string[];
+  areaId: string | null;
+  teamId: string | null;
+  ghlUserName: string | null;
   mentorId: string | null;
+  isCollector: boolean;
 }
 
-/**
- * Lee la session, busca el User y (si es MENTOR) el Mentor vinculado.
- * Returns null si no hay session válida.
- */
 export async function getActor(): Promise<ActorContext | null> {
   const session = await getSession();
   if (!session) return null;
 
   const user = await prisma.user.findUnique({
     where: { id: session.sub },
-    select: { id: true, email: true, role: true, active: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      active: true,
+      position: true,
+      dataScope: true,
+      permissions: true,
+      areaId: true,
+      teamId: true,
+      ghlUserName: true,
+      isCollector: true,
+    },
   });
   if (!user || !user.active) return null;
 
@@ -32,20 +50,25 @@ export async function getActor(): Promise<ActorContext | null> {
       where: { userId: user.id },
       select: { id: true, active: true },
     });
-    if (mentor && mentor.active) mentorId = mentor.id;
+    if (mentor?.active) mentorId = mentor.id;
   }
 
   return {
     userId: user.id,
     email: user.email,
+    name: user.name,
     role: user.role,
+    position: user.position,
+    dataScope: user.dataScope,
+    permissions: user.permissions,
+    areaId: user.areaId,
+    teamId: user.teamId,
+    ghlUserName: user.ghlUserName,
     mentorId,
+    isCollector: user.isCollector,
   };
 }
 
-/**
- * Guards para roles. Tiran error que se traduce a 403 en las routes.
- */
 export class ForbiddenError extends Error {
   constructor(message = "Sin permiso") {
     super(message);
@@ -75,8 +98,11 @@ export function requireOperatorOrAdmin(actor: ActorContext): void {
 }
 
 export function requireMentorOrAbove(actor: ActorContext): void {
-  // ADMIN, OPERATOR, MENTOR pueden escribir. VIEWER no.
   if (actor.role === "VIEWER") {
     throw new ForbiddenError("Sin permiso de escritura");
   }
+}
+
+export function hasOperacionesPermission(actor: ActorContext, permission: string): boolean {
+  return actor.role === "ADMIN" || actor.permissions.includes(permission);
 }

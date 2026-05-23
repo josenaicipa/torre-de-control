@@ -43,6 +43,17 @@ export const PERMISSION_GROUPS = [
       { id: "integrations.manage", label: "Administrar integraciones" },
     ],
   },
+  {
+    id: "operaciones",
+    label: "Operaciones",
+    permissions: [
+      { id: "operaciones.read", label: "Ver modulo Operaciones" },
+      { id: "operaciones.write", label: "Crear/editar estudiantes y datos" },
+      { id: "operaciones.payments.write", label: "Registrar pagos" },
+      { id: "operaciones.mentors.manage", label: "Gestionar mentores" },
+      { id: "operaciones.import", label: "Importar (Excel/CSV)" },
+    ],
+  },
 ] as const;
 
 export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap((group) =>
@@ -59,18 +70,26 @@ export function normalizePermissions(input: FormDataEntryValue[] | string[] | un
 
 export function defaultPermissionsForRole(role: Role): PermissionId[] {
   if (role === "ADMIN") return [...ALL_PERMISSIONS];
-  if (role === "OPERATOR" || role === "MENTOR") {
+  if (role === "OPERATOR") {
     return ALL_PERMISSIONS.filter(
-      (permission) =>
-        permission === "dashboard.read" ||
-        permission === "dashboard.write" ||
-        permission === "reports.read" ||
-        permission === "reports.export" ||
-        permission === "automation.read" ||
-        permission === "automation.run",
+      (p) =>
+        p === "dashboard.read" ||
+        p === "dashboard.write" ||
+        p === "reports.read" ||
+        p === "reports.export" ||
+        p === "automation.read" ||
+        p === "automation.run" ||
+        p === "operaciones.read" ||
+        p === "operaciones.write" ||
+        p === "operaciones.payments.write" ||
+        p === "operaciones.import",
     ) as PermissionId[];
   }
-  return ["dashboard.read", "reports.read"];
+  if (role === "MENTOR") {
+    // MENTOR solo trabaja sobre sus estudiantes en Operaciones.
+    return ["operaciones.read", "operaciones.write"];
+  }
+  return ["dashboard.read", "reports.read", "operaciones.read"];
 }
 
 export function canManageUsers(role: string, permissions: string[] = []): boolean {

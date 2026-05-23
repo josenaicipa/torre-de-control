@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import {
   canManageUsers,
+  defaultPermissionsForRole,
   defaultPermissionsForPosition,
   normalizePermissions,
   parsePosition,
@@ -35,6 +36,8 @@ interface ScopedFields {
   ghlUserId: string | null;
   ghlUserEmail: string | null;
   ghlUserName: string | null;
+  isCollector: boolean;
+  mentorLinkId: string | null;
 }
 
 function readScopedFields(formData: FormData): ScopedFields {
@@ -48,6 +51,8 @@ function readScopedFields(formData: FormData): ScopedFields {
     ghlUserId: optionalString(formData.get("ghlUserId")),
     ghlUserEmail: ghlUserEmail ? ghlUserEmail.toLowerCase() : null,
     ghlUserName: optionalString(formData.get("ghlUserName")),
+    isCollector: formData.get("isCollector") === "on" || formData.get("isCollector") === "true",
+    mentorLinkId: optionalString(formData.get("mentorLinkId")),
   };
 }
 
@@ -79,6 +84,62 @@ async function normalizeScopedReferences(fields: ScopedFields, selfId: string | 
   return normalized;
 }
 
+function resolvedPermissions(
+  role: Role,
+  selected: ReturnType<typeof normalizePermissions>,
+  position: ScopedFields["position"],
+) {
+  if (role === "MENTOR") {
+    const operacionesOnly = selected.filter((permission) => permission.startsWith("operaciones."));
+    return operacionesOnly.length > 0 ? operacionesOnly : defaultPermissionsForRole(role);
+  }
+  return selected.length > 0 ? selected : defaultPermissionsForPosition(position);
+}
+
+async function assertCollectorAvailable(
+  tx: Prisma.TransactionClient,
+  isCollector: boolean,
+  excludeUserId?: string,
+) {
+  if (!isCollector) return;
+  const existing = await tx.user.findFirst({
+    where: {
+      isCollector: true,
+      active: true,
+      ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+    },
+    select: { email: true },
+  });
+  if (existing) {
+    throw new Error(`Ya hay otro usuario marcado como encargado de cobro: ${existing.email}`);
+  }
+}
+
+async function syncMentorLink(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  mentorLinkId: string | null,
+) {
+  await tx.mentor.updateMany({
+    where: {
+      userId,
+      ...(mentorLinkId ? { id: { not: mentorLinkId } } : {}),
+    },
+    data: { userId: null },
+  });
+  if (!mentorLinkId) return;
+
+  const mentor = await tx.mentor.findUnique({
+    where: { id: mentorLinkId },
+    select: { userId: true },
+  });
+  if (!mentor) throw new Error("El mentor seleccionado no existe");
+  if (mentor.userId && mentor.userId !== userId) {
+    throw new Error("El mentor seleccionado ya está vinculado a otro usuario");
+  }
+  await tx.mentor.update({ where: { id: mentorLinkId }, data: { userId } });
+}
+
 async function requireUserAdmin() {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -102,10 +163,14 @@ export async function createUserAction(formData: FormData) {
   if (!email || !email.includes("@")) throw new Error("Correo inválido");
   if (password.length < 10) throw new Error("La contraseña temporal debe tener mínimo 10 caracteres");
   scoped = await normalizeScopedReferences(scoped, null);
-  const permissions = selected.length > 0 ? selected : defaultPermissionsForPosition(scoped.position);
+  if (scoped.mentorLinkId && role !== "MENTOR") {
+    throw new Error("Solo un usuario con rol MENTOR puede vincularse a un mentor");
+  }
+  const permissions = resolvedPermissions(role, selected, scoped.position);
 
-  await prisma.$transaction([
-    prisma.user.create({
+  await prisma.$transaction(async (tx) => {
+    await assertCollectorAvailable(tx, scoped.isCollector);
+    const created = await tx.user.create({
       data: {
         email,
         name: name || null,
@@ -121,9 +186,14 @@ export async function createUserAction(formData: FormData) {
         ghlUserId: scoped.ghlUserId,
         ghlUserEmail: scoped.ghlUserEmail,
         ghlUserName: scoped.ghlUserName,
+        isCollector: scoped.isCollector,
       },
-    }),
-    prisma.auditEvent.create({
+      select: { id: true },
+    });
+    if (scoped.mentorLinkId) {
+      await syncMentorLink(tx, created.id, scoped.mentorLinkId);
+    }
+    await tx.auditEvent.create({
       data: {
         actorId: actor.id,
         action: "user.created",
@@ -137,10 +207,12 @@ export async function createUserAction(formData: FormData) {
           teamId: scoped.teamId,
           managerId: scoped.managerId,
           ghlUserId: scoped.ghlUserId,
+          isCollector: scoped.isCollector,
+          mentorLinkId: scoped.mentorLinkId,
         },
       },
-    }),
-  ]);
+    });
+  });
   revalidatePath("/admin/users");
 }
 
@@ -193,39 +265,50 @@ export async function updateUserAction(formData: FormData) {
   const permissions = normalizePermissions(formData.getAll("permissions"));
   if (!id || id === actor.id) return;
   scoped = await normalizeScopedReferences(scoped, id);
+  if (scoped.mentorLinkId && role !== "MENTOR") {
+    throw new Error("Solo un usuario con rol MENTOR puede vincularse a un mentor");
+  }
+  const effectivePermissions = resolvedPermissions(role, permissions, scoped.position);
 
-  const target = await prisma.user.update({
-    where: { id },
-    data: {
-      role,
-      permissions: permissions.length > 0 ? permissions : defaultPermissionsForPosition(scoped.position),
-      position: scoped.position,
-      dataScope: scoped.dataScope,
-      areaId: scoped.areaId,
-      teamId: scoped.teamId,
-      managerId: scoped.managerId,
-      ghlUserId: scoped.ghlUserId,
-      ghlUserEmail: scoped.ghlUserEmail,
-      ghlUserName: scoped.ghlUserName,
-    },
-    select: { email: true },
-  });
-  await prisma.auditEvent.create({
-    data: {
-      actorId: actor.id,
-      action: "user.permissions_updated",
-      target: target.email,
-      metadata: {
+  await prisma.$transaction(async (tx) => {
+    await assertCollectorAvailable(tx, scoped.isCollector, id);
+    const target = await tx.user.update({
+      where: { id },
+      data: {
         role,
-        permissions,
+        permissions: effectivePermissions,
         position: scoped.position,
         dataScope: scoped.dataScope,
         areaId: scoped.areaId,
         teamId: scoped.teamId,
         managerId: scoped.managerId,
         ghlUserId: scoped.ghlUserId,
+        ghlUserEmail: scoped.ghlUserEmail,
+        ghlUserName: scoped.ghlUserName,
+        isCollector: scoped.isCollector,
       },
-    },
+      select: { email: true },
+    });
+    await syncMentorLink(tx, id, role === "MENTOR" ? scoped.mentorLinkId : null);
+    await tx.auditEvent.create({
+      data: {
+        actorId: actor.id,
+        action: "user.permissions_updated",
+        target: target.email,
+        metadata: {
+          role,
+          permissions: effectivePermissions,
+          position: scoped.position,
+          dataScope: scoped.dataScope,
+          areaId: scoped.areaId,
+          teamId: scoped.teamId,
+          managerId: scoped.managerId,
+          ghlUserId: scoped.ghlUserId,
+          isCollector: scoped.isCollector,
+          mentorLinkId: scoped.mentorLinkId,
+        },
+      },
+    });
   });
   revalidatePath("/admin/users");
 }
