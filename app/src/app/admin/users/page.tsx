@@ -11,7 +11,7 @@ import {
   SCOPE_LABELS,
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { LogoutButton } from "@/app/dashboard/logout-button";
+import { OperationsShell } from "@/app/operaciones/operations-shell";
 import { createUserAction, toggleUserStatusAction, updateOwnProfileAction, updateUserAction } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,14 @@ const roleLabels: Record<Role, string> = {
   MENTOR: "Mentor",
   VIEWER: "Viewer",
 };
+
+const ADMIN_NAV_ITEMS = [
+  { href: "/operaciones/estudiantes", label: "Estudiantes" },
+  { href: "/operaciones/cartera", label: "Cartera" },
+  { href: "/operaciones/mentores", label: "Mentores" },
+  { href: "/operaciones/importar", label: "Importar Excel" },
+  { href: "/admin/users", label: "Usuarios y permisos" },
+];
 
 interface OptionItem {
   id: string;
@@ -152,15 +160,13 @@ export default async function UsersAdminPage() {
     .filter((user) => user.active && (user.position === "DIRECTOR" || user.position === "ADMIN"))
     .map((user) => ({ id: user.id, label: user.name || user.email }));
   return (
-    <main className="container wide">
-      <div className="topbar">
-        <span className="brand">Torre de Control · Admin</span>
-        <div className="top-actions">
-          <a className="btn secondary" href="/dashboard">Dashboard</a>
-          <span className="muted">{actor.email}</span>
-          <LogoutButton />
-        </div>
-      </div>
+    <OperationsShell
+      actor={{ email: actor.email, role: actor.role }}
+      navItems={ADMIN_NAV_ITEMS}
+      title="Usuarios y permisos"
+      eyebrow="Administración · Torre de Control"
+    >
+      <div className="space-y-6">
 
       <h1 className="page-title">Usuarios y permisos</h1>
       <p className="muted">
@@ -267,6 +273,7 @@ export default async function UsersAdminPage() {
           ))}
         </div>
       </section>
-    </main>
+      </div>
+    </OperationsShell>
   );
 }
