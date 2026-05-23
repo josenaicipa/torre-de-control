@@ -21,7 +21,12 @@ export function LoginForm() {
         body: JSON.stringify({ email, password }),
       });
       if (res.ok) {
-        router.replace("/");
+        const body = (await res.json().catch(() => ({}))) as { redirectTo?: unknown };
+        const dest =
+          typeof body.redirectTo === "string" && body.redirectTo.startsWith("/")
+            ? body.redirectTo
+            : "/";
+        router.replace(dest);
         router.refresh();
         return;
       }

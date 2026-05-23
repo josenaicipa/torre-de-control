@@ -107,6 +107,7 @@ export default async function UsersAdminPage() {
       ghlUserId: true,
       ghlUserEmail: true,
       ghlUserName: true,
+      isCollector: true,
     },
   });
   if (!actor?.active || !canManageUsers(actor.role, actor.permissions)) redirect("/dashboard");
@@ -190,6 +191,13 @@ export default async function UsersAdminPage() {
             <div className="field"><label>GHL User ID</label><input name="ghlUserId" defaultValue={actor.ghlUserId ?? ""} placeholder="ID de usuario en GHL" /></div>
             <div className="field"><label>GHL Email</label><input name="ghlUserEmail" type="email" defaultValue={actor.ghlUserEmail ?? ""} placeholder="correo en GHL" /></div>
             <div className="field"><label>GHL Nombre</label><input name="ghlUserName" defaultValue={actor.ghlUserName ?? ""} placeholder="nombre en GHL" /></div>
+            <div className="field">
+              <label>Encargado de cobro</label>
+              <label className="checkbox-row">
+                <input type="checkbox" name="isCollector" defaultChecked={actor.isCollector} />
+                <span>Recibo recordatorios y reportes de cartera</span>
+              </label>
+            </div>
           </div>
           <button className="btn secondary" type="submit">Actualizar mi usuario</button>
         </form>

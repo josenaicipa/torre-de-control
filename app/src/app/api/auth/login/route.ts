@@ -96,9 +96,15 @@ export async function POST(req: NextRequest) {
       data: { lastLoginAt: new Date() },
     });
 
+    const redirectTo =
+      user.role === "MENTOR" && user.position !== "ADMIN"
+        ? "/operaciones/mis-estudiantes"
+        : "/";
+
     const res = NextResponse.json({
       ok: true,
       user: { email: user.email, role: user.role },
+      redirectTo,
     });
     res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
     return res;
