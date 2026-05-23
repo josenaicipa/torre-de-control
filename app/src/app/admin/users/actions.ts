@@ -13,6 +13,7 @@ import {
   parseScope,
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { normalizeAreaForSelectedTeam } from "@/lib/user-scope-normalization";
 
 function parseRole(value: FormDataEntryValue | null): Role {
   if (value === "ADMIN" || value === "OPERATOR" || value === "MENTOR" || value === "VIEWER") return value;
@@ -52,27 +53,30 @@ function readScopedFields(formData: FormData): ScopedFields {
 
 // Validate that referenced area/team/manager actually exist. Avoids opaque FK
 // errors and prevents pointing a user at a non-existent (or self) manager.
-async function assertScopedReferences(fields: ScopedFields, selfId: string | null): Promise<void> {
-  if (fields.areaId) {
-    const area = await prisma.area.findUnique({ where: { id: fields.areaId }, select: { id: true } });
+// If an operator selects a team, the team is the source of truth for area: this
+// keeps the form forgiving instead of crashing when Área/Equipo are mismatched.
+async function normalizeScopedReferences(fields: ScopedFields, selfId: string | null): Promise<ScopedFields> {
+  const normalized = { ...fields };
+
+  if (normalized.areaId) {
+    const area = await prisma.area.findUnique({ where: { id: normalized.areaId }, select: { id: true } });
     if (!area) throw new Error("El área seleccionada no existe");
   }
-  if (fields.teamId) {
+  if (normalized.teamId) {
     const team = await prisma.team.findUnique({
-      where: { id: fields.teamId },
+      where: { id: normalized.teamId },
       select: { id: true, areaId: true },
     });
     if (!team) throw new Error("El equipo seleccionado no existe");
-    // A team must not be paired with a different area than the one it belongs to.
-    if (fields.areaId && team.areaId !== fields.areaId) {
-      throw new Error("El equipo seleccionado pertenece a otra área");
-    }
+    normalized.areaId = normalizeAreaForSelectedTeam(normalized.areaId, team.areaId);
   }
-  if (fields.managerId) {
-    if (fields.managerId === selfId) throw new Error("Un usuario no puede ser su propio responsable");
-    const manager = await prisma.user.findUnique({ where: { id: fields.managerId }, select: { id: true } });
+  if (normalized.managerId) {
+    if (normalized.managerId === selfId) throw new Error("Un usuario no puede ser su propio responsable");
+    const manager = await prisma.user.findUnique({ where: { id: normalized.managerId }, select: { id: true } });
     if (!manager) throw new Error("El responsable seleccionado no existe");
   }
+
+  return normalized;
 }
 
 async function requireUserAdmin() {
@@ -92,13 +96,13 @@ export async function createUserAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const role = parseRole(formData.get("role"));
-  const scoped = readScopedFields(formData);
+  let scoped = readScopedFields(formData);
   const selected = normalizePermissions(formData.getAll("permissions"));
-  const permissions = selected.length > 0 ? selected : defaultPermissionsForPosition(scoped.position);
 
   if (!email || !email.includes("@")) throw new Error("Correo inválido");
   if (password.length < 10) throw new Error("La contraseña temporal debe tener mínimo 10 caracteres");
-  await assertScopedReferences(scoped, null);
+  scoped = await normalizeScopedReferences(scoped, null);
+  const permissions = selected.length > 0 ? selected : defaultPermissionsForPosition(scoped.position);
 
   await prisma.$transaction([
     prisma.user.create({
@@ -185,10 +189,10 @@ export async function updateUserAction(formData: FormData) {
   const actor = await requireUserAdmin();
   const id = String(formData.get("id") ?? "");
   const role = parseRole(formData.get("role"));
-  const scoped = readScopedFields(formData);
+  let scoped = readScopedFields(formData);
   const permissions = normalizePermissions(formData.getAll("permissions"));
   if (!id || id === actor.id) return;
-  await assertScopedReferences(scoped, id);
+  scoped = await normalizeScopedReferences(scoped, id);
 
   const target = await prisma.user.update({
     where: { id },
