@@ -101,12 +101,13 @@ model User {
 
   auditEvents     AuditEvent[]
   commercialNotes CommercialNote[]
-  mentor               Mentor?
   recordedPayments     Payment[]                @relation("PaymentRecorder")
   submittedProgress    ProgressUpdate[]         @relation("ProgressSubmitter")
   reportedMetrics      StudentMonthlyMetrics[]  @relation("MetricsReporter")
   resolvedTerminations TerminationAlert[]       @relation("TerminationResolver")
   uploadedImports      ImportBatch[]            @relation("ImportUploader")
+  studentsAsMentor     Student[]                @relation("StudentMentor")
+  progressAsMentor     ProgressUpdate[]         @relation("ProgressMentor")
 
   @@index([role])
   @@index([position])
@@ -380,23 +381,6 @@ enum ProgressLevel {
   SIN_DATO
 }
 
-model Mentor {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  phone     String?
-  userId    String?  @unique
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  students        Student[]
-  progressUpdates ProgressUpdate[]
-
-  @@index([active])
-}
-
 model Program {
   id                    String   @id @default(cuid())
   slug                  String   @unique
@@ -418,8 +402,8 @@ model Student {
   startDate            DateTime       @db.Date
   durationMonths       Int
   endDate              DateTime       @db.Date
-  mentorId             String?
-  mentor               Mentor?        @relation(fields: [mentorId], references: [id], onDelete: SetNull)
+  mentorUserId         String?
+  mentorUser           User?          @relation("StudentMentor", fields: [mentorUserId], references: [id], onDelete: SetNull)
   programId            String?
   program              Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
   status               StudentStatus  @default(ACTIVE)
@@ -445,7 +429,7 @@ model Student {
   terminations        TerminationAlert[]
   promotedFromContact Contact?                @relation("ContactPromotion")
 
-  @@index([mentorId])
+  @@index([mentorUserId])
   @@index([programId])
   @@index([status])
   @@index([legacyRowId])
@@ -526,8 +510,8 @@ model ProgressUpdate {
   id                     String        @id @default(cuid())
   studentId              String
   student                Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  mentorId               String
-  mentor                 Mentor        @relation(fields: [mentorId], references: [id])
+  mentorUserId           String
+  mentorUser             User          @relation("ProgressMentor", fields: [mentorUserId], references: [id])
   periodStart            DateTime      @db.Date
   periodEnd              DateTime      @db.Date
   notes                  String
@@ -542,7 +526,7 @@ model ProgressUpdate {
   submittedBy            User?         @relation("ProgressSubmitter", fields: [submittedById], references: [id], onDelete: SetNull)
 
   @@index([studentId, periodEnd])
-  @@index([mentorId])
+  @@index([mentorUserId])
 }
 
 model StudentMonthlyMetrics {
@@ -651,4 +635,3 @@ model TerminationAlert {
   @@index([studentId])
   @@index([resolvedAt])
 }
-

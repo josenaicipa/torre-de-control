@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-interface Mentor { id: string; name: string }
+interface Mentor { id: string; name: string | null; email: string }
 interface Program { id: string; slug: string; name: string; durationMonthsDefault: number }
 
 export function NuevoEstudianteForm({
@@ -25,7 +25,7 @@ export function NuevoEstudianteForm({
     const form = e.currentTarget;
     const fd = new FormData(form);
     const programId = (fd.get("programId") as string) || null;
-    const mentorId = (fd.get("mentorId") as string) || null;
+    const mentorUserId = (fd.get("mentorUserId") as string) || null;
 
     const body = {
       fullName: fd.get("fullName") as string,
@@ -33,7 +33,7 @@ export function NuevoEstudianteForm({
       phone: (fd.get("phone") as string) || null,
       startDate: fd.get("startDate") as string,
       durationMonths: Number(fd.get("durationMonths")),
-      mentorId,
+      mentorUserId,
       programId,
       legalName: (fd.get("legalName") as string) || null,
       notes: (fd.get("notes") as string) || null,
@@ -98,10 +98,10 @@ export function NuevoEstudianteForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700">Mentor líder</label>
-          <select name="mentorId" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+          <select name="mentorUserId" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
             <option value="">— Sin asignar —</option>
             {mentors.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
+              <option key={m.id} value={m.id}>{m.name ?? m.email}</option>
             ))}
           </select>
         </div>

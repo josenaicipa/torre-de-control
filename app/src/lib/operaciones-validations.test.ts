@@ -3,7 +3,6 @@ import {
   createStudentSchema,
   updateStudentSchema,
   listStudentsQuerySchema,
-  createMentorSchema,
 } from "./operaciones-validations";
 
 describe("createStudentSchema", () => {
@@ -109,23 +108,6 @@ describe("listStudentsQuerySchema", () => {
   });
   it("clamps pageSize to max 200", () => {
     const result = listStudentsQuerySchema.safeParse({ pageSize: "500" });
-    expect(result.success).toBe(false);
-  });
-});
-
-describe("createMentorSchema", () => {
-  it("accepts valid input", () => {
-    const result = createMentorSchema.safeParse({
-      name: "Keiner",
-      email: "keiner@unlockedacademy.co",
-    });
-    expect(result.success).toBe(true);
-  });
-  it("rejects empty name", () => {
-    const result = createMentorSchema.safeParse({
-      name: "",
-      email: "k@e.com",
-    });
     expect(result.success).toBe(false);
   });
 });

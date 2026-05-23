@@ -8,16 +8,9 @@ export default async function MisEstudiantesPage() {
   const actor = await getActor();
   if (!actor) redirect("/login");
   if (actor.role !== "MENTOR") redirect("/operaciones/estudiantes");
-  if (!actor.mentorId) {
-    return (
-      <div>
-        <h1 className="mb-2 text-2xl font-bold text-slate-900">Mis Estudiantes</h1>
-        <p className="text-sm text-rose-600">Tu cuenta de MENTOR no está vinculada a un Mentor todavía. Pedile al admin que te vincule.</p>
-      </div>
-    );
-  }
+  if (!actor.mentorUserId) redirect("/operaciones");
   const students = await prisma.student.findMany({
-    where: { mentorId: actor.mentorId },
+    where: { mentorUserId: actor.mentorUserId },
     include: { program: { select: { name: true } } },
     orderBy: { fullName: "asc" },
   });

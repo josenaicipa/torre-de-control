@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 interface SearchParams {
   search?: string;
   status?: string;
-  mentorId?: string;
+  mentorUserId?: string;
   page?: string;
 }
 
@@ -33,7 +33,7 @@ export default async function EstudiantesPage({
     ];
   }
   if (sp.status) where.status = sp.status;
-  if (sp.mentorId) where.mentorId = sp.mentorId;
+  if (sp.mentorUserId) where.mentorUserId = sp.mentorUserId;
 
   const scoped = mergeStudentScope(actor, where);
 
@@ -44,14 +44,14 @@ export default async function EstudiantesPage({
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        mentor: { select: { id: true, name: true } },
+        mentorUser: { select: { id: true, name: true, email: true } },
         program: { select: { id: true, name: true } },
       },
     }),
     prisma.student.count({ where: scoped as never }),
-    prisma.mentor.findMany({
-      where: { active: true },
-      select: { id: true, name: true },
+    prisma.user.findMany({
+      where: { role: "MENTOR", active: true },
+      select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -99,13 +99,13 @@ export default async function EstudiantesPage({
           <option value="ACCESS_REVOKED">Sin accesos</option>
         </select>
         <select
-          name="mentorId"
-          defaultValue={sp.mentorId ?? ""}
+          name="mentorUserId"
+          defaultValue={sp.mentorUserId ?? ""}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">Todos los mentores</option>
           {mentors.map((m) => (
-            <option key={m.id} value={m.id}>{m.name}</option>
+            <option key={m.id} value={m.id}>{m.name ?? m.email}</option>
           ))}
         </select>
         <button
@@ -145,7 +145,7 @@ export default async function EstudiantesPage({
                     </Link>
                   </td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.email}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{s.mentor?.name ?? "—"}</td>
+                  <td className="px-4 py-2 text-sm text-slate-600">{s.mentorUser?.name ?? s.mentorUser?.email ?? "—"}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.program?.name ?? "—"}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.startDate.toISOString().slice(0, 10)}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.endDate.toISOString().slice(0, 10)}</td>

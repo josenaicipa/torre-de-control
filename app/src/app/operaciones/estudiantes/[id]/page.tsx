@@ -30,7 +30,7 @@ export default async function StudentDetailPage({
   const student = await prisma.student.findUnique({
     where: { id },
     include: {
-      mentor: { select: { id: true, name: true, email: true } },
+      mentorUser: { select: { id: true, name: true, email: true } },
       program: { select: { id: true, slug: true, name: true } },
       members: true,
       _count: {
@@ -45,7 +45,7 @@ export default async function StudentDetailPage({
     },
   });
   if (!student) notFound();
-  if (!canAccessStudent(actor, student.mentorId)) notFound();
+  if (!canAccessStudent(actor, student.mentorUserId)) notFound();
 
   return (
     <div>
@@ -60,7 +60,7 @@ export default async function StudentDetailPage({
         <div className="text-right text-sm text-slate-600">
           <p>Inicio: {student.startDate.toISOString().slice(0, 10)}</p>
           <p>Fin: {student.endDate.toISOString().slice(0, 10)}</p>
-          <p className="mt-1">Mentor: {student.mentor?.name ?? "—"}</p>
+          <p className="mt-1">Mentor: {student.mentorUser?.name ?? student.mentorUser?.email ?? "—"}</p>
         </div>
       </div>
 
