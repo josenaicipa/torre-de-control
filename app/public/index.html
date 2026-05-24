@@ -3400,6 +3400,7 @@ function App(){
     return TABS.some(t=>t.id===requested&&!t.children)?requested:"torre";
   });
   const [openSubmenu,setOpenSubmenu]=useState(null);
+  const [embedUrl,setEmbedUrl]=useState(null);
   const [year,setYear]=useState(new Date().getFullYear());
   const [month,setMonth]=useState(new Date().getMonth());
   const [kpiData,setKpiData]=useState({});
@@ -3787,21 +3788,28 @@ function App(){
                       <span style={{flex:1}}>{t.l}</span>
                       <span style={{fontSize:10,opacity:.6}}>{expanded?"▼":"▶"}</span>
                     </button>
-                    {expanded&&t.children.map(c=>(
-                      <a key={c.id} href={c.href}
-                        style={{padding:"7px 12px 7px 37px",fontSize:12,color:TXT2,
-                          fontFamily:"'Inter',sans-serif",fontWeight:500,
-                          textDecoration:"none",display:"block",borderRadius:"0 9px 9px 0"}}
-                        onMouseEnter={e=>e.currentTarget.style.background=BRAND+"10"}
-                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                        {c.l}
-                      </a>
-                    ))}
+                    {expanded&&t.children.map(c=>{
+                      const subActive=embedUrl===c.href;
+                      return(
+                        <button key={c.id}
+                          onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");}}
+                          style={{padding:"7px 12px 7px 37px",fontSize:12,
+                            color:subActive?BRAND:TXT2,
+                            background:subActive?BRAND+"18":"transparent",
+                            fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,
+                            border:"none",cursor:"pointer",textAlign:"left",width:"100%",
+                            display:"block",borderRadius:"0 9px 9px 0"}}
+                          onMouseEnter={e=>{if(!subActive)e.currentTarget.style.background=BRAND+"10";}}
+                          onMouseLeave={e=>{if(!subActive)e.currentTarget.style.background="transparent";}}>
+                          {c.l}
+                        </button>
+                      );
+                    })}
                   </div>
                 );
               }
               return(
-                <button key={t.id} onClick={()=>setTab(t.id)}
+                <button key={t.id} onClick={()=>{setTab(t.id);setEmbedUrl(null);}}
                   className={`sidebar-item${active?" active":""}`}
                   style={{width:"100%",textAlign:"left",background:active?BRAND+"18":"transparent",
                     border:"none",borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
@@ -3857,7 +3865,7 @@ function App(){
 
           {/* Mobile period bar */}
           <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
-            {tab!=="control"&&<button onClick={()=>setTab("control")} style={{
+            {tab!=="control"&&<button onClick={()=>{setTab("control");setEmbedUrl(null);}} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:9,padding:"8px 10px",
               fontSize:11,fontWeight:800,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
               Control Comercial
@@ -3886,17 +3894,32 @@ function App(){
                 {(caps&&caps.scopeSummary)||"Solo ves los datos asignados a tu alcance."} Si necesitas más acceso, pide a un admin que ajuste tu alcance.
               </div>
             </div>}
-            {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
-            {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
-            {tab==="control" &&<ControlComercial/>}
-            {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
-            {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
-            {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
-            {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
-            {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
-            {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
-            {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
-            {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                style={{
+                  width:"100%",
+                  height:"calc(100vh - 80px)",
+                  border:"none",
+                  background:"#F7F7F5",
+                  display:"block"
+                }}
+              />
+            ) : (
+              <>
+                {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
+                {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
+                {tab==="control" &&<ControlComercial/>}
+                {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
+                {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
+                {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
+                {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
+                {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
+                {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
+                {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
+                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+              </>
+            )}
           </div>
         </div>
 
@@ -3911,7 +3934,7 @@ function App(){
               const active=tab===t.id;
               if(t.children&&t.children.length>0){
                 return(
-                  <a key={t.id} href={t.children[0].href} style={{
+                  <button key={t.id} onClick={()=>{setEmbedUrl(t.children[0].href);setTab("operaciones");}} style={{
                     display:"flex",flexDirection:"column",alignItems:"center",gap:3,
                     background:"transparent",border:"none",cursor:"pointer",
                     padding:"6px 12px",borderRadius:10,minWidth:92,
@@ -3920,11 +3943,11 @@ function App(){
                     <span style={{fontSize:9,fontWeight:500,
                       fontFamily:"'Inter',sans-serif",letterSpacing:"0.01em",
                       color:TXT3,whiteSpace:"nowrap"}}>{t.l}</span>
-                  </a>
+                  </button>
                 );
               }
               return(
-                <button key={t.id} onClick={()=>setTab(t.id)} style={{
+                <button key={t.id} onClick={()=>{setTab(t.id);setEmbedUrl(null);}} style={{
                   display:"flex",flexDirection:"column",alignItems:"center",gap:3,
                   background:"transparent",border:"none",cursor:"pointer",
                   padding:"6px 12px",borderRadius:10,minWidth:t.id==="control"?104:72,
