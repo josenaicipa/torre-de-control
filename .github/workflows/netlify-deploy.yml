@@ -41,6 +41,8 @@ jobs:
           cp index.html public/
           cp logo.png public/
           cp -R Plataforma public/
+          # Retire legacy domain: permanently redirect every path to control.unlockedecom.co.
+          cp _redirects public/
 
       - name: Deploy to Netlify
         if: steps.netlify-secrets.outputs.available == 'true'
