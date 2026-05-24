@@ -1,8 +1,9 @@
-name: Deploy to Netlify
+name: Deploy to Netlify (legacy fallback)
 
+# Optional legacy fallback only. The legacy domain torredecontrol.unlockedecom.co
+# is retired via DNS + Caddy, so this deploy no longer runs automatically.
+# Trigger it manually from the Actions tab only if the Netlify fallback is needed.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
