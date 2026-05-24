@@ -4,11 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 interface Mentor { id: string; name: string | null; email: string }
+interface Closer { id: string; name: string | null; email: string; position: string }
 
 export function NuevoEstudianteForm({
   mentors,
+  closers,
 }: {
   mentors: Mentor[];
+  closers: Closer[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -22,6 +25,7 @@ export function NuevoEstudianteForm({
     const form = e.currentTarget;
     const fd = new FormData(form);
     const mentorUserId = (fd.get("mentorUserId") as string) || null;
+    const closerUserId = (fd.get("closerUserId") as string) || null;
 
     const body = {
       fullName: fd.get("fullName") as string,
@@ -30,6 +34,7 @@ export function NuevoEstudianteForm({
       startDate: fd.get("startDate") as string,
       durationMonths: Number(fd.get("durationMonths")),
       mentorUserId,
+      closerUserId,
       legalName: (fd.get("legalName") as string) || null,
       notes: (fd.get("notes") as string) || null,
     };
@@ -94,6 +99,17 @@ export function NuevoEstudianteForm({
             <option value="">— Sin asignar —</option>
             {mentors.map((m) => (
               <option key={m.id} value={m.id}>{m.name ?? m.email}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Closer (cerró la venta)</label>
+          <select name="closerUserId" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+            <option value="">— Sin asignar —</option>
+            {closers.map((closer) => (
+              <option key={closer.id} value={closer.id}>
+                {closer.name ?? closer.email}{closer.position === "ADMIN" ? " (Admin)" : ""}
+              </option>
             ))}
           </select>
         </div>

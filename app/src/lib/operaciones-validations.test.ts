@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  addInstallmentSchema,
   createPaymentSchema,
   createScheduleSchema,
   createStudentSchema,
@@ -153,6 +154,26 @@ describe("createPaymentSchema", () => {
       createPaymentSchema.safeParse({
         amount: 0,
         paidAt: "2026-06-01",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("addInstallmentSchema", () => {
+  it("accepts a new installment with inherited currency", () => {
+    expect(
+      addInstallmentSchema.safeParse({
+        amountDue: 250,
+        dueDate: "2026-07-01",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects an invalid due date", () => {
+    expect(
+      addInstallmentSchema.safeParse({
+        amountDue: 250,
+        dueDate: "01/07/2026",
       }).success,
     ).toBe(false);
   });

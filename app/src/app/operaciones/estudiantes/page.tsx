@@ -10,6 +10,7 @@ interface SearchParams {
   search?: string;
   status?: string;
   mentorUserId?: string;
+  closerUserId?: string;
   page?: string;
 }
 
@@ -34,10 +35,11 @@ export default async function EstudiantesPage({
   }
   if (sp.status) where.status = sp.status;
   if (sp.mentorUserId) where.mentorUserId = sp.mentorUserId;
+  if (sp.closerUserId) where.closerUserId = sp.closerUserId;
 
   const scoped = mergeStudentScope(actor, where);
 
-  const [items, total, mentors] = await Promise.all([
+  const [items, total, mentors, closers] = await Promise.all([
     prisma.student.findMany({
       where: scoped as never,
       orderBy: { createdAt: "desc" },
@@ -45,11 +47,20 @@ export default async function EstudiantesPage({
       take: pageSize,
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
+        closerUser: { select: { id: true, name: true, email: true } },
       },
     }),
     prisma.student.count({ where: scoped as never }),
     prisma.user.findMany({
       where: { role: "MENTOR", active: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.user.findMany({
+      where: {
+        active: true,
+        OR: [{ position: "CLOSER" }, { position: "ADMIN" }],
+      },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
@@ -107,6 +118,16 @@ export default async function EstudiantesPage({
             <option key={m.id} value={m.id}>{m.name ?? m.email}</option>
           ))}
         </select>
+        <select
+          name="closerUserId"
+          defaultValue={sp.closerUserId ?? ""}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        >
+          <option value="">Todos los closers</option>
+          {closers.map((closer) => (
+            <option key={closer.id} value={closer.id}>{closer.name ?? closer.email}</option>
+          ))}
+        </select>
         <button
           type="submit"
           className="rounded-md bg-slate-200 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-300"
@@ -122,6 +143,7 @@ export default async function EstudiantesPage({
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Nombre</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Email</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Mentor</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Closer</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Inicio</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Fin</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Estado</th>
@@ -130,7 +152,7 @@ export default async function EstudiantesPage({
           <tbody className="divide-y divide-slate-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
                   No hay estudiantes para mostrar.
                 </td>
               </tr>
@@ -144,6 +166,7 @@ export default async function EstudiantesPage({
                   </td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.email}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.mentorUser?.name ?? s.mentorUser?.email ?? "—"}</td>
+                  <td className="px-4 py-2 text-sm text-slate-600">{s.closerUser?.name ?? s.closerUser?.email ?? "—"}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.startDate.toISOString().slice(0, 10)}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.endDate.toISOString().slice(0, 10)}</td>
                   <td className="px-4 py-2 text-sm">

@@ -62,6 +62,7 @@ export function PagosTab({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [showAddInstallment, setShowAddInstallment] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState<string | null>(null);
 
   async function reload() {
@@ -98,39 +99,75 @@ export function PagosTab({
   if (loading) return <p className="text-sm text-slate-500">Cargando pagos...</p>;
   if (loadError) return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>;
 
-  const totalDue = schedules.reduce((total, schedule) => total + toNum(schedule.amountDue), 0);
-  const totalPaid = schedules.reduce((total, schedule) => total + toNum(schedule.amountPaid), 0);
-  const balance = Math.max(0, totalDue - totalPaid);
-  const currency = schedules[0]?.currency ?? "USD";
+  const totals = Object.values(
+    schedules.reduce<Record<string, { currency: string; due: number; paid: number }>>(
+      (byCurrency, schedule) => {
+        const current = byCurrency[schedule.currency] ?? {
+          currency: schedule.currency,
+          due: 0,
+          paid: 0,
+        };
+        current.due += toNum(schedule.amountDue);
+        current.paid += toNum(schedule.amountPaid);
+        byCurrency[schedule.currency] = current;
+        return byCurrency;
+      },
+      {},
+    ),
+  );
+  const displayedTotals =
+    totals.length > 0 ? totals : [{ currency: "USD", due: 0, paid: 0 }];
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Total programa</p>
-          <p className="mt-1 text-xl font-bold text-slate-900">{formatMoney(totalDue, currency)}</p>
+          {displayedTotals.map((total) => (
+            <p key={total.currency} className="mt-1 text-xl font-bold text-slate-900">
+              {formatMoney(total.due, total.currency)}
+            </p>
+          ))}
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Pagado</p>
-          <p className="mt-1 text-xl font-bold text-emerald-700">{formatMoney(totalPaid, currency)}</p>
+          {displayedTotals.map((total) => (
+            <p key={total.currency} className="mt-1 text-xl font-bold text-emerald-700">
+              {formatMoney(total.paid, total.currency)}
+            </p>
+          ))}
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Saldo pendiente</p>
-          <p className="mt-1 text-xl font-bold text-rose-700">{formatMoney(balance, currency)}</p>
+          {displayedTotals.map((total) => (
+            <p key={total.currency} className="mt-1 text-xl font-bold text-rose-700">
+              {formatMoney(Math.max(0, total.due - total.paid), total.currency)}
+            </p>
+          ))}
         </div>
       </div>
 
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-900">Cronograma de cuotas</h3>
-          {canWrite && schedules.length === 0 && (
-            <button
-              type="button"
-              onClick={() => setShowScheduleForm(true)}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-            >
-              + Configurar cronograma
-            </button>
+          {canWrite && (
+            schedules.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowScheduleForm(true)}
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                + Configurar cronograma
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowAddInstallment(true)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+              >
+                + Agregar cuota
+              </button>
+            )
           )}
         </div>
 
@@ -258,6 +295,18 @@ export function PagosTab({
           onClose={() => setShowPaymentForm(null)}
           onSaved={() => {
             setShowPaymentForm(null);
+            void reload();
+          }}
+        />
+      )}
+
+      {showAddInstallment && (
+        <AddInstallmentDialog
+          studentId={studentId}
+          currency={schedules[0]?.currency ?? "USD"}
+          onClose={() => setShowAddInstallment(false)}
+          onSaved={() => {
+            setShowAddInstallment(false);
             void reload();
           }}
         />
@@ -391,6 +440,59 @@ function PaymentDialog({
           <textarea name="notes" rows={2} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </Field>
         <DialogActions loading={loading} onClose={onClose} submitLabel="Registrar pago" />
+      </form>
+    </Dialog>
+  );
+}
+
+function AddInstallmentDialog({
+  studentId,
+  currency,
+  onClose,
+  onSaved,
+}: {
+  studentId: string;
+  currency: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+    const response = await fetch(`/api/operaciones/students/${studentId}/schedule/installments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amountDue: Number(formData.get("amountDue")),
+        currency: String(formData.get("currency")),
+        dueDate: String(formData.get("dueDate")),
+      }),
+    });
+    if (!response.ok) {
+      const json = await response.json().catch(() => ({}));
+      setError(json.error ?? "Error al agregar cuota");
+      setLoading(false);
+      return;
+    }
+    onSaved();
+  }
+
+  return (
+    <Dialog title="Agregar cuota" error={error} onClose={onClose}>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <Field label="Monto">
+          <input name="amountDue" type="number" step="0.01" min="0.01" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </Field>
+        <CurrencySelect defaultCurrency={currency} />
+        <Field label="Fecha de vencimiento">
+          <input name="dueDate" type="date" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        </Field>
+        <DialogActions loading={loading} onClose={onClose} submitLabel="Agregar cuota" />
       </form>
     </Dialog>
   );
