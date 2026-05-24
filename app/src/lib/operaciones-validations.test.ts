@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  createPaymentSchema,
+  createScheduleSchema,
   createStudentSchema,
   updateStudentSchema,
   listStudentsQuerySchema,
@@ -109,5 +111,49 @@ describe("listStudentsQuerySchema", () => {
   it("clamps pageSize to max 200", () => {
     const result = listStudentsQuerySchema.safeParse({ pageSize: "500" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("createScheduleSchema", () => {
+  it("applies currency and frequency defaults", () => {
+    const parsed = createScheduleSchema.parse({
+      totalAmount: 3000,
+      installments: 3,
+      firstDueDate: "2026-06-01",
+    });
+    expect(parsed.currency).toBe("USD");
+    expect(parsed.frequency).toBe("monthly");
+    expect(parsed.replaceExisting).toBe(false);
+  });
+
+  it("rejects more than 24 installments", () => {
+    expect(
+      createScheduleSchema.safeParse({
+        totalAmount: 3000,
+        installments: 25,
+        firstDueDate: "2026-06-01",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("createPaymentSchema", () => {
+  it("accepts an optional schedule association", () => {
+    expect(
+      createPaymentSchema.safeParse({
+        amount: 500,
+        paidAt: "2026-06-01",
+        scheduleId: "cmav9cy3g000008l22t123456",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects a non-positive payment", () => {
+    expect(
+      createPaymentSchema.safeParse({
+        amount: 0,
+        paidAt: "2026-06-01",
+      }).success,
+    ).toBe(false);
   });
 });
