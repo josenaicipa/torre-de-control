@@ -48,3 +48,27 @@ export const listStudentsQuerySchema = z.object({
 export type CreateStudentInput = z.infer<typeof createStudentSchema>;
 export type UpdateStudentInput = z.infer<typeof updateStudentSchema>;
 export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;
+
+// ───────── Payments + Schedule ─────────
+
+export const createScheduleSchema = z.object({
+  totalAmount: z.number().positive().max(1_000_000),
+  installments: z.number().int().min(1).max(24),
+  currency: z.string().length(3).default("USD"),
+  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+  frequency: z.enum(["monthly", "biweekly"]).default("monthly"),
+  replaceExisting: z.boolean().default(false),
+});
+
+export const createPaymentSchema = z.object({
+  amount: z.number().positive().max(1_000_000),
+  currency: z.string().length(3).default("USD"),
+  paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+  method: z.string().max(100).optional().nullable(),
+  reference: z.string().max(200).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  scheduleId: z.string().cuid().optional().nullable(),
+});
+
+export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;

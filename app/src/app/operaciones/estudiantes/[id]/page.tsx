@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getActor } from "@/lib/actor";
 import { canAccessStudent } from "@/lib/access";
+import { PagosTab } from "./pagos-tab";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function StudentDetailPage({
   });
   if (!student) notFound();
   if (!canAccessStudent(actor, student.mentorUserId)) notFound();
+  const canWritePayments = actor.role === "ADMIN" || actor.role === "OPERATOR";
 
   return (
     <div>
@@ -81,14 +83,18 @@ export default async function StudentDetailPage({
         </nav>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6">
-        {activeTab === "info" && <InfoTab student={student} />}
-        {activeTab !== "info" && (
+      {activeTab === "pagos" ? (
+        <PagosTab studentId={student.id} canWrite={canWritePayments} />
+      ) : (
+        <div className="rounded-lg border border-slate-200 bg-white p-6">
+          {activeTab === "info" && <InfoTab student={student} />}
+          {activeTab !== "info" && (
           <p className="text-sm text-slate-500">
             Esta pestaña se implementa en Sprint 2.
           </p>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
