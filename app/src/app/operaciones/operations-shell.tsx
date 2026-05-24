@@ -118,6 +118,7 @@ export function OperationsShell({
   return (
     <div className="flex min-h-screen bg-[#f7f7f5]" style={{ color: TXT }}>
       <aside
+        data-operations-sidebar
         className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col overflow-y-auto md:flex"
         style={{ backgroundColor: SURFACE, borderRight: `1px solid ${BORDER}` }}
       >
@@ -243,11 +244,15 @@ export function OperationsShell({
         </div>
       </aside>
 
-      <main className="min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 pb-24 md:ml-[220px] md:p-8">
+      <main
+        data-operations-main
+        className="min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 pb-24 md:ml-[220px] md:p-8"
+      >
         {children}
       </main>
 
       <nav
+        data-operations-mobile-nav
         className="fixed inset-x-0 bottom-0 z-50 flex overflow-x-auto md:hidden"
         style={{ backgroundColor: SURFACE, borderTop: `1px solid ${BORDER}` }}
       >

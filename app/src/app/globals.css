@@ -368,3 +368,23 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+ * Embed mode: la app esta dentro de un iframe del legacy command
+ * center. Ocultamos sidebar/mobile nav propios y dejamos que el
+ * contenido use todo el espacio. El sidebar legacy ya esta
+ * visible afuera del iframe.
+ * ============================================================ */
+body.embed-mode [data-operations-sidebar],
+body.embed-mode [data-operations-mobile-nav] {
+  display: none !important;
+}
+
+body.embed-mode [data-operations-main] {
+  margin-left: 0 !important;
+  padding: 16px 24px !important;
+}
+
+body.embed-mode {
+  background: #f7f7f5 !important;
+}
