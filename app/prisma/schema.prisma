@@ -108,6 +108,7 @@ model User {
   uploadedImports      ImportBatch[]            @relation("ImportUploader")
   studentsAsMentor     Student[]                @relation("StudentMentor")
   progressAsMentor     ProgressUpdate[]         @relation("ProgressMentor")
+  studentsAsCloser     Student[]                @relation("StudentCloser")
 
   @@index([role])
   @@index([position])
@@ -391,6 +392,8 @@ model Student {
   endDate              DateTime       @db.Date
   mentorUserId         String?
   mentorUser           User?          @relation("StudentMentor", fields: [mentorUserId], references: [id], onDelete: SetNull)
+  closerUserId         String?
+  closerUser           User?          @relation("StudentCloser", fields: [closerUserId], references: [id], onDelete: SetNull)
   status               StudentStatus  @default(ACTIVE)
   durationAssumed      Boolean        @default(false)
   closedAt             DateTime?      @db.Date
@@ -415,6 +418,7 @@ model Student {
   promotedFromContact Contact?                @relation("ContactPromotion")
 
   @@index([mentorUserId])
+  @@index([closerUserId])
   @@index([status])
   @@index([legacyRowId])
 }

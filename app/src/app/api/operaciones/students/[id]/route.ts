@@ -27,6 +27,7 @@ export async function GET(_req: Request, { params }: Params) {
       where: { id },
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
+        closerUser: { select: { id: true, name: true, email: true } },
         members: true,
         _count: {
           select: {
@@ -64,6 +65,18 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const body = updateStudentSchema.parse(await req.json());
 
+    if (body.closerUserId) {
+      const closer = await prisma.user.findFirst({
+        where: {
+          id: body.closerUserId,
+          active: true,
+          OR: [{ position: "CLOSER" }, { position: "ADMIN" }],
+        },
+        select: { id: true },
+      });
+      if (!closer) return jsonError(400, "El closer seleccionado no es válido");
+    }
+
     // Recalcular endDate si cambia startDate o durationMonths
     let computedEndDate: Date | undefined;
     if (body.startDate || body.durationMonths) {
@@ -83,6 +96,7 @@ export async function PATCH(req: Request, { params }: Params) {
       data: data as never,
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
+        closerUser: { select: { id: true, name: true, email: true } },
       },
     });
 

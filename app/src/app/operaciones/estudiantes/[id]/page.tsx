@@ -32,6 +32,7 @@ export default async function StudentDetailPage({
     where: { id },
     include: {
       mentorUser: { select: { id: true, name: true, email: true } },
+      closerUser: { select: { id: true, name: true, email: true } },
       members: true,
       _count: {
         select: {
@@ -99,7 +100,7 @@ export default async function StudentDetailPage({
   );
 }
 
-function InfoTab({ student }: { student: { fullName: string; email: string; phone: string | null; durationMonths: number; status: string; legalName: string | null; notes: string | null; personality: string | null; ghlContactId: string | null } }) {
+function InfoTab({ student }: { student: { fullName: string; email: string; phone: string | null; durationMonths: number; status: string; legalName: string | null; notes: string | null; personality: string | null; ghlContactId: string | null; closerUser: { name: string | null; email: string } | null } }) {
   return (
     <dl className="grid grid-cols-2 gap-4 text-sm">
       <div>
@@ -121,6 +122,10 @@ function InfoTab({ student }: { student: { fullName: string; email: string; phon
       <div>
         <dt className="font-medium text-slate-500">Estado</dt>
         <dd className="text-slate-900">{student.status}</dd>
+      </div>
+      <div>
+        <dt className="font-medium text-slate-500">Closer</dt>
+        <dd className="text-slate-900">{student.closerUser?.name ?? student.closerUser?.email ?? "—"}</dd>
       </div>
       <div>
         <dt className="font-medium text-slate-500">GHL contact id</dt>

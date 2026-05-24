@@ -25,6 +25,7 @@ export const createStudentSchema = z.object({
   startDate: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
   durationMonths: z.number().int().min(1).max(60),
   mentorUserId: z.string().cuid().optional().nullable(),
+  closerUserId: z.string().cuid().optional().nullable(),
   ghlContactId: z.string().trim().max(100).optional().nullable(),
   notes: z.string().max(5000).optional().nullable(),
   personality: z.string().max(500).optional().nullable(),
@@ -40,6 +41,7 @@ export const updateStudentSchema = createStudentSchema.partial().extend({
 export const listStudentsQuerySchema = z.object({
   search: z.string().max(200).optional(),
   mentorUserId: z.string().cuid().optional(),
+  closerUserId: z.string().cuid().optional(),
   status: studentStatusSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
@@ -72,3 +74,11 @@ export const createPaymentSchema = z.object({
 
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+
+export const addInstallmentSchema = z.object({
+  amountDue: z.number().positive().max(1_000_000),
+  currency: z.string().length(3).optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+});
+
+export type AddInstallmentInput = z.infer<typeof addInstallmentSchema>;
