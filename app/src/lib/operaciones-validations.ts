@@ -82,3 +82,19 @@ export const addInstallmentSchema = z.object({
 });
 
 export type AddInstallmentInput = z.infer<typeof addInstallmentSchema>;
+
+// Progress Updates
+
+export const createProgressUpdateSchema = z.object({
+  periodStart: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
+  periodEnd: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
+  progressLevel: progressLevelSchema,
+  bottleneck: z.string().trim().max(500).optional().nullable(),
+  notes: z.string().trim().min(1, "notes required").max(5000),
+  rating: z.number().int().min(1).max(5).optional().nullable(),
+  monthlyRevenue: z.number().nonnegative().optional().nullable(),
+  monthlyRevenueCurrency: z.string().length(3).optional().nullable(),
+  monthlyOrders: z.number().int().nonnegative().optional().nullable(),
+});
+
+export type CreateProgressUpdateInput = z.infer<typeof createProgressUpdateSchema>;

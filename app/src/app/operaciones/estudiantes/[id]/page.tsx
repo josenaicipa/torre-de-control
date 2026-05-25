@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getActor } from "@/lib/actor";
 import { canAccessStudent } from "@/lib/access";
+import { AvancesTab } from "./avances-tab";
 import { PagosTab } from "./pagos-tab";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,10 @@ export default async function StudentDetailPage({
   if (!student) notFound();
   if (!canAccessStudent(actor, student.mentorUserId)) notFound();
   const canWritePayments = actor.role === "ADMIN" || actor.role === "OPERATOR";
+  const canWriteProgress =
+    actor.role === "ADMIN" ||
+    actor.role === "OPERATOR" ||
+    (actor.role === "MENTOR" && actor.mentorUserId === student.mentorUserId);
 
   return (
     <div>
@@ -86,6 +91,8 @@ export default async function StudentDetailPage({
 
       {activeTab === "pagos" ? (
         <PagosTab studentId={student.id} canWrite={canWritePayments} />
+      ) : activeTab === "avances" ? (
+        <AvancesTab studentId={student.id} canWrite={canWriteProgress} />
       ) : (
         <div className="rounded-lg border border-slate-200 bg-white p-6">
           {activeTab === "info" && <InfoTab student={student} />}

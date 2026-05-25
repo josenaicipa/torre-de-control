@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   addInstallmentSchema,
   createPaymentSchema,
+  createProgressUpdateSchema,
   createScheduleSchema,
   createStudentSchema,
   updateStudentSchema,
@@ -174,6 +175,35 @@ describe("addInstallmentSchema", () => {
       addInstallmentSchema.safeParse({
         amountDue: 250,
         dueDate: "01/07/2026",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("createProgressUpdateSchema", () => {
+  it("accepts a valid progress update", () => {
+    expect(
+      createProgressUpdateSchema.safeParse({
+        periodStart: "2026-05-01",
+        periodEnd: "2026-05-15",
+        progressLevel: "MEDIO",
+        notes: "Se validaron los siguientes pasos.",
+        rating: 4,
+        monthlyRevenue: 500,
+        monthlyRevenueCurrency: "USD",
+        monthlyOrders: 3,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects empty notes and out-of-range rating", () => {
+    expect(
+      createProgressUpdateSchema.safeParse({
+        periodStart: "2026-05-01",
+        periodEnd: "2026-05-15",
+        progressLevel: "MEDIO",
+        notes: " ",
+        rating: 6,
       }).success,
     ).toBe(false);
   });
