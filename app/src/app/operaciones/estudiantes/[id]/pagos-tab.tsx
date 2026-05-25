@@ -99,24 +99,35 @@ export function PagosTab({
   if (loading) return <p className="text-sm text-slate-500">Cargando pagos...</p>;
   if (loadError) return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>;
 
-  const totals = Object.values(
-    schedules.reduce<Record<string, { currency: string; due: number; paid: number }>>(
-      (byCurrency, schedule) => {
-        const current = byCurrency[schedule.currency] ?? {
-          currency: schedule.currency,
-          due: 0,
-          paid: 0,
-        };
-        current.due += toNum(schedule.amountDue);
-        current.paid += toNum(schedule.amountPaid);
-        byCurrency[schedule.currency] = current;
-        return byCurrency;
-      },
-      {},
+  const programByCurrency: Record<string, number> = {};
+  for (const schedule of schedules) {
+    programByCurrency[schedule.currency] =
+      (programByCurrency[schedule.currency] ?? 0) + toNum(schedule.amountDue);
+  }
+
+  // Every Payment is money received, whether it was assigned to an installment or not.
+  const paidByCurrency: Record<string, number> = {};
+  for (const payment of payments) {
+    paidByCurrency[payment.currency] =
+      (paidByCurrency[payment.currency] ?? 0) + toNum(payment.amount);
+  }
+
+  const currencies = new Set([
+    ...Object.keys(programByCurrency),
+    ...Object.keys(paidByCurrency),
+  ]);
+  const displayedTotals = Array.from(currencies, (currency) => ({
+    currency,
+    due: programByCurrency[currency] ?? 0,
+    paid: paidByCurrency[currency] ?? 0,
+    balance: Math.max(
+      0,
+      (programByCurrency[currency] ?? 0) - (paidByCurrency[currency] ?? 0),
     ),
-  );
-  const displayedTotals =
-    totals.length > 0 ? totals : [{ currency: "USD", due: 0, paid: 0 }];
+  }));
+  if (displayedTotals.length === 0) {
+    displayedTotals.push({ currency: "USD", due: 0, paid: 0, balance: 0 });
+  }
 
   return (
     <div className="space-y-6">
@@ -141,7 +152,7 @@ export function PagosTab({
           <p className="text-xs text-slate-500">Saldo pendiente</p>
           {displayedTotals.map((total) => (
             <p key={total.currency} className="mt-1 text-xl font-bold text-rose-700">
-              {formatMoney(Math.max(0, total.due - total.paid), total.currency)}
+              {formatMoney(total.balance, total.currency)}
             </p>
           ))}
         </div>
@@ -269,6 +280,12 @@ export function PagosTab({
               </tbody>
             </table>
           </div>
+        )}
+        {payments.some((payment) => !payment.schedule) && (
+          <p className="mt-2 text-xs italic text-slate-500">
+            Los pagos sin cuota suman al total pagado pero no actualizan el estado individual de las cuotas. Si
+            querés asignar un pago a una cuota específica, usá el botón &quot;Registrar pago&quot; de esa cuota.
+          </p>
         )}
       </section>
 
