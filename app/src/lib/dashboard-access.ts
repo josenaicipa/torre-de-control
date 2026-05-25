@@ -2,11 +2,14 @@
 // decision for the dashboard data API.
 //
 // FAIL-CLOSED CONTRACT (do not weaken):
-//   - Global access (every table, every row) requires admin OR DataScope ALL.
+//   - Read access to the Torre/Detalle dashboard is broad by product rule:
+//     every active user with dashboard.read can view saved Detalle rows.
+//   - Global mutation access (every table, every row) requires admin OR
+//     DataScope ALL.
 //   - Aggregate tables (kpi_data, ads_entries, daily_closer) have no per-member
-//     column, so non-global users can never read or write them.
-//   - daily_entries is the only table with safe row-level scope, via its
-//     `member` column. Non-global users only ever see/modify members that map to
+//     column, so non-global users can never write them.
+//   - daily_entries is the only table with safe row-level write scope, via its
+//     `member` column. Non-global users only ever modify members that map to
 //     their own identity (OWN) or their area/team (DIRECTOR).
 //   - Anything unrecognized resolves to an empty member set => no rows.
 //
@@ -106,7 +109,7 @@ export interface DashboardActor {
 export interface DashboardAccess {
   readonly canRead: boolean;
   readonly canWrite: boolean;
-  /** Admin or DataScope ALL: every table, every row. */
+  /** Admin or DataScope ALL: every table, every row for mutations. */
   readonly isGlobalData: boolean;
   /** Allowed daily_entries member aliases (empty when global or when none). */
   readonly allowedMembers: readonly string[];

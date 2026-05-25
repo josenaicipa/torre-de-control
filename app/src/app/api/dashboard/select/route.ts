@@ -1,14 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDashboardActor } from "@/lib/dashboard-actor";
 import { resolveDashboardAccess } from "@/lib/dashboard-access";
-import { isDashboardTable, tableConfig } from "@/lib/dashboard-tables";
+import { isDashboardTable } from "@/lib/dashboard-tables";
 import { dashboardSelect, DashboardStoreError } from "@/lib/dashboard-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET /api/dashboard/select?table=<whitelisted table>
-// Reads one dashboard table, scope-filtered to what the active user may see.
+// Reads one dashboard table for any active dashboard reader. Jose's operational
+// rule for the Torre/Detalle surface is intentionally broad on reads: every
+// logged-in user with dashboard.read must be able to see the saved Detalle data
+// the team filled in. Mutations remain scoped in /api/dashboard/mutate.
 export async function GET(req: NextRequest) {
   const result = await getDashboardActor();
   if (!result) {
@@ -25,26 +28,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Tabla no permitida" }, { status: 400 });
   }
 
-  const config = tableConfig(table);
-
-  // Aggregate tables have no per-member column: only global users may read them.
-  if (config.scope === "aggregate" && !access.isGlobalData) {
-    return NextResponse.json({ rows: [], scopeLimited: true, reason: access.reason });
-  }
-
-  // Member-scoped table: global users read everything; others get only their
-  // allowed members. An empty allowed set means no rows (fail closed).
-  let members: readonly string[] | undefined;
-  if (config.scope === "member" && !access.isGlobalData) {
-    if (access.allowedMembers.length === 0) {
-      return NextResponse.json({ rows: [], scopeLimited: true, reason: access.reason });
-    }
-    members = access.allowedMembers;
-  }
-
   try {
-    const rows = await dashboardSelect(table, members);
-    return NextResponse.json({ rows, scopeLimited: !access.isGlobalData });
+    const rows = await dashboardSelect(table);
+    return NextResponse.json({ rows, scopeLimited: false, readScope: "all-dashboard-readers" });
   } catch (error) {
     const upstreamStatus = error instanceof DashboardStoreError ? error.status : undefined;
     console.error("dashboard.select.failed", { table, upstreamStatus });
