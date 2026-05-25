@@ -19,7 +19,13 @@ export function sessionCookieOptions(maxAge: number = SESSION_TTL_SECONDS) {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
+    // SameSite=None allows the cookie inside a cross-site iframe, as required
+    // when Operaciones is embedded from the legacy command center.
+    // Local development uses Lax because None also requires HTTPS.
+    sameSite:
+      process.env.NODE_ENV === "production"
+        ? ("none" as const)
+        : ("lax" as const),
     path: "/",
     maxAge,
   };
