@@ -98,3 +98,24 @@ export const createProgressUpdateSchema = z.object({
 });
 
 export type CreateProgressUpdateInput = z.infer<typeof createProgressUpdateSchema>;
+
+// Payment and Schedule updates
+
+export const updatePaymentSchema = z.object({
+  amount: z.number().positive().max(1_000_000).optional(),
+  currency: z.string().length(3).optional(),
+  paidAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD").optional(),
+  method: z.string().max(100).optional().nullable(),
+  reference: z.string().max(200).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+  scheduleId: z.string().cuid().optional().nullable(),
+});
+
+export const updateScheduleSchema = z.object({
+  amountDue: z.number().positive().max(1_000_000).optional(),
+  currency: z.string().length(3).optional(),
+  dueDate: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD").optional(),
+});
+
+export type UpdatePaymentInput = z.infer<typeof updatePaymentSchema>;
+export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;
