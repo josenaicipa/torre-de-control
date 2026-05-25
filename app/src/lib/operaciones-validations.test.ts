@@ -9,6 +9,7 @@ import {
   updatePaymentSchema,
   updateScheduleSchema,
   listStudentsQuerySchema,
+  upsertMonthlyMetricsSchema,
 } from "./operaciones-validations";
 
 describe("createStudentSchema", () => {
@@ -230,5 +231,28 @@ describe("updateScheduleSchema", () => {
         dueDate: "2026-06-30",
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("upsertMonthlyMetricsSchema", () => {
+  it("defaults monthly metric currency to COP", () => {
+    const metric = upsertMonthlyMetricsSchema.parse({
+      year: 2026,
+      month: 5,
+      revenue: 1500000,
+      orders: 20,
+    });
+    expect(metric.currency).toBe("COP");
+  });
+
+  it("rejects invalid month and negative metric values", () => {
+    expect(
+      upsertMonthlyMetricsSchema.safeParse({
+        year: 2026,
+        month: 13,
+        revenue: -1,
+        orders: -1,
+      }).success,
+    ).toBe(false);
   });
 });

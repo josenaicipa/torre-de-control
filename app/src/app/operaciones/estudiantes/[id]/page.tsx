@@ -5,6 +5,7 @@ import { getActor } from "@/lib/actor";
 import { canAccessStudent } from "@/lib/access";
 import { AvancesTab } from "./avances-tab";
 import { PagosTab } from "./pagos-tab";
+import { MetricasTab } from "./metricas-tab";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,8 @@ export default async function StudentDetailPage({
         <PagosTab studentId={student.id} canWrite={canWritePayments} />
       ) : activeTab === "avances" ? (
         <AvancesTab studentId={student.id} canWrite={canWriteProgress} />
+      ) : activeTab === "metricas" ? (
+        <MetricasTab studentId={student.id} canWrite={canWriteProgress} />
       ) : (
         <div className="rounded-lg border border-slate-200 bg-white p-6">
           {activeTab === "info" && <InfoTab student={student} />}
