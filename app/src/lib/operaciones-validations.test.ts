@@ -6,6 +6,8 @@ import {
   createScheduleSchema,
   createStudentSchema,
   updateStudentSchema,
+  updatePaymentSchema,
+  updateScheduleSchema,
   listStudentsQuerySchema,
 } from "./operaciones-validations";
 
@@ -206,5 +208,27 @@ describe("createProgressUpdateSchema", () => {
         rating: 6,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("updatePaymentSchema", () => {
+  it("allows moving a payment back to standalone", () => {
+    expect(updatePaymentSchema.safeParse({ scheduleId: null }).success).toBe(true);
+  });
+
+  it("rejects a non-positive corrected amount", () => {
+    expect(updatePaymentSchema.safeParse({ amount: 0 }).success).toBe(false);
+  });
+});
+
+describe("updateScheduleSchema", () => {
+  it("accepts edited installment fields", () => {
+    expect(
+      updateScheduleSchema.safeParse({
+        amountDue: 900,
+        currency: "USD",
+        dueDate: "2026-06-30",
+      }).success,
+    ).toBe(true);
   });
 });

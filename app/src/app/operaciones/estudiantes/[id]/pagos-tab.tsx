@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Schedule {
@@ -19,6 +20,7 @@ interface Payment {
   paidAt: string;
   method: string | null;
   reference: string | null;
+  notes: string | null;
   schedule: { id: string; installmentNumber: number } | null;
   recordedBy: { id: string; name: string | null; email: string } | null;
 }
@@ -64,6 +66,8 @@ export function PagosTab({
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [showAddInstallment, setShowAddInstallment] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState<string | null>(null);
+  const [editScheduleId, setEditScheduleId] = useState<string | null>(null);
+  const [editPaymentId, setEditPaymentId] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true);
@@ -95,6 +99,34 @@ export function PagosTab({
     // Reload whenever the viewed student changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
+
+  async function handleDeleteSchedule(scheduleId: string) {
+    if (!window.confirm("¿Eliminar esta cuota?")) return;
+    const response = await fetch(
+      `/api/operaciones/students/${studentId}/schedule/${scheduleId}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const json = await response.json().catch(() => ({}));
+      window.alert(json.error ?? "Error al eliminar cuota");
+      return;
+    }
+    void reload();
+  }
+
+  async function handleDeletePayment(paymentId: string) {
+    if (!window.confirm("¿Eliminar este pago?")) return;
+    const response = await fetch(
+      `/api/operaciones/students/${studentId}/payments/${paymentId}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const json = await response.json().catch(() => ({}));
+      window.alert(json.error ?? "Error al eliminar pago");
+      return;
+    }
+    void reload();
+  }
 
   if (loading) return <p className="text-sm text-slate-500">Cargando pagos...</p>;
   if (loadError) return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>;
@@ -212,14 +244,36 @@ export function PagosTab({
                       <StatusBadge status={schedule.status} />
                     </td>
                     <td className="px-3 py-2">
-                      {canWrite && schedule.status !== "PAID" && schedule.status !== "WAIVED" && (
-                        <button
-                          type="button"
-                          onClick={() => setShowPaymentForm(schedule.id)}
-                          className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
-                        >
-                          Registrar pago
-                        </button>
+                      {canWrite && (
+                        <div className="flex items-center gap-1">
+                          {schedule.status !== "PAID" && schedule.status !== "WAIVED" && (
+                            <button
+                              type="button"
+                              onClick={() => setShowPaymentForm(schedule.id)}
+                              className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
+                            >
+                              Registrar pago
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setEditScheduleId(schedule.id)}
+                            className="rounded-md border border-slate-300 p-1 text-slate-600 hover:bg-slate-50"
+                            title="Editar cuota"
+                            aria-label="Editar cuota"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteSchedule(schedule.id)}
+                            className="rounded-md border border-rose-300 p-1 text-rose-700 hover:bg-rose-50"
+                            title="Eliminar cuota"
+                            aria-label="Eliminar cuota"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -258,6 +312,7 @@ export function PagosTab({
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Ref</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Cuota</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Registró</th>
+                  <th className="px-3 py-2" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -274,6 +329,30 @@ export function PagosTab({
                     </td>
                     <td className="px-3 py-2 text-sm text-slate-600">
                       {payment.recordedBy?.name ?? payment.recordedBy?.email ?? "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {canWrite && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditPaymentId(payment.id)}
+                            className="rounded-md border border-slate-300 p-1 text-slate-600 hover:bg-slate-50"
+                            title="Editar pago"
+                            aria-label="Editar pago"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeletePayment(payment.id)}
+                            className="rounded-md border border-rose-300 p-1 text-rose-700 hover:bg-rose-50"
+                            title="Eliminar pago"
+                            aria-label="Eliminar pago"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -324,6 +403,31 @@ export function PagosTab({
           onClose={() => setShowAddInstallment(false)}
           onSaved={() => {
             setShowAddInstallment(false);
+            void reload();
+          }}
+        />
+      )}
+
+      {editScheduleId && schedules.find((schedule) => schedule.id === editScheduleId) && (
+        <EditScheduleDialog
+          schedule={schedules.find((schedule) => schedule.id === editScheduleId)!}
+          studentId={studentId}
+          onClose={() => setEditScheduleId(null)}
+          onSaved={() => {
+            setEditScheduleId(null);
+            void reload();
+          }}
+        />
+      )}
+
+      {editPaymentId && payments.find((payment) => payment.id === editPaymentId) && (
+        <EditPaymentDialog
+          payment={payments.find((payment) => payment.id === editPaymentId)!}
+          studentId={studentId}
+          schedules={schedules}
+          onClose={() => setEditPaymentId(null)}
+          onSaved={() => {
+            setEditPaymentId(null);
             void reload();
           }}
         />
@@ -510,6 +614,200 @@ function AddInstallmentDialog({
           <input name="dueDate" type="date" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </Field>
         <DialogActions loading={loading} onClose={onClose} submitLabel="Agregar cuota" />
+      </form>
+    </Dialog>
+  );
+}
+
+function EditScheduleDialog({
+  schedule,
+  studentId,
+  onClose,
+  onSaved,
+}: {
+  schedule: Schedule;
+  studentId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+    try {
+      const response = await fetch(
+        `/api/operaciones/students/${studentId}/schedule/${schedule.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amountDue: Number(formData.get("amountDue")),
+            currency: String(formData.get("currency")),
+            dueDate: String(formData.get("dueDate")),
+          }),
+        },
+      );
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        setError(json.error ?? "Error al guardar cuota");
+        setLoading(false);
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Error de red al guardar cuota");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog title={`Editar cuota #${schedule.installmentNumber}`} error={error} onClose={onClose}>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <Field label="Monto">
+          <input
+            name="amountDue"
+            type="number"
+            step="0.01"
+            min="0.01"
+            defaultValue={toNum(schedule.amountDue)}
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <CurrencySelect defaultCurrency={schedule.currency} />
+        <Field label="Fecha de vencimiento">
+          <input
+            name="dueDate"
+            type="date"
+            defaultValue={schedule.dueDate.slice(0, 10)}
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <DialogActions loading={loading} onClose={onClose} submitLabel="Guardar cambios" />
+      </form>
+    </Dialog>
+  );
+}
+
+function EditPaymentDialog({
+  payment,
+  studentId,
+  schedules,
+  onClose,
+  onSaved,
+}: {
+  payment: Payment;
+  studentId: string;
+  schedules: Schedule[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+    const scheduleId = String(formData.get("scheduleId") ?? "") || null;
+    try {
+      const response = await fetch(
+        `/api/operaciones/students/${studentId}/payments/${payment.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: Number(formData.get("amount")),
+            currency: String(formData.get("currency")),
+            paidAt: String(formData.get("paidAt")),
+            method: (formData.get("method") as string) || null,
+            reference: (formData.get("reference") as string) || null,
+            notes: (formData.get("notes") as string) || null,
+            scheduleId,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        setError(json.error ?? "Error al guardar pago");
+        setLoading(false);
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Error de red al guardar pago");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Dialog title="Editar pago" error={error} onClose={onClose}>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <Field label="Monto">
+          <input
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            defaultValue={toNum(payment.amount)}
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <CurrencySelect defaultCurrency={payment.currency} />
+        <Field label="Fecha del pago">
+          <input
+            name="paidAt"
+            type="date"
+            defaultValue={payment.paidAt.slice(0, 10)}
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <Field label="Método">
+          <input
+            name="method"
+            defaultValue={payment.method ?? ""}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <Field label="Referencia">
+          <input
+            name="reference"
+            defaultValue={payment.reference ?? ""}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <Field label="Asignar a cuota">
+          <select
+            name="scheduleId"
+            defaultValue={payment.schedule?.id ?? ""}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">Sin asignar</option>
+            {schedules.map((schedule) => (
+              <option key={schedule.id} value={schedule.id}>
+                Cuota #{schedule.installmentNumber} ({formatMoney(schedule.amountDue, schedule.currency)} -{" "}
+                {schedule.dueDate.slice(0, 10)})
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Notas">
+          <textarea
+            name="notes"
+            rows={2}
+            defaultValue={payment.notes ?? ""}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <DialogActions loading={loading} onClose={onClose} submitLabel="Guardar cambios" />
       </form>
     </Dialog>
   );
