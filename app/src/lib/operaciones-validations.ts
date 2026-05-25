@@ -119,3 +119,17 @@ export const updateScheduleSchema = z.object({
 
 export type UpdatePaymentInput = z.infer<typeof updatePaymentSchema>;
 export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;
+
+// Student Monthly Metrics
+
+export const upsertMonthlyMetricsSchema = z.object({
+  year: z.number().int().min(2020).max(2100),
+  month: z.number().int().min(1).max(12),
+  revenue: z.number().nonnegative(),
+  currency: z.string().length(3).default("COP"),
+  orders: z.number().int().nonnegative(),
+  status: z.string().max(50).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export type UpsertMonthlyMetricsInput = z.infer<typeof upsertMonthlyMetricsSchema>;
