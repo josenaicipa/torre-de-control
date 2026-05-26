@@ -176,3 +176,29 @@ export function isMemberAllowed(access: DashboardAccess, member: unknown): boole
   if (typeof member !== "string") return false;
   return access.allowedMembers.includes(member);
 }
+
+/**
+ * Can this actor fill the manual daily_entries row for this exact collaborator?
+ * This is intentionally narrower than dashboard.write: it only matches the
+ * user's own identity against the collaborator catalog and is used for the
+ * "Llenar reporte" flow so operators like Karen can fill their own Detalle row
+ * even when they are not broad dashboard writers.
+ */
+export function isOwnDashboardEntryMember(
+  actor: Pick<DashboardActor, "ghlUserName" | "name" | "email">,
+  member: unknown,
+): boolean {
+  if (typeof member !== "string" || !member.trim()) return false;
+  const candidates = new Set<string>(
+    [norm(actor.ghlUserName), norm(actor.name), norm(emailLocalPart(actor.email))].filter(Boolean),
+  );
+  if (candidates.size === 0) return false;
+
+  for (const c of COLLABORATORS) {
+    const aliases = aliasesOf(c);
+    const identityMatches = aliases.some((a) => candidates.has(norm(a)));
+    if (!identityMatches) continue;
+    return aliases.includes(member);
+  }
+  return false;
+}

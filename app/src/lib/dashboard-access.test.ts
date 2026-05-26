@@ -3,6 +3,7 @@ import {
   canReadDashboard,
   canWriteDashboard,
   isMemberAllowed,
+  isOwnDashboardEntryMember,
   resolveDashboardAccess,
   type DashboardActor,
 } from "./dashboard-access";
@@ -235,5 +236,21 @@ describe("isMemberAllowed", () => {
     );
     expect(isMemberAllowed(a, undefined)).toBe(false);
     expect(isMemberAllowed(a, 123)).toBe(false);
+  });
+});
+
+describe("isOwnDashboardEntryMember", () => {
+  it("allows Karen to fill her own daily_entries member even without writer scope", () => {
+    expect(isOwnDashboardEntryMember(actor({ name: "Karen Anquiz" }), "Karen")).toBe(true);
+    expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Anquiz")).toBe(true);
+  });
+
+  it("allows closer legacy aliases only for the matched closer", () => {
+    expect(isOwnDashboardEntryMember(actor({ name: "Carlos Velez" }), "Carlos")).toBe(true);
+    expect(isOwnDashboardEntryMember(actor({ name: "Carlos Velez" }), "Daryi")).toBe(false);
+  });
+
+  it("does not allow arbitrary users to fill another collaborator row", () => {
+    expect(isOwnDashboardEntryMember(actor({ name: "Usuario Operador", email: "operador@naicipa.com" }), "Karen")).toBe(false);
   });
 });

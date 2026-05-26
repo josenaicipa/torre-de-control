@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDashboardActor } from "@/lib/dashboard-actor";
-import { isMemberAllowed, resolveDashboardAccess } from "@/lib/dashboard-access";
+import {
+  canReadDashboard,
+  isMemberAllowed,
+  isOwnDashboardEntryMember,
+  resolveDashboardAccess,
+} from "@/lib/dashboard-access";
 import {
   isDashboardTable,
   sanitizeValues,
@@ -55,9 +60,6 @@ export async function POST(req: NextRequest) {
   }
 
   const access = resolveDashboardAccess(result.actor);
-  if (!access.canWrite) {
-    return NextResponse.json({ error: "Sin permiso de escritura" }, { status: 403 });
-  }
 
   let body: MutateBody;
   try {
@@ -73,6 +75,18 @@ export async function POST(req: NextRequest) {
   const table = body.table;
   const config = tableConfig(table);
   const memberScoped = config.scope === "member";
+  const values = body.op === "upsert" || body.op === "insert"
+    ? sanitizeValues(table, body.values)
+    : null;
+  const ownDailyEntryFill = body.op === "upsert"
+    && table === "daily_entries"
+    && values
+    && isOwnDashboardEntryMember(result.actor, values.member)
+    && canReadDashboard(result.actor);
+
+  if (!access.canWrite && !ownDailyEntryFill) {
+    return NextResponse.json({ error: "Sin permiso de escritura" }, { status: 403 });
+  }
 
   // Aggregate tables (no member column) are global-only for any write.
   if (!memberScoped && !access.isGlobalData) {
@@ -97,12 +111,11 @@ export async function POST(req: NextRequest) {
     }
 
     // upsert / insert
-    const values = sanitizeValues(table, body.values);
-    if (Object.keys(values).length === 0) {
+    if (!values || Object.keys(values).length === 0) {
       return NextResponse.json({ error: "Datos vacíos" }, { status: 400 });
     }
 
-    if (memberScoped && !access.isGlobalData && !isMemberAllowed(access, values.member)) {
+    if (memberScoped && !access.isGlobalData && !isMemberAllowed(access, values.member) && !ownDailyEntryFill) {
       return FORBIDDEN;
     }
 
