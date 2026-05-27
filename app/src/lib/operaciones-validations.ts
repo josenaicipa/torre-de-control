@@ -154,6 +154,28 @@ const percentSchema = z.number().min(0).max(100);
 
 export const productSaleLimitSchema = z.enum(["ONE_PER_STUDENT", "UNLIMITED"]);
 
+// LearnWorlds resource kinds we provision against; matches the Prisma enum
+// LearnWorldsAccessType. `lwExternalId` is the LW course/bundle slug or id and
+// is required for the integration to resolve the resource; the other fields
+// are convenience metadata cached on our side (see schema.prisma).
+export const learnWorldsAccessTypeSchema = z.enum([
+  "COURSE",
+  "BUNDLE",
+  "SUBSCRIPTION",
+]);
+
+export const learnWorldsAccessConfigInputSchema = z.object({
+  lwProductType: learnWorldsAccessTypeSchema,
+  lwExternalId: z.string().trim().min(1).max(200),
+  lwDisplayName: z.string().trim().max(200).optional().nullable(),
+  description: z.string().trim().max(2000).optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+
+export type LearnWorldsAccessConfigInput = z.infer<
+  typeof learnWorldsAccessConfigInputSchema
+>;
+
 export const createProductSchema = z.object({
   name: z.string().trim().min(1).max(200),
   slug: slugSchema,
@@ -167,12 +189,49 @@ export const createProductSchema = z.object({
   defaultCommissionPercent: percentSchema.default(0),
   isMainProduct: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  // Optional initial set of LearnWorlds resources granted by this product.
+  // An empty array is valid (no LW access); omit the field entirely if the
+  // caller doesn't want to set any.
+  learnWorldsAccessConfigs: z
+    .array(learnWorldsAccessConfigInputSchema)
+    .optional(),
 });
 
-export const updateProductSchema = createProductSchema.partial();
+// PATCH /products/[id]: every field is optional and defaults are dropped so
+// the parsed body reflects only what the caller actually sent (Zod's
+// `.partial()` keeps `.default()` values, which would silently rewrite
+// unrelated fields). When `learnWorldsAccessConfigs` is present, the route
+// replaces the existing set (deleteMany + createMany inside a transaction);
+// when omitted, the existing configs are left untouched.
+export const updateProductSchema = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  slug: slugSchema.optional(),
+  description: z.string().max(5000).optional().nullable(),
+  basePriceUsd: moneyUsdSchema.optional(),
+  currency: z.string().length(3).optional(),
+  saleLimit: productSaleLimitSchema.optional(),
+  allowsInstallments: z.boolean().optional(),
+  requiresInitialPayment: z.boolean().optional(),
+  generatesCommission: z.boolean().optional(),
+  defaultCommissionPercent: percentSchema.optional(),
+  isMainProduct: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  learnWorldsAccessConfigs: z
+    .array(learnWorldsAccessConfigInputSchema)
+    .optional(),
+});
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+// Query param schema for the catalog list endpoints (products,
+// payment-accounts). `active=all` disables filtering; the default mirrors the
+// UI expectation that pickers only show active rows.
+export const listCatalogActiveQuerySchema = z.object({
+  active: z.enum(["true", "false", "all"]).default("true"),
+});
+
+export type ListCatalogActiveQuery = z.infer<typeof listCatalogActiveQuerySchema>;
 
 export const createPaymentAccountSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
@@ -183,7 +242,16 @@ export const createPaymentAccountSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
 });
 
-export const updatePaymentAccountSchema = createPaymentAccountSchema.partial();
+// Same rationale as updateProductSchema: defaults are dropped so PATCH
+// reflects only the fields the caller sent.
+export const updatePaymentAccountSchema = z.object({
+  displayName: z.string().trim().min(1).max(120).optional(),
+  ownerName: z.string().trim().max(200).optional().nullable(),
+  providerName: z.string().trim().max(120).optional().nullable(),
+  currency: z.string().length(3).optional(),
+  isActive: z.boolean().optional(),
+  notes: z.string().max(2000).optional().nullable(),
+});
 
 export type CreatePaymentAccountInput = z.infer<typeof createPaymentAccountSchema>;
 export type UpdatePaymentAccountInput = z.infer<typeof updatePaymentAccountSchema>;
