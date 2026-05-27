@@ -811,7 +811,14 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const pctLeadsAg=nv(cfg.pctLeadsAg)||45;
   const pctAgAsis=nv(cfg.pctAgAsis)||70;
   const closeRateMeta=nv(cfg.closeRateMeta)||25;
-  const day=nv(cfg.day)||new Date().getDate();
+  // Resolve the selected period's state relative to "today" in America/Bogota
+  // so past/future months never reuse today's day-of-month. See
+  // app/src/lib/dashboard-month.ts (unit-tested mirror of this logic).
+  const [_curY,_curMM,_curD]=today().split("-").map(Number);
+  const _curM=_curMM-1;
+  const monthState=year<_curY||(year===_curY&&month<_curM)?"past":year===_curY&&month===_curM?"current":"future";
+  const isPast=monthState==="past",isFuture=monthState==="future",isCurrent=monthState==="current";
+  const day=isPast?dm:isFuture?0:Math.min(nv(cfg.day)||_curD,dm);
 
   const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
 
@@ -830,10 +837,12 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const openDrill=(title,key)=>{if(!cashApi)return;setDrill({title,rows:cashGroups[key]||[]});};
 
   const ticketProm=totalVentas>0?totalValor/totalVentas:0;
-  const pctTranscurrido=day/dm;
+  const pctTranscurrido=dm>0?day/dm:0;
   const metaEsperadaHoy=metaMensual*pctTranscurrido;
   const gapVsRitmo=dispCash-metaEsperadaHoy;
-  const proyeccion=day>0&&dispCash>0?(dispCash/day)*dm:null;
+  // Only the current month projects forward — past months are closed and
+  // future months must not fabricate progress.
+  const proyeccion=isCurrent&&day>0&&dispCash>0?(dispCash/day)*dm:null;
   const pctCumpl=pv(dispCash,metaMensual);
 
   const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
@@ -907,8 +916,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(dispLowT)}</div>
           </div>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Día</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'DM Mono',monospace"}}>{day}/{dm}</div>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'DM Mono',monospace"}}>{isFuture?"—":day}/{dm}</div>
           </div>
           {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
         </div>
@@ -1007,27 +1016,37 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
 
         <div style={block}>
           <SectionTitle>Ritmo del mes (tiempo + dinero)</SectionTitle>
-          <Row2 label="Fecha hoy" value={today()}/>
+          <Row2 label={isCurrent?"Fecha hoy":"Período"} value={isCurrent?today():`${MONTHS[month]} ${year}`}/>
           <Row2 label="Días totales mes" value={dm}/>
-          <Row2 label="Día del mes" value={day}/>
+          <Row2 label={isPast?"Día final del mes":isFuture?"Día del mes":"Día del mes"} value={isFuture?"—":day}/>
           <Row2 label="% mes transcurrido" value={fP(pctTranscurrido*100,1)}/>
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
-          <Row2 label="Meta esperada a hoy ($)" value={fD(metaEsperadaHoy)} bold/>
-          <Row2 label="Ventas reales acumuladas ($)" value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
-          <Row2 label="Gap vs ritmo ($)" value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
+          <Row2 label={isCurrent?"Meta esperada a hoy ($)":isPast?"Meta total del mes ($)":"Meta esperada al cierre ($)"} value={fD(metaEsperadaHoy)} bold/>
+          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label={isPast?"Gap vs meta ($)":"Gap vs ritmo ($)"} value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
         </div>
 
         <div style={block}>
-          <SectionTitle>Proyección fin de mes (si seguimos así)</SectionTitle>
+          <SectionTitle>{isCurrent?"Proyección fin de mes (si seguimos así)":isPast?"Cierre del mes (real)":"Proyección fin de mes (sin datos aún)"}</SectionTitle>
           <div style={{padding:"18px 14px",display:"flex",flexDirection:"column",gap:0}}>
-            <Row2 label="Ventas proyectadas fin de mes ($)" value={proyeccion?fD(proyeccion):"—"} bold color={proyeccion&&proyeccion>=metaMensual?C.green:C.red}/>
-            <Row2 label="% cumplimiento proyectado" value={fP(pctCumplProy)} bold color={cH(pctCumplProy,85,65)}/>
-            <Row2 label="Gap proyectado vs meta ($)" value={gapProy!=null?fD(gapProy):"—"} bold color={gapProy!=null&&gapProy>=0?C.green:C.red} bg={gapProy!=null&&gapProy>=0?"#f0fdf4":"#fef2f2"}/>
+            {isPast?(<>
+              <Row2 label="Ventas reales al cierre ($)" value={fD(dispCash)} bold color={dispCash>=metaMensual?C.green:C.red}/>
+              <Row2 label="% cumplimiento real" value={fP(pctCumpl)} bold color={cH(pctCumpl,85,65)}/>
+              <Row2 label="Gap real vs meta ($)" value={fD(dispCash-metaMensual)} bold color={dispCash>=metaMensual?C.green:C.red} bg={dispCash>=metaMensual?"#f0fdf4":"#fef2f2"}/>
+            </>):isFuture?(<>
+              <Row2 label="Ventas proyectadas fin de mes ($)" value="—"/>
+              <Row2 label="% cumplimiento proyectado" value="—"/>
+              <Row2 label="Gap proyectado vs meta ($)" value="—"/>
+            </>):(<>
+              <Row2 label="Ventas proyectadas fin de mes ($)" value={proyeccion?fD(proyeccion):"—"} bold color={proyeccion&&proyeccion>=metaMensual?C.green:C.red}/>
+              <Row2 label="% cumplimiento proyectado" value={fP(pctCumplProy)} bold color={cH(pctCumplProy,85,65)}/>
+              <Row2 label="Gap proyectado vs meta ($)" value={gapProy!=null?fD(gapProy):"—"} bold color={gapProy!=null&&gapProy>=0?C.green:C.red} bg={gapProy!=null&&gapProy>=0?"#f0fdf4":"#fef2f2"}/>
+            </>)}
           </div>
           {dispCash>0&&(
             <div style={{padding:"0 10px 12px"}}>
-              <Barz value={dispCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`Cash actual: ${fP(pctCumpl)}`} right={fD(dispCash)}/>
+              <Barz value={dispCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`${isPast?"Cash final":"Cash actual"}: ${fP(pctCumpl)}`} right={fD(dispCash)}/>
               {proyeccion&&<div style={{marginTop:6}}><Barz value={proyeccion} max={metaMensual} color={C.blue} h={5} label={`Proyección: ${fP(pctCumplProy)}`} right={fD(proyeccion)}/></div>}
             </div>
           )}
@@ -1036,12 +1055,12 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
 
       {/* FUNNEL A HOY */}
       <div style={block}>
-        <SectionTitle>Funnel a hoy — Plan vs Real · Día {day}/{dm} ({fP(pctTranscurrido*100,0)} transcurrido)</SectionTitle>
+        <SectionTitle>{isPast?`Funnel del mes (cerrado) — Plan vs Real · ${dm}/${dm} días`:isFuture?`Funnel del mes (sin datos aún) — Plan vs Real · Día 0/${dm}`:`Funnel a hoy — Plan vs Real · Día ${day}/${dm} (${fP(pctTranscurrido*100,0)} transcurrido)`}</SectionTitle>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
-                {["Métrica","Requerido a hoy","Real a hoy","Gap","Estado"].map(h=>(
+                {["Métrica",isCurrent?"Requerido a hoy":isPast?"Requerido mes":"Requerido (mes)",isCurrent?"Real a hoy":isPast?"Real mes":"Real","Gap","Estado"].map(h=>(
                   <th key={h} style={{padding:"9px 14px",color:TXT3,textAlign:h==="Métrica"?"left":"center",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
@@ -1118,7 +1137,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <SectionTitle>Apoyo — Control Ads & ROAS</SectionTitle>
           <Row2 label="Inversión planeada mes ($)" value={fD(inversionPlaneada)}/>
           <Row2 label="Inversión Ads real acumulada ($)" value={fD(totalGasto)} bold/>
-          <Row2 label="Inversión Ads esperada a hoy ($)" value={fD(invEsperadaHoy)}/>
+          <Row2 label={isCurrent?"Inversión Ads esperada a hoy ($)":isPast?"Inversión Ads esperada total ($)":"Inversión Ads esperada al cierre ($)"} value={fD(invEsperadaHoy)}/>
           <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={gapInversion>500?C.red:gapInversion<-500?C.green:TXT} bg={gapInversion>500?"#fef2f2":gapInversion<-500?"#f0fdf4":"transparent"}/>
           <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
           <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
@@ -3367,6 +3386,12 @@ const TABS=[
   {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
   {id:"colab",   l:"Por Colaborador",    icon:"users"},
   {id:"hist",    l:"Histórico",          icon:"trendUp"},
+  {id:"operaciones", l:"Operaciones", icon:"users", children:[
+    {id:"operaciones-estudiantes", l:"Estudiantes", href:"/operaciones/estudiantes"},
+    {id:"operaciones-cartera", l:"Cartera", href:"/operaciones/cartera"},
+    {id:"operaciones-mentores", l:"Mentores", href:"/operaciones/mentores"},
+    {id:"operaciones-importar", l:"Importar Excel", href:"/operaciones/importar"},
+  ]},
   {id:"admin",   l:"Admin",              icon:"settings"},
 ];
 
@@ -3381,6 +3406,7 @@ const MOBILE_TABS=[
   TABS.find(t=>t.id==="detalle"),
   TABS.find(t=>t.id==="colab"),
   TABS.find(t=>t.id==="hist"),
+  TABS.find(t=>t.id==="operaciones"),
   TABS.find(t=>t.id==="admin"),
 ].filter(Boolean);
 
@@ -3388,7 +3414,12 @@ function App(){
   const [isDark,setIsDark]=useState(()=>localStorage.getItem("theme")==="dark");
   applyTheme(isDark);
   const toggleTheme=()=>{const n=!isDark;setIsDark(n);localStorage.setItem("theme",n?"dark":"light");};
-  const [tab,setTab]=useState("torre");
+  const [tab,setTab]=useState(()=>{
+    const requested=new URLSearchParams(window.location.search).get("tab");
+    return TABS.some(t=>t.id===requested&&!t.children)?requested:"torre";
+  });
+  const [openSubmenu,setOpenSubmenu]=useState(null);
+  const [embedUrl,setEmbedUrl]=useState(null);
   const [year,setYear]=useState(new Date().getFullYear());
   const [month,setMonth]=useState(new Date().getMonth());
   const [kpiData,setKpiData]=useState({});
@@ -3474,6 +3505,12 @@ function App(){
 
   const kk=`kpi:${year}-${month}`;
   const kpi=kpiData[kk]||{funnel:{revenue:"",adSpend:"",leads:"",agendas:"",shows:"",cierres:""},meta:{revenue:"150000"},day:new Date().getDate(),ads:[]};
+  // Period status for the topbar/sidebar footer — keeps "Día X de Y" honest
+  // when the user is browsing a closed or future month.
+  const [_topY,_topMM,_topD]=today().split("-").map(Number);
+  const _topM=_topMM-1;
+  const periodState=year<_topY||(year===_topY&&month<_topM)?"past":year===_topY&&month===_topM?"current":"future";
+  const periodDayLabel=periodState==="past"?`${MDAYS[month]} de ${MDAYS[month]}`:periodState==="future"?`— de ${MDAYS[month]}`:`${Math.min(nv(kpi.day)||_topD,MDAYS[month])} de ${MDAYS[month]}`;
 
   const upKpi=async(f,v)=>{
     const nd={...kpiData,[kk]:{...kpi,funnel:{...kpi.funnel,[f]:v}}};
@@ -3746,8 +3783,58 @@ function App(){
             {visibleTabs.map(t=>{
               const active=tab===t.id;
               const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
+              if(t.href){
+                return(
+                  <a key={t.id} href={t.href}
+                    className="sidebar-item"
+                    style={{width:"100%",textAlign:"left",background:"transparent",
+                      borderLeft:"2px solid transparent",borderRadius:"0 9px 9px 0",
+                      padding:"9px 12px",color:TXT2,fontSize:12,fontWeight:500,
+                      fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                      gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s"}}>
+                    <Icon name={t.icon} size={15} color={TXT3}/>
+                    <span>{t.l}</span>
+                  </a>
+                );
+              }
+              if(t.children&&t.children.length>0){
+                const expanded=openSubmenu===t.id;
+                return(
+                  <div key={t.id} style={{display:"flex",flexDirection:"column",marginBottom:2}}>
+                    <button onClick={()=>setOpenSubmenu(expanded?null:t.id)}
+                      className={`sidebar-item${expanded?" active":""}`}
+                      style={{width:"100%",textAlign:"left",background:expanded?BRAND+"18":"transparent",
+                        border:"none",borderLeft:expanded?`2px solid ${BRAND}`:"2px solid transparent",
+                        borderRadius:"0 9px 9px 0",padding:"9px 12px",cursor:"pointer",
+                        color:expanded?BRAND:TXT2,fontSize:12,fontWeight:expanded?700:500,
+                        fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                        gap:9,transition:"all .15s"}}>
+                      <Icon name={t.icon} size={15} color={expanded?BRAND:TXT3}/>
+                      <span style={{flex:1}}>{t.l}</span>
+                      <span style={{fontSize:10,opacity:.6}}>{expanded?"▼":"▶"}</span>
+                    </button>
+                    {expanded&&t.children.map(c=>{
+                      const subActive=embedUrl===c.href;
+                      return(
+                        <button key={c.id}
+                          onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");}}
+                          style={{padding:"7px 12px 7px 37px",fontSize:12,
+                            color:subActive?BRAND:TXT2,
+                            background:subActive?BRAND+"18":"transparent",
+                            fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,
+                            border:"none",cursor:"pointer",textAlign:"left",width:"100%",
+                            display:"block",borderRadius:"0 9px 9px 0"}}
+                          onMouseEnter={e=>{if(!subActive)e.currentTarget.style.background=BRAND+"10";}}
+                          onMouseLeave={e=>{if(!subActive)e.currentTarget.style.background="transparent";}}>
+                          {c.l}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
               return(
-                <button key={t.id} onClick={()=>setTab(t.id)}
+                <button key={t.id} onClick={()=>{setTab(t.id);setEmbedUrl(null);}}
                   className={`sidebar-item${active?" active":""}`}
                   style={{width:"100%",textAlign:"left",background:active?BRAND+"18":"transparent",
                     border:"none",borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
@@ -3769,7 +3856,7 @@ function App(){
           <div style={{padding:"12px 16px",borderTop:`1px solid ${BORDER}`}}>
             <div style={{fontSize:9,color:TXT3,letterSpacing:"0.05em",lineHeight:1.6,marginBottom:10}}>
               <div style={{color:TXT2,fontWeight:600,marginBottom:2}}>{MONTHS[month]} {year}</div>
-              <div>Día {kpi.day} de {MDAYS[month]}</div>
+              <div>{periodState==="past"?"Mes cerrado · ":periodState==="future"?"Mes futuro · ":"Día "}{periodDayLabel}</div>
               {kpi.funnel.revenue&&<div style={{color:BRAND,fontWeight:600,marginTop:2}}>{fD(nv(kpi.funnel.revenue))} revenue</div>}
             </div>
             <button onClick={toggleTheme} style={{
@@ -3795,7 +3882,7 @@ function App(){
                 {TABS.find(t=>t.id===tab)?.l}
               </div>
               <div className="mobile-topbar-extra" style={{fontSize:10,color:TXT3,marginTop:4,letterSpacing:"0.02em"}}>
-                {MONTHS[month].toUpperCase()} {year} · DÍA {kpi.day} DE {MDAYS[month]}
+                {MONTHS[month].toUpperCase()} {year} · {periodState==="past"?`MES CERRADO · ${MDAYS[month]} DÍAS`:periodState==="future"?`MES FUTURO · ${MDAYS[month]} DÍAS`:`DÍA ${Math.min(nv(kpi.day)||_topD,MDAYS[month])} DE ${MDAYS[month]}`}
                 {mQual>0&&<> · <span style={{color:cH(pv(mShows,mQual),60,40)}}>{fP(pv(mShows,mQual))} show-up</span></>}
               </div>
             </div>
@@ -3803,7 +3890,7 @@ function App(){
 
           {/* Mobile period bar */}
           <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
-            {tab!=="control"&&<button onClick={()=>setTab("control")} style={{
+            {tab!=="control"&&<button onClick={()=>{setTab("control");setEmbedUrl(null);}} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:9,padding:"8px 10px",
               fontSize:11,fontWeight:800,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
               Control Comercial
@@ -3832,17 +3919,32 @@ function App(){
                 {(caps&&caps.scopeSummary)||"Solo ves los datos asignados a tu alcance."} Si necesitas más acceso, pide a un admin que ajuste tu alcance.
               </div>
             </div>}
-            {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
-            {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
-            {tab==="control" &&<ControlComercial/>}
-            {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
-            {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
-            {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
-            {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
-            {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
-            {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
-            {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
-            {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                style={{
+                  width:"100%",
+                  height:"calc(100vh - 80px)",
+                  border:"none",
+                  background:"#F7F7F5",
+                  display:"block"
+                }}
+              />
+            ) : (
+              <>
+                {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
+                {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
+                {tab==="control" &&<ControlComercial/>}
+                {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
+                {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
+                {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
+                {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
+                {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
+                {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
+                {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
+                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+              </>
+            )}
           </div>
         </div>
 
@@ -3855,8 +3957,22 @@ function App(){
           <div style={{display:"flex",minWidth:"max-content",padding:"6px 4px 8px"}}>
             {visibleMobileTabs.map(t=>{
               const active=tab===t.id;
+              if(t.children&&t.children.length>0){
+                return(
+                  <button key={t.id} onClick={()=>{setEmbedUrl(t.children[0].href);setTab("operaciones");}} style={{
+                    display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+                    background:"transparent",border:"none",cursor:"pointer",
+                    padding:"6px 12px",borderRadius:10,minWidth:92,
+                    color:TXT3,textDecoration:"none",transition:"all .15s",flexShrink:0}}>
+                    <Icon name={t.icon} size={20} color={TXT3}/>
+                    <span style={{fontSize:9,fontWeight:500,
+                      fontFamily:"'Inter',sans-serif",letterSpacing:"0.01em",
+                      color:TXT3,whiteSpace:"nowrap"}}>{t.l}</span>
+                  </button>
+                );
+              }
               return(
-                <button key={t.id} onClick={()=>setTab(t.id)} style={{
+                <button key={t.id} onClick={()=>{setTab(t.id);setEmbedUrl(null);}} style={{
                   display:"flex",flexDirection:"column",alignItems:"center",gap:3,
                   background:"transparent",border:"none",cursor:"pointer",
                   padding:"6px 12px",borderRadius:10,minWidth:t.id==="control"?104:72,
