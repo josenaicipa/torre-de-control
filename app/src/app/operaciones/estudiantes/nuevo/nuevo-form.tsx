@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -570,9 +571,18 @@ export function NuevoEstudianteForm({
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700">
-                  Producto <span className="text-rose-600">*</span>
-                </label>
+                <div className="flex items-baseline justify-between gap-2">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Producto <span className="text-rose-600">*</span>
+                  </label>
+                  <Link
+                    href="/operaciones/catalogo?tab=productos"
+                    target="_blank"
+                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                  >
+                    + Crear producto
+                  </Link>
+                </div>
                 <select
                   value={sale.productId}
                   onChange={(e) => onSelectProduct(e.target.value)}
@@ -586,10 +596,32 @@ export function NuevoEstudianteForm({
                     </option>
                   ))}
                 </select>
+                {products.length === 0 && (
+                  <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                    Primero crea un producto en{" "}
+                    <Link
+                      href="/operaciones/catalogo?tab=productos"
+                      target="_blank"
+                      className="font-medium underline hover:text-amber-900"
+                    >
+                      Catálogo
+                    </Link>
+                    .
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Cuenta receptora</label>
+                <div className="flex items-baseline justify-between gap-2">
+                  <label className="block text-sm font-medium text-slate-700">Cuenta receptora</label>
+                  <Link
+                    href="/operaciones/catalogo?tab=cuentas"
+                    target="_blank"
+                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                  >
+                    + Crear cuenta receptora
+                  </Link>
+                </div>
                 <select
                   value={sale.paymentAccountId}
                   onChange={(e) => updateSale("paymentAccountId", e.target.value)}
@@ -602,6 +634,19 @@ export function NuevoEstudianteForm({
                     </option>
                   ))}
                 </select>
+                {paymentAccounts.length === 0 && (
+                  <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                    Primero crea una cuenta receptora en{" "}
+                    <Link
+                      href="/operaciones/catalogo?tab=cuentas"
+                      target="_blank"
+                      className="font-medium underline hover:text-amber-900"
+                    >
+                      Catálogo
+                    </Link>
+                    .
+                  </p>
+                )}
               </div>
 
               <div>
