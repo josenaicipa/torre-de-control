@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Role } from "@prisma/client";
 
 type Numeric = string | number;
@@ -45,6 +46,10 @@ interface PaymentAccount {
 
 type Tab = "productos" | "cuentas";
 
+function parseTab(value: string | null): Tab {
+  return value === "cuentas" ? "cuentas" : "productos";
+}
+
 function toNum(value: Numeric | null | undefined): number {
   if (value === null || value === undefined) return 0;
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -64,7 +69,12 @@ function canWriteRole(role: Role): boolean {
 }
 
 export function CatalogoClient({ role }: { role: Role }) {
-  const [tab, setTab] = useState<Tab>("productos");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const queryTab = parseTab(searchParams?.get("tab") ?? null);
+
+  const [tab, setTabState] = useState<Tab>(queryTab);
   const [products, setProducts] = useState<Product[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +82,20 @@ export function CatalogoClient({ role }: { role: Role }) {
   const [flash, setFlash] = useState<string | null>(null);
 
   const canWrite = canWriteRole(role);
+
+  // Sync local tab state when the URL ?tab=... changes (e.g. user navigates here
+  // from "Crear producto" / "Crear cuenta receptora" links in other pages).
+  useEffect(() => {
+    setTabState((prev) => (prev === queryTab ? prev : queryTab));
+  }, [queryTab]);
+
+  function setTab(next: Tab) {
+    setTabState(next);
+    if (next === queryTab) return;
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("tab", next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   async function reload() {
     setLoading(true);
@@ -114,6 +138,12 @@ export function CatalogoClient({ role }: { role: Role }) {
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-slate-600">
+        Catálogo compartido por todo Operaciones: <strong>Productos</strong> y{" "}
+        <strong>Cuentas receptoras</strong> se usan al crear estudiantes y
+        registrar ventas. Si un selector aparece vacío al crear un estudiante,
+        vení acá y dalo de alta.
+      </p>
       <div className="flex gap-2 border-b border-slate-200">
         <TabButton active={tab === "productos"} onClick={() => setTab("productos")}>
           Productos
@@ -239,7 +269,14 @@ function ProductosSection({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Productos</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Productos</h2>
+          <p className="text-xs text-slate-500">
+            Estos productos son los que aparecen en el selector al crear un
+            estudiante o registrar una venta. Marcá uno como principal para que
+            quede pre-seleccionado.
+          </p>
+        </div>
         {canWrite && (
           <button
             type="button"
@@ -851,7 +888,16 @@ function CuentasSection({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">Cuentas receptoras</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Cuentas receptoras
+          </h2>
+          <p className="text-xs text-slate-500">
+            Son las cuentas donde se acreditan los pagos de los estudiantes
+            (banco, Stripe, Wise, etc.). Aparecen como opciones al cobrar el
+            pago inicial y futuras cuotas.
+          </p>
+        </div>
         {canWrite && (
           <button
             type="button"
