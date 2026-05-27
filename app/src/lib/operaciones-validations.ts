@@ -362,6 +362,29 @@ export type CreateStudentProductEnrollmentInput = z.infer<
   typeof createStudentProductEnrollmentSchema
 >;
 
+// Shape accepted as `initialEnrollment` on the create-student endpoint: same
+// as the standalone enrollment schema minus `studentId` (the route resolves
+// it from the student row it is about to create in the same transaction).
+export const initialEnrollmentForStudentCreateSchema =
+  createStudentProductEnrollmentSchema.omit({ studentId: true });
+
+export type InitialEnrollmentForStudentCreateInput = z.infer<
+  typeof initialEnrollmentForStudentCreateSchema
+>;
+
+// POST /api/operaciones/students payload: the original student fields plus an
+// optional `initialEnrollment` block. When the block is present the route
+// atomically creates the Student, the StudentProductEnrollment, the initial
+// Payment and the PaymentSchedule rows under the same transaction. Leaving the
+// block undefined preserves the old "create student only" behaviour.
+export const createStudentWithInitialEnrollmentSchema = createStudentSchema.extend({
+  initialEnrollment: initialEnrollmentForStudentCreateSchema.optional().nullable(),
+});
+
+export type CreateStudentWithInitialEnrollmentInput = z.infer<
+  typeof createStudentWithInitialEnrollmentSchema
+>;
+
 // A single referral row inside an enrollment's commission split. The full
 // commission editor sums these and must total 100% (see
 // referralSplitListSchema below and validateReferralSplitsSumTo100 in
