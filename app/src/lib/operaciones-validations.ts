@@ -133,3 +133,141 @@ export const upsertMonthlyMetricsSchema = z.object({
 });
 
 export type UpsertMonthlyMetricsInput = z.infer<typeof upsertMonthlyMetricsSchema>;
+
+// ───────── Operaciones · Products architecture (PR1) ─────────
+//
+// All schemas mirror the Prisma models in app/prisma/schema.prisma. Money
+// fields cap at 1M USD as elsewhere; percent fields are 0-100 with cents.
+// Slugs are lower-kebab; currencies are ISO 4217 3-letter codes (we don't
+// enforce the full list — Prisma accepts the string).
+
+const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const slugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(SLUG_REGEX, "expected lower-kebab-case slug");
+
+const moneyUsdSchema = z.number().nonnegative().max(1_000_000);
+const percentSchema = z.number().min(0).max(100);
+
+export const productSaleLimitSchema = z.enum(["ONE_PER_STUDENT", "UNLIMITED"]);
+
+export const createProductSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  slug: slugSchema,
+  description: z.string().max(5000).optional().nullable(),
+  basePriceUsd: moneyUsdSchema,
+  currency: z.string().length(3).default("USD"),
+  saleLimit: productSaleLimitSchema.default("ONE_PER_STUDENT"),
+  allowsInstallments: z.boolean().default(true),
+  requiresInitialPayment: z.boolean().default(false),
+  generatesCommission: z.boolean().default(false),
+  defaultCommissionPercent: percentSchema.default(0),
+  isMainProduct: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+});
+
+export const updateProductSchema = createProductSchema.partial();
+
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+export const createPaymentAccountSchema = z.object({
+  displayName: z.string().trim().min(1).max(120),
+  ownerName: z.string().trim().max(200).optional().nullable(),
+  providerName: z.string().trim().max(120).optional().nullable(),
+  currency: z.string().length(3).default("USD"),
+  isActive: z.boolean().default(true),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export const updatePaymentAccountSchema = createPaymentAccountSchema.partial();
+
+export type CreatePaymentAccountInput = z.infer<typeof createPaymentAccountSchema>;
+export type UpdatePaymentAccountInput = z.infer<typeof updatePaymentAccountSchema>;
+
+export const createStudentTagSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  slug: slugSchema,
+  description: z.string().max(500).optional().nullable(),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#?[0-9a-fA-F]{6}$/, "expected hex color like #aabbcc")
+    .optional()
+    .nullable(),
+  isAutomatic: z.boolean().default(false),
+  allowAutomaticAssignment: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+});
+
+export const updateStudentTagSchema = createStudentTagSchema.partial();
+
+export type CreateStudentTagInput = z.infer<typeof createStudentTagSchema>;
+export type UpdateStudentTagInput = z.infer<typeof updateStudentTagSchema>;
+
+export const enrollmentStatusSchema = z.enum([
+  "ACTIVE",
+  "PAUSED",
+  "COMPLETED",
+  "CANCELLED",
+  "REFUNDED",
+]);
+
+export const accessStatusSchema = z.enum([
+  "PENDING",
+  "ACTIVE",
+  "SUSPENDED",
+  "REVOKED",
+  "SYNC_ERROR",
+]);
+
+// Base shape for enrolling a student in a product. Downstream flows (initial
+// payment + installment plan creation) are validated by their own schemas;
+// this only covers the StudentProductEnrollment row itself.
+export const createEnrollmentBaseSchema = z.object({
+  studentId: z.string().cuid(),
+  productId: z.string().cuid(),
+  startedAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
+  endsAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD").optional().nullable(),
+  totalAmountUsd: moneyUsdSchema,
+  initialPaymentUsd: moneyUsdSchema.optional().nullable(),
+  installmentCount: z.number().int().min(1).max(24).optional().nullable(),
+  commissionBaseUsd: moneyUsdSchema.optional().nullable(),
+  commissionPercent: percentSchema.optional().nullable(),
+  currency: z.string().length(3).default("USD"),
+  paymentAccountId: z.string().cuid().optional().nullable(),
+  notes: z.string().max(5000).optional().nullable(),
+});
+
+export type CreateEnrollmentBaseInput = z.infer<typeof createEnrollmentBaseSchema>;
+
+// A single referral row inside an enrollment's commission split. The full
+// commission editor sums these and must total 100% (see
+// referralSplitListSchema below and validateReferralSplitsSumTo100 in
+// operaciones-products.ts).
+export const referralSplitItemSchema = z.object({
+  referralId: z.string().cuid(),
+  splitPercent: percentSchema,
+  commissionBaseUsd: moneyUsdSchema,
+});
+
+export type ReferralSplitItem = z.infer<typeof referralSplitItemSchema>;
+
+// List-level validator that enforces the cent-tolerant sum-to-100 rule on the
+// split percentages. Same tolerance as validateReferralSplitsSumTo100 in
+// operaciones-products.ts so the API and the form-side validation agree.
+export const referralSplitListSchema = z
+  .array(referralSplitItemSchema)
+  .refine(
+    (items) => {
+      if (items.length === 0) return true;
+      const sum = items.reduce((acc, item) => acc + item.splitPercent, 0);
+      return Math.abs(sum - 100) <= 0.01;
+    },
+    { message: "referral splits must sum to 100" },
+  );
+
+export type ReferralSplitList = z.infer<typeof referralSplitListSchema>;
