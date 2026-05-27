@@ -10,6 +10,14 @@ import {
   updateScheduleSchema,
   listStudentsQuerySchema,
   upsertMonthlyMetricsSchema,
+  createProductSchema,
+  updateProductSchema,
+  createPaymentAccountSchema,
+  updatePaymentAccountSchema,
+  createStudentTagSchema,
+  updateStudentTagSchema,
+  createEnrollmentBaseSchema,
+  referralSplitListSchema,
 } from "./operaciones-validations";
 
 describe("createStudentSchema", () => {
@@ -253,6 +261,216 @@ describe("upsertMonthlyMetricsSchema", () => {
         revenue: -1,
         orders: -1,
       }).success,
+    ).toBe(false);
+  });
+});
+
+// ───────── Products architecture (PR1) ─────────
+
+describe("createProductSchema", () => {
+  it("applies sensible defaults for booleans and saleLimit", () => {
+    const parsed = createProductSchema.parse({
+      name: "Mentoría Principal",
+      slug: "mentoria-principal",
+      basePriceUsd: 2500,
+    });
+    expect(parsed.saleLimit).toBe("ONE_PER_STUDENT");
+    expect(parsed.allowsInstallments).toBe(true);
+    expect(parsed.requiresInitialPayment).toBe(false);
+    expect(parsed.generatesCommission).toBe(false);
+    expect(parsed.defaultCommissionPercent).toBe(0);
+    expect(parsed.isMainProduct).toBe(false);
+    expect(parsed.isActive).toBe(true);
+    expect(parsed.currency).toBe("USD");
+  });
+
+  it("rejects an invalid slug", () => {
+    expect(
+      createProductSchema.safeParse({
+        name: "X",
+        slug: "Has Spaces",
+        basePriceUsd: 100,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects defaultCommissionPercent out of 0-100", () => {
+    expect(
+      createProductSchema.safeParse({
+        name: "X",
+        slug: "x",
+        basePriceUsd: 100,
+        defaultCommissionPercent: 120,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("updateProductSchema", () => {
+  it("allows toggling a single flag", () => {
+    expect(updateProductSchema.safeParse({ isActive: false }).success).toBe(true);
+    expect(updateProductSchema.safeParse({ isMainProduct: true }).success).toBe(true);
+  });
+});
+
+describe("createPaymentAccountSchema", () => {
+  it("requires displayName and defaults to USD/active", () => {
+    const parsed = createPaymentAccountSchema.parse({
+      displayName: "Stripe US",
+    });
+    expect(parsed.currency).toBe("USD");
+    expect(parsed.isActive).toBe(true);
+  });
+
+  it("accepts optional ownerName and providerName", () => {
+    const parsed = createPaymentAccountSchema.parse({
+      displayName: "Hotmart BR",
+      ownerName: "Unlocked Academy LLC",
+      providerName: "Hotmart",
+      currency: "BRL",
+    });
+    expect(parsed.ownerName).toBe("Unlocked Academy LLC");
+    expect(parsed.providerName).toBe("Hotmart");
+  });
+
+  it("rejects missing displayName", () => {
+    expect(createPaymentAccountSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("updatePaymentAccountSchema", () => {
+  it("allows a partial update", () => {
+    expect(updatePaymentAccountSchema.safeParse({ isActive: false }).success).toBe(true);
+  });
+});
+
+describe("createStudentTagSchema", () => {
+  it("defaults isAutomatic, allowAutomaticAssignment to false and isActive to true", () => {
+    const parsed = createStudentTagSchema.parse({
+      name: "VIP",
+      slug: "vip",
+    });
+    expect(parsed.isAutomatic).toBe(false);
+    expect(parsed.allowAutomaticAssignment).toBe(false);
+    expect(parsed.isActive).toBe(true);
+  });
+
+  it("accepts a hex color and rejects invalid colors", () => {
+    expect(
+      createStudentTagSchema.safeParse({
+        name: "VIP",
+        slug: "vip",
+        color: "#aabbcc",
+      }).success,
+    ).toBe(true);
+    expect(
+      createStudentTagSchema.safeParse({
+        name: "VIP",
+        slug: "vip",
+        color: "red",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("does not couple allowAutomaticAssignment to isAutomatic", () => {
+    const parsed = createStudentTagSchema.parse({
+      name: "Auto-pausados",
+      slug: "auto-pausados",
+      isAutomatic: true,
+      allowAutomaticAssignment: true,
+    });
+    expect(parsed.isAutomatic).toBe(true);
+    expect(parsed.allowAutomaticAssignment).toBe(true);
+  });
+});
+
+describe("updateStudentTagSchema", () => {
+  it("allows isolated toggles", () => {
+    expect(updateStudentTagSchema.safeParse({ isActive: false }).success).toBe(true);
+    expect(
+      updateStudentTagSchema.safeParse({ allowAutomaticAssignment: true }).success,
+    ).toBe(true);
+  });
+});
+
+describe("createEnrollmentBaseSchema", () => {
+  it("requires studentId, productId, startedAt and totalAmountUsd", () => {
+    const valid = createEnrollmentBaseSchema.safeParse({
+      studentId: "cmav9cy3g000008l22t111111",
+      productId: "cmav9cy3g000008l22t222222",
+      startedAt: "2026-06-01",
+      totalAmountUsd: 3000,
+    });
+    expect(valid.success).toBe(true);
+  });
+
+  it("rejects totalAmountUsd out of bounds", () => {
+    expect(
+      createEnrollmentBaseSchema.safeParse({
+        studentId: "cmav9cy3g000008l22t111111",
+        productId: "cmav9cy3g000008l22t222222",
+        startedAt: "2026-06-01",
+        totalAmountUsd: -1,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects installmentCount above 24", () => {
+    expect(
+      createEnrollmentBaseSchema.safeParse({
+        studentId: "cmav9cy3g000008l22t111111",
+        productId: "cmav9cy3g000008l22t222222",
+        startedAt: "2026-06-01",
+        totalAmountUsd: 3000,
+        installmentCount: 25,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects commissionPercent out of 0-100", () => {
+    expect(
+      createEnrollmentBaseSchema.safeParse({
+        studentId: "cmav9cy3g000008l22t111111",
+        productId: "cmav9cy3g000008l22t222222",
+        startedAt: "2026-06-01",
+        totalAmountUsd: 3000,
+        commissionPercent: 110,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("referralSplitListSchema", () => {
+  it("accepts an empty split list", () => {
+    expect(referralSplitListSchema.safeParse([]).success).toBe(true);
+  });
+
+  it("accepts splits that sum to 100", () => {
+    expect(
+      referralSplitListSchema.safeParse([
+        {
+          referralId: "cmav9cy3g000008l22tref0001",
+          splitPercent: 60,
+          commissionBaseUsd: 600,
+        },
+        {
+          referralId: "cmav9cy3g000008l22tref0002",
+          splitPercent: 40,
+          commissionBaseUsd: 400,
+        },
+      ]).success,
+    ).toBe(true);
+  });
+
+  it("rejects splits that do not sum to 100", () => {
+    expect(
+      referralSplitListSchema.safeParse([
+        {
+          referralId: "cmav9cy3g000008l22tref0001",
+          splitPercent: 70,
+          commissionBaseUsd: 700,
+        },
+      ]).success,
     ).toBe(false);
   });
 });

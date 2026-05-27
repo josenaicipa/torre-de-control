@@ -357,6 +357,12 @@ enum StudentStatus {
   DROPPED
   EXTENDED
   ACCESS_REVOKED
+  // Added in PR1 to model the full commercial lifecycle. Existing values are
+  // preserved so legacy data keeps mapping; new values capture states the
+  // legacy single-program data could not express.
+  SEPARATED
+  INACTIVE
+  WITHDRAWN
 }
 
 enum ScheduleStatus {
@@ -395,6 +401,11 @@ model Student {
   closerUserId         String?
   closerUser           User?          @relation("StudentCloser", fields: [closerUserId], references: [id], onDelete: SetNull)
   status               StudentStatus  @default(ACTIVE)
+  // Lifecycle facets that evolve independently from `status`. Kept as their own
+  // enums so commercial reporting (still keyed on `status`) is not coupled to
+  // operational state (mentorship paused vs. LearnWorlds access revoked).
+  mentorshipStatus     MentorshipStatus @default(IN_PROGRESS)
+  accessStatus         AccessStatus     @default(ACTIVE)
   durationAssumed      Boolean        @default(false)
   closedAt             DateTime?      @db.Date
   legacyRowId          Int?
@@ -417,9 +428,16 @@ model Student {
   terminations        TerminationAlert[]
   promotedFromContact Contact?                @relation("ContactPromotion")
 
+  enrollments         StudentProductEnrollment[]
+  tagAssignments      StudentTagAssignment[]
+  referralsMade       Referral[]                 @relation("ReferralReferrer")
+  referralsReceived   Referral[]                 @relation("ReferralReferred")
+
   @@index([mentorUserId])
   @@index([closerUserId])
   @@index([status])
+  @@index([mentorshipStatus])
+  @@index([accessStatus])
   @@index([legacyRowId])
 }
 
@@ -455,6 +473,10 @@ model PaymentSchedule {
   id                String         @id @default(cuid())
   studentId         String
   student           Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  // Optional link to a product enrollment. Legacy schedules predate the
+  // products architecture and have no enrollment, so this stays nullable.
+  enrollmentId      String?
+  enrollment        StudentProductEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
   installmentNumber Int
   amountDue         Decimal        @db.Decimal(14, 2)
   currency          String         @default("USD")
@@ -470,6 +492,7 @@ model PaymentSchedule {
   reminderLogs ReminderLog[]
 
   @@index([studentId])
+  @@index([enrollmentId])
   @@index([dueDate])
   @@index([status])
 }
@@ -480,8 +503,21 @@ model Payment {
   student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   scheduleId   String?
   schedule     PaymentSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  // Optional link to a product enrollment. Legacy payments stay enrollment-less.
+  enrollmentId String?
+  enrollment   StudentProductEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
   amount       Decimal          @db.Decimal(14, 2)
   currency     String           @default("USD")
+  // Canonical USD value used for reporting once FX has been resolved.
+  officialAmountUsd Decimal?    @db.Decimal(14, 2)
+  // What actually arrived in the account (may be in any local currency).
+  receivedAmount    Decimal?    @db.Decimal(14, 2)
+  receivedCurrency  String?
+  exchangeRate      Decimal?    @db.Decimal(18, 8)
+  paymentAccountId  String?
+  paymentAccount    PaymentAccount? @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  isInitialPayment  Boolean     @default(false)
+  initialPaymentType InitialPaymentType?
   paidAt       DateTime
   method       String?
   reference    String?
@@ -491,6 +527,8 @@ model Payment {
   createdAt    DateTime         @default(now())
 
   @@index([studentId])
+  @@index([enrollmentId])
+  @@index([paymentAccountId])
   @@index([paidAt])
 }
 
@@ -622,4 +660,285 @@ model TerminationAlert {
 
   @@index([studentId])
   @@index([resolvedAt])
+}
+
+// ─── Operaciones · Products architecture (PR1 phase A) ───────────────────────
+// Adds the catalog + enrollment spine that future Operaciones work hangs off:
+// products, per-student enrollments, payment accounts (FX-aware), tags,
+// referrals, and the LearnWorlds access surface. Existing Operaciones tables
+// (Student, Payment, PaymentSchedule) link in via *optional* relations so the
+// legacy single-program data set keeps working without backfill.
+
+enum ProductSaleLimit {
+  // Only one active enrollment per student for this product (e.g. flagship
+  // mentorship). Re-selling requires the previous enrollment to be closed.
+  ONE_PER_STUDENT
+  // No cap (e.g. add-ons, masterclasses, supplemental courses).
+  UNLIMITED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum AccessStatus {
+  // No LearnWorlds provisioning has been attempted yet (initial enrollment).
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  // The last sync to LearnWorlds failed; see `learnWorldsSyncError` on the
+  // enrollment for the reason.
+  SYNC_ERROR
+}
+
+enum MentorshipStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PAUSED
+  FINISHED
+}
+
+enum TagAssignmentSource {
+  AUTOMATIC
+  MANUAL
+}
+
+enum InitialPaymentType {
+  FULL_PAYMENT
+  DOWN_PAYMENT
+  RESERVATION
+}
+
+enum LearnWorldsAccessType {
+  COURSE
+  BUNDLE
+  SUBSCRIPTION
+}
+
+// A sellable thing (mentorship program, course, bundle, add-on). The catalog
+// row is intentionally thin — pricing detail belongs on the enrollment so we
+// can record discounts and historical price changes without versioning Product.
+//
+// Flags drive sales-flow behavior:
+// - `isMainProduct` marks the flagship mentorship (only one expected; used to
+//   surface defaults in the UI and reports).
+// - `allowsInstallments` lets the operator break the sale into a payment plan.
+// - `requiresInitialPayment` forces the first installment to be flagged on
+//   creation (down payment / reservation).
+// - `generatesCommission` is the catalog-level switch for the referral
+//   commission engine; `defaultCommissionPercent` is what the enrollment
+//   pre-fills when the operator opens the commission editor.
+model Product {
+  id                       String           @id @default(cuid())
+  name                     String
+  slug                     String           @unique
+  description              String?
+  basePriceUsd             Decimal          @db.Decimal(14, 2)
+  currency                 String           @default("USD")
+  saleLimit                ProductSaleLimit @default(ONE_PER_STUDENT)
+  allowsInstallments       Boolean          @default(true)
+  requiresInitialPayment   Boolean          @default(false)
+  generatesCommission      Boolean          @default(false)
+  defaultCommissionPercent Decimal          @default(0) @db.Decimal(6, 2)
+  isMainProduct            Boolean          @default(false)
+  isActive                 Boolean          @default(true)
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  enrollments              StudentProductEnrollment[]
+  learnWorldsAccessConfigs LearnWorldsAccessConfig[]
+
+  @@index([isActive])
+  @@index([isMainProduct])
+}
+
+// One row per (student, product) sale. Carries the agreed price + currency at
+// the moment of sale so future price changes on Product don't rewrite history.
+//
+// Money fields:
+// - `totalAmountUsd` is what the student agreed to pay (post-discount).
+// - `initialPaymentUsd` is the down payment / reservation amount expected on
+//   day one when `requiresInitialPayment` is set on the product.
+// - `balanceUsd` is a cached outstanding-balance figure refreshed by payment
+//   writes; tests source it through `calculateEnrollmentBalance` so the cache
+//   has a single derivation point.
+// - `commissionBaseUsd` + `commissionPercent` carry the per-enrollment
+//   override of the product's defaults; the canonical base derivation lives
+//   in `deriveDefaultCommissionBaseFromInitialPayment`.
+// LearnWorlds provisioning state:
+// - `accessStatus` mirrors the LW account state for this enrollment.
+// - `learnWorldsSyncStatus` is the last sync transition ("pending"|"ok"|
+//   "error"); `learnWorldsSyncError` holds the human-readable failure if any.
+model StudentProductEnrollment {
+  id                     String           @id @default(cuid())
+  studentId              String
+  student                Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  productId              String
+  product                Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  status                 EnrollmentStatus @default(ACTIVE)
+  startedAt              DateTime         @db.Date
+  endsAt                 DateTime?        @db.Date
+  totalAmountUsd         Decimal          @db.Decimal(14, 2)
+  initialPaymentUsd      Decimal?         @db.Decimal(14, 2)
+  balanceUsd             Decimal?         @db.Decimal(14, 2)
+  installmentCount       Int?
+  commissionBaseUsd      Decimal?         @db.Decimal(14, 2)
+  commissionPercent      Decimal?         @db.Decimal(6, 2)
+  currency               String           @default("USD")
+  paymentAccountId       String?
+  paymentAccount         PaymentAccount?  @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  accessStatus           AccessStatus     @default(PENDING)
+  accessGrantedAt        DateTime?
+  learnWorldsSyncStatus  String           @default("pending")
+  learnWorldsSyncError   String?
+  notes                  String?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  payments             Payment[]
+  paymentSchedules     PaymentSchedule[]
+  referralCommissions  EnrollmentReferralCommission[]
+
+  @@index([studentId])
+  @@index([productId])
+  @@index([status])
+  @@index([paymentAccountId])
+  @@index([accessStatus])
+}
+
+// Where money actually lands (Stripe US, Hotmart BR, Wise EUR, etc.). Keeping
+// the account separate from currency lets us track multi-currency processors.
+//
+// `ownerName` is the legal entity that holds the account (used on invoices
+// and conciliation); `providerName` is the processor brand ("Stripe",
+// "Hotmart", "Wise"); `displayName` is the short label the UI shows in
+// pickers and reports and is unique.
+model PaymentAccount {
+  id           String   @id @default(cuid())
+  displayName  String   @unique
+  ownerName    String?
+  providerName String?
+  currency     String   @default("USD")
+  isActive     Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  payments    Payment[]
+  enrollments StudentProductEnrollment[]
+
+  @@index([isActive])
+}
+
+// Tag catalog. Two independent flags drive lifecycle semantics:
+// - `isAutomatic` marks tags the system itself owns: they cannot be deleted
+//   by users and the reconciliation job is allowed to detach them.
+// - `allowAutomaticAssignment` permits the reconciliation job to *attach* the
+//   tag to matching students. The pair lets us seed a manual-curated tag and
+//   later promote it to auto-attached without losing existing manual rows.
+// `isActive` removes the tag from pickers without deleting historical data.
+// The canonical automatic-tag name list lives in
+// src/lib/operaciones-products.ts (getAutomaticTagNames).
+model StudentTag {
+  id                       String   @id @default(cuid())
+  name                     String   @unique
+  slug                     String   @unique
+  description              String?
+  color                    String?
+  isAutomatic              Boolean  @default(false)
+  allowAutomaticAssignment Boolean  @default(false)
+  isActive                 Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  assignments StudentTagAssignment[]
+
+  @@index([isActive])
+  @@index([allowAutomaticAssignment])
+}
+
+model StudentTagAssignment {
+  id           String              @id @default(cuid())
+  studentId    String
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  tagId        String
+  tag          StudentTag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  source       TagAssignmentSource @default(MANUAL)
+  assignedById String?
+  createdAt    DateTime            @default(now())
+
+  @@unique([studentId, tagId])
+  @@index([studentId])
+  @@index([tagId])
+  @@index([source])
+}
+
+// A student-to-student referral. Multiple referrals can target the same
+// referred student (e.g. influencer + community lead splitting credit). Splits
+// are recorded per enrollment to allow varying commissions across products.
+model Referral {
+  id                 String   @id @default(cuid())
+  referrerStudentId  String
+  referrerStudent    Student  @relation("ReferralReferrer", fields: [referrerStudentId], references: [id], onDelete: Cascade)
+  referredStudentId  String
+  referredStudent    Student  @relation("ReferralReferred", fields: [referredStudentId], references: [id], onDelete: Cascade)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  commissions EnrollmentReferralCommission[]
+
+  @@unique([referrerStudentId, referredStudentId])
+  @@index([referrerStudentId])
+  @@index([referredStudentId])
+}
+
+// Split of a single enrollment's commissionable base across referrals. The
+// percentages on a given enrollment must sum to 100; see
+// validateReferralSplitsSumTo100 in src/lib/operaciones-products.ts.
+model EnrollmentReferralCommission {
+  id                  String   @id @default(cuid())
+  enrollmentId        String
+  enrollment          StudentProductEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  referralId          String
+  referral            Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  splitPercent        Decimal  @db.Decimal(6, 2)
+  commissionBaseUsd   Decimal  @db.Decimal(14, 2)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([enrollmentId, referralId])
+  @@index([enrollmentId])
+  @@index([referralId])
+}
+
+// LearnWorlds access tied to a product. A product may grant access to several
+// LW courses/bundles, hence the 1-to-many.
+//
+// - `lwProductType` is the kind of LW resource (course/bundle/subscription).
+// - `lwExternalId` is the LW slug or id pulled from the LW admin API (see
+//   CLAUDE.md for endpoint quirks); paired with productId it is unique.
+// - `lwDisplayName` is the human label cached from LW for UI listings so we
+//   don't roundtrip to LW on every render.
+model LearnWorldsAccessConfig {
+  id            String                @id @default(cuid())
+  productId     String
+  product       Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lwProductType LearnWorldsAccessType
+  lwExternalId  String
+  lwDisplayName String?
+  description   String?
+  isActive      Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([productId, lwExternalId])
+  @@index([productId])
+  @@index([lwProductType])
+  @@index([isActive])
 }
