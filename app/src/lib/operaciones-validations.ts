@@ -312,6 +312,56 @@ export const createEnrollmentBaseSchema = z.object({
 
 export type CreateEnrollmentBaseInput = z.infer<typeof createEnrollmentBaseSchema>;
 
+// Initial payment carried alongside an enrollment creation request. Mirrors
+// the Payment model fields the operator can set on day one (FULL_PAYMENT,
+// DOWN_PAYMENT, RESERVATION). `paymentAccountId` is optional here so the same
+// schema works both for routes that require it (sale flows) and routes that
+// leave the account unset; the route layer decides whether to enforce it.
+export const initialPaymentTypeSchema = z.enum([
+  "FULL_PAYMENT",
+  "DOWN_PAYMENT",
+  "RESERVATION",
+]);
+
+export const initialPaymentInputSchema = z.object({
+  amount: z.number().positive().max(1_000_000),
+  currency: z.string().length(3).default("USD"),
+  paidAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
+  initialPaymentType: initialPaymentTypeSchema,
+  paymentAccountId: z.string().cuid().optional().nullable(),
+  officialAmountUsd: moneyUsdSchema.optional().nullable(),
+  receivedAmount: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+  receivedCurrency: z.string().length(3).optional().nullable(),
+  exchangeRate: z.number().positive().max(1_000_000).optional().nullable(),
+  method: z.string().max(100).optional().nullable(),
+  reference: z.string().max(200).optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+});
+
+export type InitialPaymentInput = z.infer<typeof initialPaymentInputSchema>;
+
+export const installmentFrequencySchema = z.enum(["monthly", "biweekly"]);
+
+// Full enrollment creation payload. Extends the base with the day-one initial
+// payment (optional at the schema level — the route enforces it when the
+// product has `requiresInitialPayment`) plus the installment plan inputs and
+// the `grantAccessNow` switch that decides between PENDING and ACTIVE access.
+export const createStudentProductEnrollmentSchema =
+  createEnrollmentBaseSchema.extend({
+    initialPayment: initialPaymentInputSchema.optional().nullable(),
+    firstDueDate: z
+      .string()
+      .regex(ISO_DATE_REGEX, "expected YYYY-MM-DD")
+      .optional()
+      .nullable(),
+    installmentFrequency: installmentFrequencySchema.default("monthly"),
+    grantAccessNow: z.boolean().default(false),
+  });
+
+export type CreateStudentProductEnrollmentInput = z.infer<
+  typeof createStudentProductEnrollmentSchema
+>;
+
 // A single referral row inside an enrollment's commission split. The full
 // commission editor sums these and must total 100% (see
 // referralSplitListSchema below and validateReferralSplitsSumTo100 in

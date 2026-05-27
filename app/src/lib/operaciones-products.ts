@@ -189,6 +189,42 @@ function addPeriods(base: Date, index: number, frequency: InstallmentFrequency):
   return candidate;
 }
 
+// ─── buildEnrollmentScheduleRows ────────────────────────────────────────────
+
+export interface EnrollmentScheduleInput {
+  totalAmountUsd: Numeric;
+  initialPaymentUsd?: Numeric | null;
+  installmentCount?: number | null;
+  firstDueDate?: Date | null;
+  frequency?: InstallmentFrequency;
+}
+
+/**
+ * Plans the installment rows for a new product enrollment.
+ *
+ * The schedule covers `totalAmountUsd - initialPaymentUsd` split across
+ * `installmentCount` rows starting at `firstDueDate`. Returns an empty array
+ * when the remaining balance is non-positive (initial payment covered the
+ * total) or when no plan was requested (no count, no due date). The caller
+ * decides whether to persist the rows; the helper itself is side-effect free.
+ */
+export function buildEnrollmentScheduleRows(
+  input: EnrollmentScheduleInput,
+): InstallmentPlanRow[] {
+  const total = round2(toNumber(input.totalAmountUsd));
+  const initial = round2(toNumber(input.initialPaymentUsd));
+  const balance = round2(total - initial);
+  if (balance <= MONEY_EPSILON) return [];
+  if (!input.installmentCount || input.installmentCount < 1) return [];
+  if (!input.firstDueDate) return [];
+  return calculateInstallments(
+    balance,
+    input.installmentCount,
+    input.firstDueDate,
+    input.frequency ?? "monthly",
+  );
+}
+
 // ─── validateReferralSplitsSumTo100 ─────────────────────────────────────────
 
 /**
