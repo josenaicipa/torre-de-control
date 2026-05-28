@@ -152,6 +152,13 @@ const slugSchema = z
 const moneyUsdSchema = z.number().nonnegative().max(1_000_000);
 const percentSchema = z.number().min(0).max(100);
 
+// Foreign-key IDs in this codebase come from Prisma `String` columns and are
+// not guaranteed to be CUIDs in production (legacy rows, manual seeds, etc.),
+// so we only enforce non-empty + a sane upper bound. Use this anywhere a FK is
+// accepted from a controlled picker on the client side.
+const fkIdSchema = (label: string) =>
+  z.string().trim().min(1, `${label} requerido`).max(200);
+
 export const productSaleLimitSchema = z.enum(["ONE_PER_STUDENT", "UNLIMITED"]);
 
 // LearnWorlds resource kinds we provision against; matches the Prisma enum
@@ -240,8 +247,8 @@ export type ListCatalogActiveQuery = z.infer<typeof listCatalogActiveQuerySchema
 // accepts them from the client.
 export const createPaymentAccountSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
-  ownerUserId: z.string().cuid(),
-  paymentProviderId: z.string().cuid(),
+  ownerUserId: fkIdSchema("Titular"),
+  paymentProviderId: fkIdSchema("Proveedor"),
   currency: z.string().length(3).default("USD"),
   isActive: z.boolean().default(true),
   notes: z.string().max(2000).optional().nullable(),
@@ -251,8 +258,8 @@ export const createPaymentAccountSchema = z.object({
 // reflects only the fields the caller sent.
 export const updatePaymentAccountSchema = z.object({
   displayName: z.string().trim().min(1).max(120).optional(),
-  ownerUserId: z.string().cuid().optional(),
-  paymentProviderId: z.string().cuid().optional(),
+  ownerUserId: fkIdSchema("Titular").optional(),
+  paymentProviderId: fkIdSchema("Proveedor").optional(),
   currency: z.string().length(3).optional(),
   isActive: z.boolean().optional(),
   notes: z.string().max(2000).optional().nullable(),

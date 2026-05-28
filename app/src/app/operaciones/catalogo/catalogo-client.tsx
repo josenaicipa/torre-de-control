@@ -1178,7 +1178,30 @@ function PaymentAccountForm({
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        setError(json.error ?? "Error al guardar cuenta");
+        const fieldLabels: Record<string, string> = {
+          displayName: "Nombre visible",
+          ownerUserId: "Titular",
+          paymentProviderId: "Proveedor",
+          currency: "Moneda",
+          notes: "Notas",
+          isActive: "Estado",
+        };
+        const fieldErrors = json?.details?.fieldErrors as
+          | Record<string, string[] | undefined>
+          | undefined;
+        const fieldMessages = fieldErrors
+          ? Object.entries(fieldErrors)
+              .flatMap(([key, msgs]) =>
+                (msgs ?? []).map(
+                  (msg) => `${fieldLabels[key] ?? key}: ${msg}`,
+                ),
+              )
+          : [];
+        setError(
+          fieldMessages.length > 0
+            ? fieldMessages.join(" · ")
+            : (json.error ?? "Error al guardar cuenta"),
+        );
         setSubmitting(false);
         return;
       }

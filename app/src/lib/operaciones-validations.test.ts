@@ -349,11 +349,48 @@ describe("createPaymentAccountSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("accepts non-CUID owner and provider ids (legacy/manual seeds)", () => {
+    const parsed = createPaymentAccountSchema.parse({
+      displayName: "Cuenta Banco Local",
+      ownerUserId: "user_legacy_123",
+      paymentProviderId: "provider-banco-1",
+    });
+    expect(parsed.ownerUserId).toBe("user_legacy_123");
+    expect(parsed.paymentProviderId).toBe("provider-banco-1");
+  });
+
+  it("rejects empty ownerUserId/paymentProviderId with required messages", () => {
+    const result = createPaymentAccountSchema.safeParse({
+      displayName: "Cuenta X",
+      ownerUserId: "",
+      paymentProviderId: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain("Titular requerido");
+      expect(messages).toContain("Proveedor requerido");
+    }
+  });
 });
 
 describe("updatePaymentAccountSchema", () => {
   it("allows a partial update", () => {
     expect(updatePaymentAccountSchema.safeParse({ isActive: false }).success).toBe(true);
+  });
+
+  it("rejects empty ownerUserId/paymentProviderId with required messages", () => {
+    const result = updatePaymentAccountSchema.safeParse({
+      ownerUserId: "",
+      paymentProviderId: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain("Titular requerido");
+      expect(messages).toContain("Proveedor requerido");
+    }
   });
 });
 
