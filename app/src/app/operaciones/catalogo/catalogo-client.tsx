@@ -64,6 +64,18 @@ function formatUsd(value: Numeric | null | undefined): string {
   })}`;
 }
 
+function slugify(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/ñ/g, "n")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function canWriteRole(role: Role): boolean {
   return role === "ADMIN" || role === "OPERATOR";
 }
@@ -485,6 +497,10 @@ function ProductForm({
     setState((prev) => ({ ...prev, [key]: value }));
   }
 
+  function updateName(value: string) {
+    setState((prev) => ({ ...prev, name: value, slug: slugify(value) }));
+  }
+
   function updateConfig<K extends keyof LwConfigDraft>(
     idx: number,
     key: K,
@@ -525,9 +541,11 @@ function ProductForm({
 
   function validate(): string | null {
     if (!state.name.trim()) return "Nombre requerido";
-    if (!state.slug.trim()) return "Slug requerido";
+    if (!state.slug.trim()) {
+      return "El nombre debe contener letras o números para generar un slug";
+    }
     if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(state.slug.trim())) {
-      return "Slug debe ser kebab-case en minúscula";
+      return "Slug inválido generado desde el nombre";
     }
     const base = toNum(state.basePriceUsd);
     if (!(base >= 0)) return "Precio base USD inválido";
@@ -627,18 +645,18 @@ function ProductForm({
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Nombre" required>
+        <Field
+          label="Nombre"
+          required
+          hint={
+            state.slug
+              ? `Slug: ${state.slug} · se genera automáticamente desde el nombre`
+              : "El slug se genera automáticamente desde el nombre"
+          }
+        >
           <input
             value={state.name}
-            onChange={(e) => update("name", e.target.value)}
-            required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </Field>
-        <Field label="Slug" required hint="lower-kebab-case, ej: mentoring-elite">
-          <input
-            value={state.slug}
-            onChange={(e) => update("slug", e.target.value)}
+            onChange={(e) => updateName(e.target.value)}
             required
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
