@@ -230,6 +230,7 @@ export function OperationsShell({
   const pathname = usePathname();
   const [operationsExpanded, setOperationsExpanded] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isEmbedded, setIsEmbedded] = useState(false);
   const operationItems = navItems.filter(
     (item) => item.href !== "/admin/users" && item.href !== "/operaciones/mis-estudiantes",
   );
@@ -237,6 +238,17 @@ export function OperationsShell({
   const showAdmin =
     actor.role === "ADMIN" || navItems.some((item) => item.href === "/admin/users");
   const showMentor = actor.role === "MENTOR";
+
+  // Si la app está embebida en iframe (shell legacy), no renderizamos el header
+  // móvil para evitar una cabecera duplicada dentro del iframe.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      setIsEmbedded(window.self !== window.top);
+    } catch {
+      setIsEmbedded(true);
+    }
+  }, []);
 
   // Cerrar el menú móvil al navegar entre rutas.
   useEffect(() => {
@@ -334,50 +346,41 @@ export function OperationsShell({
         {accountBlock}
       </aside>
 
-      <header
-        data-operations-mobile-header
-        className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between px-4 md:hidden"
-        style={{ backgroundColor: SURFACE, borderBottom: `1px solid ${BORDER}` }}
-      >
-        <Link
-          href="/"
-          onClick={closeMobileMenu}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: TXT,
-            textDecoration: "none",
-          }}
+      {!isEmbedded && (
+        <header
+          data-operations-mobile-header
+          className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-3 px-4 md:hidden"
+          style={{ backgroundColor: SURFACE, borderBottom: `1px solid ${BORDER}` }}
         >
-          <img src="/logo.png" alt="Unlocked" style={{ height: 26, width: 26, objectFit: "contain" }} />
-          <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.04em" }}>UNLOCKED</span>
-        </Link>
-        <button
-          type="button"
-          aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
-          aria-expanded={mobileMenuOpen}
-          aria-controls="mobile-menu-panel"
-          onClick={() => setMobileMenuOpen((prev) => !prev)}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 12px",
-            backgroundColor: mobileMenuOpen ? "rgba(224, 58, 24, 0.10)" : SURFACE,
-            border: `1px solid ${BORDER}`,
-            borderRadius: 8,
-            color: mobileMenuOpen ? BRAND : TXT,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
-          <span>{mobileMenuOpen ? "Cerrar" : "Menú"}</span>
-        </button>
-      </header>
+          <button
+            type="button"
+            aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu-panel"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 12px",
+              backgroundColor: mobileMenuOpen ? "rgba(224, 58, 24, 0.10)" : SURFACE,
+              border: `1px solid ${BORDER}`,
+              borderRadius: 8,
+              color: mobileMenuOpen ? BRAND : TXT,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+            <span>{mobileMenuOpen ? "Cerrar" : "Menú"}</span>
+          </button>
+          <span style={{ fontSize: 15, fontWeight: 800, color: TXT, letterSpacing: "-0.02em" }}>
+            Operaciones
+          </span>
+        </header>
+      )}
 
       {mobileMenuOpen && (
         <button
@@ -457,52 +460,12 @@ export function OperationsShell({
 
       <main
         data-operations-main
-        className="min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 pt-20 pb-24 md:ml-[220px] md:p-8"
+        className={`min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 ${
+          isEmbedded ? "" : "pt-20"
+        } md:ml-[220px] md:p-8`}
       >
         {children}
       </main>
-
-      <nav
-        data-operations-mobile-nav
-        aria-label="Accesos rápidos"
-        className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto md:hidden"
-        style={{ backgroundColor: SURFACE, borderTop: `1px solid ${BORDER}` }}
-      >
-        <Link
-          href="/"
-          style={{
-            minWidth: 92,
-            padding: "8px 12px",
-            color: TXT2,
-            fontSize: 11,
-            fontWeight: 700,
-            textAlign: "center",
-            textDecoration: "none",
-          }}
-        >
-          Inicio
-        </Link>
-        {operationItems.map((item) => {
-          const active = isActive(pathname, item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
-                minWidth: 92,
-                padding: "8px 12px",
-                color: active ? BRAND : TXT2,
-                fontSize: 11,
-                fontWeight: 700,
-                textAlign: "center",
-                textDecoration: "none",
-              }}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
     </div>
   );
 }
