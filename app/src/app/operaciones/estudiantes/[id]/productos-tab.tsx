@@ -299,7 +299,7 @@ function EnrollmentCard({ enrollment }: { enrollment: Enrollment }) {
 
       {enrollment.learnWorldsSyncStatus === "error" && enrollment.learnWorldsSyncError && (
         <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          LW sync error: {enrollment.learnWorldsSyncError}
+          Error de sincronización LW: {enrollment.learnWorldsSyncError}
         </p>
       )}
 
@@ -621,13 +621,13 @@ function SellProductForm({
       });
       if (!response.ok) {
         const json = await response.json().catch(() => ({}));
-        setError(json.error ?? "Error al crear enrollment");
+        setError(json.error ?? "Error al crear inscripción");
         setSubmitting(false);
         return;
       }
       onSaved();
     } catch {
-      setError("Error de red al crear enrollment");
+      setError("Error de red al crear inscripción");
       setSubmitting(false);
     }
   }
@@ -715,7 +715,7 @@ function SellProductForm({
           />
         </Field>
 
-        <Field label="Moneda enrollment">
+        <Field label="Moneda de inscripción">
           <select
             value={state.currency}
             onChange={(e) => update("currency", e.target.value)}
@@ -853,7 +853,7 @@ function SellProductForm({
         )}
       </fieldset>
 
-      {/* Installment plan block */}
+      {/* Bloque de plan de cuotas */}
       <fieldset className="rounded-md border border-slate-200 p-3">
         <legend className="px-1 text-sm font-semibold text-slate-700">Plan de cuotas</legend>
 
@@ -939,7 +939,7 @@ function SellProductForm({
           checked={state.grantAccessNow}
           onChange={(e) => update("grantAccessNow", e.target.checked)}
         />
-        Otorgar acceso ahora (accessStatus = ACTIVE)
+        Otorgar acceso ahora (estado de acceso: Activo)
       </label>
 
       <Field label="Notas">
@@ -979,7 +979,7 @@ function SellProductForm({
           disabled={submitting}
           className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {submitting ? "Guardando..." : "Crear enrollment"}
+          {submitting ? "Guardando..." : "Crear inscripción"}
         </button>
       </div>
     </form>

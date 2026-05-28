@@ -108,7 +108,7 @@ export function CarteraImportForm() {
             disabled={!file || loading}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            {loading ? "Procesando..." : "Generar preview (dry-run)"}
+            {loading ? "Procesando..." : "Generar vista previa (simulación)"}
           </button>
         </div>
       </form>
@@ -117,7 +117,7 @@ export function CarteraImportForm() {
         <div className="rounded-lg border border-slate-200 bg-white p-6">
           <div className="mb-4 flex items-center gap-2">
             <Eye size={18} className="text-slate-700" />
-            <h2 className="text-lg font-semibold text-slate-900">Paso 2 - Revisar preview</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Paso 2 - Revisar vista previa</h2>
           </div>
 
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -125,7 +125,7 @@ export function CarteraImportForm() {
             <Stat label="Filas válidas" value={preview.validRows} />
             <Stat label="Estudiantes nuevos" value={preview.newStudents} color="emerald" />
             <Stat label="Ya existen" value={preview.matchedStudents} color="amber" />
-            <Stat label="Con warnings" value={preview.rowsWithWarnings} color="amber" />
+            <Stat label="Con avisos" value={preview.rowsWithWarnings} color="amber" />
             <Stat
               label="Errores"
               value={preview.errors.length}
@@ -159,7 +159,7 @@ export function CarteraImportForm() {
 
           <details className="mt-4">
             <summary className="cursor-pointer text-sm font-medium text-slate-700">
-              Ver primeras 5 filas parseadas
+              Ver primeras 5 filas procesadas
             </summary>
             <div className="mt-2 max-h-96 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-3">
               {preview.sample.map((row) => (
@@ -176,7 +176,7 @@ export function CarteraImportForm() {
                   </div>
                   <div className="text-slate-500">
                     Closer: {row.closerNameRaw ?? "-"} · Duración: {row.durationMonths} meses
-                    {row.durationAssumed ? " (asumido)" : ""} · Status: {row.status}
+                    {row.durationAssumed ? " (asumido)" : ""} · Estado: {row.status}
                   </div>
                   <div className="text-slate-500">
                     Cuotas: {row.installments.length} · Pendiente: USD {row.pendingAmount}
@@ -194,7 +194,7 @@ export function CarteraImportForm() {
 
           <details className="mt-4">
             <summary className="cursor-pointer text-sm font-medium text-slate-700">
-              Ver todas las filas parseadas ({parsedRows.length})
+              Ver todas las filas procesadas ({parsedRows.length})
             </summary>
             <div className="mt-2 max-h-[600px] overflow-auto rounded-md border border-slate-200 bg-slate-50">
               <table className="min-w-full divide-y divide-slate-200 text-xs">
@@ -202,12 +202,12 @@ export function CarteraImportForm() {
                   <tr>
                     <th className="px-2 py-1 text-left">Fila</th>
                     <th className="px-2 py-1 text-left">Nombre</th>
-                    <th className="px-2 py-1 text-left">Email</th>
+                    <th className="px-2 py-1 text-left">Correo</th>
                     <th className="px-2 py-1 text-left">Closer</th>
                     <th className="px-2 py-1 text-left">Meses</th>
                     <th className="px-2 py-1 text-left">Cuotas</th>
                     <th className="px-2 py-1 text-right">Pendiente</th>
-                    <th className="px-2 py-1 text-left">Status</th>
+                    <th className="px-2 py-1 text-left">Estado</th>
                     <th className="px-2 py-1 text-left">Avisos</th>
                   </tr>
                 </thead>
@@ -246,7 +246,7 @@ export function CarteraImportForm() {
           <div className="mt-6 flex gap-3 rounded-md bg-slate-100 px-4 py-3 text-sm text-slate-700">
             <FileSpreadsheet size={18} className="shrink-0 text-slate-600" />
             <div>
-              <strong>Esto es solo un preview.</strong> Nada se escribió a la base de datos.
+              <strong>Esto es solo una vista previa.</strong> Nada se escribió a la base de datos.
               <p className="mt-1">
                 La confirmación y escritura transaccional se habilitarán en la siguiente tanda.
               </p>

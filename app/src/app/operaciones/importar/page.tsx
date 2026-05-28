@@ -25,7 +25,7 @@ export default async function ImportarPage() {
             className="block rounded-lg border border-slate-200 bg-white p-6 hover:border-slate-400 hover:shadow-sm"
           >
             <FileSpreadsheet size={20} className="mb-3 text-slate-700" />
-            <h2 className="text-lg font-semibold text-slate-900">Cuadro de Pagos (legacy)</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Cuadro de Pagos (histórico)</h2>
             <p className="mt-1 text-sm text-slate-600">
               Importación única del Google Sheet histórico de estudiantes y pagos. Solo ADMIN.
             </p>

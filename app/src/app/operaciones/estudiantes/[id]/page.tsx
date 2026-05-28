@@ -10,6 +10,19 @@ import { ProductosTab } from "./productos-tab";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Activo",
+  PAUSED: "Pausado",
+  COMPLETED: "Completado",
+  DROPPED: "Retirado",
+  EXTENDED: "Extendido",
+  ACCESS_REVOKED: "Sin accesos",
+};
+
+function statusLabel(status: string) {
+  return STATUS_LABELS[status] ?? status;
+}
+
 const TABS = [
   { key: "info", label: "Info" },
   { key: "pagos", label: "Pagos" },
@@ -134,14 +147,14 @@ function InfoTab({ student }: { student: { fullName: string; email: string; phon
       </div>
       <div>
         <dt className="font-medium text-slate-500">Estado</dt>
-        <dd className="text-slate-900">{student.status}</dd>
+        <dd className="text-slate-900">{statusLabel(student.status)}</dd>
       </div>
       <div>
         <dt className="font-medium text-slate-500">Closer</dt>
         <dd className="text-slate-900">{student.closerUser?.name ?? student.closerUser?.email ?? "—"}</dd>
       </div>
       <div>
-        <dt className="font-medium text-slate-500">GHL contact id</dt>
+        <dt className="font-medium text-slate-500">ID contacto GHL</dt>
         <dd className="text-slate-900">{student.ghlContactId ?? "—"}</dd>
       </div>
       <div className="col-span-2">

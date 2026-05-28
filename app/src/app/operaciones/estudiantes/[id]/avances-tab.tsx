@@ -136,7 +136,7 @@ export function AvancesTab({
                     <span className="text-sm font-medium text-slate-700">
                       {update.periodStart.slice(0, 10)} - {update.periodEnd.slice(0, 10)}
                     </span>
-                    {update.rating && <span className="text-xs text-slate-500">Rating: {update.rating}/5</span>}
+                    {update.rating && <span className="text-xs text-slate-500">Calificación: {update.rating}/5</span>}
                   </div>
                   {update.bottleneck && (
                     <p className="mt-2 text-sm">
@@ -271,7 +271,7 @@ function ProgressUpdateDialog({
           <textarea name="notes" rows={4} maxLength={5000} required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </Field>
 
-        <Field label="Rating (opcional, 1-5)">
+        <Field label="Calificación (opcional, 1-5)">
           <input name="rating" type="number" min={1} max={5} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </Field>
 

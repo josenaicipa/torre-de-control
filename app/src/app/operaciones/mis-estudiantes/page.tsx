@@ -4,6 +4,19 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Activo",
+  PAUSED: "Pausado",
+  COMPLETED: "Completado",
+  DROPPED: "Retirado",
+  EXTENDED: "Extendido",
+  ACCESS_REVOKED: "Sin accesos",
+};
+
+function statusLabel(status: string) {
+  return STATUS_LABELS[status] ?? status;
+}
+
 export default async function MisEstudiantesPage() {
   const actor = await getActor();
   if (!actor) redirect("/login");
@@ -34,7 +47,7 @@ export default async function MisEstudiantesPage() {
               <tr key={s.id}>
                 <td className="px-4 py-2 text-sm"><a href={`/operaciones/estudiantes/${s.id}`} className="font-medium text-slate-900 hover:underline">{s.fullName}</a></td>
                 <td className="px-4 py-2 text-sm text-slate-600">Nivel 5 + Clases Avanzadas</td>
-                <td className="px-4 py-2 text-sm text-slate-600">{s.status}</td>
+                <td className="px-4 py-2 text-sm text-slate-600">{statusLabel(s.status)}</td>
                 <td className="px-4 py-2 text-sm text-slate-600">{s.endDate.toISOString().slice(0, 10)}</td>
               </tr>
             ))}

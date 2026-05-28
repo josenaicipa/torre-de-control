@@ -19,10 +19,10 @@ export const studentStatusSchema = z.enum([
 export const progressLevelSchema = z.enum(["ALTO", "MEDIO", "BAJO", "SIN_DATO"]);
 
 export const createStudentSchema = z.object({
-  fullName: z.string().trim().min(1, "fullName required").max(200),
+  fullName: z.string().trim().min(1, "Nombre completo requerido").max(200),
   email: z.string().trim().toLowerCase().email(),
   phone: z.string().trim().max(50).optional().nullable(),
-  startDate: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
+  startDate: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
   durationMonths: z.number().int().min(1).max(60),
   mentorUserId: z.string().cuid().optional().nullable(),
   closerUserId: z.string().cuid().optional().nullable(),
@@ -57,7 +57,7 @@ export const createScheduleSchema = z.object({
   totalAmount: z.number().positive().max(1_000_000),
   installments: z.number().int().min(1).max(24),
   currency: z.string().length(3).default("USD"),
-  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
   frequency: z.enum(["monthly", "biweekly"]).default("monthly"),
   replaceExisting: z.boolean().default(false),
 });
@@ -65,7 +65,7 @@ export const createScheduleSchema = z.object({
 export const createPaymentSchema = z.object({
   amount: z.number().positive().max(1_000_000),
   currency: z.string().length(3).default("USD"),
-  paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+  paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
   method: z.string().max(100).optional().nullable(),
   reference: z.string().max(200).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
@@ -78,7 +78,7 @@ export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 export const addInstallmentSchema = z.object({
   amountDue: z.number().positive().max(1_000_000),
   currency: z.string().length(3).optional(),
-  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD"),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
 });
 
 export type AddInstallmentInput = z.infer<typeof addInstallmentSchema>;
@@ -86,11 +86,11 @@ export type AddInstallmentInput = z.infer<typeof addInstallmentSchema>;
 // Progress Updates
 
 export const createProgressUpdateSchema = z.object({
-  periodStart: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
-  periodEnd: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
+  periodStart: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
+  periodEnd: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
   progressLevel: progressLevelSchema,
   bottleneck: z.string().trim().max(500).optional().nullable(),
-  notes: z.string().trim().min(1, "notes required").max(5000),
+  notes: z.string().trim().min(1, "Observaciones requeridas").max(5000),
   rating: z.number().int().min(1).max(5).optional().nullable(),
   monthlyRevenue: z.number().nonnegative().optional().nullable(),
   monthlyRevenueCurrency: z.string().length(3).optional().nullable(),
@@ -104,7 +104,7 @@ export type CreateProgressUpdateInput = z.infer<typeof createProgressUpdateSchem
 export const updatePaymentSchema = z.object({
   amount: z.number().positive().max(1_000_000).optional(),
   currency: z.string().length(3).optional(),
-  paidAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD").optional(),
+  paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional(),
   method: z.string().max(100).optional().nullable(),
   reference: z.string().max(200).optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
@@ -114,7 +114,7 @@ export const updatePaymentSchema = z.object({
 export const updateScheduleSchema = z.object({
   amountDue: z.number().positive().max(1_000_000).optional(),
   currency: z.string().length(3).optional(),
-  dueDate: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD").optional(),
+  dueDate: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional(),
 });
 
 export type UpdatePaymentInput = z.infer<typeof updatePaymentSchema>;
@@ -147,7 +147,7 @@ const slugSchema = z
   .trim()
   .min(1)
   .max(80)
-  .regex(SLUG_REGEX, "expected lower-kebab-case slug");
+  .regex(SLUG_REGEX, "Slug esperado en minúsculas con guiones");
 
 const moneyUsdSchema = z.number().nonnegative().max(1_000_000);
 const percentSchema = z.number().min(0).max(100);
@@ -283,7 +283,7 @@ export const createStudentTagSchema = z.object({
   color: z
     .string()
     .trim()
-    .regex(/^#?[0-9a-fA-F]{6}$/, "expected hex color like #aabbcc")
+    .regex(/^#?[0-9a-fA-F]{6}$/, "Color hex esperado como #aabbcc")
     .optional()
     .nullable(),
   isAutomatic: z.boolean().default(false),
@@ -318,8 +318,8 @@ export const accessStatusSchema = z.enum([
 export const createEnrollmentBaseSchema = z.object({
   studentId: z.string().cuid(),
   productId: z.string().cuid(),
-  startedAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
-  endsAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD").optional().nullable(),
+  startedAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
+  endsAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional().nullable(),
   totalAmountUsd: moneyUsdSchema,
   initialPaymentUsd: moneyUsdSchema.optional().nullable(),
   installmentCount: z.number().int().min(1).max(24).optional().nullable(),
@@ -346,7 +346,7 @@ export const initialPaymentTypeSchema = z.enum([
 export const initialPaymentInputSchema = z.object({
   amount: z.number().positive().max(1_000_000),
   currency: z.string().length(3).default("USD"),
-  paidAt: z.string().regex(ISO_DATE_REGEX, "expected YYYY-MM-DD"),
+  paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
   initialPaymentType: initialPaymentTypeSchema,
   paymentAccountId: z.string().cuid().optional().nullable(),
   officialAmountUsd: moneyUsdSchema.optional().nullable(),
@@ -371,7 +371,7 @@ export const createStudentProductEnrollmentSchema =
     initialPayment: initialPaymentInputSchema.optional().nullable(),
     firstDueDate: z
       .string()
-      .regex(ISO_DATE_REGEX, "expected YYYY-MM-DD")
+      .regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD")
       .optional()
       .nullable(),
     installmentFrequency: installmentFrequencySchema.default("monthly"),
@@ -428,7 +428,7 @@ export const referralSplitListSchema = z
       const sum = items.reduce((acc, item) => acc + item.splitPercent, 0);
       return Math.abs(sum - 100) <= 0.01;
     },
-    { message: "referral splits must sum to 100" },
+    { message: "Los porcentajes de referidos deben sumar 100" },
   );
 
 export type ReferralSplitList = z.infer<typeof referralSplitListSchema>;

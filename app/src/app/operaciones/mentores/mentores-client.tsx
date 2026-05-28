@@ -33,8 +33,8 @@ export function MentoresClient({ mentors, canCreate }: { mentors: MentorRow[]; c
           <thead className="bg-slate-50">
             <tr>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Nombre</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Email</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">GHL Nombre</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Correo</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Nombre GHL</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Estudiantes asignados</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Activo</th>
             </tr>

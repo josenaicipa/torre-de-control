@@ -362,11 +362,11 @@ function ProductosSection({
               <Th>Slug</Th>
               <Th>Precio base</Th>
               <Th>Estado</Th>
-              <Th>Main</Th>
+              <Th>Principal</Th>
               <Th>Cuotas</Th>
               <Th>Pago inicial</Th>
               <Th>Comisión</Th>
-              <Th>LW configs</Th>
+              <Th>Accesos LW</Th>
               {canWrite && <Th>Acciones</Th>}
             </tr>
           </thead>
@@ -758,7 +758,7 @@ function ProductForm({
           onChange={(v) => update("generatesCommission", v)}
         />
         <Toggle
-          label="Producto principal (main)"
+          label="Producto principal"
           checked={state.isMainProduct}
           onChange={(v) => update("isMainProduct", v)}
         />
@@ -809,14 +809,14 @@ function ProductForm({
                       }
                       className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                     >
-                      <option value="COURSE">COURSE</option>
-                      <option value="BUNDLE">BUNDLE</option>
-                      <option value="SUBSCRIPTION">SUBSCRIPTION</option>
+                      <option value="COURSE">Curso</option>
+                      <option value="BUNDLE">Paquete</option>
+                      <option value="SUBSCRIPTION">Suscripción</option>
                     </select>
                   </Field>
                 </div>
                 <div className="sm:col-span-3">
-                  <Field label="External ID" required>
+                  <Field label="ID externo" required>
                     <input
                       value={cfg.lwExternalId}
                       onChange={(e) => updateConfig(idx, "lwExternalId", e.target.value)}
@@ -1473,6 +1473,13 @@ interface PaymentProviderFormState {
 
 const PROVIDER_TYPES = ["BANK", "WALLET", "PROCESSOR", "OTHER"] as const;
 
+const PROVIDER_TYPE_LABELS: Record<(typeof PROVIDER_TYPES)[number], string> = {
+  BANK: "Banco",
+  WALLET: "Billetera",
+  PROCESSOR: "Procesador",
+  OTHER: "Otro",
+};
+
 function PaymentProviderForm({
   initial,
   onCancel,
@@ -1578,7 +1585,7 @@ function PaymentProviderForm({
           >
             {PROVIDER_TYPES.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {PROVIDER_TYPE_LABELS[t]}
               </option>
             ))}
           </select>

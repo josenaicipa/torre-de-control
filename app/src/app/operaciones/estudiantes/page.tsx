@@ -91,7 +91,7 @@ export default async function EstudiantesPage({
         <input
           type="text"
           name="search"
-          placeholder="Buscar por nombre o email..."
+          placeholder="Buscar por nombre o correo..."
           defaultValue={sp.search ?? ""}
           className="w-64 rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
@@ -141,7 +141,7 @@ export default async function EstudiantesPage({
           <thead className="bg-slate-50">
             <tr>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Nombre</th>
-              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Email</th>
+              <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Correo</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Mentor</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Closer</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Inicio</th>

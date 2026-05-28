@@ -425,7 +425,7 @@ export function NuevoEstudianteForm({
     if (catalogError) return catalogError;
     const active = products.filter((p) => p.isActive);
     if (active.length === 0) {
-      return "No hay productos activos en el catálogo. Crea uno desde Operaciones · Catálogo o el estudiante quedará sin enrollment inicial.";
+      return "No hay productos activos en el catálogo. Crea uno desde Operaciones · Catálogo o el estudiante quedará sin inscripción inicial.";
     }
     const main = active.find((p) => p.isMainProduct);
     if (main) {
@@ -464,7 +464,7 @@ export function NuevoEstudianteForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700">Email *</label>
+            <label className="block text-sm font-medium text-slate-700">Correo *</label>
             <input
               type="email"
               value={email}
@@ -670,7 +670,7 @@ export function NuevoEstudianteForm({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Moneda enrollment</label>
+                <label className="block text-sm font-medium text-slate-700">Moneda de inscripción</label>
                 <select
                   value={sale.currency}
                   onChange={(e) => updateSale("currency", e.target.value)}
@@ -801,7 +801,7 @@ export function NuevoEstudianteForm({
                           className="mt-1 w-full rounded-md border-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm font-semibold"
                         />
                         <span className="mt-1 block text-xs text-amber-700">
-                          Obligatorio en moneda local — el saldo USD del enrollment depende de este valor.
+                          Obligatorio en moneda local — el saldo USD de la inscripción depende de este valor.
                         </span>
                       </div>
                     </>
