@@ -3884,7 +3884,6 @@ function App(){
             padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",
             position:"sticky",top:0,zIndex:50}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              {(tab==="operaciones"||embedUrl)&&(
               <button className="mobile-menu-btn" onClick={()=>setMobileOpsMenuOpen(true)}
                 aria-label="Abrir menú" aria-expanded={mobileOpsMenuOpen}
                 style={{display:"none",alignItems:"center",gap:6,padding:"7px 11px",
@@ -3893,7 +3892,6 @@ function App(){
                 <Icon name="menu" size={15} color={TXT}/>
                 <span>Menú</span>
               </button>
-              )}
               <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
               <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
                 {TABS.find(t=>t.id===tab)?.l}
@@ -3979,8 +3977,8 @@ function App(){
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
             padding:"14px 16px",borderBottom:`1px solid ${BORDER}`}}>
             <div style={{display:"flex",alignItems:"center",gap:9}}>
-              <Icon name="briefcase" size={16} color={BRAND}/>
-              <span style={{fontSize:13,fontWeight:800,color:TXT,letterSpacing:"-0.02em"}}>Operaciones</span>
+              <Icon name="menu" size={16} color={BRAND}/>
+              <span style={{fontSize:13,fontWeight:800,color:TXT,letterSpacing:"-0.02em"}}>Navegación</span>
             </div>
             <button onClick={()=>setMobileOpsMenuOpen(false)} aria-label="Cerrar menú"
               style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
@@ -3990,34 +3988,53 @@ function App(){
             </button>
           </div>
           <nav style={{padding:"10px 0",flex:1}}>
-            {(TABS.find(t=>t.id==="operaciones")?.children||[]).map(c=>{
-              const subActive=embedUrl===c.href;
+            {visibleTabs.map(t=>{
+              const hasChildren=t.children&&t.children.length>0;
+              if(hasChildren){
+                return(
+                  <div key={t.id} style={{marginTop:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:9,
+                      padding:"10px 18px 4px",fontSize:10,
+                      color:TXT3,fontFamily:"'Inter',sans-serif",fontWeight:700,
+                      letterSpacing:"0.1em",textTransform:"uppercase"}}>
+                      <Icon name={t.icon} size={13} color={TXT3}/>
+                      <span>{t.l}</span>
+                    </div>
+                    {t.children.map(c=>{
+                      const subActive=embedUrl===c.href;
+                      return(
+                        <button key={c.id}
+                          onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");setMobileOpsMenuOpen(false);}}
+                          style={{display:"block",width:"100%",textAlign:"left",
+                            padding:"9px 18px 9px 36px",fontSize:13,
+                            color:subActive?BRAND:TXT2,
+                            background:subActive?BRAND+"18":"transparent",
+                            borderLeft:subActive?`2px solid ${BRAND}`:"2px solid transparent",
+                            border:"none",fontFamily:"'Inter',sans-serif",
+                            fontWeight:subActive?700:500,cursor:"pointer"}}>
+                          {c.l}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              const active=!embedUrl&&tab===t.id;
               return(
-                <button key={c.id}
-                  onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");setMobileOpsMenuOpen(false);}}
-                  style={{display:"block",width:"100%",textAlign:"left",
+                <button key={t.id}
+                  onClick={()=>{setTab(t.id);setEmbedUrl(null);setMobileOpsMenuOpen(false);}}
+                  style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
                     padding:"11px 18px",fontSize:13,
-                    color:subActive?BRAND:TXT2,
-                    background:subActive?BRAND+"18":"transparent",
-                    borderLeft:subActive?`2px solid ${BRAND}`:"2px solid transparent",
-                    border:"none",borderTop:"none",borderRight:"none",borderBottom:"none",
-                    fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,cursor:"pointer"}}>
-                  {c.l}
+                    color:active?BRAND:TXT2,
+                    background:active?BRAND+"18":"transparent",
+                    borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
+                    border:"none",fontFamily:"'Inter',sans-serif",
+                    fontWeight:active?700:500,cursor:"pointer"}}>
+                  <Icon name={t.icon} size={14} color={active?BRAND:TXT3}/>
+                  <span>{t.l}</span>
                 </button>
               );
             })}
-            {canManage&&<button
-              onClick={()=>{setEmbedUrl(null);setTab("admin");setMobileOpsMenuOpen(false);}}
-              style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
-                padding:"11px 18px",fontSize:13,marginTop:6,
-                color:tab==="admin"?BRAND:TXT2,
-                background:tab==="admin"?BRAND+"18":"transparent",
-                borderLeft:tab==="admin"?`2px solid ${BRAND}`:"2px solid transparent",
-                border:"none",borderTop:`1px solid ${BORDER}`,borderRight:"none",borderBottom:"none",
-                fontFamily:"'Inter',sans-serif",fontWeight:tab==="admin"?700:500,cursor:"pointer"}}>
-              <Icon name="settings" size={14} color={tab==="admin"?BRAND:TXT3}/>
-              <span>Admin</span>
-            </button>}
           </nav>
         </div>
 
