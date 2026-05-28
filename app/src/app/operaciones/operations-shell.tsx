@@ -11,14 +11,16 @@ import {
   History,
   Home,
   Megaphone,
+  Menu,
   Settings,
   User,
   Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface OperationsNavItem {
   href: string;
@@ -42,6 +44,7 @@ interface SidebarItemProps {
   Icon?: LucideIcon;
   active: boolean;
   isSubitem?: boolean;
+  onClick?: () => void;
 }
 
 const BRAND = "#E03A18";
@@ -59,7 +62,7 @@ const LEGACY_TABS: Array<{
   Icon: LucideIcon;
 }> = [
   { id: "torre", label: "Torre CEO", href: "/", Icon: Home },
-  { id: "closer", label: "Area Comercial", href: "/?tab=closer", Icon: DollarSign },
+  { id: "closer", label: "Área Comercial", href: "/?tab=closer", Icon: DollarSign },
   { id: "control", label: "Control Comercial", href: "/?tab=control", Icon: ClipboardCheck },
   { id: "entrada", label: "Marketing", href: "/?tab=entrada", Icon: Megaphone },
   { id: "agendas", label: "Agendas / Leads", href: "/?tab=agendas", Icon: Calendar },
@@ -80,10 +83,12 @@ function SidebarItem({
   Icon,
   active,
   isSubitem = false,
+  onClick,
 }: SidebarItemProps) {
   return (
     <Link
       href={href}
+      onClick={onClick}
       style={{
         display: "flex",
         alignItems: "center",
@@ -103,6 +108,120 @@ function SidebarItem({
   );
 }
 
+interface NavigationContentProps {
+  pathname: string;
+  operationItems: OperationsNavItem[];
+  operationsExpanded: boolean;
+  onToggleOperations: () => void;
+  operationsActive: boolean;
+  showMentor: boolean;
+  showAdmin: boolean;
+  onItemClick?: () => void;
+}
+
+function NavigationContent({
+  pathname,
+  operationItems,
+  operationsExpanded,
+  onToggleOperations,
+  operationsActive,
+  showMentor,
+  showAdmin,
+  onItemClick,
+}: NavigationContentProps) {
+  return (
+    <nav style={{ display: "flex", flex: 1, flexDirection: "column", padding: "14px 0 10px" }}>
+      <p
+        style={{
+          margin: "0 16px 8px",
+          color: TXT3,
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+        }}
+      >
+        Navegación
+      </p>
+      {LEGACY_TABS.map((item) => (
+        <SidebarItem
+          key={item.id}
+          href={item.href}
+          label={item.label}
+          Icon={item.Icon}
+          active={false}
+          onClick={onItemClick}
+        />
+      ))}
+
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <button
+          type="button"
+          onClick={onToggleOperations}
+          aria-expanded={operationsExpanded}
+          aria-controls="operations-subnav"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 16px",
+            backgroundColor: operationsActive ? "rgba(224, 58, 24, 0.10)" : "transparent",
+            borderLeft: operationsActive ? `2px solid ${BRAND}` : "2px solid transparent",
+            borderTop: "none",
+            borderRight: "none",
+            borderBottom: "none",
+            color: operationsActive ? BRAND : TXT2,
+            fontSize: 14,
+            fontWeight: operationsActive ? 700 : 500,
+            cursor: "pointer",
+            textAlign: "left",
+            width: "100%",
+            fontFamily: "inherit",
+          }}
+        >
+          <Briefcase size={15} color={operationsActive ? BRAND : TXT3} />
+          <span style={{ flex: 1 }}>Operaciones</span>
+          <span style={{ fontSize: 10, opacity: 0.6 }}>{operationsExpanded ? "▼" : "▶"}</span>
+        </button>
+        {operationsExpanded && (
+          <div id="operations-subnav">
+            {operationItems.map((item) => (
+              <SidebarItem
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                active={isActive(pathname, item.href)}
+                isSubitem
+                onClick={onItemClick}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showMentor && (
+        <SidebarItem
+          href="/operaciones/mis-estudiantes"
+          label="Mis Estudiantes"
+          Icon={BookOpen}
+          active={isActive(pathname, "/operaciones/mis-estudiantes")}
+          onClick={onItemClick}
+        />
+      )}
+
+      {showAdmin && (
+        <SidebarItem
+          href="/admin/users"
+          label="Admin"
+          Icon={Settings}
+          active={isActive(pathname, "/admin/users")}
+          onClick={onItemClick}
+        />
+      )}
+    </nav>
+  );
+}
+
 export function OperationsShell({
   children,
   actor,
@@ -110,12 +229,86 @@ export function OperationsShell({
 }: OperationsShellProps) {
   const pathname = usePathname();
   const [operationsExpanded, setOperationsExpanded] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const operationItems = navItems.filter(
     (item) => item.href !== "/admin/users" && item.href !== "/operaciones/mis-estudiantes",
   );
   const operationsActive = pathname.startsWith("/operaciones");
   const showAdmin =
     actor.role === "ADMIN" || navItems.some((item) => item.href === "/admin/users");
+  const showMentor = actor.role === "MENTOR";
+
+  // Cerrar el menú móvil al navegar entre rutas.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Evitar scroll del body mientras el drawer está abierto.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!mobileMenuOpen) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [mobileMenuOpen]);
+
+  const closeMobileMenu = () => setMobileMenuOpen(false);
+  const toggleOperations = () => setOperationsExpanded((prev) => !prev);
+
+  const brandBlock = (
+    <Link
+      href="/"
+      onClick={closeMobileMenu}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        color: TXT,
+        textDecoration: "none",
+      }}
+    >
+      <img src="/logo.png" alt="Unlocked" style={{ height: 30, width: 30, objectFit: "contain" }} />
+      <span>
+        <span style={{ display: "block", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>
+          UNLOCKED
+        </span>
+        <span
+          style={{
+            display: "block",
+            marginTop: 2,
+            color: TXT3,
+            fontSize: 9,
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          Centro de Operaciones
+        </span>
+      </span>
+    </Link>
+  );
+
+  const accountBlock = (
+    <div
+      style={{
+        borderTop: `1px solid ${BORDER}`,
+        padding: "12px 16px",
+        color: TXT3,
+        fontSize: 10,
+        lineHeight: "20px",
+      }}
+    >
+      <p className="truncate" style={{ margin: 0, color: TXT2 }}>
+        {actor.email}
+      </p>
+      <p style={{ margin: 0, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+        {actor.role}
+      </p>
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen bg-[#f7f7f5]" style={{ color: TXT }}>
@@ -125,148 +318,154 @@ export function OperationsShell({
         style={{ backgroundColor: SURFACE, borderRight: `1px solid ${BORDER}` }}
       >
         <div style={{ padding: "20px 18px 16px", borderBottom: `1px solid ${BORDER}` }}>
-          <Link
-            href="/"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              color: TXT,
-              textDecoration: "none",
-            }}
-          >
-            <img src="/logo.png" alt="Unlocked" style={{ height: 30, width: 30, objectFit: "contain" }} />
-            <span>
-              <span style={{ display: "block", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>
-                UNLOCKED
-              </span>
-              <span
-                style={{
-                  display: "block",
-                  marginTop: 2,
-                  color: TXT3,
-                  fontSize: 9,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Command Center
-              </span>
-            </span>
-          </Link>
+          {brandBlock}
         </div>
 
-        <nav style={{ display: "flex", flex: 1, flexDirection: "column", padding: "14px 0 10px" }}>
-          <p
-            style={{
-              margin: "0 16px 8px",
-              color: TXT3,
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-            }}
-          >
-            Navegación
-          </p>
-          {LEGACY_TABS.map((item) => (
-            <SidebarItem
-              key={item.id}
-              href={item.href}
-              label={item.label}
-              Icon={item.Icon}
-              active={false}
-            />
-          ))}
+        <NavigationContent
+          pathname={pathname}
+          operationItems={operationItems}
+          operationsExpanded={operationsExpanded}
+          onToggleOperations={toggleOperations}
+          operationsActive={operationsActive}
+          showMentor={showMentor}
+          showAdmin={showAdmin}
+        />
 
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <button
-              type="button"
-              onClick={() => setOperationsExpanded((prev) => !prev)}
-              aria-expanded={operationsExpanded}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "8px 16px",
-                backgroundColor: operationsActive ? "rgba(224, 58, 24, 0.10)" : "transparent",
-                borderLeft: operationsActive ? `2px solid ${BRAND}` : "2px solid transparent",
-                borderTop: "none",
-                borderRight: "none",
-                borderBottom: "none",
-                color: operationsActive ? BRAND : TXT2,
-                fontSize: 14,
-                fontWeight: operationsActive ? 700 : 500,
-                cursor: "pointer",
-                textAlign: "left",
-                width: "100%",
-                fontFamily: "inherit",
-              }}
-            >
-              <Briefcase size={15} color={operationsActive ? BRAND : TXT3} />
-              <span style={{ flex: 1 }}>Operaciones</span>
-              <span style={{ fontSize: 10, opacity: 0.6 }}>{operationsExpanded ? "▼" : "▶"}</span>
-            </button>
-            {operationsExpanded &&
-              operationItems.map((item) => (
-                <SidebarItem
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  active={isActive(pathname, item.href)}
-                  isSubitem
-                />
-              ))}
-          </div>
+        {accountBlock}
+      </aside>
 
-          {actor.role === "MENTOR" && (
-            <SidebarItem
-              href="/operaciones/mis-estudiantes"
-              label="Mis Estudiantes"
-              Icon={BookOpen}
-              active={isActive(pathname, "/operaciones/mis-estudiantes")}
-            />
-          )}
-
-          {showAdmin && (
-            <SidebarItem
-              href="/admin/users"
-              label="Admin"
-              Icon={Settings}
-              active={isActive(pathname, "/admin/users")}
-            />
-          )}
-        </nav>
-
-        <div
+      <header
+        data-operations-mobile-header
+        className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between px-4 md:hidden"
+        style={{ backgroundColor: SURFACE, borderBottom: `1px solid ${BORDER}` }}
+      >
+        <Link
+          href="/"
+          onClick={closeMobileMenu}
           style={{
-            borderTop: `1px solid ${BORDER}`,
-            padding: "12px 16px",
-            color: TXT3,
-            fontSize: 10,
-            lineHeight: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: TXT,
+            textDecoration: "none",
           }}
         >
-          <p className="truncate" style={{ margin: 0, color: TXT2 }}>
-            {actor.email}
-          </p>
-          <p style={{ margin: 0, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            {actor.role}
-          </p>
+          <img src="/logo.png" alt="Unlocked" style={{ height: 26, width: 26, objectFit: "contain" }} />
+          <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.04em" }}>UNLOCKED</span>
+        </Link>
+        <button
+          type="button"
+          aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-menu-panel"
+          onClick={() => setMobileMenuOpen((prev) => !prev)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 12px",
+            backgroundColor: mobileMenuOpen ? "rgba(224, 58, 24, 0.10)" : SURFACE,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 8,
+            color: mobileMenuOpen ? BRAND : TXT,
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
+          <span>{mobileMenuOpen ? "Cerrar" : "Menú"}</span>
+        </button>
+      </header>
+
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          aria-label="Cerrar menú"
+          onClick={closeMobileMenu}
+          className="fixed inset-0 z-40 md:hidden"
+          style={{
+            backgroundColor: "rgba(17,17,16,0.45)",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+          }}
+        />
+      )}
+
+      <aside
+        id="mobile-menu-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menú de navegación"
+        aria-hidden={!mobileMenuOpen}
+        className="fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto md:hidden"
+        style={{
+          backgroundColor: SURFACE,
+          borderRight: `1px solid ${BORDER}`,
+          transform: mobileMenuOpen ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 200ms ease-out",
+          visibility: mobileMenuOpen ? "visible" : "hidden",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "14px 16px",
+            borderBottom: `1px solid ${BORDER}`,
+          }}
+        >
+          {brandBlock}
+          <button
+            type="button"
+            aria-label="Cerrar menú"
+            onClick={closeMobileMenu}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 36,
+              height: 36,
+              border: "none",
+              borderRadius: 8,
+              backgroundColor: "transparent",
+              color: TXT2,
+              cursor: "pointer",
+            }}
+          >
+            <X size={18} />
+          </button>
         </div>
+
+        <NavigationContent
+          pathname={pathname}
+          operationItems={operationItems}
+          operationsExpanded={operationsExpanded}
+          onToggleOperations={toggleOperations}
+          operationsActive={operationsActive}
+          showMentor={showMentor}
+          showAdmin={showAdmin}
+          onItemClick={closeMobileMenu}
+        />
+
+        {accountBlock}
       </aside>
 
       <main
         data-operations-main
-        className="min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 pb-24 md:ml-[220px] md:p-8"
+        className="min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 pt-20 pb-24 md:ml-[220px] md:p-8"
       >
         {children}
       </main>
 
       <nav
         data-operations-mobile-nav
-        className="fixed inset-x-0 bottom-0 z-50 flex overflow-x-auto md:hidden"
+        aria-label="Accesos rápidos"
+        className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto md:hidden"
         style={{ backgroundColor: SURFACE, borderTop: `1px solid ${BORDER}` }}
       >
         <Link
@@ -281,7 +480,7 @@ export function OperationsShell({
             textDecoration: "none",
           }}
         >
-          Dashboard
+          Inicio
         </Link>
         {operationItems.map((item) => {
           const active = isActive(pathname, item.href);

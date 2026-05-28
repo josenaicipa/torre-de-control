@@ -20,7 +20,7 @@ const roleLabels: Record<Role, string> = {
   ADMIN: "Admin",
   OPERATOR: "Operador",
   MENTOR: "Mentor",
-  VIEWER: "Viewer",
+  VIEWER: "Visualizador",
 };
 
 const ADMIN_NAV_ITEMS = [
