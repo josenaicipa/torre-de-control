@@ -34,20 +34,40 @@ interface Product {
   learnWorldsAccessConfigs: LearnWorldsAccessConfig[];
 }
 
+interface OwnerUserOption {
+  id: string;
+  name: string | null;
+  email: string;
+  role: Role;
+}
+
+interface PaymentProvider {
+  id: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+}
+
 interface PaymentAccount {
   id: string;
   displayName: string;
+  ownerUserId: string | null;
   ownerName: string | null;
+  paymentProviderId: string | null;
   providerName: string | null;
   currency: string;
   isActive: boolean;
   notes: string | null;
+  ownerUser: { id: string; name: string | null; email: string } | null;
+  paymentProvider: { id: string; name: string; type: string } | null;
 }
 
-type Tab = "productos" | "cuentas";
+type Tab = "productos" | "cuentas" | "proveedores";
 
 function parseTab(value: string | null): Tab {
-  return value === "cuentas" ? "cuentas" : "productos";
+  if (value === "cuentas") return "cuentas";
+  if (value === "proveedores") return "proveedores";
+  return "productos";
 }
 
 function toNum(value: Numeric | null | undefined): number {
@@ -80,7 +100,17 @@ function canWriteRole(role: Role): boolean {
   return role === "ADMIN" || role === "OPERATOR";
 }
 
-export function CatalogoClient({ role }: { role: Role }) {
+function ownerLabel(user: { name: string | null; email: string }): string {
+  return user.name && user.name.trim() ? user.name : user.email;
+}
+
+export function CatalogoClient({
+  role,
+  ownerUsers,
+}: {
+  role: Role;
+  ownerUsers: OwnerUserOption[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -89,14 +119,13 @@ export function CatalogoClient({ role }: { role: Role }) {
   const [tab, setTabState] = useState<Tab>(queryTab);
   const [products, setProducts] = useState<Product[]>([]);
   const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+  const [paymentProviders, setPaymentProviders] = useState<PaymentProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   const canWrite = canWriteRole(role);
 
-  // Sync local tab state when the URL ?tab=... changes (e.g. user navigates here
-  // from "Crear producto" / "Crear cuenta receptora" links in other pages).
   useEffect(() => {
     setTabState((prev) => (prev === queryTab ? prev : queryTab));
   }, [queryTab]);
@@ -113,24 +142,28 @@ export function CatalogoClient({ role }: { role: Role }) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [productsRes, accountsRes] = await Promise.all([
+      const [productsRes, accountsRes, providersRes] = await Promise.all([
         fetch(`/api/operaciones/products?active=all`),
         fetch(`/api/operaciones/payment-accounts?active=all`),
+        fetch(`/api/operaciones/payment-providers?active=all`),
       ]);
-      const [productsJson, accountsJson] = await Promise.all([
+      const [productsJson, accountsJson, providersJson] = await Promise.all([
         productsRes.json(),
         accountsRes.json(),
+        providersRes.json(),
       ]);
-      if (!productsRes.ok || !accountsRes.ok) {
+      if (!productsRes.ok || !accountsRes.ok || !providersRes.ok) {
         setLoadError(
           productsJson.error ??
             accountsJson.error ??
+            providersJson.error ??
             "No se pudo cargar el catálogo",
         );
         return;
       }
       setProducts(productsJson.products ?? []);
       setPaymentAccounts(accountsJson.paymentAccounts ?? []);
+      setPaymentProviders(providersJson.paymentProviders ?? []);
     } catch {
       setLoadError("No se pudo cargar el catálogo");
     } finally {
@@ -151,10 +184,10 @@ export function CatalogoClient({ role }: { role: Role }) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600">
-        Catálogo compartido por todo Operaciones: <strong>Productos</strong> y{" "}
-        <strong>Cuentas receptoras</strong> se usan al crear estudiantes y
-        registrar ventas. Si un selector aparece vacío al crear un estudiante,
-        vení acá y dalo de alta.
+        Catálogo compartido por todo Operaciones: <strong>Productos</strong>,{" "}
+        <strong>Cuentas receptoras</strong> y <strong>Proveedores de pago</strong>{" "}
+        se usan al crear estudiantes y registrar ventas. Si un selector aparece
+        vacío al crear un estudiante, vení acá y dalo de alta.
       </p>
       <div className="flex gap-2 border-b border-slate-200">
         <TabButton active={tab === "productos"} onClick={() => setTab("productos")}>
@@ -162,6 +195,12 @@ export function CatalogoClient({ role }: { role: Role }) {
         </TabButton>
         <TabButton active={tab === "cuentas"} onClick={() => setTab("cuentas")}>
           Cuentas receptoras
+        </TabButton>
+        <TabButton
+          active={tab === "proveedores"}
+          onClick={() => setTab("proveedores")}
+        >
+          Proveedores
         </TabButton>
       </div>
 
@@ -186,9 +225,18 @@ export function CatalogoClient({ role }: { role: Role }) {
           onReload={reload}
           onSuccess={notifySuccess}
         />
-      ) : (
+      ) : tab === "cuentas" ? (
         <CuentasSection
           paymentAccounts={paymentAccounts}
+          paymentProviders={paymentProviders}
+          ownerUsers={ownerUsers}
+          canWrite={canWrite}
+          onReload={reload}
+          onSuccess={notifySuccess}
+        />
+      ) : (
+        <ProveedoresSection
+          paymentProviders={paymentProviders}
           canWrite={canWrite}
           onReload={reload}
           onSuccess={notifySuccess}
@@ -851,11 +899,15 @@ function ProductForm({
 
 function CuentasSection({
   paymentAccounts,
+  paymentProviders,
+  ownerUsers,
   canWrite,
   onReload,
   onSuccess,
 }: {
   paymentAccounts: PaymentAccount[];
+  paymentProviders: PaymentProvider[];
+  ownerUsers: OwnerUserOption[];
   canWrite: boolean;
   onReload: () => Promise<void> | void;
   onSuccess: (message: string) => void;
@@ -893,6 +945,8 @@ function CuentasSection({
     return (
       <PaymentAccountForm
         initial={editing === "new" ? null : editing}
+        paymentProviders={paymentProviders}
+        ownerUsers={ownerUsers}
         onCancel={() => setEditing(null)}
         onSaved={async (msg) => {
           onSuccess(msg);
@@ -912,8 +966,8 @@ function CuentasSection({
           </h2>
           <p className="text-xs text-slate-500">
             Son las cuentas donde se acreditan los pagos de los estudiantes
-            (banco, Stripe, Wise, etc.). Aparecen como opciones al cobrar el
-            pago inicial y futuras cuotas.
+            (banco, Stripe, Wise, etc.). El titular y el proveedor se eligen
+            desde los catálogos controlados.
           </p>
         </div>
         {canWrite && (
@@ -963,10 +1017,12 @@ function CuentasSection({
                     {a.displayName}
                   </td>
                   <td className="px-4 py-2 text-sm text-slate-600">
-                    {a.ownerName ?? "—"}
+                    {a.ownerUser
+                      ? ownerLabel(a.ownerUser)
+                      : (a.ownerName ?? "—")}
                   </td>
                   <td className="px-4 py-2 text-sm text-slate-600">
-                    {a.providerName ?? "—"}
+                    {a.paymentProvider?.name ?? a.providerName ?? "—"}
                   </td>
                   <td className="px-4 py-2 text-sm text-slate-600">{a.currency}</td>
                   <td className="px-4 py-2 text-sm">
@@ -1018,8 +1074,8 @@ function CuentasSection({
 
 interface PaymentAccountFormState {
   displayName: string;
-  ownerName: string;
-  providerName: string;
+  ownerUserId: string;
+  paymentProviderId: string;
   currency: string;
   isActive: boolean;
   notes: string;
@@ -1031,8 +1087,8 @@ function buildPaymentAccountFormState(
   if (!initial) {
     return {
       displayName: "",
-      ownerName: "",
-      providerName: "",
+      ownerUserId: "",
+      paymentProviderId: "",
       currency: "USD",
       isActive: true,
       notes: "",
@@ -1040,8 +1096,8 @@ function buildPaymentAccountFormState(
   }
   return {
     displayName: initial.displayName,
-    ownerName: initial.ownerName ?? "",
-    providerName: initial.providerName ?? "",
+    ownerUserId: initial.ownerUserId ?? "",
+    paymentProviderId: initial.paymentProviderId ?? "",
     currency: initial.currency,
     isActive: initial.isActive,
     notes: initial.notes ?? "",
@@ -1050,10 +1106,14 @@ function buildPaymentAccountFormState(
 
 function PaymentAccountForm({
   initial,
+  paymentProviders,
+  ownerUsers,
   onCancel,
   onSaved,
 }: {
   initial: PaymentAccount | null;
+  paymentProviders: PaymentProvider[];
+  ownerUsers: OwnerUserOption[];
   onCancel: () => void;
   onSaved: (message: string) => void | Promise<void>;
 }) {
@@ -1064,6 +1124,11 @@ function PaymentAccountForm({
   const [submitting, setSubmitting] = useState(false);
 
   const isEdit = initial !== null;
+  // Show the previously-linked provider even if it was deactivated after this
+  // account was created, so editors don't accidentally lose the selection.
+  const providersForSelect = paymentProviders.filter(
+    (p) => p.isActive || p.id === state.paymentProviderId,
+  );
 
   function update<K extends keyof PaymentAccountFormState>(
     key: K,
@@ -1074,6 +1139,8 @@ function PaymentAccountForm({
 
   function validate(): string | null {
     if (!state.displayName.trim()) return "Nombre visible requerido";
+    if (!state.ownerUserId) return "Titular requerido";
+    if (!state.paymentProviderId) return "Proveedor requerido";
     if (!/^[A-Za-z]{3}$/.test(state.currency.trim())) {
       return "Moneda debe ser código ISO de 3 letras (ej: USD)";
     }
@@ -1092,10 +1159,8 @@ function PaymentAccountForm({
     try {
       const body: Record<string, unknown> = {
         displayName: state.displayName.trim(),
-        ownerName: state.ownerName.trim() ? state.ownerName.trim() : null,
-        providerName: state.providerName.trim()
-          ? state.providerName.trim()
-          : null,
+        ownerUserId: state.ownerUserId,
+        paymentProviderId: state.paymentProviderId,
         currency: state.currency.trim().toUpperCase(),
         isActive: state.isActive,
         notes: state.notes.trim() ? state.notes.trim() : null,
@@ -1150,6 +1215,13 @@ function PaymentAccountForm({
         </div>
       )}
 
+      {providersForSelect.length === 0 && (
+        <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          No hay proveedores de pago activos. Creá uno desde la pestaña{" "}
+          <strong>Proveedores</strong> antes de seguir.
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Nombre visible" required>
           <input
@@ -1159,19 +1231,40 @@ function PaymentAccountForm({
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </Field>
-        <Field label="Titular">
-          <input
-            value={state.ownerName}
-            onChange={(e) => update("ownerName", e.target.value)}
+        <Field label="Titular" required hint="Usuario del panel que figura como titular legal">
+          <select
+            value={state.ownerUserId}
+            onChange={(e) => update("ownerUserId", e.target.value)}
+            required
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
+          >
+            <option value="">— Seleccionar —</option>
+            {ownerUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {ownerLabel(u)} · {u.role}
+              </option>
+            ))}
+          </select>
         </Field>
-        <Field label="Proveedor" hint="Banco, Stripe, Wise, etc.">
-          <input
-            value={state.providerName}
-            onChange={(e) => update("providerName", e.target.value)}
+        <Field
+          label="Proveedor"
+          required
+          hint="Catálogo controlado · administrar en pestaña Proveedores"
+        >
+          <select
+            value={state.paymentProviderId}
+            onChange={(e) => update("paymentProviderId", e.target.value)}
+            required
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
+          >
+            <option value="">— Seleccionar —</option>
+            {providersForSelect.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} · {p.type}
+                {!p.isActive ? " (inactivo)" : ""}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Moneda" required hint="Código ISO de 3 letras">
           <input
@@ -1213,6 +1306,306 @@ function PaymentAccountForm({
           className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {submitting ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear cuenta"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Proveedores de pago ───────────────────────────────────────────────────
+
+function ProveedoresSection({
+  paymentProviders,
+  canWrite,
+  onReload,
+  onSuccess,
+}: {
+  paymentProviders: PaymentProvider[];
+  canWrite: boolean;
+  onReload: () => Promise<void> | void;
+  onSuccess: (message: string) => void;
+}) {
+  const [editing, setEditing] = useState<PaymentProvider | "new" | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  async function toggleActive(provider: PaymentProvider) {
+    setBusyId(provider.id);
+    setRowError(null);
+    try {
+      const res = await fetch(`/api/operaciones/payment-providers/${provider.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !provider.isActive }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setRowError(json.error ?? "No se pudo actualizar el proveedor");
+        return;
+      }
+      onSuccess(
+        `Proveedor ${provider.name} ${!provider.isActive ? "activado" : "desactivado"}`,
+      );
+      await onReload();
+    } catch {
+      setRowError("Error de red al actualizar el proveedor");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (editing) {
+    return (
+      <PaymentProviderForm
+        initial={editing === "new" ? null : editing}
+        onCancel={() => setEditing(null)}
+        onSaved={async (msg) => {
+          onSuccess(msg);
+          setEditing(null);
+          await onReload();
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Proveedores de pago
+          </h2>
+          <p className="text-xs text-slate-500">
+            Bancos, billeteras y procesadores que pueden recibir pagos
+            (Davivienda, Nequi, Stripe, Wise, Hotmart…). Aparecen como opciones
+            al crear una cuenta receptora.
+          </p>
+        </div>
+        {canWrite && (
+          <button
+            type="button"
+            onClick={() => setEditing("new")}
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            + Nuevo proveedor
+          </button>
+        )}
+      </div>
+
+      {rowError && (
+        <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {rowError}
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="min-w-full divide-y divide-slate-200">
+          <thead className="bg-slate-50">
+            <tr>
+              <Th>Nombre</Th>
+              <Th>Tipo</Th>
+              <Th>Estado</Th>
+              {canWrite && <Th>Acciones</Th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {paymentProviders.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={canWrite ? 4 : 3}
+                  className="px-4 py-8 text-center text-sm text-slate-500"
+                >
+                  No hay proveedores cargados.
+                </td>
+              </tr>
+            ) : (
+              paymentProviders.map((p) => (
+                <tr key={p.id} className="align-top hover:bg-slate-50">
+                  <td className="px-4 py-2 text-sm font-medium text-slate-900">
+                    {p.name}
+                  </td>
+                  <td className="px-4 py-2 text-sm text-slate-600">
+                    <Badge tone="bg-slate-100 text-slate-700">{p.type}</Badge>
+                  </td>
+                  <td className="px-4 py-2 text-sm">
+                    <Badge tone={p.isActive ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}>
+                      {p.isActive ? "Activo" : "Inactivo"}
+                    </Badge>
+                  </td>
+                  {canWrite && (
+                    <td className="whitespace-nowrap px-4 py-2 text-sm">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(p)}
+                        className="mr-2 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busyId === p.id}
+                        onClick={() => void toggleActive(p)}
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-100 disabled:opacity-50"
+                      >
+                        {busyId === p.id
+                          ? "..."
+                          : p.isActive
+                            ? "Desactivar"
+                            : "Activar"}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+interface PaymentProviderFormState {
+  name: string;
+  type: string;
+  isActive: boolean;
+}
+
+const PROVIDER_TYPES = ["BANK", "WALLET", "PROCESSOR", "OTHER"] as const;
+
+function PaymentProviderForm({
+  initial,
+  onCancel,
+  onSaved,
+}: {
+  initial: PaymentProvider | null;
+  onCancel: () => void;
+  onSaved: (message: string) => void | Promise<void>;
+}) {
+  const [state, setState] = useState<PaymentProviderFormState>(() => ({
+    name: initial?.name ?? "",
+    type: initial?.type ?? "OTHER",
+    isActive: initial?.isActive ?? true,
+  }));
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isEdit = initial !== null;
+
+  function update<K extends keyof PaymentProviderFormState>(
+    key: K,
+    value: PaymentProviderFormState[K],
+  ) {
+    setState((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    if (!state.name.trim()) {
+      setError("Nombre requerido");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body: Record<string, unknown> = {
+        name: state.name.trim(),
+        type: state.type.trim() || "OTHER",
+        isActive: state.isActive,
+      };
+
+      const url = isEdit
+        ? `/api/operaciones/payment-providers/${initial!.id}`
+        : `/api/operaciones/payment-providers`;
+      const method = isEdit ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Error al guardar proveedor");
+        setSubmitting(false);
+        return;
+      }
+      await onSaved(isEdit ? "Proveedor actualizado" : "Proveedor creado");
+    } catch {
+      setError("Error de red al guardar proveedor");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="space-y-4 rounded-lg border border-slate-200 bg-white p-5"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-slate-900">
+          {isEdit ? `Editar proveedor: ${initial!.name}` : "Nuevo proveedor de pago"}
+        </h3>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-slate-500 hover:text-slate-700"
+        >
+          Cancelar
+        </button>
+      </div>
+
+      {error && (
+        <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {error}
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Nombre" required hint="Ej: Davivienda, Nequi, Stripe, Wise">
+          <input
+            value={state.name}
+            onChange={(e) => update("name", e.target.value)}
+            required
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <Field label="Tipo">
+          <select
+            value={state.type}
+            onChange={(e) => update("type", e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            {PROVIDER_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <div className="flex items-end">
+          <Toggle
+            label="Activo"
+            checked={state.isActive}
+            onChange={(v) => update("isActive", v)}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {submitting ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear proveedor"}
         </button>
       </div>
     </form>

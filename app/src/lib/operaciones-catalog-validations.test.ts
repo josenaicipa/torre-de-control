@@ -164,17 +164,31 @@ describe("updateProductSchema (catalog)", () => {
 });
 
 describe("createPaymentAccountSchema (catalog)", () => {
-  it("requires displayName even when other fields are provided", () => {
+  const validOwnerId = "cmav9cy3g000008l22towner1";
+  const validProviderId = "cmav9cy3g000008l22tprov1";
+
+  it("requires displayName even when controlled fields are provided", () => {
     expect(
       createPaymentAccountSchema.safeParse({
         currency: "USD",
-        ownerName: "Unlocked Academy LLC",
+        ownerUserId: validOwnerId,
+        paymentProviderId: validProviderId,
       }).success,
     ).toBe(false);
   });
 
+  it("requires ownerUserId and paymentProviderId", () => {
+    expect(
+      createPaymentAccountSchema.safeParse({ displayName: "Stripe US" }).success,
+    ).toBe(false);
+  });
+
   it("defaults currency to USD and isActive to true", () => {
-    const parsed = createPaymentAccountSchema.parse({ displayName: "Stripe US" });
+    const parsed = createPaymentAccountSchema.parse({
+      displayName: "Stripe US",
+      ownerUserId: validOwnerId,
+      paymentProviderId: validProviderId,
+    });
     expect(parsed.currency).toBe("USD");
     expect(parsed.isActive).toBe(true);
   });
@@ -196,5 +210,14 @@ describe("updatePaymentAccountSchema (catalog)", () => {
 
   it("rejects an empty displayName", () => {
     expect(updatePaymentAccountSchema.safeParse({ displayName: "" }).success).toBe(false);
+  });
+
+  it("accepts swapping the controlled owner/provider", () => {
+    const parsed = updatePaymentAccountSchema.parse({
+      ownerUserId: "cmav9cy3g000008l22towner2",
+      paymentProviderId: "cmav9cy3g000008l22tprov2",
+    });
+    expect(parsed.ownerUserId).toBe("cmav9cy3g000008l22towner2");
+    expect(parsed.paymentProviderId).toBe("cmav9cy3g000008l22tprov2");
   });
 });
