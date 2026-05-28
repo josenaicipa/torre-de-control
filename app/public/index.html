@@ -3417,6 +3417,20 @@ function App(){
   });
   const [openSubmenu,setOpenSubmenu]=useState(null);
   const [embedUrl,setEmbedUrl]=useState(null);
+  // Cambia la pestaña legacy activa y refleja el cambio en la URL con History API
+  // para que un refresh restaure la misma vista. Operaciones usa rutas reales,
+  // así que las pestañas con hijos se omiten a propósito aquí.
+  const changeTab=(id)=>{
+    setTab(id);
+    setEmbedUrl(null);
+    if(!TABS.some(t=>t.id===id&&!t.children))return;
+    const url=new URL(window.location.href);
+    if(id==="torre")url.searchParams.delete("tab");
+    else url.searchParams.set("tab",id);
+    const next=url.pathname+url.search+url.hash;
+    const current=window.location.pathname+window.location.search+window.location.hash;
+    if(next!==current)window.history.replaceState({tab:id},"",next);
+  };
   const [year,setYear]=useState(new Date().getFullYear());
   const [month,setMonth]=useState(new Date().getMonth());
   const [kpiData,setKpiData]=useState({});
@@ -3445,7 +3459,7 @@ function App(){
   const visibleMobileTabs=MOBILE_TABS.filter(t=>t&&(t.id!=="admin"||canManage));
   // If the user landed on a now-hidden tab, fall back to the default view.
   useEffect(()=>{
-    if(me&&!canManage&&tab==="admin")setTab("torre");
+    if(me&&!canManage&&tab==="admin")changeTab("torre");
   },[me,canManage,tab]);
 
   useEffect(()=>{
@@ -3830,7 +3844,7 @@ function App(){
                 );
               }
               return(
-                <button key={t.id} onClick={()=>{setTab(t.id);setEmbedUrl(null);}}
+                <button key={t.id} onClick={()=>changeTab(t.id)}
                   className={`sidebar-item${active?" active":""}`}
                   style={{width:"100%",textAlign:"left",background:active?BRAND+"18":"transparent",
                     border:"none",borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
@@ -3886,7 +3900,7 @@ function App(){
 
           {/* Mobile period bar */}
           <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
-            {tab!=="control"&&<button onClick={()=>{setTab("control");setEmbedUrl(null);}} style={{
+            {tab!=="control"&&<button onClick={()=>changeTab("control")} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:9,padding:"8px 10px",
               fontSize:11,fontWeight:800,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
               Control Comercial
@@ -3968,7 +3982,7 @@ function App(){
                 );
               }
               return(
-                <button key={t.id} onClick={()=>{setTab(t.id);setEmbedUrl(null);}} style={{
+                <button key={t.id} onClick={()=>changeTab(t.id)} style={{
                   display:"flex",flexDirection:"column",alignItems:"center",gap:3,
                   background:"transparent",border:"none",cursor:"pointer",
                   padding:"6px 12px",borderRadius:10,minWidth:t.id==="control"?104:72,
