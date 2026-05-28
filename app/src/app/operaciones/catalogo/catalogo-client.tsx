@@ -1289,14 +1289,21 @@ function PaymentAccountForm({
             ))}
           </select>
         </Field>
-        <Field label="Moneda" required hint="Código ISO de 3 letras">
-          <input
+        <Field label="Moneda" required>
+          <select
             value={state.currency}
             onChange={(e) => update("currency", e.target.value)}
             required
-            maxLength={3}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase"
-          />
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="USD">USD</option>
+            <option value="COP">COP</option>
+            {state.currency &&
+              state.currency !== "USD" &&
+              state.currency !== "COP" && (
+                <option value={state.currency}>{state.currency}</option>
+              )}
+          </select>
         </Field>
         <Field label="Notas">
           <textarea
