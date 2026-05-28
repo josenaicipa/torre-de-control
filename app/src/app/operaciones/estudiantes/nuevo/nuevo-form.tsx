@@ -211,7 +211,7 @@ export function NuevoEstudianteForm({
       ...prev,
       productId: product.id,
       totalAmountUsd: String(toNum(product.basePriceUsd)),
-      currency: product.currency,
+      currency: "USD",
       hasInitialPayment: product.requiresInitialPayment
         ? true
         : prev.hasInitialPayment,
@@ -262,6 +262,14 @@ export function NuevoEstudianteForm({
   const requiresInitialPayment = selectedProduct?.requiresInitialPayment ?? false;
   const initialPaymentInNonUsd =
     sale.hasInitialPayment && sale.initialPaymentCurrency.toUpperCase() !== "USD";
+  const selectedPaymentAccount = paymentAccounts.find(
+    (a) => a.id === sale.paymentAccountId,
+  );
+  const accountCurrencyMismatch =
+    sale.hasInitialPayment &&
+    selectedPaymentAccount != null &&
+    selectedPaymentAccount.currency.toUpperCase() !==
+      sale.initialPaymentCurrency.toUpperCase();
   const needsInstallmentPlan =
     estimatedBalanceUsd > 0 && (selectedProduct?.allowsInstallments ?? true);
   const balanceWithoutInstallmentsAllowed =
@@ -612,44 +620,6 @@ export function NuevoEstudianteForm({
               </div>
 
               <div>
-                <div className="flex items-baseline justify-between gap-2">
-                  <label className="block text-sm font-medium text-slate-700">Cuenta receptora</label>
-                  <Link
-                    href="/operaciones/catalogo?tab=cuentas"
-                    target="_blank"
-                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-                  >
-                    + Crear cuenta receptora
-                  </Link>
-                </div>
-                <select
-                  value={sale.paymentAccountId}
-                  onChange={(e) => updateSale("paymentAccountId", e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">— Sin cuenta —</option>
-                  {paymentAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.displayName} ({a.currency})
-                    </option>
-                  ))}
-                </select>
-                {paymentAccounts.length === 0 && (
-                  <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                    Primero crea una cuenta receptora en{" "}
-                    <Link
-                      href="/operaciones/catalogo?tab=cuentas"
-                      target="_blank"
-                      className="font-medium underline hover:text-amber-900"
-                    >
-                      Catálogo
-                    </Link>
-                    .
-                  </p>
-                )}
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-slate-700">
                   Monto total USD <span className="text-rose-600">*</span>
                 </label>
@@ -662,25 +632,12 @@ export function NuevoEstudianteForm({
                   required={sellNow}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
-                {selectedProduct && (
-                  <span className="mt-1 block text-xs text-slate-500">
-                    Precio base del producto: {formatUsd(selectedProduct.basePriceUsd)} (editable)
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700">Moneda de inscripción</label>
-                <select
-                  value={sale.currency}
-                  onChange={(e) => updateSale("currency", e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="USD">USD</option>
-                  <option value="COP">COP</option>
-                  <option value="MXN">MXN</option>
-                  <option value="EUR">EUR</option>
-                </select>
+                <span className="mt-1 block text-xs text-slate-500">
+                  La inscripción se registra en USD.
+                  {selectedProduct
+                    ? ` Precio base del producto: ${formatUsd(selectedProduct.basePriceUsd)} (editable).`
+                    : ""}
+                </span>
               </div>
             </div>
 
@@ -717,6 +674,52 @@ export function NuevoEstudianteForm({
 
               {sale.hasInitialPayment && (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <label className="block text-sm font-medium text-slate-700">
+                        Cuenta receptora <span className="text-rose-600">*</span>
+                      </label>
+                      <Link
+                        href="/operaciones/catalogo?tab=cuentas"
+                        target="_blank"
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                      >
+                        + Crear cuenta receptora
+                      </Link>
+                    </div>
+                    <select
+                      value={sale.paymentAccountId}
+                      onChange={(e) => updateSale("paymentAccountId", e.target.value)}
+                      required={sale.hasInitialPayment}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">— Selecciona —</option>
+                      {paymentAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.displayName} ({a.currency})
+                        </option>
+                      ))}
+                    </select>
+                    {paymentAccounts.length === 0 && (
+                      <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                        Primero crea una cuenta receptora en{" "}
+                        <Link
+                          href="/operaciones/catalogo?tab=cuentas"
+                          target="_blank"
+                          className="font-medium underline hover:text-amber-900"
+                        >
+                          Catálogo
+                        </Link>
+                        .
+                      </p>
+                    )}
+                    {accountCurrencyMismatch && (
+                      <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                        La moneda de la cuenta no coincide con la moneda del pago. Verifica antes de guardar.
+                      </p>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700">
                       Monto <span className="text-rose-600">*</span>
