@@ -5,11 +5,14 @@ name: Deploy Torre de Control (ECS/Fargate)
 # stack itself is provisioned out-of-band with elevated AWS permissions via
 # scripts/aws/deploy-ecs-fargate-stack.sh.
 #
-# Manual-only until the control.unlockedecom.co cutover is explicit: this runs
-# on workflow_dispatch only (no push trigger) so merges to main don't auto-deploy
-# to ECS. Re-add a `push` trigger here once cutover is confirmed.
+# Normal deploy path is a push to `main`, which uses the env fallbacks below
+# (stack `torre-de-control-v2-ecs` in `us-east-1`). Manual `workflow_dispatch`
+# remains available for ad-hoc runs against a different stack or region.
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       stack_name:
