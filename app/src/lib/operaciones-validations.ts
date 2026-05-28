@@ -233,10 +233,15 @@ export const listCatalogActiveQuerySchema = z.object({
 
 export type ListCatalogActiveQuery = z.infer<typeof listCatalogActiveQuerySchema>;
 
+// PaymentAccount inputs are controlled: the titular comes from the User table
+// (`ownerUserId`) and the provider from the PaymentProvider catalog
+// (`paymentProviderId`). `ownerName` / `providerName` are server-derived
+// snapshots of the canonical row at write time, so the API layer never
+// accepts them from the client.
 export const createPaymentAccountSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
-  ownerName: z.string().trim().max(200).optional().nullable(),
-  providerName: z.string().trim().max(120).optional().nullable(),
+  ownerUserId: z.string().cuid(),
+  paymentProviderId: z.string().cuid(),
   currency: z.string().length(3).default("USD"),
   isActive: z.boolean().default(true),
   notes: z.string().max(2000).optional().nullable(),
@@ -246,8 +251,8 @@ export const createPaymentAccountSchema = z.object({
 // reflects only the fields the caller sent.
 export const updatePaymentAccountSchema = z.object({
   displayName: z.string().trim().min(1).max(120).optional(),
-  ownerName: z.string().trim().max(200).optional().nullable(),
-  providerName: z.string().trim().max(120).optional().nullable(),
+  ownerUserId: z.string().cuid().optional(),
+  paymentProviderId: z.string().cuid().optional(),
   currency: z.string().length(3).optional(),
   isActive: z.boolean().optional(),
   notes: z.string().max(2000).optional().nullable(),
@@ -255,6 +260,21 @@ export const updatePaymentAccountSchema = z.object({
 
 export type CreatePaymentAccountInput = z.infer<typeof createPaymentAccountSchema>;
 export type UpdatePaymentAccountInput = z.infer<typeof updatePaymentAccountSchema>;
+
+export const createPaymentProviderSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  type: z.string().trim().max(40).default("OTHER"),
+  isActive: z.boolean().default(true),
+});
+
+export const updatePaymentProviderSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  type: z.string().trim().max(40).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type CreatePaymentProviderInput = z.infer<typeof createPaymentProviderSchema>;
+export type UpdatePaymentProviderInput = z.infer<typeof updatePaymentProviderSchema>;
 
 export const createStudentTagSchema = z.object({
   name: z.string().trim().min(1).max(120),

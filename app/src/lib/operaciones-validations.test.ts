@@ -314,27 +314,40 @@ describe("updateProductSchema", () => {
 });
 
 describe("createPaymentAccountSchema", () => {
-  it("requires displayName and defaults to USD/active", () => {
+  const validOwnerId = "cmav9cy3g000008l22towner1";
+  const validProviderId = "cmav9cy3g000008l22tprov1";
+
+  it("requires controlled owner + provider and defaults to USD/active", () => {
     const parsed = createPaymentAccountSchema.parse({
       displayName: "Stripe US",
+      ownerUserId: validOwnerId,
+      paymentProviderId: validProviderId,
     });
     expect(parsed.currency).toBe("USD");
     expect(parsed.isActive).toBe(true);
+    expect(parsed.ownerUserId).toBe(validOwnerId);
+    expect(parsed.paymentProviderId).toBe(validProviderId);
   });
 
-  it("accepts optional ownerName and providerName", () => {
-    const parsed = createPaymentAccountSchema.parse({
-      displayName: "Hotmart BR",
-      ownerName: "Unlocked Academy LLC",
-      providerName: "Hotmart",
-      currency: "BRL",
-    });
-    expect(parsed.ownerName).toBe("Unlocked Academy LLC");
-    expect(parsed.providerName).toBe("Hotmart");
+  it("rejects missing ownerUserId and/or paymentProviderId", () => {
+    expect(
+      createPaymentAccountSchema.safeParse({ displayName: "Stripe US" }).success,
+    ).toBe(false);
+    expect(
+      createPaymentAccountSchema.safeParse({
+        displayName: "Stripe US",
+        ownerUserId: validOwnerId,
+      }).success,
+    ).toBe(false);
   });
 
-  it("rejects missing displayName", () => {
-    expect(createPaymentAccountSchema.safeParse({}).success).toBe(false);
+  it("rejects missing displayName even with owner/provider set", () => {
+    expect(
+      createPaymentAccountSchema.safeParse({
+        ownerUserId: validOwnerId,
+        paymentProviderId: validProviderId,
+      }).success,
+    ).toBe(false);
   });
 });
 

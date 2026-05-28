@@ -109,6 +109,7 @@ model User {
   studentsAsMentor     Student[]                @relation("StudentMentor")
   progressAsMentor     ProgressUpdate[]         @relation("ProgressMentor")
   studentsAsCloser     Student[]                @relation("StudentCloser")
+  paymentAccountsOwned PaymentAccount[]         @relation("PaymentAccountOwner")
 
   @@index([role])
   @@index([position])
@@ -814,23 +815,49 @@ model StudentProductEnrollment {
 // Where money actually lands (Stripe US, Hotmart BR, Wise EUR, etc.). Keeping
 // the account separate from currency lets us track multi-currency processors.
 //
-// `ownerName` is the legal entity that holds the account (used on invoices
-// and conciliation); `providerName` is the processor brand ("Stripe",
-// "Hotmart", "Wise"); `displayName` is the short label the UI shows in
-// pickers and reports and is unique.
+// `ownerUserId` is the canonical link to the User who holds the account;
+// `ownerName` mirrors the user's name at creation time as a denormalized
+// label that survives user renames and stays useful when the owner row is
+// nulled out. Same idea for `paymentProviderId`/`providerName`. The UI
+// (Catálogo · Cuentas receptoras) only accepts the controlled FKs; the
+// strings stay so legacy rows and reports keep rendering.
 model PaymentAccount {
-  id           String   @id @default(cuid())
-  displayName  String   @unique
-  ownerName    String?
-  providerName String?
-  currency     String   @default("USD")
-  isActive     Boolean  @default(true)
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String           @id @default(cuid())
+  displayName       String           @unique
+  ownerUserId       String?
+  ownerUser         User?            @relation("PaymentAccountOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  ownerName         String?
+  paymentProviderId String?
+  paymentProvider   PaymentProvider? @relation(fields: [paymentProviderId], references: [id], onDelete: SetNull)
+  providerName      String?
+  currency          String           @default("USD")
+  isActive          Boolean          @default(true)
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   payments    Payment[]
   enrollments StudentProductEnrollment[]
+
+  @@index([isActive])
+  @@index([ownerUserId])
+  @@index([paymentProviderId])
+}
+
+// Controlled catalog of payment processors / banks / wallets (Davivienda,
+// Nequi, Bancolombia, Stripe, Wise, Hotmart, …). Replaces the free-text
+// `providerName` on PaymentAccount with a picker-friendly catalog the
+// Catálogo tab manages. `type` is a free-form coarse classification (BANK /
+// WALLET / PROCESSOR / OTHER) that we keep as string for forward-compat.
+model PaymentProvider {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      String   @default("OTHER")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts PaymentAccount[]
 
   @@index([isActive])
 }

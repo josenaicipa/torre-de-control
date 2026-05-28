@@ -5,7 +5,7 @@ import {
   requireActor,
   requireOperatorOrAdmin,
 } from "@/lib/actor";
-import { handleApiError } from "@/lib/api-helpers";
+import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
 import {
   createPaymentAccountSchema,
@@ -31,6 +31,10 @@ export async function GET(req: Request) {
     const paymentAccounts = await prisma.paymentAccount.findMany({
       where: where as never,
       orderBy: { displayName: "asc" },
+      include: {
+        ownerUser: { select: { id: true, name: true, email: true } },
+        paymentProvider: { select: { id: true, name: true, type: true } },
+      },
     });
 
     return NextResponse.json({ paymentAccounts });
@@ -46,14 +50,36 @@ export async function POST(req: Request) {
     requireOperatorOrAdmin(actor);
     const body = createPaymentAccountSchema.parse(await req.json());
 
+    const [ownerUser, provider] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: body.ownerUserId },
+        select: { id: true, name: true, email: true },
+      }),
+      prisma.paymentProvider.findUnique({
+        where: { id: body.paymentProviderId },
+        select: { id: true, name: true, isActive: true },
+      }),
+    ]);
+    if (!ownerUser) return jsonError(400, "Titular (usuario) no encontrado");
+    if (!provider) return jsonError(400, "Proveedor no encontrado");
+    if (!provider.isActive) {
+      return jsonError(400, "El proveedor seleccionado está inactivo");
+    }
+
     const paymentAccount = await prisma.paymentAccount.create({
       data: {
         displayName: body.displayName,
-        ownerName: body.ownerName ?? null,
-        providerName: body.providerName ?? null,
+        ownerUserId: ownerUser.id,
+        ownerName: ownerUser.name ?? ownerUser.email,
+        paymentProviderId: provider.id,
+        providerName: provider.name,
         currency: body.currency,
         isActive: body.isActive,
         notes: body.notes ?? null,
+      },
+      include: {
+        ownerUser: { select: { id: true, name: true, email: true } },
+        paymentProvider: { select: { id: true, name: true, type: true } },
       },
     });
 
@@ -64,6 +90,8 @@ export async function POST(req: Request) {
       metadata: {
         displayName: paymentAccount.displayName,
         currency: paymentAccount.currency,
+        ownerUserId: paymentAccount.ownerUserId,
+        paymentProviderId: paymentAccount.paymentProviderId,
       },
     });
 
