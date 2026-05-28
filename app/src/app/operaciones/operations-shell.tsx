@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 interface OperationsNavItem {
   href: string;
@@ -108,6 +109,7 @@ export function OperationsShell({
   navItems,
 }: OperationsShellProps) {
   const pathname = usePathname();
+  const [operationsExpanded, setOperationsExpanded] = useState(true);
   const operationItems = navItems.filter(
     (item) => item.href !== "/admin/users" && item.href !== "/operaciones/mis-estudiantes",
   );
@@ -179,7 +181,10 @@ export function OperationsShell({
           ))}
 
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <div
+            <button
+              type="button"
+              onClick={() => setOperationsExpanded((prev) => !prev)}
+              aria-expanded={operationsExpanded}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -187,24 +192,32 @@ export function OperationsShell({
                 padding: "8px 16px",
                 backgroundColor: operationsActive ? "rgba(224, 58, 24, 0.10)" : "transparent",
                 borderLeft: operationsActive ? `2px solid ${BRAND}` : "2px solid transparent",
+                borderTop: "none",
+                borderRight: "none",
+                borderBottom: "none",
                 color: operationsActive ? BRAND : TXT2,
                 fontSize: 14,
                 fontWeight: operationsActive ? 700 : 500,
+                cursor: "pointer",
+                textAlign: "left",
+                width: "100%",
+                fontFamily: "inherit",
               }}
             >
               <Briefcase size={15} color={operationsActive ? BRAND : TXT3} />
               <span style={{ flex: 1 }}>Operaciones</span>
-              <span style={{ fontSize: 10, opacity: 0.6 }}>▼</span>
-            </div>
-            {operationItems.map((item) => (
-              <SidebarItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                active={isActive(pathname, item.href)}
-                isSubitem
-              />
-            ))}
+              <span style={{ fontSize: 10, opacity: 0.6 }}>{operationsExpanded ? "▼" : "▶"}</span>
+            </button>
+            {operationsExpanded &&
+              operationItems.map((item) => (
+                <SidebarItem
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  active={isActive(pathname, item.href)}
+                  isSubitem
+                />
+              ))}
           </div>
 
           {actor.role === "MENTOR" && (

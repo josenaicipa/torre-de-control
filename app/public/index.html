@@ -3817,18 +3817,17 @@ function App(){
                     {expanded&&t.children.map(c=>{
                       const subActive=embedUrl===c.href;
                       return(
-                        <button key={c.id}
-                          onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");}}
+                        <a key={c.id} href={c.href}
                           style={{padding:"7px 12px 7px 37px",fontSize:12,
                             color:subActive?BRAND:TXT2,
                             background:subActive?BRAND+"18":"transparent",
                             fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,
-                            border:"none",cursor:"pointer",textAlign:"left",width:"100%",
+                            textDecoration:"none",textAlign:"left",width:"100%",
                             display:"block",borderRadius:"0 9px 9px 0"}}
                           onMouseEnter={e=>{if(!subActive)e.currentTarget.style.background=BRAND+"10";}}
                           onMouseLeave={e=>{if(!subActive)e.currentTarget.style.background="transparent";}}>
                           {c.l}
-                        </button>
+                        </a>
                       );
                     })}
                   </div>
