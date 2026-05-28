@@ -821,6 +821,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const day=isPast?dm:isFuture?0:Math.min(nv(cfg.day)||_curD,dm);
 
   const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
+  const totalRecurring=sumF(closerEntries,"recurring_cash");
 
   // Cash Collected from the payment ledger is authoritative when present; otherwise
   // we fall back to the legacy closer-entered totals so default behavior is unchanged.
@@ -839,10 +840,15 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const ticketProm=totalVentas>0?totalValor/totalVentas:0;
   const pctTranscurrido=dm>0?day/dm:0;
   const metaEsperadaHoy=metaMensual*pctTranscurrido;
-  const gapVsRitmo=dispCash-metaEsperadaHoy;
+  // Cash Total = Cash Low Ticket + Ventas $ (cash cobrado) + Recurring Cash.
+  const cashTotal=dispLowT+dispCash+totalRecurring;
+  // Ventas reales acumuladas = Valor Total Venta (comprometido) + Cash Low Ticket.
+  // Past months stay anchored to the realized cash so closed history is not retold.
+  const ventasRealesAcum=isPast?dispCash:totalValor+dispLowT;
+  const gapVsRitmo=ventasRealesAcum-metaEsperadaHoy;
   // Only the current month projects forward — past months are closed and
   // future months must not fabricate progress.
-  const proyeccion=isCurrent&&day>0&&dispCash>0?(dispCash/day)*dm:null;
+  const proyeccion=isCurrent&&day>0&&ventasRealesAcum>0?(ventasRealesAcum/day)*dm:null;
   const pctCumpl=pv(dispCash,metaMensual);
 
   const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
@@ -901,19 +907,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
         </div>
         <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-          <div onClick={cashApi?()=>openDrill("High Ticket","highTicket"):undefined}
-            role={cashApi?"button":undefined} tabIndex={cashApi?0:undefined}
-            onKeyDown={cashApi?(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDrill("High Ticket","highTicket");}}:undefined}
-            style={{textAlign:"center",cursor:cashApi?"pointer":"default"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Upfront Cash{cashApi?" ›":""}</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fbbf24",fontFamily:"'DM Mono',monospace"}}>{fD(dispHighT)}</div>
-          </div>
-          <div onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):undefined}
-            role={cashApi?"button":undefined} tabIndex={cashApi?0:undefined}
-            onKeyDown={cashApi?(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDrill("Cash Low Ticket","lowTicket");}}:undefined}
-            style={{textAlign:"center",cursor:cashApi?"pointer":"default"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Low Ticket{cashApi?" ›":""}</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(dispLowT)}</div>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Cash Total</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(cashTotal)}</div>
           </div>
           <div style={{textAlign:"center"}}>
             <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
@@ -999,7 +995,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
           <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
           <Row2 label="Ventas $ (cash cobrado)" value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
-          <Row2 label="Upfront Cash HT" value={fD(dispHighT)} color={C.green} onClick={cashApi?()=>openDrill("High Ticket","highTicket"):null}/>
+          <Row2 label="Recurring Cash" value={fD(totalRecurring)} color={C.purple}/>
           <Row2 label="Cash Low Ticket" value={fD(dispLowT)} color={C.teal} onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):null}/>
           {cashApi&&<Row2 label="Reservas (cash)" value={fD(dispReservas)} color={C.amber} onClick={()=>openDrill("Reservas","reservas")}/>}
           <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
@@ -1023,7 +1019,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
           <Row2 label={isCurrent?"Meta esperada a hoy ($)":isPast?"Meta total del mes ($)":"Meta esperada al cierre ($)"} value={fD(metaEsperadaHoy)} bold/>
-          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
           <Row2 label={isPast?"Gap vs meta ($)":"Gap vs ritmo ($)"} value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
         </div>
 
