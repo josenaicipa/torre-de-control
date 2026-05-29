@@ -843,7 +843,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   // we fall back to the legacy closer-entered totals so default behavior is unchanged.
   const cashApi=cash&&cash.available&&cash.totals?cash.totals:null;
   const cashGroups=(cash&&cash.groups)||{};
-  const dispCash=cashApi?cashApi.cashCollected:totalCash;
+  const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;
   const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;
   const dispHighT=cashApi?cashApi.highTicket:totalUpfront;
   const dispReservas=cashApi?cashApi.reservas:totalReservasManual;
