@@ -1036,9 +1036,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <Row2 label="Cash Low Ticket" value={fD(dispLowT)} color={C.teal} onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):null}/>
           {cashApi&&<Row2 label="Reservas (cash)" value={fD(dispReservas)} color={C.amber} onClick={()=>openDrill("Reservas","reservas")}/>}
           <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
+          <Row2 label="Citas Show Up (asistidas)" value={fN(totalAsistidas)}/>
           <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
           <Row2 label="Citas agendadas reales" value={fN(totalAgendas)}/>
-          <Row2 label="Citas Show Up (asistidas)" value={fN(totalAsistidas)}/>
           <Row2 label="Ticket promedio (comprometido)" value={fD(ticketProm)} bold/>
           <Row2 label="Close rate real" value={fP(closeRateReal)} bold color={cH(closeRateReal,closeRateMeta*0.9,closeRateMeta*0.7)}/>
         </div>

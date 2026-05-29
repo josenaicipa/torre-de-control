@@ -40,4 +40,15 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('{l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
     expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
   });
+
+  it("orders Torre CEO execution metrics as sales, show ups, qualified leads, then scheduled calls", () => {
+    const realidadBlock = html.slice(
+      html.indexOf('<SectionTitle>Realidad del mes (ejecución)</SectionTitle>'),
+      html.indexOf('<Row2 label="Ticket promedio (comprometido)"')
+    );
+
+    expect(realidadBlock).toMatch(
+      /<Row2 label="Ventas reales \(unidades\)"[\s\S]*<Row2 label="Citas Show Up \(asistidas\)"[\s\S]*<Row2 label="Leads calificados reales"[\s\S]*<Row2 label="Citas agendadas reales"/
+    );
+  });
 });
