@@ -1,6 +1,7 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   computeStudentFinanceTotals,
@@ -15,6 +16,13 @@ interface Schedule {
   currency: string;
   dueDate: string;
   status: string;
+}
+
+interface PaymentAccount {
+  id: string;
+  displayName: string;
+  currency: string;
+  isActive: boolean;
 }
 
 interface Payment {
@@ -89,6 +97,7 @@ export function PagosTab({
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [enrollments, setEnrollments] = useState<EnrollmentSummary[]>([]);
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
@@ -101,21 +110,30 @@ export function PagosTab({
     setLoading(true);
     setLoadError(null);
     try {
-      const [schedulesResponse, paymentsResponse, productsResponse] = await Promise.all([
-        fetch(`/api/operaciones/students/${studentId}/schedule`),
-        fetch(`/api/operaciones/students/${studentId}/payments`),
-        fetch(`/api/operaciones/students/${studentId}/products`),
-      ]);
-      const [scheduleJson, paymentJson, productsJson] = await Promise.all([
+      const [schedulesResponse, paymentsResponse, productsResponse, accountsResponse] =
+        await Promise.all([
+          fetch(`/api/operaciones/students/${studentId}/schedule`),
+          fetch(`/api/operaciones/students/${studentId}/payments`),
+          fetch(`/api/operaciones/students/${studentId}/products`),
+          fetch(`/api/operaciones/payment-accounts?active=true`),
+        ]);
+      const [scheduleJson, paymentJson, productsJson, accountsJson] = await Promise.all([
         schedulesResponse.json(),
         paymentsResponse.json(),
         productsResponse.json(),
+        accountsResponse.json(),
       ]);
-      if (!schedulesResponse.ok || !paymentsResponse.ok || !productsResponse.ok) {
+      if (
+        !schedulesResponse.ok ||
+        !paymentsResponse.ok ||
+        !productsResponse.ok ||
+        !accountsResponse.ok
+      ) {
         setLoadError(
           scheduleJson.error ??
             paymentJson.error ??
             productsJson.error ??
+            accountsJson.error ??
             "No se pudieron cargar los pagos",
         );
         return;
@@ -123,6 +141,7 @@ export function PagosTab({
       setSchedules(scheduleJson.schedules ?? []);
       setPayments(paymentJson.payments ?? []);
       setEnrollments(productsJson.enrollments ?? []);
+      setPaymentAccounts(accountsJson.paymentAccounts ?? []);
     } catch {
       setLoadError("No se pudieron cargar los pagos");
     } finally {
@@ -403,6 +422,7 @@ export function PagosTab({
               ? "USD"
               : schedules.find((schedule) => schedule.id === showPaymentForm)?.currency ?? "USD"
           }
+          paymentAccounts={paymentAccounts}
           onClose={() => setShowPaymentForm(null)}
           onSaved={() => {
             setShowPaymentForm(null);
@@ -440,6 +460,7 @@ export function PagosTab({
           payment={payments.find((payment) => payment.id === editPaymentId)!}
           studentId={studentId}
           schedules={schedules}
+          paymentAccounts={paymentAccounts}
           onClose={() => setEditPaymentId(null)}
           onSaved={() => {
             setEditPaymentId(null);
@@ -517,17 +538,20 @@ function PaymentDialog({
   studentId,
   scheduleId,
   currency,
+  paymentAccounts,
   onClose,
   onSaved,
 }: {
   studentId: string;
   scheduleId: string | null;
   currency: string;
+  paymentAccounts: PaymentAccount[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const activeAccounts = paymentAccounts.filter((account) => account.isActive);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -542,6 +566,7 @@ function PaymentDialog({
         currency: String(formData.get("currency")),
         paidAt: String(formData.get("paidAt")),
         notes: (formData.get("notes") as string) || null,
+        paymentAccountId: String(formData.get("paymentAccountId")),
         scheduleId,
       }),
     });
@@ -561,6 +586,29 @@ function PaymentDialog({
           <input name="amount" type="number" step="0.01" min="0.01" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </Field>
         <CurrencySelect defaultCurrency={currency} locked={scheduleId !== null} />
+        <Field label="Cuenta receptora">
+          {activeAccounts.length === 0 ? (
+            <p className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              No hay cuentas receptoras activas. Configurá una en Operaciones &gt; Cuentas.
+            </p>
+          ) : (
+            <select
+              name="paymentAccountId"
+              required
+              defaultValue=""
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                Seleccioná una cuenta
+              </option>
+              {activeAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.displayName} ({account.currency})
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
         <Field label="Fecha del pago">
           <input name="paidAt" type="date" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </Field>
@@ -705,17 +753,23 @@ function EditPaymentDialog({
   payment,
   studentId,
   schedules,
+  paymentAccounts,
   onClose,
   onSaved,
 }: {
   payment: Payment;
   studentId: string;
   schedules: Schedule[];
+  paymentAccounts: PaymentAccount[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const currentAccountId = payment.paymentAccount?.id ?? "";
+  const accountOptions = paymentAccounts.filter(
+    (account) => account.isActive || account.id === currentAccountId,
+  );
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -723,6 +777,7 @@ function EditPaymentDialog({
     setError(null);
     const formData = new FormData(event.currentTarget);
     const scheduleId = String(formData.get("scheduleId") ?? "") || null;
+    const selectedAccount = String(formData.get("paymentAccountId") ?? "");
     try {
       const response = await fetch(
         `/api/operaciones/students/${studentId}/payments/${payment.id}`,
@@ -734,6 +789,7 @@ function EditPaymentDialog({
             currency: String(formData.get("currency")),
             paidAt: String(formData.get("paidAt")),
             notes: (formData.get("notes") as string) || null,
+            paymentAccountId: selectedAccount || null,
             scheduleId,
           }),
         },
@@ -766,6 +822,27 @@ function EditPaymentDialog({
           />
         </Field>
         <CurrencySelect defaultCurrency={payment.currency} />
+        <Field label="Cuenta receptora">
+          {accountOptions.length === 0 ? (
+            <p className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              No hay cuentas receptoras disponibles.
+            </p>
+          ) : (
+            <select
+              name="paymentAccountId"
+              defaultValue={currentAccountId}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">Sin cuenta</option>
+              {accountOptions.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.displayName} ({account.currency})
+                  {!account.isActive ? " — inactiva" : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
         <Field label="Fecha del pago">
           <input
             name="paidAt"
