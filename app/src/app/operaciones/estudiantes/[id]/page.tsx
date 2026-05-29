@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getActor } from "@/lib/actor";
 import { canAccessStudent } from "@/lib/access";
+import { isStudentPending } from "@/lib/student-payments-finance";
 import { AvancesTab } from "./avances-tab";
 import { PagosTab } from "./pagos-tab";
 import { MetricasTab } from "./metricas-tab";
@@ -50,6 +51,13 @@ export default async function StudentDetailPage({
       mentorUser: { select: { id: true, name: true, email: true } },
       closerUser: { select: { id: true, name: true, email: true } },
       members: true,
+      enrollments: {
+        select: {
+          status: true,
+          accessStatus: true,
+          payments: { select: { initialPaymentType: true } },
+        },
+      },
       _count: {
         select: {
           paymentSchedules: true,
@@ -80,8 +88,17 @@ export default async function StudentDetailPage({
           <p className="text-sm text-slate-500">{student.email}</p>
         </div>
         <div className="text-right text-sm text-slate-600">
-          <p>Inicio: {student.startDate.toISOString().slice(0, 10)}</p>
-          <p>Fin: {student.endDate.toISOString().slice(0, 10)}</p>
+          {isStudentPending(student.enrollments) ? (
+            <>
+              <p>Inicio: Pendiente</p>
+              <p>Fin: Pendiente</p>
+            </>
+          ) : (
+            <>
+              <p>Inicio: {student.startDate.toISOString().slice(0, 10)}</p>
+              <p>Fin: {student.endDate.toISOString().slice(0, 10)}</p>
+            </>
+          )}
           <p className="mt-1">Mentor: {student.mentorUser?.name ?? student.mentorUser?.email ?? "—"}</p>
         </div>
       </div>

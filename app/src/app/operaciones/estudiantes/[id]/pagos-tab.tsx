@@ -2,6 +2,10 @@
 
 import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import {
+  computeStudentFinanceTotals,
+  paymentUsdValue,
+} from "@/lib/student-payments-finance";
 
 interface Schedule {
   id: string;
@@ -21,16 +25,32 @@ interface Payment {
   method: string | null;
   reference: string | null;
   notes: string | null;
+  officialAmountUsd: string | number | null;
+  receivedAmount: string | number | null;
+  receivedCurrency: string | null;
   schedule: { id: string; installmentNumber: number } | null;
   recordedBy: { id: string; name: string | null; email: string } | null;
 }
 
-function toNum(value: string | number): number {
+interface EnrollmentSummary {
+  totalAmountUsd: string | number;
+  balanceUsd: string | number | null;
+}
+
+function toNum(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
   return typeof value === "number" ? value : Number.parseFloat(value);
 }
 
 function formatMoney(value: string | number, currency: string): string {
   return `${currency} $${toNum(value).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatUsd(value: number): string {
+  return `USD $${value.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -61,6 +81,7 @@ export function PagosTab({
 }) {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [enrollments, setEnrollments] = useState<EnrollmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
@@ -73,20 +94,28 @@ export function PagosTab({
     setLoading(true);
     setLoadError(null);
     try {
-      const [schedulesResponse, paymentsResponse] = await Promise.all([
+      const [schedulesResponse, paymentsResponse, productsResponse] = await Promise.all([
         fetch(`/api/operaciones/students/${studentId}/schedule`),
         fetch(`/api/operaciones/students/${studentId}/payments`),
+        fetch(`/api/operaciones/students/${studentId}/products`),
       ]);
-      const [scheduleJson, paymentJson] = await Promise.all([
+      const [scheduleJson, paymentJson, productsJson] = await Promise.all([
         schedulesResponse.json(),
         paymentsResponse.json(),
+        productsResponse.json(),
       ]);
-      if (!schedulesResponse.ok || !paymentsResponse.ok) {
-        setLoadError(scheduleJson.error ?? paymentJson.error ?? "No se pudieron cargar los pagos");
+      if (!schedulesResponse.ok || !paymentsResponse.ok || !productsResponse.ok) {
+        setLoadError(
+          scheduleJson.error ??
+            paymentJson.error ??
+            productsJson.error ??
+            "No se pudieron cargar los pagos",
+        );
         return;
       }
       setSchedules(scheduleJson.schedules ?? []);
       setPayments(paymentJson.payments ?? []);
+      setEnrollments(productsJson.enrollments ?? []);
     } catch {
       setLoadError("No se pudieron cargar los pagos");
     } finally {
@@ -131,62 +160,22 @@ export function PagosTab({
   if (loading) return <p className="text-sm text-slate-500">Cargando pagos...</p>;
   if (loadError) return <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{loadError}</p>;
 
-  const programByCurrency: Record<string, number> = {};
-  for (const schedule of schedules) {
-    programByCurrency[schedule.currency] =
-      (programByCurrency[schedule.currency] ?? 0) + toNum(schedule.amountDue);
-  }
-
-  // Every Payment is money received, whether it was assigned to an installment or not.
-  const paidByCurrency: Record<string, number> = {};
-  for (const payment of payments) {
-    paidByCurrency[payment.currency] =
-      (paidByCurrency[payment.currency] ?? 0) + toNum(payment.amount);
-  }
-
-  const currencies = new Set([
-    ...Object.keys(programByCurrency),
-    ...Object.keys(paidByCurrency),
-  ]);
-  const displayedTotals = Array.from(currencies, (currency) => ({
-    currency,
-    due: programByCurrency[currency] ?? 0,
-    paid: paidByCurrency[currency] ?? 0,
-    balance: Math.max(
-      0,
-      (programByCurrency[currency] ?? 0) - (paidByCurrency[currency] ?? 0),
-    ),
-  }));
-  if (displayedTotals.length === 0) {
-    displayedTotals.push({ currency: "USD", due: 0, paid: 0, balance: 0 });
-  }
+  const totals = computeStudentFinanceTotals(enrollments, payments);
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Total programa</p>
-          {displayedTotals.map((total) => (
-            <p key={total.currency} className="mt-1 text-xl font-bold text-slate-900">
-              {formatMoney(total.due, total.currency)}
-            </p>
-          ))}
+          <p className="mt-1 text-xl font-bold text-slate-900">{formatUsd(totals.totalUsd)}</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Pagado</p>
-          {displayedTotals.map((total) => (
-            <p key={total.currency} className="mt-1 text-xl font-bold text-emerald-700">
-              {formatMoney(total.paid, total.currency)}
-            </p>
-          ))}
+          <p className="mt-1 text-xl font-bold text-emerald-700">{formatUsd(totals.paidUsd)}</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-4">
           <p className="text-xs text-slate-500">Saldo pendiente</p>
-          {displayedTotals.map((total) => (
-            <p key={total.currency} className="mt-1 text-xl font-bold text-rose-700">
-              {formatMoney(total.balance, total.currency)}
-            </p>
-          ))}
+          <p className="mt-1 text-xl font-bold text-rose-700">{formatUsd(totals.balanceUsd)}</p>
         </div>
       </div>
 
@@ -316,11 +305,29 @@ export function PagosTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {payments.map((payment) => (
+                {payments.map((payment) => {
+                  const usd = paymentUsdValue(payment);
+                  const hasReceivedDetail =
+                    payment.receivedAmount != null &&
+                    payment.receivedCurrency != null &&
+                    payment.receivedCurrency.toUpperCase() !== "USD";
+                  const showOriginalCurrencyDetail =
+                    !hasReceivedDetail && payment.currency.toUpperCase() !== "USD";
+                  return (
                   <tr key={payment.id}>
                     <td className="px-3 py-2 text-sm text-slate-600">{payment.paidAt.slice(0, 10)}</td>
                     <td className="px-3 py-2 text-sm font-medium">
-                      {formatMoney(payment.amount, payment.currency)}
+                      <div>{formatUsd(usd)}</div>
+                      {hasReceivedDetail && (
+                        <div className="text-xs font-normal text-slate-500">
+                          Recibido: {formatMoney(payment.receivedAmount!, payment.receivedCurrency!)}
+                        </div>
+                      )}
+                      {showOriginalCurrencyDetail && (
+                        <div className="text-xs font-normal text-slate-500">
+                          Recibido: {formatMoney(payment.amount, payment.currency)}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-sm text-slate-600">{payment.method ?? "—"}</td>
                     <td className="px-3 py-2 text-sm text-slate-600">{payment.reference ?? "—"}</td>
@@ -355,7 +362,8 @@ export function PagosTab({
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
