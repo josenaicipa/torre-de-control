@@ -328,9 +328,17 @@ export function NuevoEstudianteForm({
   const requiresInitialPayment = selectedProduct?.requiresInitialPayment ?? false;
   const initialPaymentInNonUsd =
     sale.hasInitialPayment && sale.initialPaymentCurrency.toUpperCase() !== "USD";
+  // El plan de cuotas solo aplica cuando el pago inicial es de tipo
+  // "Pago inicial" (DOWN_PAYMENT). En reservas o pagos totales no debe
+  // mostrarse ni exigirse — esos flujos liquidan el saldo por fuera.
+  const showInstallmentSection =
+    sale.hasInitialPayment && sale.initialPaymentType === "DOWN_PAYMENT";
   const needsInstallmentPlan =
-    estimatedBalanceUsd > 0 && (selectedProduct?.allowsInstallments ?? true);
+    showInstallmentSection &&
+    estimatedBalanceUsd > 0 &&
+    (selectedProduct?.allowsInstallments ?? true);
   const balanceWithoutInstallmentsAllowed =
+    showInstallmentSection &&
     estimatedBalanceUsd > 0 &&
     selectedProduct != null &&
     !selectedProduct.allowsInstallments;
@@ -397,6 +405,8 @@ export function NuevoEstudianteForm({
     };
     if (sale.endsAt) body.endsAt = sale.endsAt;
     if (
+      sale.hasInitialPayment &&
+      sale.initialPaymentType === "DOWN_PAYMENT" &&
       estimatedBalanceUsd > 0 &&
       Number.isFinite(installmentCountNum) &&
       installmentCountNum > 0
@@ -790,7 +800,7 @@ export function NuevoEstudianteForm({
                       }
                       className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                     >
-                      <option value="DOWN_PAYMENT">Separado</option>
+                      <option value="DOWN_PAYMENT">Pago inicial</option>
                       <option value="FULL_PAYMENT">Pago total</option>
                       <option value="RESERVATION">Reserva</option>
                     </select>
@@ -882,61 +892,63 @@ export function NuevoEstudianteForm({
               )}
             </fieldset>
 
-            <fieldset className="rounded-md border border-slate-200 p-3">
-              <legend className="px-1 text-sm font-semibold text-slate-700">Plan de cuotas</legend>
-              {balanceWithoutInstallmentsAllowed ? (
-                <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                  Este producto no permite cuotas y el pago inicial no cubre el total. Ajusta el monto o
-                  cambia el producto.
-                </p>
-              ) : needsInstallmentPlan ? (
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      # cuotas <span className="text-rose-600">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="24"
-                      value={sale.installmentCount}
-                      onChange={(e) => updateSale("installmentCount", e.target.value)}
-                      required={needsInstallmentPlan}
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
+            {showInstallmentSection && (
+              <fieldset className="rounded-md border border-slate-200 p-3">
+                <legend className="px-1 text-sm font-semibold text-slate-700">Plan de cuotas</legend>
+                {balanceWithoutInstallmentsAllowed ? (
+                  <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    Este producto no permite cuotas y el pago inicial no cubre el total. Ajusta el monto o
+                    cambia el producto.
+                  </p>
+                ) : needsInstallmentPlan ? (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">
+                        # cuotas <span className="text-rose-600">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={sale.installmentCount}
+                        onChange={(e) => updateSale("installmentCount", e.target.value)}
+                        required={needsInstallmentPlan}
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">
+                        Primera fecha <span className="text-rose-600">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={sale.firstDueDate}
+                        onChange={(e) => updateSale("firstDueDate", e.target.value)}
+                        required={needsInstallmentPlan}
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">Frecuencia</label>
+                      <select
+                        value={sale.installmentFrequency}
+                        onChange={(e) =>
+                          updateSale("installmentFrequency", e.target.value as InstallmentFrequency)
+                        }
+                        className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      >
+                        <option value="monthly">Mensual</option>
+                        <option value="biweekly">Quincenal</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Primera fecha <span className="text-rose-600">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={sale.firstDueDate}
-                      onChange={(e) => updateSale("firstDueDate", e.target.value)}
-                      required={needsInstallmentPlan}
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">Frecuencia</label>
-                    <select
-                      value={sale.installmentFrequency}
-                      onChange={(e) =>
-                        updateSale("installmentFrequency", e.target.value as InstallmentFrequency)
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    >
-                      <option value="monthly">Mensual</option>
-                      <option value="biweekly">Quincenal</option>
-                    </select>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  Sin saldo restante: no se generarán cuotas.
-                </p>
-              )}
-            </fieldset>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    Sin saldo restante: no se generarán cuotas.
+                  </p>
+                )}
+              </fieldset>
+            )}
 
             <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
               <p>

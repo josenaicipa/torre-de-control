@@ -145,7 +145,7 @@ const SCHEDULE_STATUS_LABEL: Record<EnrollmentSchedule["status"], [string, strin
 
 const INITIAL_PAYMENT_TYPE_LABEL: Record<InitialPaymentType, string> = {
   FULL_PAYMENT: "Pago total",
-  DOWN_PAYMENT: "Separado",
+  DOWN_PAYMENT: "Pago inicial",
   RESERVATION: "Reserva",
 };
 
@@ -835,7 +835,7 @@ function SellProductForm({
                 }
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="DOWN_PAYMENT">Separado</option>
+                <option value="DOWN_PAYMENT">Pago inicial</option>
                 <option value="FULL_PAYMENT">Pago total</option>
                 <option value="RESERVATION">Reserva</option>
               </select>
