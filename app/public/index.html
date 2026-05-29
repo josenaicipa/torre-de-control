@@ -810,7 +810,10 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const totalValorHT=sumF(closerEntries,"valor_venta_ht");
   const totalValorLT=sumF(closerEntries,"valor_venta_lt");
   const totalReservasManual=sumF(closerEntries,"cash_reservas");
-  const totalValor=totalValorHT+totalValorLT;
+  // Keep Torre CEO's committed sales total aligned with Detalle Diario →
+  // Ventas — Área Comercial → $ Venta HT. Low Ticket remains shown separately
+  // as Cash Low Ticket and must not inflate this HT committed KPI.
+  const totalValor=totalValorHT;
   const totalVentas=sumF(closerEntries,"q_ventas_ht");
   const totalLeads=sumF(closerEntries,"agendas_calificadas");
   const totalAgendas=sumF(closerEntries,"agendas_final");
@@ -3427,14 +3430,13 @@ const ControlComercial=()=>{
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
 const TABS=[
   {id:"torre",   l:"Torre CEO",          icon:"home"},
-  {id:"closer",  l:"Área Comercial",     icon:"dollar"},
+  {id:"colab",   l:"Area Comercial",sub:"Por Colaborador",icon:"dollar"},
   {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
   {id:"entrada", l:"Marketing",          icon:"rocket"},
   {id:"agendas", l:"Agendas / Leads",    icon:"calendar"},
   {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
   {id:"funnel",  l:"Funnel",             icon:"filter"},
   {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
-  {id:"colab",   l:"Por Colaborador",    icon:"users"},
   {id:"hist",    l:"Histórico",          icon:"trendUp"},
   {id:"operaciones", l:"Operaciones", icon:"users", children:[
     {id:"operaciones-estudiantes", l:"Estudiantes", href:"/operaciones/estudiantes"},
@@ -3917,7 +3919,10 @@ function App(){
                     fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
                     gap:9,marginBottom:2,position:"relative",transition:"all .15s"}}>
                   <Icon name={t.icon} size={15} color={active?BRAND:TXT3}/>
-                  <span>{t.l}</span>
+                  <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
+                    <span>{t.l}</span>
+                    {t.sub&&<span style={{fontSize:9,lineHeight:1.1,opacity:.75}}>{t.sub}</span>}
+                  </span>
                   {hasAlert&&<span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
                     width:6,height:6,background:C.red,borderRadius:100}}/>}
                 </button>
@@ -3961,6 +3966,7 @@ function App(){
               <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
               <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
                 {TABS.find(t=>t.id===tab)?.l}
+                {TABS.find(t=>t.id===tab)?.sub&&<div style={{fontSize:10,fontWeight:600,color:TXT3,lineHeight:1.2,marginTop:2}}>{TABS.find(t=>t.id===tab)?.sub}</div>}
               </div>
               <div className="mobile-topbar-extra" style={{fontSize:10,color:TXT3,marginTop:4,letterSpacing:"0.02em"}}>
                 {MONTHS[month].toUpperCase()} {year} · {periodState==="past"?`MES CERRADO · ${MDAYS[month]} DÍAS`:periodState==="future"?`MES FUTURO · ${MDAYS[month]} DÍAS`:`DÍA ${Math.min(nv(kpi.day)||_topD,MDAYS[month])} DE ${MDAYS[month]}`}
@@ -4014,7 +4020,6 @@ function App(){
             ) : (
               <>
                 {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
-                {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
                 {tab==="control" &&<ControlComercial/>}
                 {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
                 {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
@@ -4097,7 +4102,10 @@ function App(){
                     border:"none",fontFamily:"'Inter',sans-serif",
                     fontWeight:active?700:500,cursor:"pointer"}}>
                   <Icon name={t.icon} size={14} color={active?BRAND:TXT3}/>
-                  <span>{t.l}</span>
+                  <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
+                    <span>{t.l}</span>
+                    {t.sub&&<span style={{fontSize:10,lineHeight:1.15,opacity:.75}}>{t.sub}</span>}
+                  </span>
                 </button>
               );
             })}
