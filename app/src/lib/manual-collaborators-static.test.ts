@@ -13,7 +13,7 @@ describe("manual collaborator labels", () => {
   it("renders the exact Area Comercial form inside Valentina's Por Colaborador view", () => {
     expect(html).toContain('const isValentina=collabId==="Admin";');
     expect(html).toContain('Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>');
-    expect(html).toContain('<CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser}/>');
+    expect(html).toContain('<CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser} selectedDate={date}/>');
     expect(html).toContain('<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>');
   });
 
@@ -29,5 +29,15 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('{id:"closer",  l:"Área Comercial",     icon:"dollar"}');
     expect(html).toContain('{id:"colab",   l:"Area Comercial",sub:"Por Colaborador",icon:"dollar"}');
     expect(html).toContain('<span style={{fontSize:9,lineHeight:1.1,opacity:.75}}>{t.sub}</span>');
+  });
+
+  it("surfaces legacy Area Comercial daily_closer data under Valentina and uses manual reservas first", () => {
+    expect(html).toContain('const closerToValentinaEntry=(date,row)=>({');
+    expect(html).toContain('member:"Admin",date,');
+    expect(html).toContain('cashReservas:row.cash_reservas||0');
+    expect(html).toContain('entriesByCollab.Admin.push(...valentinaCloserEntries);');
+    expect(html).toContain('const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);');
+    expect(html).toContain('{l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
+    expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
   });
 });

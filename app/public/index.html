@@ -229,7 +229,7 @@ const blankEntry=()=>({
   // through repurposed daily_entries columns — see rowToEntry/saveEntry.
   agendas:0,calificadas:0,agendasHoy:0,showUps:0,
   ventasHT:0,valorVentaHT:0,upfrontCash:0,recurringCash:0,
-  pendDiaAnterior:0,pendAcumulados:0,reservas:0,
+  pendDiaAnterior:0,pendAcumulados:0,reservas:0,cashReservas:0,
   horasDisponibilidad:0,outboundContactados:0,outboundAgendados:0,referidosAgendados:0,
 });
 
@@ -277,8 +277,24 @@ const rowToEntry=row=>{
     pendDiaAnterior:row.pitches_organic||0,
     pendAcumulados:row.pitches_paid||0,
     reservas:row.reservas_organic||0,
+    cashReservas:0,
   };
 };
+
+const closerToValentinaEntry=(date,row)=>({
+  ...blankEntry(),
+  member:"Admin",date,
+  agendas:(row.agendas_organicas||0)+(row.agendas_meta||0)+(row.agendas_google||0)+(row.agendas_tiktok||0)+(row.agendas_otros||0),
+  calificadas:row.agendas_calificadas||((row.cal_organicas||0)+(row.cal_meta||0)+(row.cal_google||0)+(row.cal_tiktok||0)+(row.cal_otros||0)),
+  agendasHoy:row.agendas_final||((row.hoy_organicas||0)+(row.hoy_meta||0)+(row.hoy_google||0)+(row.hoy_tiktok||0)+(row.hoy_otros||0)),
+  showUps:row.citas_asistidas||((row.show_organicas||0)+(row.show_meta||0)+(row.show_google||0)+(row.show_tiktok||0)+(row.show_otros||0)),
+  ventasHT:row.q_ventas_ht||0,
+  valorVentaHT:row.valor_venta_ht||0,
+  upfrontCash:row.ventas_cash||row.upfront_cash_ht||0,
+  recurringCash:row.recurring_cash||0,
+  reservas:row.q_reservas||0,
+  cashReservas:row.cash_reservas||0,
+});
 
 // ─── SVG ICONS ────────────────────────────────────────────────────────────────
 const ICON_PATHS={
@@ -850,7 +866,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;
   const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;
   const dispHighT=cashApi?cashApi.highTicket:totalUpfront;
-  const dispReservas=cashApi?cashApi.reservas:totalReservasManual;
+  const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);
   const reviewCount=cashApi&&cashApi.counts?cashApi.counts.reviewRequired:0;
   const reviewAmount=cashApi?cashApi.reviewRequired:0;
   const manualCommercialCash=totalCash+totalValorLT+totalReservasManual;
@@ -1451,11 +1467,15 @@ const HistoricoView=({allKpi,allDaily})=>{
 };
 
 // ─── CLOSER ENTRY FORM ────────────────────────────────────────────────────────
-const CloserEntryForm=({year,month,allCloser,onSave})=>{
-  const [date,setDate]=useState(today());
+const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
+  const [date,setDate]=useState(selectedDate||today());
   const [form,setForm]=useState(blankCloser());
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    if(selectedDate&&selectedDate!==date)setDate(selectedDate);
+  },[selectedDate]);
 
   useEffect(()=>{
     const ex=allCloser[date];
@@ -1768,6 +1788,8 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mLedgerHT=dayData.reduce((s,d)=>s+(d.ledger.highTicket||0),0);
   const mLedgerLT=dayData.reduce((s,d)=>s+(d.ledger.lowTicket||0),0);
   const mLedgerReservas=dayData.reduce((s,d)=>s+(d.ledger.reservas||0),0);
+  const mReservasManual=dayData.reduce((s,d)=>s+(d.closer.cash_reservas||0),0);
+  const mReservasCash=mReservasManual||mLedgerReservas;
   const mCashHT=mLedgerHT||dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);
   const mRecurring=dayData.reduce((s,d)=>s+(d.closer.recurring_cash||0),0);
 
@@ -1837,7 +1859,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
       {l:"$ Venta LT",fn:d=>d.ledger.lowTicket||d.closer.valor_venta_lt||null,fmt:"$",totFn:()=>mLedgerLT||null},
       {l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"},
-      {l:"$ Cash Reservas",fn:d=>d.ledger.reservas||d.closer.cash_reservas||null,fmt:"$",totFn:()=>mLedgerReservas||null},
+      {l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null},
       {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
       {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
       {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
@@ -1860,7 +1882,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       </div>
       {cash&&cash.available&&(
         <div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
-Cash Collected/Low Ticket/Reservas en este detalle se llenan desde el ledger real de pagos; si el equipo pone dato manual, queda como fallback para verificar.
+Cash Collected/Low Ticket se llenan desde el ledger real de pagos. Reservas usa primero el dato manual de Área Comercial/Valentina y el ledger queda como fallback para verificación.
         </div>
       )}
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
@@ -1977,6 +1999,14 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
       const cid=closerCanonId(v.member);
       if(entriesByCollab[cid])entriesByCollab[cid].push(v);
     });
+  const valentinaCloserEntries=Object.entries(allCloser)
+    .filter(([date])=>date.startsWith(mp+"-"))
+    .map(([date,row])=>closerToValentinaEntry(date,row));
+  if(valentinaCloserEntries.length){
+    const closerDates=new Set(valentinaCloserEntries.map(e=>e.date));
+    entriesByCollab.Admin=(entriesByCollab.Admin||[]).filter(e=>!closerDates.has(e.date));
+    entriesByCollab.Admin.push(...valentinaCloserEntries);
+  }
 
   const monthEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(mp+"-")).map(([,v])=>v);
   const mGastoMeta=sumF(monthEntries,"gastoMeta");
@@ -1998,7 +2028,7 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
       ventasHT:s("ventasHT"),valorVentaHT:s("valorVentaHT"),
       upfrontCash:s("upfrontCash"),recurringCash:s("recurringCash"),
       pendDiaAnterior:s("pendDiaAnterior"),pendAcumulados:s("pendAcumulados"),
-      reservas:s("reservas"),
+      reservas:s("reservas"),cashReservas:s("cashReservas"),
       horasDisponibilidad:s("horasDisponibilidad"),
       outboundContactados:s("outboundContactados"),
       outboundAgendados:s("outboundAgendados"),
@@ -2104,7 +2134,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
             background:C.red+"0F",border:`1px solid ${C.red}33`,borderRadius:10,padding:"10px 12px"}}>
             Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>, pero su captura diaria ahora usa exactamente los campos de <b>Area Comercial</b>.
           </div>
-          <CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser}/>
+          <CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser} selectedDate={date}/>
         </>
       )}
 
@@ -2244,6 +2274,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"Pendientes cierre día anterior",k:"pendDiaAnterior",fmt:"n"},
       {l:"Pendientes cierre acumulados",k:"pendAcumulados",fmt:"n"},
       {l:"# Reservas",k:"reservas",fmt:"n"},
+      {l:"$ Cash Reservas",k:"cashReservas",fmt:"$"},
     ]},
     {title:"Otros",bg:"#334155",role:"closer",rows:[
       {l:"# Horas Disponibilidad",k:"horasDisponibilidad",fmt:"n"},
@@ -2467,6 +2498,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
       {l:"Pend. cierre día anterior",fn:d=>d.e?d.e.pendDiaAnterior:0,fmt:"n"},
       {l:"Pend. cierre acumulados",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"},
       {l:"# Reservas",fn:d=>d.e?d.e.reservas:0,fmt:"n"},
+      {l:"$ Cash Reservas",fn:d=>d.e?d.e.cashReservas:0,fmt:"$"},
     ]},
     {title:"Otros",bg:"#334155",rows:[
       {l:"# Horas Disponibilidad",fn:d=>d.e?d.e.horasDisponibilidad:0,fmt:"n"},
