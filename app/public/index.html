@@ -176,18 +176,19 @@ const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];B
 applyTheme(false);
 const C={gold:BRAND,green:"#22C55E",amber:"#F59E0B",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F97316",pink:"#EC4899"};
 const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Daryi:C.gold,Otro:"#64748b",
-  "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Uribe":C.gold,"Wiston Quintero":C.blue,"Juan Diego Afanador":C.blue,Admin:C.red};
+  "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Uribe":C.gold,"Wiston Quintero":C.blue,"Juan Diego Afanador":C.blue,"Valentina Sanchez":C.red,Admin:C.red};
 
 // ─── Manual Collaborator Reports (Por Colaborador) ──────────────────────────────
-// Karen is the marketing/IG setter; Carlos Velez, Daryi Uribe, Wiston Quintero
-// and Admin report commercial cash/activity. Karen's id is preserved as "Karen"
-// for backward compatibility; legacy ids "Carlos" / "Daryi" and
-// "Juan Diego Afanador" still resolve to the current closer names.
+// Karen is the marketing/IG setter; Valentina Sanchez (stored as "Admin" for
+// backward compatibility) uses the Area Comercial form. Carlos Velez, Daryi
+// Uribe and Wiston Quintero use the closer fields. Karen's id is preserved as
+// "Karen" for backward compatibility; legacy ids "Carlos" / "Daryi" and
+// "Juan Diego Afanador" still resolve to the current collaborator names.
 const MARKETING_COLLABORATORS=[
   {id:"Karen",label:"Karen Anquiz",color:C.purple,role:"marketing"},
 ];
 const COMMERCIAL_COLLABORATORS=[
-  {id:"Admin",label:"Admin",color:C.red,role:"closer"},
+  {id:"Admin",label:"Valentina Sanchez",color:C.red,role:"closer",displayRole:"Admin"},
   {id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"},
   {id:"Daryi Uribe",label:"Daryi Uribe",color:C.gold,role:"closer",legacy:"Daryi"},
   {id:"Wiston Quintero",label:"Wiston Quintero",color:C.blue,role:"closer",legacy:"Juan Diego Afanador"},
@@ -1940,10 +1941,12 @@ Cash Collected/Low Ticket/Reservas en este detalle se llenan desde el ledger rea
 //   - Marketing role (Karen Anquiz, stored as "Karen"): IG / posts / mensajes /
 //     follow ups / booking offers. Ad spend is automatic (sync job) and shown
 //     read-only.
-//   - Closer role (Carlos Velez, Daryi Uribe, Juan Diego Afanador): agendas,
-//     calificadas, agendas hoy, show ups, ventas HT, $ venta HT, upfront/cash,
-//     recurring cash, follow ups, pendientes cierre día anterior, pendientes
-//     cierre acumulados, reservas.
+//   - Valentina Sanchez (stored as "Admin"): uses the same Area Comercial form
+//     so this tab can eventually replace the standalone Area Comercial tab.
+//   - Closer role (Carlos Velez, Daryi Uribe, Juan Diego Afanador / Wiston
+//     Quintero legacy): agendas, calificadas, agendas hoy, show ups, ventas HT,
+//     $ venta HT, upfront/cash, recurring cash, follow ups, pendientes cierre
+//     día anterior, pendientes cierre acumulados, reservas.
 // Persists through onSave(`${date}:${memberId}`, entry) → daily_entries (the
 // closer fields reuse the schema columns mapped in rowToEntry/saveEntry).
 // Detalle Diario continues to aggregate daily_closer for commercial totals and
@@ -1956,7 +1959,7 @@ const closerCanonId=m=>{
   return cl?cl.id:m;
 };
 
-const DetalleColaborador=({allDaily,year,month,onSave})=>{
+const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>{
   const [view,setView]=useState("llenar"); // llenar | tabla | dia
   const dm=MDAYS[month];
   const pad=n=>String(n).padStart(2,"0");
@@ -2011,7 +2014,7 @@ const DetalleColaborador=({allDaily,year,month,onSave})=>{
           <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
         ))}
       </div>
-      {view==="llenar"&&<LlenarReporte allDaily={allDaily} onSave={onSave} monthAdSpend={monthAdSpend}/>}
+      {view==="llenar"&&<LlenarReporte allDaily={allDaily} allCloser={allCloser} year={year} month={month} onSave={onSave} onSaveCloser={onSaveCloser} monthAdSpend={monthAdSpend}/>}
       {view==="tabla"&&<TablaMensual collabAgg={collabAgg} monthAdSpend={monthAdSpend} year={year} month={month}/>}
       {view==="dia"&&<DetallePorDia entriesByCollab={entriesByCollab} year={year} month={month} dm={dm} mp={mp} pad={pad}/>}
     </div>
@@ -2019,7 +2022,7 @@ const DetalleColaborador=({allDaily,year,month,onSave})=>{
 };
 
 // ─── LLENAR REPORTE (manual collaborator daily form) ──────────────────────────
-const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
+const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdSpend})=>{
   const [collabId,setCollabId]=useState(MANUAL_COLLABORATORS[0].id);
   const [date,setDate]=useState(today());
   const [form,setForm]=useState(blankEntry());
@@ -2034,6 +2037,7 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
 
   const collab=MANUAL_COLLABORATORS.find(c=>c.id===collabId)||MANUAL_COLLABORATORS[0];
   const role=collab.role;
+  const isValentina=collabId==="Admin";
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
 
   const handleSave=async()=>{
@@ -2091,7 +2095,17 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
         </div>
       </Card>
 
-      {role==="marketing"&&(
+      {isValentina&&(
+        <>
+          <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.55,
+            background:C.red+"0F",border:`1px solid ${C.red}33`,borderRadius:10,padding:"10px 12px"}}>
+            Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>, pero su captura diaria ahora usa exactamente los campos de <b>Area Comercial</b>.
+          </div>
+          <CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser}/>
+        </>
+      )}
+
+      {!isValentina&&role==="marketing"&&(
         <>
           <Card>
             <STit icon="📱" title="Actividad Marketing" sub={`Llenado por ${collab.label}`}/>
@@ -2120,7 +2134,7 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
         </>
       )}
 
-      {role==="closer"&&(
+      {!isValentina&&role==="closer"&&(
         <>
           <Card>
             <STit icon="📅" title="Agendas / Leads" sub={`Llenado por ${collab.label}`}/>
@@ -2161,7 +2175,7 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
         </>
       )}
 
-      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+      {!isValentina&&<div style={{display:"flex",gap:12,alignItems:"center"}}>
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
@@ -2173,7 +2187,7 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
         {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
           Reporte guardado ✓
         </div>}
-      </div>
+      </div>}
     </div>
   );
 };
@@ -4008,7 +4022,7 @@ function App(){
                 {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
                 {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
                 {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
-                {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
+                {tab==="colab"  &&<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>}
                 {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
               </>
             )}
