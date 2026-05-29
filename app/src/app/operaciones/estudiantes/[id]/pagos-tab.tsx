@@ -30,6 +30,13 @@ interface Payment {
   receivedCurrency: string | null;
   schedule: { id: string; installmentNumber: number } | null;
   recordedBy: { id: string; name: string | null; email: string } | null;
+  paymentAccount?: {
+    id: string;
+    displayName: string;
+    currency: string;
+    ownerName: string;
+    providerName: string;
+  } | null;
 }
 
 interface EnrollmentSummary {
@@ -297,8 +304,7 @@ export function PagosTab({
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Fecha</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Monto</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Método</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Ref</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Cuenta receptora</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Cuota</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Registró</th>
                   <th className="px-3 py-2" />
@@ -329,8 +335,9 @@ export function PagosTab({
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-sm text-slate-600">{payment.method ?? "—"}</td>
-                    <td className="px-3 py-2 text-sm text-slate-600">{payment.reference ?? "—"}</td>
+                    <td className="px-3 py-2 text-sm text-slate-600">
+                      {payment.paymentAccount?.displayName ?? payment.method ?? "—"}
+                    </td>
                     <td className="px-3 py-2 text-sm text-slate-600">
                       {payment.schedule ? `#${payment.schedule.installmentNumber}` : "—"}
                     </td>
@@ -534,8 +541,6 @@ function PaymentDialog({
         amount: Number(formData.get("amount")),
         currency: String(formData.get("currency")),
         paidAt: String(formData.get("paidAt")),
-        method: (formData.get("method") as string) || null,
-        reference: (formData.get("reference") as string) || null,
         notes: (formData.get("notes") as string) || null,
         scheduleId,
       }),
@@ -558,12 +563,6 @@ function PaymentDialog({
         <CurrencySelect defaultCurrency={currency} locked={scheduleId !== null} />
         <Field label="Fecha del pago">
           <input name="paidAt" type="date" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </Field>
-        <Field label="Método">
-          <input name="method" placeholder="Transferencia, Stripe, etc." className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </Field>
-        <Field label="Referencia (#comprobante)">
-          <input name="reference" className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </Field>
         <Field label="Notas">
           <textarea name="notes" rows={2} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
@@ -734,8 +733,6 @@ function EditPaymentDialog({
             amount: Number(formData.get("amount")),
             currency: String(formData.get("currency")),
             paidAt: String(formData.get("paidAt")),
-            method: (formData.get("method") as string) || null,
-            reference: (formData.get("reference") as string) || null,
             notes: (formData.get("notes") as string) || null,
             scheduleId,
           }),
@@ -775,20 +772,6 @@ function EditPaymentDialog({
             type="date"
             defaultValue={payment.paidAt.slice(0, 10)}
             required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </Field>
-        <Field label="Método">
-          <input
-            name="method"
-            defaultValue={payment.method ?? ""}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </Field>
-        <Field label="Referencia">
-          <input
-            name="reference"
-            defaultValue={payment.reference ?? ""}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </Field>

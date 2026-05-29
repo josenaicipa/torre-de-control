@@ -40,6 +40,15 @@ export async function GET(_req: Request, { params }: Params) {
       include: {
         recordedBy: { select: { id: true, name: true, email: true } },
         schedule: { select: { id: true, installmentNumber: true } },
+        paymentAccount: {
+          select: {
+            id: true,
+            displayName: true,
+            currency: true,
+            ownerName: true,
+            providerName: true,
+          },
+        },
       },
     });
     return NextResponse.json({ payments });
@@ -86,6 +95,19 @@ export async function POST(req: Request, { params }: Params) {
         return { ok: false as const, error: "La moneda del pago no coincide con la cuota" };
       }
 
+      if (body.paymentAccountId) {
+        const account = await tx.paymentAccount.findUnique({
+          where: { id: body.paymentAccountId },
+          select: { id: true, isActive: true },
+        });
+        if (!account) {
+          return { ok: false as const, error: "La cuenta receptora no existe" };
+        }
+        if (!account.isActive) {
+          return { ok: false as const, error: "La cuenta receptora no está activa" };
+        }
+      }
+
       const created = await tx.payment.create({
         data: {
           studentId: id,
@@ -96,6 +118,7 @@ export async function POST(req: Request, { params }: Params) {
           method: body.method ?? null,
           reference: body.reference ?? null,
           notes: body.notes ?? null,
+          paymentAccountId: body.paymentAccountId ?? null,
           recordedById: actor.userId,
         },
       });
@@ -132,6 +155,7 @@ export async function POST(req: Request, { params }: Params) {
         amount: body.amount,
         currency: body.currency,
         scheduleId: body.scheduleId,
+        paymentAccountId: body.paymentAccountId ?? null,
       },
     });
 

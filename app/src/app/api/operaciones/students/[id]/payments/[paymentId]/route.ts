@@ -69,6 +69,7 @@ export async function PATCH(req: Request, { params }: Params) {
           amount: true,
           currency: true,
           paidAt: true,
+          paymentAccountId: true,
         },
       });
       if (!existing || existing.studentId !== id) {
@@ -91,6 +92,19 @@ export async function PATCH(req: Request, { params }: Params) {
         }
       }
 
+      if (body.paymentAccountId) {
+        const account = await tx.paymentAccount.findUnique({
+          where: { id: body.paymentAccountId },
+          select: { id: true, isActive: true },
+        });
+        if (!account) {
+          return { ok: false as const, status: 400, error: "La cuenta receptora no existe" };
+        }
+        if (!account.isActive) {
+          return { ok: false as const, status: 400, error: "La cuenta receptora no está activa" };
+        }
+      }
+
       const payment = await tx.payment.update({
         where: { id: paymentId },
         data: {
@@ -103,6 +117,9 @@ export async function PATCH(req: Request, { params }: Params) {
           ...(body.reference !== undefined ? { reference: body.reference } : {}),
           ...(body.notes !== undefined ? { notes: body.notes } : {}),
           ...(body.scheduleId !== undefined ? { scheduleId: body.scheduleId } : {}),
+          ...(body.paymentAccountId !== undefined
+            ? { paymentAccountId: body.paymentAccountId }
+            : {}),
         },
       });
 

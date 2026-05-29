@@ -104,6 +104,13 @@ export const createPaymentSchema = z
     reference: z.string().max(200).optional().nullable(),
     notes: z.string().max(2000).optional().nullable(),
     scheduleId: z.string().cuid().optional().nullable(),
+    paymentAccountId: z
+      .string()
+      .trim()
+      .min(1, "Cuenta receptora requerida")
+      .max(200)
+      .optional()
+      .nullable(),
   })
   .superRefine(enforcePaymentAmountByCurrency);
 
@@ -145,6 +152,13 @@ export const updatePaymentSchema = z
     reference: z.string().max(200).optional().nullable(),
     notes: z.string().max(2000).optional().nullable(),
     scheduleId: z.string().cuid().optional().nullable(),
+    paymentAccountId: z
+      .string()
+      .trim()
+      .min(1, "Cuenta receptora requerida")
+      .max(200)
+      .optional()
+      .nullable(),
   })
   .superRefine(enforcePaymentAmountByCurrency);
 
