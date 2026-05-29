@@ -125,7 +125,9 @@ export function NuevoEstudianteForm({
   const [legalName, setLegalName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState(() =>
+    new Date().toISOString().slice(0, 10),
+  );
   const [durationMonths, setDurationMonths] = useState("12");
   const [mentorUserId, setMentorUserId] = useState("");
   const [closerUserId, setCloserUserId] = useState("");
@@ -377,9 +379,10 @@ export function NuevoEstudianteForm({
     return null;
   }
 
-  function buildInitialEnrollmentBody(): Record<string, unknown> | null {
+  function buildInitialEnrollmentBody(
+    startedAt: string,
+  ): Record<string, unknown> | null {
     if (!sellNow || !selectedProduct) return null;
-    const startedAt = startDate;
     const body: Record<string, unknown> = {
       productId: selectedProduct.id,
       startedAt,
@@ -433,12 +436,14 @@ export function NuevoEstudianteForm({
 
     setLoading(true);
 
-    const initialEnrollment = buildInitialEnrollmentBody();
+    const effectiveStartDate =
+      startDate || new Date().toISOString().slice(0, 10);
+    const initialEnrollment = buildInitialEnrollmentBody(effectiveStartDate);
     const body: Record<string, unknown> = {
       fullName,
       email,
       phone: phone || null,
-      startDate,
+      startDate: effectiveStartDate,
       durationMonths: Number(durationMonths),
       mentorUserId: mentorUserId || null,
       closerUserId: closerUserId || null,
@@ -570,12 +575,11 @@ export function NuevoEstudianteForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700">Fecha de inicio *</label>
+            <label className="block text-sm font-medium text-slate-700">Fecha de inicio</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              required
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </div>
@@ -784,7 +788,7 @@ export function NuevoEstudianteForm({
                       }
                       className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                     >
-                      <option value="DOWN_PAYMENT">Separar</option>
+                      <option value="DOWN_PAYMENT">Separado</option>
                       <option value="FULL_PAYMENT">Pago total</option>
                       <option value="RESERVATION">Reserva</option>
                     </select>
