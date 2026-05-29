@@ -103,7 +103,7 @@ export async function POST(req: Request, { params }: Params) {
               studentId: id,
               installmentNumber: item.installmentNumber,
               amountDue: item.amountDue,
-              currency: body.currency,
+              currency: "USD",
               dueDate: item.dueDate,
             },
           }),
@@ -120,7 +120,7 @@ export async function POST(req: Request, { params }: Params) {
       metadata: {
         installments: body.installments,
         totalAmount: body.totalAmount,
-        currency: body.currency,
+        currency: "USD",
       },
     });
 

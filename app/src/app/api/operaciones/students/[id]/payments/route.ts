@@ -1,4 +1,3 @@
-import { deriveScheduleStatus } from "@/domain/payments";
 import { canAccessStudent } from "@/lib/access";
 import {
   ForbiddenError,
@@ -9,6 +8,11 @@ import {
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
 import { createPaymentSchema } from "@/lib/operaciones-validations";
+import {
+  derivePaymentFx,
+  recalculateSchedule,
+  validatePaymentAmountForAccount,
+} from "@/lib/operaciones-payment-fx";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
@@ -75,72 +79,73 @@ export async function POST(req: Request, { params }: Params) {
     const paidAt = new Date(`${body.paidAt}T12:00:00.000Z`);
 
     const result = await prisma.$transaction(async (tx) => {
+      const account = await tx.paymentAccount.findUnique({
+        where: { id: body.paymentAccountId },
+        select: { id: true, isActive: true, currency: true },
+      });
+      if (!account) {
+        return { ok: false as const, error: "La cuenta receptora no existe" };
+      }
+      if (!account.isActive) {
+        return { ok: false as const, error: "La cuenta receptora no está activa" };
+      }
+
+      // Per-account-currency cap: USD cuenta hereda el techo histórico de 1M
+      // USD; cualquier otra moneda usa el techo local de 1B. El schema solo
+      // sabe del techo local porque no conoce la cuenta, así que el route es
+      // el que decide.
+      const limitCheck = validatePaymentAmountForAccount(
+        body.amount,
+        account.currency,
+      );
+      if (!limitCheck.ok) {
+        return { ok: false as const, error: limitCheck.error };
+      }
+
+      const fx = derivePaymentFx({
+        amount: body.amount,
+        accountCurrency: account.currency,
+        exchangeRate: body.exchangeRate ?? null,
+        officialAmountUsd: body.officialAmountUsd ?? null,
+      });
+      if (!fx.ok) return { ok: false as const, error: fx.error };
+
       const schedule = body.scheduleId
         ? await tx.paymentSchedule.findUnique({
             where: { id: body.scheduleId },
             select: {
               studentId: true,
-              currency: true,
-              amountDue: true,
-              amountPaid: true,
-              dueDate: true,
-              paidAt: true,
+              enrollmentId: true,
             },
           })
         : null;
       if (body.scheduleId && (!schedule || schedule.studentId !== id)) {
         return { ok: false as const, error: "La cuota seleccionada no pertenece al estudiante" };
       }
-      if (schedule && schedule.currency !== body.currency) {
-        return { ok: false as const, error: "La moneda del pago no coincide con la cuota" };
-      }
-
-      if (body.paymentAccountId) {
-        const account = await tx.paymentAccount.findUnique({
-          where: { id: body.paymentAccountId },
-          select: { id: true, isActive: true },
-        });
-        if (!account) {
-          return { ok: false as const, error: "La cuenta receptora no existe" };
-        }
-        if (!account.isActive) {
-          return { ok: false as const, error: "La cuenta receptora no está activa" };
-        }
-      }
 
       const created = await tx.payment.create({
         data: {
           studentId: id,
           scheduleId: body.scheduleId ?? null,
+          enrollmentId: schedule?.enrollmentId ?? null,
           amount: body.amount,
-          currency: body.currency,
+          currency: fx.value.currency,
+          officialAmountUsd: fx.value.officialAmountUsd,
+          receivedAmount: fx.value.receivedAmount,
+          receivedCurrency: fx.value.receivedCurrency,
+          exchangeRate: fx.value.exchangeRate,
           paidAt,
-          method: body.method ?? null,
-          reference: body.reference ?? null,
           notes: body.notes ?? null,
-          paymentAccountId: body.paymentAccountId ?? null,
+          paymentAccountId: account.id,
           recordedById: actor.userId,
         },
       });
 
-      if (body.scheduleId && schedule) {
-        const amountPaid = Number(schedule.amountPaid) + body.amount;
-        const status = deriveScheduleStatus(
-          {
-            amountDue: Number(schedule.amountDue),
-            amountPaid,
-            dueDate: schedule.dueDate,
-          },
-          new Date(),
-        );
-        await tx.paymentSchedule.update({
-          where: { id: body.scheduleId },
-          data: {
-            amountPaid,
-            status,
-            paidAt: status === "PAID" ? paidAt : schedule.paidAt,
-          },
-        });
+      // Canonical schedule recalculation: re-sum every payment's USD value
+      // instead of doing an incremental update. Same code path as PATCH /
+      // DELETE so the three branches can never diverge.
+      if (body.scheduleId) {
+        await recalculateSchedule(tx, body.scheduleId);
       }
 
       return { ok: true as const, payment: created };
@@ -153,9 +158,10 @@ export async function POST(req: Request, { params }: Params) {
       target: id,
       metadata: {
         amount: body.amount,
-        currency: body.currency,
+        currency: result.payment.currency,
+        officialAmountUsd: result.payment.officialAmountUsd?.toString() ?? null,
         scheduleId: body.scheduleId,
-        paymentAccountId: body.paymentAccountId ?? null,
+        paymentAccountId: result.payment.paymentAccountId,
       },
     });
 

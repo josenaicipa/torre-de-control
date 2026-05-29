@@ -32,22 +32,10 @@ export async function PATCH(req: Request, { params }: Params) {
           currency: true,
           dueDate: true,
           paidAt: true,
-          _count: { select: { payments: true } },
         },
       });
       if (!existing || existing.studentId !== id) {
         return { ok: false as const, status: 404, error: "Cuota no encontrada" };
-      }
-      if (
-        body.currency !== undefined &&
-        body.currency !== existing.currency &&
-        existing._count.payments > 0
-      ) {
-        return {
-          ok: false as const,
-          status: 409,
-          error: "No se puede cambiar la moneda de una cuota con pagos asignados.",
-        };
       }
 
       const amountDue = body.amountDue ?? Number(existing.amountDue);
@@ -62,7 +50,6 @@ export async function PATCH(req: Request, { params }: Params) {
         where: { id: scheduleId },
         data: {
           ...(body.amountDue !== undefined ? { amountDue: body.amountDue } : {}),
-          ...(body.currency !== undefined ? { currency: body.currency } : {}),
           ...(body.dueDate !== undefined ? { dueDate } : {}),
           status,
           paidAt: status === "PAID" ? existing.paidAt ?? new Date() : null,

@@ -55,10 +55,15 @@ export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;
 
 // Payment.amount is stored in the raw received currency (e.g. COP for a
 // Colombian receiving account); the canonical USD value lives on
-// `officialAmountUsd`. The 1M cap was a USD-only constraint that wrongly
-// rejected high-magnitude local currencies — COP 1.500.000 ≈ USD 411 — so we
-// keep the 1M ceiling for USD-denominated rows and lift it to 1B for any
-// other currency, which still matches the `receivedAmount` ceiling.
+// `officialAmountUsd`. For the create/update payment schemas the receiving
+// account is the source of truth for currency, so the schema can't
+// pre-judge based on `body.currency` — it would reject a legit COP
+// 1.500.000 the moment a legacy payload happened to carry
+// `currency: "USD"`. Those two schemas therefore only enforce the local
+// ceiling (1B) and defer the per-currency cap (USD 1M, local 1B) to the
+// route, which knows `account.currency`. The enrollment-side
+// `initialPaymentInputSchema` keeps the historical per-currency refine
+// because its callers always pass an explicit, trusted currency.
 const PAYMENT_AMOUNT_USD_MAX = 1_000_000;
 const PAYMENT_AMOUNT_LOCAL_MAX = 1_000_000_000;
 
@@ -70,11 +75,23 @@ function enforcePaymentAmountByCurrency(
   data: {
     amount?: number | null | undefined;
     currency?: string | null | undefined;
+    receivedCurrency?: string | null | undefined;
   },
   ctx: z.RefinementCtx,
 ): void {
   if (data.amount == null) return;
-  const currency = (data.currency ?? "USD").toUpperCase();
+  const explicit = data.currency ?? data.receivedCurrency ?? null;
+  if (explicit == null) {
+    if (data.amount > PAYMENT_AMOUNT_LOCAL_MAX) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["amount"],
+        message: `El monto no puede exceder ${formatMoneyLimit(PAYMENT_AMOUNT_LOCAL_MAX)}`,
+      });
+    }
+    return;
+  }
+  const currency = explicit.toUpperCase();
   const limit =
     currency === "USD" ? PAYMENT_AMOUNT_USD_MAX : PAYMENT_AMOUNT_LOCAL_MAX;
   if (data.amount > limit) {
@@ -86,40 +103,48 @@ function enforcePaymentAmountByCurrency(
   }
 }
 
+// Cuotas y cronogramas están canónicamente en USD: la conversión a moneda
+// local se hace al registrar cada pago contra una cuenta receptora. Por eso
+// el schema no acepta una moneda editable — ignoramos cualquier valor que
+// venga en `currency` y el route fija "USD" al insertar las filas.
 export const createScheduleSchema = z.object({
   totalAmount: z.number().positive().max(1_000_000),
   installments: z.number().int().min(1).max(24),
-  currency: z.string().length(3).default("USD"),
   firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
   frequency: z.enum(["monthly", "biweekly"]).default("monthly"),
   replaceExisting: z.boolean().default(false),
 });
 
-export const createPaymentSchema = z
-  .object({
-    amount: z.number().positive().max(PAYMENT_AMOUNT_LOCAL_MAX),
-    currency: z.string().length(3).default("USD"),
-    paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
-    method: z.string().max(100).optional().nullable(),
-    reference: z.string().max(200).optional().nullable(),
-    notes: z.string().max(2000).optional().nullable(),
-    scheduleId: z.string().cuid().optional().nullable(),
-    paymentAccountId: z
-      .string()
-      .trim()
-      .min(1, "Cuenta receptora requerida")
-      .max(200)
-      .optional()
-      .nullable(),
-  })
-  .superRefine(enforcePaymentAmountByCurrency);
+// Payments registered through the operations UI must always land in a
+// concrete receiving account: the account decides the currency the operator
+// actually moved, and the canonical USD value (`officialAmountUsd`) is what
+// drives balances and schedule progression. Legacy payments with no account
+// stay readable but cannot be edited or recreated through this schema.
+export const createPaymentSchema = z.object({
+  amount: z.number().positive().max(PAYMENT_AMOUNT_LOCAL_MAX),
+  currency: z.string().length(3).optional(),
+  paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
+  notes: z.string().max(2000).optional().nullable(),
+  scheduleId: z.string().cuid().optional().nullable(),
+  paymentAccountId: z
+    .string()
+    .trim()
+    .min(1, "Cuenta receptora requerida")
+    .max(200),
+  officialAmountUsd: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  receivedAmount: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+  receivedCurrency: z.string().length(3).optional().nullable(),
+  exchangeRate: z.number().positive().max(1_000_000).optional().nullable(),
+});
 
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
+// Las cuotas son USD canónico; el `currency` heredado de cronogramas legacy
+// se mantiene en BD pero no se acepta como input del operador en cuotas
+// nuevas.
 export const addInstallmentSchema = z.object({
   amountDue: z.number().positive().max(1_000_000),
-  currency: z.string().length(3).optional(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
 });
 
@@ -143,28 +168,34 @@ export type CreateProgressUpdateInput = z.infer<typeof createProgressUpdateSchem
 
 // Payment and Schedule updates
 
-export const updatePaymentSchema = z
-  .object({
-    amount: z.number().positive().max(PAYMENT_AMOUNT_LOCAL_MAX).optional(),
-    currency: z.string().length(3).optional(),
-    paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional(),
-    method: z.string().max(100).optional().nullable(),
-    reference: z.string().max(200).optional().nullable(),
-    notes: z.string().max(2000).optional().nullable(),
-    scheduleId: z.string().cuid().optional().nullable(),
-    paymentAccountId: z
-      .string()
-      .trim()
-      .min(1, "Cuenta receptora requerida")
-      .max(200)
-      .optional()
-      .nullable(),
-  })
-  .superRefine(enforcePaymentAmountByCurrency);
+// On edit we never accept `paymentAccountId: null` from the UI: if the field
+// is sent at all it must point to a real account so the FX-derivation logic
+// below has something to work with. `currency` stays optional but the route
+// derives it from the account, not from the body — the schema keeps the
+// field only for backward-compatible payloads.
+export const updatePaymentSchema = z.object({
+  amount: z.number().positive().max(PAYMENT_AMOUNT_LOCAL_MAX).optional(),
+  currency: z.string().length(3).optional(),
+  paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional(),
+  notes: z.string().max(2000).optional().nullable(),
+  scheduleId: z.string().cuid().optional().nullable(),
+  paymentAccountId: z
+    .string()
+    .trim()
+    .min(1, "Cuenta receptora requerida")
+    .max(200)
+    .optional(),
+  officialAmountUsd: z.number().nonnegative().max(1_000_000).optional().nullable(),
+  receivedAmount: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+  receivedCurrency: z.string().length(3).optional().nullable(),
+  exchangeRate: z.number().positive().max(1_000_000).optional().nullable(),
+});
 
+// La moneda de la cuota no es editable: las cuotas son USD canónico y
+// cualquier ajuste se aplica sobre `amountDue` en USD. El route descarta
+// también filas que vengan con `currency` para no degradar datos legacy.
 export const updateScheduleSchema = z.object({
   amountDue: z.number().positive().max(1_000_000).optional(),
-  currency: z.string().length(3).optional(),
   dueDate: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional(),
 });
 

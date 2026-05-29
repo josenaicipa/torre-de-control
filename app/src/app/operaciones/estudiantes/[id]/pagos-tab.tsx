@@ -1,12 +1,13 @@
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   computeStudentFinanceTotals,
   paymentUsdValue,
 } from "@/lib/student-payments-finance";
+import { useExchangeRate } from "../_lib/use-exchange-rate";
+import { ExchangeRateStatusLine } from "../_lib/exchange-rate-status";
 
 interface Schedule {
   id: string;
@@ -417,11 +418,6 @@ export function PagosTab({
         <PaymentDialog
           studentId={studentId}
           scheduleId={showPaymentForm === "standalone" ? null : showPaymentForm}
-          currency={
-            showPaymentForm === "standalone"
-              ? "USD"
-              : schedules.find((schedule) => schedule.id === showPaymentForm)?.currency ?? "USD"
-          }
           paymentAccounts={paymentAccounts}
           onClose={() => setShowPaymentForm(null)}
           onSaved={() => {
@@ -534,17 +530,29 @@ function ScheduleDialog({
   );
 }
 
+function toNumber(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+interface PaymentFormState {
+  amount: string;
+  paymentAccountId: string;
+  paidAt: string;
+  exchangeRate: string;
+  officialAmountUsd: string;
+  notes: string;
+}
+
 function PaymentDialog({
   studentId,
   scheduleId,
-  currency,
   paymentAccounts,
   onClose,
   onSaved,
 }: {
   studentId: string;
   scheduleId: string | null;
-  currency: string;
   paymentAccounts: PaymentAccount[];
   onClose: () => void;
   onSaved: () => void;
@@ -552,24 +560,110 @@ function PaymentDialog({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const activeAccounts = paymentAccounts.filter((account) => account.isActive);
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState<PaymentFormState>({
+    amount: "",
+    paymentAccountId: "",
+    paidAt: today,
+    exchangeRate: "",
+    officialAmountUsd: "",
+    notes: "",
+  });
+  const [officialUsdManual, setOfficialUsdManual] = useState(false);
+
+  const selectedAccount =
+    paymentAccounts.find((account) => account.id === form.paymentAccountId) ??
+    null;
+  const accountCurrency = selectedAccount?.currency.toUpperCase() ?? "";
+  const isNonUsdAccount =
+    selectedAccount != null && accountCurrency !== "USD";
+
+  function updateField<K extends keyof PaymentFormState>(
+    key: K,
+    value: PaymentFormState[K],
+  ) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const onAutoRate = useCallback((rate: number) => {
+    setForm((prev) => ({ ...prev, exchangeRate: String(rate) }));
+  }, []);
+  const trm = useExchangeRate({
+    currency: accountCurrency,
+    date: form.paidAt,
+    enabled: isNonUsdAccount && accountCurrency === "COP",
+    onAutoRate,
+  });
+
+  // Reset manual override when leaving the non-USD branch.
+  useEffect(() => {
+    if (!isNonUsdAccount) setOfficialUsdManual(false);
+  }, [isNonUsdAccount]);
+
+  // Auto-compute officialAmountUsd from amount / exchangeRate unless the user
+  // typed an override.
+  useEffect(() => {
+    if (!isNonUsdAccount) return;
+    if (officialUsdManual) return;
+    const amount = toNumber(form.amount);
+    const rate = toNumber(form.exchangeRate);
+    if (amount > 0 && rate > 0) {
+      const computed = Math.round((amount / rate) * 100) / 100;
+      const computedStr = String(computed);
+      setForm((prev) =>
+        prev.officialAmountUsd === computedStr
+          ? prev
+          : { ...prev, officialAmountUsd: computedStr },
+      );
+    }
+  }, [isNonUsdAccount, form.amount, form.exchangeRate, officialUsdManual]);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!selectedAccount) {
+      setError("Seleccioná una cuenta receptora");
+      return;
+    }
+    const amount = toNumber(form.amount);
+    if (!(amount > 0)) {
+      setError("Monto requerido");
+      return;
+    }
+    if (isNonUsdAccount) {
+      const rate = toNumber(form.exchangeRate);
+      const officialUsd = toNumber(form.officialAmountUsd);
+      if (!(rate > 0) && !(officialUsd > 0)) {
+        setError(`Tasa de cambio requerida para cuentas en ${accountCurrency}`);
+        return;
+      }
+      if (!(officialUsd > 0)) {
+        setError("El equivalente USD oficial debe ser mayor a 0");
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
-    const formData = new FormData(event.currentTarget);
-    const response = await fetch(`/api/operaciones/students/${studentId}/payments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount: Number(formData.get("amount")),
-        currency: String(formData.get("currency")),
-        paidAt: String(formData.get("paidAt")),
-        notes: (formData.get("notes") as string) || null,
-        paymentAccountId: String(formData.get("paymentAccountId")),
-        scheduleId,
-      }),
-    });
+    const body: Record<string, unknown> = {
+      amount,
+      paidAt: form.paidAt,
+      notes: form.notes.trim() ? form.notes.trim() : null,
+      paymentAccountId: selectedAccount.id,
+      scheduleId,
+    };
+    if (isNonUsdAccount) {
+      const rate = toNumber(form.exchangeRate);
+      if (rate > 0) body.exchangeRate = rate;
+      const officialUsd = toNumber(form.officialAmountUsd);
+      if (officialUsd > 0) body.officialAmountUsd = officialUsd;
+    }
+    const response = await fetch(
+      `/api/operaciones/students/${studentId}/payments`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
     if (!response.ok) {
       const json = await response.json().catch(() => ({}));
       setError(json.error ?? "Error al registrar pago");
@@ -580,12 +674,12 @@ function PaymentDialog({
   }
 
   return (
-    <Dialog title={scheduleId ? "Registrar pago de cuota" : "Registrar pago"} error={error} onClose={onClose}>
+    <Dialog
+      title={scheduleId ? "Registrar pago de cuota" : "Registrar pago"}
+      error={error}
+      onClose={onClose}
+    >
       <form onSubmit={onSubmit} className="space-y-3">
-        <Field label="Monto">
-          <input name="amount" type="number" step="0.01" min="0.01" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
-        </Field>
-        <CurrencySelect defaultCurrency={currency} locked={scheduleId !== null} />
         <Field label="Cuenta receptora">
           {activeAccounts.length === 0 ? (
             <p className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -593,9 +687,11 @@ function PaymentDialog({
             </p>
           ) : (
             <select
-              name="paymentAccountId"
               required
-              defaultValue=""
+              value={form.paymentAccountId}
+              onChange={(event) =>
+                updateField("paymentAccountId", event.target.value)
+              }
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="" disabled>
@@ -609,11 +705,90 @@ function PaymentDialog({
             </select>
           )}
         </Field>
-        <Field label="Fecha del pago">
-          <input name="paidAt" type="date" required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+        <Field label="Moneda">
+          <input
+            type="text"
+            readOnly
+            value={selectedAccount?.currency ?? ""}
+            placeholder="Definida por la cuenta"
+            className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+          />
         </Field>
+        <Field label={selectedAccount ? `Monto (${selectedAccount.currency})` : "Monto"}>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            required
+            value={form.amount}
+            onChange={(event) => updateField("amount", event.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        <Field label="Fecha del pago">
+          <input
+            type="date"
+            required
+            value={form.paidAt}
+            onChange={(event) => updateField("paidAt", event.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        {isNonUsdAccount && (
+          <>
+            <Field label={`Tasa de cambio (1 USD = ? ${accountCurrency})`}>
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                value={form.exchangeRate}
+                onChange={(event) => {
+                  updateField("exchangeRate", event.target.value);
+                  trm.markManual();
+                }}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <ExchangeRateStatusLine
+                currency={accountCurrency}
+                status={trm.status}
+                effectiveDate={trm.effectiveDate}
+                source={trm.source}
+                errorMessage={trm.errorMessage}
+                paidAt={form.paidAt}
+                onUseToday={trm.reset}
+              />
+            </Field>
+            <Field label="Equivalente USD oficial">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.officialAmountUsd}
+                onChange={(event) => {
+                  setOfficialUsdManual(true);
+                  updateField("officialAmountUsd", event.target.value);
+                }}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              {officialUsdManual && (
+                <button
+                  type="button"
+                  className="mt-1 text-xs text-slate-500 underline"
+                  onClick={() => setOfficialUsdManual(false)}
+                >
+                  Restablecer auto-cálculo
+                </button>
+              )}
+            </Field>
+          </>
+        )}
         <Field label="Notas">
-          <textarea name="notes" rows={2} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          <textarea
+            rows={2}
+            value={form.notes}
+            onChange={(event) => updateField("notes", event.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
         </Field>
         <DialogActions loading={loading} onClose={onClose} submitLabel="Registrar pago" />
       </form>
@@ -764,34 +939,206 @@ function EditPaymentDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const currentAccountId = payment.paymentAccount?.id ?? "";
+
+  // Legacy rows with no linked account are read-only: the new model needs a
+  // receiving account to derive currency / USD value, and we don't want to
+  // silently strip data from them.
+  if (!currentAccountId) {
+    return (
+      <Dialog title="Pago heredado (solo lectura)" error={null} onClose={onClose}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-800">
+            Este pago se registró antes de exigir una cuenta receptora y no se
+            puede editar desde acá. Eliminalo y volvé a registrarlo si
+            necesitás corregirlo.
+          </p>
+          <dl className="grid grid-cols-2 gap-2 text-xs">
+            <dt className="text-slate-500">Monto</dt>
+            <dd>{formatMoney(payment.amount, payment.currency)}</dd>
+            <dt className="text-slate-500">Fecha</dt>
+            <dd>{payment.paidAt.slice(0, 10)}</dd>
+            {payment.method && (
+              <>
+                <dt className="text-slate-500">Método</dt>
+                <dd>{payment.method}</dd>
+              </>
+            )}
+            {payment.reference && (
+              <>
+                <dt className="text-slate-500">Referencia</dt>
+                <dd>{payment.reference}</dd>
+              </>
+            )}
+          </dl>
+        </div>
+        <div className="flex justify-end pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            Cerrar
+          </button>
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <EditPaymentDialogForm
+      payment={payment}
+      studentId={studentId}
+      schedules={schedules}
+      paymentAccounts={paymentAccounts}
+      currentAccountId={currentAccountId}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function EditPaymentDialogForm({
+  payment,
+  studentId,
+  schedules,
+  paymentAccounts,
+  currentAccountId,
+  onClose,
+  onSaved,
+}: {
+  payment: Payment;
+  studentId: string;
+  schedules: Schedule[];
+  paymentAccounts: PaymentAccount[];
+  currentAccountId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const currentAccountId = payment.paymentAccount?.id ?? "";
   const accountOptions = paymentAccounts.filter(
     (account) => account.isActive || account.id === currentAccountId,
   );
 
+  const [form, setForm] = useState<PaymentFormState & { scheduleId: string }>({
+    amount: String(toNum(payment.amount)),
+    paymentAccountId: currentAccountId,
+    paidAt: payment.paidAt.slice(0, 10),
+    exchangeRate:
+      payment.receivedCurrency &&
+      payment.receivedCurrency.toUpperCase() !== "USD"
+        ? String(
+            Math.round(
+              (toNum(payment.receivedAmount ?? payment.amount) /
+                Math.max(toNum(payment.officialAmountUsd), 0.0001)) *
+                10000,
+            ) / 10000,
+          )
+        : "",
+    officialAmountUsd:
+      payment.officialAmountUsd != null
+        ? String(toNum(payment.officialAmountUsd))
+        : "",
+    notes: payment.notes ?? "",
+    scheduleId: payment.schedule?.id ?? "",
+  });
+  // Start in auto-recalc mode: if the operator edits amount or exchangeRate
+  // the displayed USD updates from amount/rate and the new auto value is
+  // what gets sent. Only flip to manual when the user actually types into
+  // the Equivalente USD field, so we never re-submit the stale stored USD
+  // as an override.
+  const [officialUsdManual, setOfficialUsdManual] = useState(false);
+
+  const selectedAccount =
+    paymentAccounts.find((account) => account.id === form.paymentAccountId) ??
+    null;
+  const accountCurrency = selectedAccount?.currency.toUpperCase() ?? "";
+  const isNonUsdAccount =
+    selectedAccount != null && accountCurrency !== "USD";
+
+  function updateField<K extends keyof typeof form>(
+    key: K,
+    value: (typeof form)[K],
+  ) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const onAutoRate = useCallback((rate: number) => {
+    setForm((prev) => ({ ...prev, exchangeRate: String(rate) }));
+  }, []);
+  const trm = useExchangeRate({
+    currency: accountCurrency,
+    date: form.paidAt,
+    enabled: isNonUsdAccount && accountCurrency === "COP",
+    onAutoRate,
+  });
+
+  useEffect(() => {
+    if (!isNonUsdAccount) setOfficialUsdManual(false);
+  }, [isNonUsdAccount]);
+
+  useEffect(() => {
+    if (!isNonUsdAccount) return;
+    if (officialUsdManual) return;
+    const amount = toNumber(form.amount);
+    const rate = toNumber(form.exchangeRate);
+    if (amount > 0 && rate > 0) {
+      const computed = Math.round((amount / rate) * 100) / 100;
+      const computedStr = String(computed);
+      setForm((prev) =>
+        prev.officialAmountUsd === computedStr
+          ? prev
+          : { ...prev, officialAmountUsd: computedStr },
+      );
+    }
+  }, [isNonUsdAccount, form.amount, form.exchangeRate, officialUsdManual]);
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!selectedAccount) {
+      setError("Seleccioná una cuenta receptora");
+      return;
+    }
+    const amount = toNumber(form.amount);
+    if (!(amount > 0)) {
+      setError("Monto requerido");
+      return;
+    }
+    if (isNonUsdAccount) {
+      const officialUsd = toNumber(form.officialAmountUsd);
+      if (!(officialUsd > 0)) {
+        setError("El equivalente USD oficial debe ser mayor a 0");
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
-    const formData = new FormData(event.currentTarget);
-    const scheduleId = String(formData.get("scheduleId") ?? "") || null;
-    const selectedAccount = String(formData.get("paymentAccountId") ?? "");
+    const body: Record<string, unknown> = {
+      amount,
+      paidAt: form.paidAt,
+      notes: form.notes.trim() ? form.notes.trim() : null,
+      paymentAccountId: selectedAccount.id,
+      scheduleId: form.scheduleId || null,
+    };
+    if (isNonUsdAccount) {
+      const rate = toNumber(form.exchangeRate);
+      if (rate > 0) body.exchangeRate = rate;
+      // Only forward the USD field as an explicit override when the user
+      // actually edited it. Otherwise the route recomputes from amount/rate
+      // (or conserves the existing USD when nothing relevant changed).
+      if (officialUsdManual) {
+        const officialUsd = toNumber(form.officialAmountUsd);
+        if (officialUsd > 0) body.officialAmountUsd = officialUsd;
+      }
+    }
     try {
       const response = await fetch(
         `/api/operaciones/students/${studentId}/payments/${payment.id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            amount: Number(formData.get("amount")),
-            currency: String(formData.get("currency")),
-            paidAt: String(formData.get("paidAt")),
-            notes: (formData.get("notes") as string) || null,
-            paymentAccountId: selectedAccount || null,
-            scheduleId,
-          }),
+          body: JSON.stringify(body),
         },
       );
       if (!response.ok) {
@@ -810,18 +1157,6 @@ function EditPaymentDialog({
   return (
     <Dialog title="Editar pago" error={error} onClose={onClose}>
       <form onSubmit={onSubmit} className="space-y-3">
-        <Field label="Monto">
-          <input
-            name="amount"
-            type="number"
-            step="0.01"
-            min="0.01"
-            defaultValue={toNum(payment.amount)}
-            required
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </Field>
-        <CurrencySelect defaultCurrency={payment.currency} />
         <Field label="Cuenta receptora">
           {accountOptions.length === 0 ? (
             <p className="mt-1 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -829,11 +1164,13 @@ function EditPaymentDialog({
             </p>
           ) : (
             <select
-              name="paymentAccountId"
-              defaultValue={currentAccountId}
+              required
+              value={form.paymentAccountId}
+              onChange={(event) =>
+                updateField("paymentAccountId", event.target.value)
+              }
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             >
-              <option value="">Sin cuenta</option>
               {accountOptions.map((account) => (
                 <option key={account.id} value={account.id}>
                   {account.displayName} ({account.currency})
@@ -843,19 +1180,86 @@ function EditPaymentDialog({
             </select>
           )}
         </Field>
-        <Field label="Fecha del pago">
+        <Field label="Moneda">
           <input
-            name="paidAt"
-            type="date"
-            defaultValue={payment.paidAt.slice(0, 10)}
+            type="text"
+            readOnly
+            value={selectedAccount?.currency ?? ""}
+            className="mt-1 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+          />
+        </Field>
+        <Field label={selectedAccount ? `Monto (${selectedAccount.currency})` : "Monto"}>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
             required
+            value={form.amount}
+            onChange={(event) => updateField("amount", event.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </Field>
+        <Field label="Fecha del pago">
+          <input
+            type="date"
+            required
+            value={form.paidAt}
+            onChange={(event) => updateField("paidAt", event.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </Field>
+        {isNonUsdAccount && (
+          <>
+            <Field label={`Tasa de cambio (1 USD = ? ${accountCurrency})`}>
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                value={form.exchangeRate}
+                onChange={(event) => {
+                  updateField("exchangeRate", event.target.value);
+                  trm.markManual();
+                }}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <ExchangeRateStatusLine
+                currency={accountCurrency}
+                status={trm.status}
+                effectiveDate={trm.effectiveDate}
+                source={trm.source}
+                errorMessage={trm.errorMessage}
+                paidAt={form.paidAt}
+                onUseToday={trm.reset}
+              />
+            </Field>
+            <Field label="Equivalente USD oficial">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.officialAmountUsd}
+                onChange={(event) => {
+                  setOfficialUsdManual(true);
+                  updateField("officialAmountUsd", event.target.value);
+                }}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              {officialUsdManual && (
+                <button
+                  type="button"
+                  className="mt-1 text-xs text-slate-500 underline"
+                  onClick={() => setOfficialUsdManual(false)}
+                >
+                  Restablecer auto-cálculo
+                </button>
+              )}
+            </Field>
+          </>
+        )}
         <Field label="Asignar a cuota">
           <select
-            name="scheduleId"
-            defaultValue={payment.schedule?.id ?? ""}
+            value={form.scheduleId}
+            onChange={(event) => updateField("scheduleId", event.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">Sin asignar</option>
@@ -869,9 +1273,9 @@ function EditPaymentDialog({
         </Field>
         <Field label="Notas">
           <textarea
-            name="notes"
             rows={2}
-            defaultValue={payment.notes ?? ""}
+            value={form.notes}
+            onChange={(event) => updateField("notes", event.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </Field>

@@ -128,13 +128,12 @@ describe("listStudentsQuerySchema", () => {
 });
 
 describe("createScheduleSchema", () => {
-  it("applies currency and frequency defaults", () => {
+  it("applies frequency defaults and ignores currency input (canonical USD)", () => {
     const parsed = createScheduleSchema.parse({
       totalAmount: 3000,
       installments: 3,
       firstDueDate: "2026-06-01",
     });
-    expect(parsed.currency).toBe("USD");
     expect(parsed.frequency).toBe("monthly");
     expect(parsed.replaceExisting).toBe(false);
   });
@@ -151,12 +150,34 @@ describe("createScheduleSchema", () => {
 });
 
 describe("createPaymentSchema", () => {
-  it("accepts an optional schedule association", () => {
+  it("requires a payment account", () => {
     expect(
       createPaymentSchema.safeParse({
         amount: 500,
         paidAt: "2026-06-01",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts a payment with account + optional schedule", () => {
+    expect(
+      createPaymentSchema.safeParse({
+        amount: 500,
+        paidAt: "2026-06-01",
+        paymentAccountId: "acct_123",
         scheduleId: "cmav9cy3g000008l22t123456",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts FX-resolved fields for a non-USD account", () => {
+    expect(
+      createPaymentSchema.safeParse({
+        amount: 1_500_000,
+        paidAt: "2026-06-01",
+        paymentAccountId: "acct_cop",
+        exchangeRate: 4000,
+        officialAmountUsd: 375,
       }).success,
     ).toBe(true);
   });
@@ -166,8 +187,26 @@ describe("createPaymentSchema", () => {
       createPaymentSchema.safeParse({
         amount: 0,
         paidAt: "2026-06-01",
+        paymentAccountId: "acct_123",
       }).success,
     ).toBe(false);
+  });
+
+  // The schema can't see the receiving account, so it must NOT reject a
+  // high-magnitude COP amount just because a legacy payload happens to
+  // carry `currency: "USD"`. The per-currency cap lives in the route
+  // (account.currency drives it).
+  it("does not apply the USD cap when body.currency is legacy USD", () => {
+    expect(
+      createPaymentSchema.safeParse({
+        amount: 1_500_000,
+        paidAt: "2026-06-01",
+        paymentAccountId: "acct_cop",
+        currency: "USD",
+        exchangeRate: 4000,
+        officialAmountUsd: 375,
+      }).success,
+    ).toBe(true);
   });
 });
 
@@ -227,6 +266,35 @@ describe("updatePaymentSchema", () => {
 
   it("rejects a non-positive corrected amount", () => {
     expect(updatePaymentSchema.safeParse({ amount: 0 }).success).toBe(false);
+  });
+
+  it("rejects clearing the receiving account", () => {
+    expect(
+      updatePaymentSchema.safeParse({ paymentAccountId: null }).success,
+    ).toBe(false);
+  });
+
+  it("accepts an explicit officialAmountUsd override", () => {
+    expect(
+      updatePaymentSchema.safeParse({
+        amount: 2_000_000,
+        paymentAccountId: "acct_cop",
+        exchangeRate: 4000,
+        officialAmountUsd: 500,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("does not apply the USD cap when body.currency is legacy USD", () => {
+    expect(
+      updatePaymentSchema.safeParse({
+        amount: 1_500_000,
+        paymentAccountId: "acct_cop",
+        currency: "USD",
+        exchangeRate: 4000,
+        officialAmountUsd: 375,
+      }).success,
+    ).toBe(true);
   });
 });
 

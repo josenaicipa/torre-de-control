@@ -30,14 +30,14 @@ export async function POST(req: Request, { params }: Params) {
       const last = await tx.paymentSchedule.findFirst({
         where: { studentId: id },
         orderBy: { installmentNumber: "desc" },
-        select: { installmentNumber: true, currency: true },
+        select: { installmentNumber: true },
       });
       return tx.paymentSchedule.create({
         data: {
           studentId: id,
           installmentNumber: last ? last.installmentNumber + 1 : 1,
           amountDue: body.amountDue,
-          currency: body.currency ?? last?.currency ?? "USD",
+          currency: "USD",
           dueDate: new Date(`${body.dueDate}T00:00:00.000Z`),
         },
       });
