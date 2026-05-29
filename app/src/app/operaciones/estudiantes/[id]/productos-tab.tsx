@@ -144,7 +144,7 @@ const SCHEDULE_STATUS_LABEL: Record<EnrollmentSchedule["status"], [string, strin
 
 const INITIAL_PAYMENT_TYPE_LABEL: Record<InitialPaymentType, string> = {
   FULL_PAYMENT: "Pago total",
-  DOWN_PAYMENT: "Enganche",
+  DOWN_PAYMENT: "Separar",
   RESERVATION: "Reserva",
 };
 
@@ -425,8 +425,6 @@ interface FormState {
   initialPaymentExchangeRate: string;
   initialPaymentPaidAt: string;
   initialPaymentType: InitialPaymentType;
-  initialPaymentMethod: string;
-  initialPaymentReference: string;
   initialPaymentNotes: string;
 }
 
@@ -452,8 +450,6 @@ function buildInitialFormState(): FormState {
     initialPaymentExchangeRate: "",
     initialPaymentPaidAt: todayIso(),
     initialPaymentType: "DOWN_PAYMENT",
-    initialPaymentMethod: "",
-    initialPaymentReference: "",
     initialPaymentNotes: "",
   };
 }
@@ -499,6 +495,17 @@ function SellProductForm({
       hasInitialPayment: selected?.requiresInitialPayment ?? prev.hasInitialPayment,
       installmentCount: selected?.allowsInstallments ? prev.installmentCount : "",
       firstDueDate: selected?.allowsInstallments ? prev.firstDueDate : "",
+    }));
+  }
+
+  function onSelectPaymentAccount(accountId: string) {
+    const account = paymentAccounts.find((a) => a.id === accountId) ?? null;
+    setState((prev) => ({
+      ...prev,
+      paymentAccountId: accountId,
+      initialPaymentCurrency: account
+        ? account.currency
+        : prev.initialPaymentCurrency,
     }));
   }
 
@@ -646,8 +653,9 @@ function SellProductForm({
         }
       }
       if (state.hasInitialPayment) {
+        const amount = toNum(state.initialPaymentAmount);
         const initialPayment: Record<string, unknown> = {
-          amount: toNum(state.initialPaymentAmount),
+          amount,
           currency: state.initialPaymentCurrency,
           paidAt: state.initialPaymentPaidAt,
           initialPaymentType: state.initialPaymentType,
@@ -655,15 +663,11 @@ function SellProductForm({
         };
         if (state.initialPaymentCurrency.toUpperCase() !== "USD") {
           initialPayment.officialAmountUsd = toNum(state.initialPaymentOfficialUsd);
+          initialPayment.receivedAmount = amount;
+          initialPayment.receivedCurrency = state.initialPaymentCurrency;
           if (toNum(state.initialPaymentExchangeRate) > 0) {
             initialPayment.exchangeRate = toNum(state.initialPaymentExchangeRate);
           }
-        }
-        if (state.initialPaymentMethod.trim()) {
-          initialPayment.method = state.initialPaymentMethod.trim();
-        }
-        if (state.initialPaymentReference.trim()) {
-          initialPayment.reference = state.initialPaymentReference.trim();
         }
         if (state.initialPaymentNotes.trim()) {
           initialPayment.notes = state.initialPaymentNotes.trim();
@@ -729,7 +733,7 @@ function SellProductForm({
         <Field label="Cuenta receptora">
           <select
             value={state.paymentAccountId}
-            onChange={(e) => update("paymentAccountId", e.target.value)}
+            onChange={(e) => onSelectPaymentAccount(e.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">— Sin cuenta —</option>
@@ -812,6 +816,30 @@ function SellProductForm({
 
         {state.hasInitialPayment && (
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field label="Fecha del pago" required>
+              <input
+                type="date"
+                value={state.initialPaymentPaidAt}
+                onChange={(e) => update("initialPaymentPaidAt", e.target.value)}
+                required
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </Field>
+
+            <Field label="Tipo de pago inicial" required>
+              <select
+                value={state.initialPaymentType}
+                onChange={(e) =>
+                  update("initialPaymentType", e.target.value as InitialPaymentType)
+                }
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="DOWN_PAYMENT">Separar</option>
+                <option value="FULL_PAYMENT">Pago total</option>
+                <option value="RESERVATION">Reserva</option>
+              </select>
+            </Field>
+
             <Field label="Monto" required>
               <input
                 type="number"
@@ -823,17 +851,12 @@ function SellProductForm({
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </Field>
-            <Field label="Moneda" required>
-              <select
+            <Field label="Moneda" hint="Se establece según la cuenta receptora.">
+              <input
                 value={state.initialPaymentCurrency}
-                onChange={(e) => update("initialPaymentCurrency", e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="USD">USD</option>
-                <option value="COP">COP</option>
-                <option value="MXN">MXN</option>
-                <option value="EUR">EUR</option>
-              </select>
+                disabled
+                className="mt-1 w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm uppercase text-slate-700"
+              />
             </Field>
 
             {initialPaymentInNonUsd && (
@@ -905,47 +928,6 @@ function SellProductForm({
                 />
               </Field>
             )}
-
-            <Field label="Fecha del pago" required>
-              <input
-                type="date"
-                value={state.initialPaymentPaidAt}
-                onChange={(e) => update("initialPaymentPaidAt", e.target.value)}
-                required
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </Field>
-
-            <Field label="Tipo de pago inicial" required>
-              <select
-                value={state.initialPaymentType}
-                onChange={(e) =>
-                  update("initialPaymentType", e.target.value as InitialPaymentType)
-                }
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="DOWN_PAYMENT">Enganche</option>
-                <option value="FULL_PAYMENT">Pago total</option>
-                <option value="RESERVATION">Reserva</option>
-              </select>
-            </Field>
-
-            <Field label="Método">
-              <input
-                value={state.initialPaymentMethod}
-                onChange={(e) => update("initialPaymentMethod", e.target.value)}
-                placeholder="Transferencia, Stripe, etc."
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </Field>
-
-            <Field label="Referencia">
-              <input
-                value={state.initialPaymentReference}
-                onChange={(e) => update("initialPaymentReference", e.target.value)}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </Field>
 
             <Field label="Notas pago inicial">
               <textarea

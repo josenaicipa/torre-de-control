@@ -76,13 +76,9 @@ interface SaleState {
   initialPaymentAmount: string;
   initialPaymentCurrency: string;
   initialPaymentOfficialUsd: string;
-  initialPaymentReceivedAmount: string;
-  initialPaymentReceivedCurrency: string;
   initialPaymentExchangeRate: string;
   initialPaymentPaidAt: string;
   initialPaymentType: InitialPaymentType;
-  initialPaymentMethod: string;
-  initialPaymentReference: string;
   // Installments
   installmentCount: string;
   firstDueDate: string;
@@ -102,13 +98,9 @@ function buildInitialSaleState(startDate: string): SaleState {
     initialPaymentAmount: "",
     initialPaymentCurrency: "USD",
     initialPaymentOfficialUsd: "",
-    initialPaymentReceivedAmount: "",
-    initialPaymentReceivedCurrency: "",
     initialPaymentExchangeRate: "",
     initialPaymentPaidAt: startDate,
     initialPaymentType: "DOWN_PAYMENT",
-    initialPaymentMethod: "",
-    initialPaymentReference: "",
     installmentCount: "",
     firstDueDate: "",
     installmentFrequency: "monthly",
@@ -298,6 +290,17 @@ export function NuevoEstudianteForm({
     );
   }
 
+  function onSelectPaymentAccount(accountId: string) {
+    const account = paymentAccounts.find((a) => a.id === accountId) ?? null;
+    setSale((prev) => ({
+      ...prev,
+      paymentAccountId: accountId,
+      initialPaymentCurrency: account
+        ? account.currency
+        : prev.initialPaymentCurrency,
+    }));
+  }
+
   // Derived sale values used both for preview and validation.
   const totalAmountUsdNum = toNum(sale.totalAmountUsd);
   const initialPaymentUsdNum = sale.hasInitialPayment
@@ -320,14 +323,6 @@ export function NuevoEstudianteForm({
   const requiresInitialPayment = selectedProduct?.requiresInitialPayment ?? false;
   const initialPaymentInNonUsd =
     sale.hasInitialPayment && sale.initialPaymentCurrency.toUpperCase() !== "USD";
-  const selectedPaymentAccount = paymentAccounts.find(
-    (a) => a.id === sale.paymentAccountId,
-  );
-  const accountCurrencyMismatch =
-    sale.hasInitialPayment &&
-    selectedPaymentAccount != null &&
-    selectedPaymentAccount.currency.toUpperCase() !==
-      sale.initialPaymentCurrency.toUpperCase();
   const needsInstallmentPlan =
     estimatedBalanceUsd > 0 && (selectedProduct?.allowsInstallments ?? true);
   const balanceWithoutInstallmentsAllowed =
@@ -404,8 +399,9 @@ export function NuevoEstudianteForm({
       body.firstDueDate = sale.firstDueDate;
     }
     if (sale.hasInitialPayment) {
+      const amount = toNum(sale.initialPaymentAmount);
       const initialPayment: Record<string, unknown> = {
-        amount: toNum(sale.initialPaymentAmount),
+        amount,
         currency: sale.initialPaymentCurrency,
         paidAt: sale.initialPaymentPaidAt,
         initialPaymentType: sale.initialPaymentType,
@@ -413,21 +409,11 @@ export function NuevoEstudianteForm({
       };
       if (sale.initialPaymentCurrency.toUpperCase() !== "USD") {
         initialPayment.officialAmountUsd = toNum(sale.initialPaymentOfficialUsd);
-        if (toNum(sale.initialPaymentReceivedAmount) > 0) {
-          initialPayment.receivedAmount = toNum(sale.initialPaymentReceivedAmount);
-        }
-        if (sale.initialPaymentReceivedCurrency.trim()) {
-          initialPayment.receivedCurrency = sale.initialPaymentReceivedCurrency.trim();
-        }
+        initialPayment.receivedAmount = amount;
+        initialPayment.receivedCurrency = sale.initialPaymentCurrency;
         if (toNum(sale.initialPaymentExchangeRate) > 0) {
           initialPayment.exchangeRate = toNum(sale.initialPaymentExchangeRate);
         }
-      }
-      if (sale.initialPaymentMethod.trim()) {
-        initialPayment.method = sale.initialPaymentMethod.trim();
-      }
-      if (sale.initialPaymentReference.trim()) {
-        initialPayment.reference = sale.initialPaymentReference.trim();
       }
       body.initialPayment = initialPayment;
     }
@@ -747,7 +733,7 @@ export function NuevoEstudianteForm({
                     </div>
                     <select
                       value={sale.paymentAccountId}
-                      onChange={(e) => updateSale("paymentAccountId", e.target.value)}
+                      onChange={(e) => onSelectPaymentAccount(e.target.value)}
                       required={sale.hasInitialPayment}
                       className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                     >
@@ -771,11 +757,36 @@ export function NuevoEstudianteForm({
                         .
                       </p>
                     )}
-                    {accountCurrencyMismatch && (
-                      <p className="mt-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                        La moneda de la cuenta no coincide con la moneda del pago. Verifica antes de guardar.
-                      </p>
-                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Fecha del pago <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={sale.initialPaymentPaidAt}
+                      onChange={(e) => updateSale("initialPaymentPaidAt", e.target.value)}
+                      required={sale.hasInitialPayment}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Tipo de pago inicial <span className="text-rose-600">*</span>
+                    </label>
+                    <select
+                      value={sale.initialPaymentType}
+                      onChange={(e) =>
+                        updateSale("initialPaymentType", e.target.value as InitialPaymentType)
+                      }
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="DOWN_PAYMENT">Separar</option>
+                      <option value="FULL_PAYMENT">Pago total</option>
+                      <option value="RESERVATION">Reserva</option>
+                    </select>
                   </div>
 
                   <div>
@@ -793,48 +804,19 @@ export function NuevoEstudianteForm({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Moneda <span className="text-rose-600">*</span>
-                    </label>
-                    <select
+                    <label className="block text-sm font-medium text-slate-700">Moneda</label>
+                    <input
                       value={sale.initialPaymentCurrency}
-                      onChange={(e) => updateSale("initialPaymentCurrency", e.target.value)}
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    >
-                      <option value="USD">USD</option>
-                      <option value="COP">COP</option>
-                      <option value="MXN">MXN</option>
-                      <option value="EUR">EUR</option>
-                    </select>
+                      disabled
+                      className="mt-1 w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm uppercase text-slate-700"
+                    />
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Se establece según la cuenta receptora.
+                    </span>
                   </div>
 
                   {initialPaymentInNonUsd && (
                     <>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                          Monto recibido (en moneda local)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={sale.initialPaymentReceivedAmount}
-                          onChange={(e) => updateSale("initialPaymentReceivedAmount", e.target.value)}
-                          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700">
-                          Moneda recibida
-                        </label>
-                        <input
-                          value={sale.initialPaymentReceivedCurrency}
-                          onChange={(e) => updateSale("initialPaymentReceivedCurrency", e.target.value)}
-                          placeholder={sale.initialPaymentCurrency}
-                          maxLength={3}
-                          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase"
-                        />
-                      </div>
                       <div>
                         <label className="block text-sm font-medium text-slate-700">
                           Tasa de cambio
@@ -893,55 +875,6 @@ export function NuevoEstudianteForm({
                       </div>
                     </>
                   )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Fecha del pago <span className="text-rose-600">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={sale.initialPaymentPaidAt}
-                      onChange={(e) => updateSale("initialPaymentPaidAt", e.target.value)}
-                      required={sale.hasInitialPayment}
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">
-                      Tipo de pago inicial <span className="text-rose-600">*</span>
-                    </label>
-                    <select
-                      value={sale.initialPaymentType}
-                      onChange={(e) =>
-                        updateSale("initialPaymentType", e.target.value as InitialPaymentType)
-                      }
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    >
-                      <option value="DOWN_PAYMENT">Enganche</option>
-                      <option value="FULL_PAYMENT">Pago total</option>
-                      <option value="RESERVATION">Reserva</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">Método</label>
-                    <input
-                      value={sale.initialPaymentMethod}
-                      onChange={(e) => updateSale("initialPaymentMethod", e.target.value)}
-                      placeholder="Transferencia, Stripe, etc."
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700">Referencia</label>
-                    <input
-                      value={sale.initialPaymentReference}
-                      onChange={(e) => updateSale("initialPaymentReference", e.target.value)}
-                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </div>
                 </div>
               )}
             </fieldset>
