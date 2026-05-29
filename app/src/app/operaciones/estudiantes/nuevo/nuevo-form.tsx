@@ -86,6 +86,52 @@ interface SaleState {
   installmentFrequency: InstallmentFrequency;
 }
 
+// API errors from /api/operaciones/students arrive as `{ error, details? }`.
+// When the schema rejected the body, `details` is the `ZodError.flatten()`
+// shape: `{ formErrors, fieldErrors }`. We translate the top-level field keys
+// to Spanish labels so the alert reads better than "Validación fallida".
+interface ApiErrorDetails {
+  formErrors?: string[];
+  fieldErrors?: Record<string, string[] | undefined>;
+}
+
+const STUDENT_FIELD_LABELS: Record<string, string> = {
+  fullName: "Nombre",
+  legalName: "Nombre legal",
+  email: "Correo",
+  phone: "Teléfono",
+  startDate: "Fecha de inicio",
+  durationMonths: "Duración",
+  mentorUserId: "Mentor",
+  closerUserId: "Closer",
+  ghlContactId: "Contacto GHL",
+  notes: "Notas",
+  personality: "Personalidad",
+  initialEnrollment: "Venta inicial",
+};
+
+function formatApiError(
+  fallback: string,
+  json: { error?: string; details?: ApiErrorDetails } | null | undefined,
+): string {
+  const base = json?.error ?? fallback;
+  const details = json?.details;
+  if (!details) return base;
+  const fieldErrors = details.fieldErrors ?? {};
+  const formErrors = details.formErrors ?? [];
+  const parts: string[] = [];
+  for (const [field, msgs] of Object.entries(fieldErrors)) {
+    if (!msgs || msgs.length === 0) continue;
+    const label = STUDENT_FIELD_LABELS[field] ?? field;
+    parts.push(`${label}: ${msgs[0]}`);
+  }
+  for (const msg of formErrors) {
+    if (msg) parts.push(msg);
+  }
+  if (parts.length === 0) return base;
+  return `${base}: ${parts.join(" · ")}`;
+}
+
 function buildInitialSaleState(startDate: string): SaleState {
   return {
     productId: "",
@@ -474,7 +520,7 @@ export function NuevoEstudianteForm({
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error ?? "Error al crear estudiante");
+        setError(formatApiError("Error al crear estudiante", json));
         setLoading(false);
         return;
       }

@@ -333,7 +333,7 @@ export const createEnrollmentBaseSchema = z.object({
   commissionBaseUsd: moneyUsdSchema.optional().nullable(),
   commissionPercent: percentSchema.optional().nullable(),
   currency: z.string().length(3).default("USD"),
-  paymentAccountId: z.string().cuid().optional().nullable(),
+  paymentAccountId: fkIdSchema("Cuenta receptora").optional().nullable(),
   notes: z.string().max(5000).optional().nullable(),
 });
 
@@ -355,7 +355,7 @@ export const initialPaymentInputSchema = z.object({
   currency: z.string().length(3).default("USD"),
   paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
   initialPaymentType: initialPaymentTypeSchema,
-  paymentAccountId: z.string().cuid().optional().nullable(),
+  paymentAccountId: fkIdSchema("Cuenta receptora").optional().nullable(),
   officialAmountUsd: moneyUsdSchema.optional().nullable(),
   receivedAmount: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
   receivedCurrency: z.string().length(3).optional().nullable(),

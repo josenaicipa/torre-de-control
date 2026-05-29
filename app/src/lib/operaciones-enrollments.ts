@@ -226,17 +226,21 @@ export async function prepareEnrollmentCreate(
     Math.round((totalAmountUsd - initialPaymentUsd) * 100) / 100,
   );
 
-  // Saldo restante después del inicial obliga a definir un plan de cuotas; el
-  // producto debe permitirlas y el caller debe enviar count + firstDueDate.
-  // Si el saldo es 0 (inicial cubre el total) no se exige nada y tampoco se
-  // crea schedule (buildEnrollmentScheduleRows devuelve []).
-  if (balanceAfterInitial > 0) {
-    if (!product.allowsInstallments) {
-      throw new EnrollmentValidationError(
-        400,
-        "Este producto no permite cuotas; el pago inicial debe cubrir el monto total",
-      );
-    }
+  // Saldo restante después del inicial: el plan de cuotas solo se exige cuando
+  // hay financiación (sin inicial, o inicial tipo DOWN_PAYMENT). Reservas y
+  // pagos totales pueden dejar saldo sin plan formal — el saldo se cobra por
+  // fuera y se refleja en balanceUsd. Si el saldo es 0 no se exige nada y
+  // tampoco se crea schedule (buildEnrollmentScheduleRows devuelve []).
+  const balanceFinancedByInstallments =
+    balanceAfterInitial > 0 &&
+    (!initialPayment || initialPayment.initialPaymentType === "DOWN_PAYMENT");
+  if (balanceFinancedByInstallments && !product.allowsInstallments) {
+    throw new EnrollmentValidationError(
+      400,
+      "Este producto no permite cuotas; el pago inicial debe cubrir el monto total",
+    );
+  }
+  if (balanceFinancedByInstallments) {
     if (!body.installmentCount || !body.firstDueDate) {
       throw new EnrollmentValidationError(
         400,
