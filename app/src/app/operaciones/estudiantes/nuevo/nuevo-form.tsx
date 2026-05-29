@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useExchangeRate } from "../_lib/use-exchange-rate";
 import { ExchangeRateStatusLine } from "../_lib/exchange-rate-status";
+import { MoneyInput } from "../_lib/money-input";
 
 interface Mentor { id: string; name: string | null; email: string }
 interface Closer { id: string; name: string | null; email: string; position: string }
@@ -793,13 +794,11 @@ export function NuevoEstudianteForm({
                     <label className="block text-sm font-medium text-slate-700">
                       Monto <span className="text-rose-600">*</span>
                     </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
+                    <MoneyInput
                       value={sale.initialPaymentAmount}
-                      onChange={(e) => updateSale("initialPaymentAmount", e.target.value)}
+                      onChange={(next) => updateSale("initialPaymentAmount", next)}
                       required={sale.hasInitialPayment}
+                      placeholder="0"
                       className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                     />
                   </div>
@@ -846,16 +845,14 @@ export function NuevoEstudianteForm({
                         <label className="block text-sm font-medium text-slate-700">
                           Equivalente USD oficial <span className="text-rose-600">*</span>
                         </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
+                        <MoneyInput
                           value={sale.initialPaymentOfficialUsd}
-                          onChange={(e) => {
-                            updateSale("initialPaymentOfficialUsd", e.target.value);
+                          onChange={(next) => {
+                            updateSale("initialPaymentOfficialUsd", next);
                             setOfficialUsdManual(true);
                           }}
                           required={initialPaymentInNonUsd}
+                          placeholder="0"
                           className="mt-1 w-full rounded-md border-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm font-semibold"
                         />
                         <span className="mt-1 block text-xs text-amber-700">

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useExchangeRate } from "../_lib/use-exchange-rate";
 import { ExchangeRateStatusLine } from "../_lib/exchange-rate-status";
+import { MoneyInput } from "../_lib/money-input";
 
 type Numeric = string | number;
 
@@ -841,13 +842,11 @@ function SellProductForm({
             </Field>
 
             <Field label="Monto" required>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
+              <MoneyInput
                 value={state.initialPaymentAmount}
-                onChange={(e) => update("initialPaymentAmount", e.target.value)}
+                onChange={(next) => update("initialPaymentAmount", next)}
                 required
+                placeholder="0"
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               />
             </Field>
@@ -886,16 +885,14 @@ function SellProductForm({
 
             {initialPaymentInNonUsd ? (
               <Field label="Equivalente USD (oficial)" required>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
+                <MoneyInput
                   value={state.initialPaymentOfficialUsd}
-                  onChange={(e) => {
-                    update("initialPaymentOfficialUsd", e.target.value);
+                  onChange={(next) => {
+                    update("initialPaymentOfficialUsd", next);
                     setOfficialUsdManual(true);
                   }}
                   required
+                  placeholder="0"
                   className="mt-1 w-full rounded-md border-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm font-semibold"
                 />
                 <span className="mt-1 block text-xs text-amber-700">
@@ -919,9 +916,8 @@ function SellProductForm({
                 hint="Aplica solo cuando la moneda del pago no es USD"
               >
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={state.initialPaymentOfficialUsd}
                   disabled
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
