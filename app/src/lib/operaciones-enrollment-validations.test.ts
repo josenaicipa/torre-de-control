@@ -93,6 +93,53 @@ describe("initialPaymentInputSchema", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  // Bug repro: una reserva COP por 1.500.000 (~USD 411.34) era rechazada con
+  // "Too big: expected number to be <=1000000". El cap de 1M sólo aplica al
+  // monto canónico USD; el `amount` se guarda en la moneda recibida (COP) y
+  // puede ser mucho mayor.
+  it("accepts a COP RESERVATION with amount above the USD cap when officialAmountUsd is in range", () => {
+    const result = initialPaymentInputSchema.safeParse({
+      amount: 1_500_000,
+      currency: "COP",
+      paidAt: "2026-06-01",
+      initialPaymentType: "RESERVATION",
+      paymentAccountId: validAccountId,
+      officialAmountUsd: 411.34,
+      receivedAmount: 1_500_000,
+      receivedCurrency: "COP",
+      exchangeRate: 3645,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("still rejects a USD amount above 1M (USD cap unchanged)", () => {
+    const result = initialPaymentInputSchema.safeParse({
+      amount: 1_500_000,
+      currency: "USD",
+      paidAt: "2026-06-01",
+      initialPaymentType: "FULL_PAYMENT",
+      paymentAccountId: validAccountId,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.find((i) => i.path[0] === "amount")?.message;
+      expect(msg).toContain("USD");
+      expect(msg).toContain("1.000.000");
+    }
+  });
+
+  it("rejects a non-USD amount above 1B (local-currency cap)", () => {
+    const result = initialPaymentInputSchema.safeParse({
+      amount: 2_000_000_000,
+      currency: "COP",
+      paidAt: "2026-06-01",
+      initialPaymentType: "FULL_PAYMENT",
+      paymentAccountId: validAccountId,
+      officialAmountUsd: 500,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("createStudentProductEnrollmentSchema", () => {
@@ -164,6 +211,31 @@ describe("createStudentProductEnrollmentSchema", () => {
       productId: validProductId,
       startedAt: "2026-06-01",
       totalAmountUsd: 3000,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  // Caso de alta: estudiante creado con una RESERVA en COP por 1.500.000
+  // (oficial USD 411.34). Antes del fix, el cap de 1M en `initialPayment.amount`
+  // tumbaba la validación con "Validación fallida: Venta inicial: Too big...".
+  it("accepts a RESERVATION initial payment in COP for the new-student enrollment flow", () => {
+    const result = createStudentProductEnrollmentSchema.safeParse({
+      studentId: validStudentId,
+      productId: validProductId,
+      startedAt: "2026-06-01",
+      totalAmountUsd: 3000,
+      paymentAccountId: validAccountId,
+      initialPayment: {
+        amount: 1_500_000,
+        currency: "COP",
+        paidAt: "2026-06-01",
+        initialPaymentType: "RESERVATION",
+        paymentAccountId: validAccountId,
+        officialAmountUsd: 411.34,
+        receivedAmount: 1_500_000,
+        receivedCurrency: "COP",
+        exchangeRate: 3645,
+      },
     });
     expect(result.success).toBe(true);
   });

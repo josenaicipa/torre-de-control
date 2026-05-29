@@ -53,6 +53,39 @@ export type ListStudentsQuery = z.infer<typeof listStudentsQuerySchema>;
 
 // ───────── Payments + Schedule ─────────
 
+// Payment.amount is stored in the raw received currency (e.g. COP for a
+// Colombian receiving account); the canonical USD value lives on
+// `officialAmountUsd`. The 1M cap was a USD-only constraint that wrongly
+// rejected high-magnitude local currencies — COP 1.500.000 ≈ USD 411 — so we
+// keep the 1M ceiling for USD-denominated rows and lift it to 1B for any
+// other currency, which still matches the `receivedAmount` ceiling.
+const PAYMENT_AMOUNT_USD_MAX = 1_000_000;
+const PAYMENT_AMOUNT_LOCAL_MAX = 1_000_000_000;
+
+function formatMoneyLimit(value: number): string {
+  return value.toLocaleString("es-CO");
+}
+
+function enforcePaymentAmountByCurrency(
+  data: {
+    amount?: number | null | undefined;
+    currency?: string | null | undefined;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (data.amount == null) return;
+  const currency = (data.currency ?? "USD").toUpperCase();
+  const limit =
+    currency === "USD" ? PAYMENT_AMOUNT_USD_MAX : PAYMENT_AMOUNT_LOCAL_MAX;
+  if (data.amount > limit) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["amount"],
+      message: `El monto en ${currency} no puede exceder ${formatMoneyLimit(limit)}`,
+    });
+  }
+}
+
 export const createScheduleSchema = z.object({
   totalAmount: z.number().positive().max(1_000_000),
   installments: z.number().int().min(1).max(24),
@@ -62,15 +95,17 @@ export const createScheduleSchema = z.object({
   replaceExisting: z.boolean().default(false),
 });
 
-export const createPaymentSchema = z.object({
-  amount: z.number().positive().max(1_000_000),
-  currency: z.string().length(3).default("USD"),
-  paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
-  method: z.string().max(100).optional().nullable(),
-  reference: z.string().max(200).optional().nullable(),
-  notes: z.string().max(2000).optional().nullable(),
-  scheduleId: z.string().cuid().optional().nullable(),
-});
+export const createPaymentSchema = z
+  .object({
+    amount: z.number().positive().max(PAYMENT_AMOUNT_LOCAL_MAX),
+    currency: z.string().length(3).default("USD"),
+    paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato esperado YYYY-MM-DD"),
+    method: z.string().max(100).optional().nullable(),
+    reference: z.string().max(200).optional().nullable(),
+    notes: z.string().max(2000).optional().nullable(),
+    scheduleId: z.string().cuid().optional().nullable(),
+  })
+  .superRefine(enforcePaymentAmountByCurrency);
 
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
@@ -101,15 +136,17 @@ export type CreateProgressUpdateInput = z.infer<typeof createProgressUpdateSchem
 
 // Payment and Schedule updates
 
-export const updatePaymentSchema = z.object({
-  amount: z.number().positive().max(1_000_000).optional(),
-  currency: z.string().length(3).optional(),
-  paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional(),
-  method: z.string().max(100).optional().nullable(),
-  reference: z.string().max(200).optional().nullable(),
-  notes: z.string().max(2000).optional().nullable(),
-  scheduleId: z.string().cuid().optional().nullable(),
-});
+export const updatePaymentSchema = z
+  .object({
+    amount: z.number().positive().max(PAYMENT_AMOUNT_LOCAL_MAX).optional(),
+    currency: z.string().length(3).optional(),
+    paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional(),
+    method: z.string().max(100).optional().nullable(),
+    reference: z.string().max(200).optional().nullable(),
+    notes: z.string().max(2000).optional().nullable(),
+    scheduleId: z.string().cuid().optional().nullable(),
+  })
+  .superRefine(enforcePaymentAmountByCurrency);
 
 export const updateScheduleSchema = z.object({
   amountDue: z.number().positive().max(1_000_000).optional(),
@@ -350,20 +387,22 @@ export const initialPaymentTypeSchema = z.enum([
   "RESERVATION",
 ]);
 
-export const initialPaymentInputSchema = z.object({
-  amount: z.number().positive().max(1_000_000),
-  currency: z.string().length(3).default("USD"),
-  paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
-  initialPaymentType: initialPaymentTypeSchema,
-  paymentAccountId: fkIdSchema("Cuenta receptora").optional().nullable(),
-  officialAmountUsd: moneyUsdSchema.optional().nullable(),
-  receivedAmount: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
-  receivedCurrency: z.string().length(3).optional().nullable(),
-  exchangeRate: z.number().positive().max(1_000_000).optional().nullable(),
-  method: z.string().max(100).optional().nullable(),
-  reference: z.string().max(200).optional().nullable(),
-  notes: z.string().max(2000).optional().nullable(),
-});
+export const initialPaymentInputSchema = z
+  .object({
+    amount: z.number().positive().max(PAYMENT_AMOUNT_LOCAL_MAX),
+    currency: z.string().length(3).default("USD"),
+    paidAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
+    initialPaymentType: initialPaymentTypeSchema,
+    paymentAccountId: fkIdSchema("Cuenta receptora").optional().nullable(),
+    officialAmountUsd: moneyUsdSchema.optional().nullable(),
+    receivedAmount: z.number().nonnegative().max(1_000_000_000).optional().nullable(),
+    receivedCurrency: z.string().length(3).optional().nullable(),
+    exchangeRate: z.number().positive().max(1_000_000).optional().nullable(),
+    method: z.string().max(100).optional().nullable(),
+    reference: z.string().max(200).optional().nullable(),
+    notes: z.string().max(2000).optional().nullable(),
+  })
+  .superRefine(enforcePaymentAmountByCurrency);
 
 export type InitialPaymentInput = z.infer<typeof initialPaymentInputSchema>;
 
