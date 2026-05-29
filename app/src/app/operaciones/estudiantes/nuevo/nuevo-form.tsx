@@ -125,9 +125,7 @@ export function NuevoEstudianteForm({
   const [legalName, setLegalName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [startDate, setStartDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [startDate, setStartDate] = useState("");
   const [durationMonths, setDurationMonths] = useState("12");
   const [mentorUserId, setMentorUserId] = useState("");
   const [closerUserId, setCloserUserId] = useState("");
@@ -139,9 +137,13 @@ export function NuevoEstudianteForm({
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
 
-  // Optional initial sale block.
+  // Optional initial sale block. "Fecha del pago" mantiene su propio default
+  // (hoy) — la fecha de inicio del estudiante arranca vacía y no debe
+  // arrastrar visualmente al pago inicial.
   const [sellNow, setSellNow] = useState(true);
-  const [sale, setSale] = useState<SaleState>(() => buildInitialSaleState(""));
+  const [sale, setSale] = useState<SaleState>(() =>
+    buildInitialSaleState(new Date().toISOString().slice(0, 10)),
+  );
   // Si el usuario edita manualmente el "Equivalente USD oficial", no lo
   // pisamos cuando se recalcule desde monto/tasa.
   const [officialUsdManual, setOfficialUsdManual] = useState(false);
