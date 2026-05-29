@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useExchangeRate } from "../_lib/use-exchange-rate";
+import { ExchangeRateStatusLine } from "../_lib/exchange-rate-status";
 
 type Numeric = string | number;
 
@@ -420,6 +422,7 @@ interface FormState {
   initialPaymentAmount: string;
   initialPaymentCurrency: string;
   initialPaymentOfficialUsd: string;
+  initialPaymentExchangeRate: string;
   initialPaymentPaidAt: string;
   initialPaymentType: InitialPaymentType;
   initialPaymentMethod: string;
@@ -446,6 +449,7 @@ function buildInitialFormState(): FormState {
     initialPaymentAmount: "",
     initialPaymentCurrency: "USD",
     initialPaymentOfficialUsd: "",
+    initialPaymentExchangeRate: "",
     initialPaymentPaidAt: todayIso(),
     initialPaymentType: "DOWN_PAYMENT",
     initialPaymentMethod: "",
@@ -470,6 +474,7 @@ function SellProductForm({
   const [state, setState] = useState<FormState>(buildInitialFormState());
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [officialUsdManual, setOfficialUsdManual] = useState(false);
 
   const product = useMemo(
     () => products.find((p) => p.id === state.productId) ?? null,
@@ -517,9 +522,56 @@ function SellProductForm({
   const requiresInitialPayment = product?.requiresInitialPayment ?? false;
   const initialPaymentInNonUsd =
     state.hasInitialPayment && state.initialPaymentCurrency.toUpperCase() !== "USD";
+  const initialPaymentIsCop =
+    state.initialPaymentCurrency.toUpperCase() === "COP";
   const needsInstallmentPlan = estimatedBalanceUsd > 0 && (product?.allowsInstallments ?? true);
   const balanceWithoutInstallmentsAllowed =
     estimatedBalanceUsd > 0 && product != null && !product.allowsInstallments;
+
+  const onAutoRate = useCallback((rate: number) => {
+    setState((prev) => ({ ...prev, initialPaymentExchangeRate: String(rate) }));
+  }, []);
+  const trm = useExchangeRate({
+    currency: state.initialPaymentCurrency,
+    date: state.initialPaymentPaidAt,
+    enabled: state.hasInitialPayment && initialPaymentIsCop,
+    onAutoRate,
+  });
+
+  // Auto-calc Equivalente USD oficial = monto / tasa salvo override manual.
+  useEffect(() => {
+    if (!state.hasInitialPayment) return;
+    if (state.initialPaymentCurrency.toUpperCase() === "USD") return;
+    if (officialUsdManual) return;
+    const amount = toNum(state.initialPaymentAmount);
+    const rate = toNum(state.initialPaymentExchangeRate);
+    if (amount > 0 && rate > 0) {
+      const computed = Math.round((amount / rate) * 100) / 100;
+      const computedStr = String(computed);
+      setState((prev) =>
+        prev.initialPaymentOfficialUsd === computedStr
+          ? prev
+          : { ...prev, initialPaymentOfficialUsd: computedStr },
+      );
+    }
+  }, [
+    state.hasInitialPayment,
+    state.initialPaymentCurrency,
+    state.initialPaymentAmount,
+    state.initialPaymentExchangeRate,
+    officialUsdManual,
+  ]);
+
+  useEffect(() => {
+    if (!state.hasInitialPayment) {
+      setOfficialUsdManual(false);
+    }
+  }, [state.hasInitialPayment]);
+  useEffect(() => {
+    if (state.initialPaymentCurrency.toUpperCase() === "USD") {
+      setOfficialUsdManual(false);
+    }
+  }, [state.initialPaymentCurrency]);
 
   function validate(): string | null {
     if (!product) return "Selecciona un producto";
@@ -539,7 +591,7 @@ function SellProductForm({
         state.initialPaymentCurrency.toUpperCase() !== "USD" &&
         !(toNum(state.initialPaymentOfficialUsd) > 0)
       ) {
-        return "officialAmountUsd > 0 obligatorio cuando la moneda del pago no es USD";
+        return "El equivalente USD oficial es obligatorio cuando la moneda del pago no es USD";
       }
       if (initialPaymentUsdNum - totalAmountUsdNum > 0.01) {
         return "El pago inicial (USD) no puede exceder el monto total";
@@ -550,9 +602,11 @@ function SellProductForm({
     }
     if (needsInstallmentPlan) {
       if (!Number.isFinite(installmentCountNum) || installmentCountNum < 1) {
-        return "installmentCount requerido cuando hay saldo restante";
+        return "Cantidad de cuotas requerida cuando hay saldo restante";
       }
-      if (!state.firstDueDate) return "firstDueDate requerido cuando hay saldo restante";
+      if (!state.firstDueDate) {
+        return "Primera fecha de cuota requerida cuando hay saldo restante";
+      }
     }
     return null;
   }
@@ -601,6 +655,9 @@ function SellProductForm({
         };
         if (state.initialPaymentCurrency.toUpperCase() !== "USD") {
           initialPayment.officialAmountUsd = toNum(state.initialPaymentOfficialUsd);
+          if (toNum(state.initialPaymentExchangeRate) > 0) {
+            initialPayment.exchangeRate = toNum(state.initialPaymentExchangeRate);
+          }
         }
         if (state.initialPaymentMethod.trim()) {
           initialPayment.method = state.initialPaymentMethod.trim();
@@ -779,26 +836,75 @@ function SellProductForm({
               </select>
             </Field>
 
-            <Field
-              label="Equivalente USD (oficial)"
-              required={initialPaymentInNonUsd}
-              hint={
-                initialPaymentInNonUsd
-                  ? "Requerido cuando la moneda no es USD"
-                  : "Solo si querés sobreescribir el USD oficial"
-              }
-            >
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={state.initialPaymentOfficialUsd}
-                onChange={(e) => update("initialPaymentOfficialUsd", e.target.value)}
-                required={initialPaymentInNonUsd}
-                disabled={!initialPaymentInNonUsd && state.initialPaymentCurrency.toUpperCase() === "USD"}
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
-              />
-            </Field>
+            {initialPaymentInNonUsd && (
+              <Field label="Tasa de cambio">
+                <input
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  value={state.initialPaymentExchangeRate}
+                  onChange={(e) => {
+                    update("initialPaymentExchangeRate", e.target.value);
+                    trm.markManual();
+                  }}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+                <ExchangeRateStatusLine
+                  currency={state.initialPaymentCurrency}
+                  status={trm.status}
+                  effectiveDate={trm.effectiveDate}
+                  source={trm.source}
+                  errorMessage={trm.errorMessage}
+                  paidAt={state.initialPaymentPaidAt}
+                  onUseToday={trm.reset}
+                />
+              </Field>
+            )}
+
+            {initialPaymentInNonUsd ? (
+              <Field label="Equivalente USD (oficial)" required>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={state.initialPaymentOfficialUsd}
+                  onChange={(e) => {
+                    update("initialPaymentOfficialUsd", e.target.value);
+                    setOfficialUsdManual(true);
+                  }}
+                  required
+                  className="mt-1 w-full rounded-md border-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm font-semibold"
+                />
+                <span className="mt-1 block text-xs text-amber-700">
+                  {officialUsdManual
+                    ? "Editado manualmente. Bórralo para volver al cálculo automático monto / tasa."
+                    : "Se calcula automáticamente como monto / tasa. Puedes editarlo si lo necesitas."}
+                </span>
+                {officialUsdManual && (
+                  <button
+                    type="button"
+                    onClick={() => setOfficialUsdManual(false)}
+                    className="mt-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                  >
+                    Volver al cálculo automático
+                  </button>
+                )}
+              </Field>
+            ) : (
+              <Field
+                label="Equivalente USD (oficial)"
+                hint="Aplica solo cuando la moneda del pago no es USD"
+              >
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={state.initialPaymentOfficialUsd}
+                  disabled
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+                />
+              </Field>
+            )}
 
             <Field label="Fecha del pago" required>
               <input
@@ -818,9 +924,9 @@ function SellProductForm({
                 }
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="DOWN_PAYMENT">Enganche (DOWN_PAYMENT)</option>
-                <option value="FULL_PAYMENT">Pago total (FULL_PAYMENT)</option>
-                <option value="RESERVATION">Reserva (RESERVATION)</option>
+                <option value="DOWN_PAYMENT">Enganche</option>
+                <option value="FULL_PAYMENT">Pago total</option>
+                <option value="RESERVATION">Reserva</option>
               </select>
             </Field>
 
@@ -859,8 +965,8 @@ function SellProductForm({
 
         {balanceWithoutInstallmentsAllowed ? (
           <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
-            Este producto no permite cuotas y el pago inicial no cubre el total. Ajustá el monto o
-            cambiá el producto.
+            Este producto no permite cuotas y el pago inicial no cubre el total. Ajusta el monto o
+            cambia el producto.
           </p>
         ) : needsInstallmentPlan ? (
           <div className="grid gap-3 sm:grid-cols-3">

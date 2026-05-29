@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useExchangeRate } from "../_lib/use-exchange-rate";
+import { ExchangeRateStatusLine } from "../_lib/exchange-rate-status";
 
 interface Mentor { id: string; name: string | null; email: string }
 interface Closer { id: string; name: string | null; email: string; position: string }
@@ -145,6 +147,9 @@ export function NuevoEstudianteForm({
   // Optional initial sale block.
   const [sellNow, setSellNow] = useState(true);
   const [sale, setSale] = useState<SaleState>(() => buildInitialSaleState(""));
+  // Si el usuario edita manualmente el "Equivalente USD oficial", no lo
+  // pisamos cuando se recalcule desde monto/tasa.
+  const [officialUsdManual, setOfficialUsdManual] = useState(false);
 
   // Fetch active products + payment accounts on mount.
   useEffect(() => {
@@ -205,6 +210,59 @@ export function NuevoEstudianteForm({
     () => products.find((p) => p.id === sale.productId) ?? null,
     [products, sale.productId],
   );
+
+  // TRM automática: solo aplica cuando hay pago inicial activo y la
+  // moneda es COP. El padre conserva el valor del input; el hook avisa
+  // por callback cuando consigue un valor automático.
+  const initialPaymentIsCop =
+    sale.initialPaymentCurrency.toUpperCase() === "COP";
+  const onAutoRate = useCallback((rate: number) => {
+    setSale((prev) => ({ ...prev, initialPaymentExchangeRate: String(rate) }));
+  }, []);
+  const trm = useExchangeRate({
+    currency: sale.initialPaymentCurrency,
+    date: sale.initialPaymentPaidAt,
+    enabled: sale.hasInitialPayment && initialPaymentIsCop,
+    onAutoRate,
+  });
+
+  // Auto-calc del Equivalente USD oficial = monto / tasa, salvo que el
+  // usuario haya editado el campo manualmente.
+  useEffect(() => {
+    if (!sale.hasInitialPayment) return;
+    if (sale.initialPaymentCurrency.toUpperCase() === "USD") return;
+    if (officialUsdManual) return;
+    const amount = toNum(sale.initialPaymentAmount);
+    const rate = toNum(sale.initialPaymentExchangeRate);
+    if (amount > 0 && rate > 0) {
+      const computed = Math.round((amount / rate) * 100) / 100;
+      const computedStr = String(computed);
+      setSale((prev) =>
+        prev.initialPaymentOfficialUsd === computedStr
+          ? prev
+          : { ...prev, initialPaymentOfficialUsd: computedStr },
+      );
+    }
+  }, [
+    sale.hasInitialPayment,
+    sale.initialPaymentCurrency,
+    sale.initialPaymentAmount,
+    sale.initialPaymentExchangeRate,
+    officialUsdManual,
+  ]);
+
+  // Cuando se cambia la moneda a USD o se desactiva el pago inicial,
+  // limpiar la marca de "editado manual" para que vuelva a auto-calc.
+  useEffect(() => {
+    if (!sale.hasInitialPayment) {
+      setOfficialUsdManual(false);
+    }
+  }, [sale.hasInitialPayment]);
+  useEffect(() => {
+    if (sale.initialPaymentCurrency.toUpperCase() === "USD") {
+      setOfficialUsdManual(false);
+    }
+  }, [sale.initialPaymentCurrency]);
 
   function applyProductSelection(prev: SaleState, product: Product): SaleState {
     return {
@@ -303,7 +361,7 @@ export function NuevoEstudianteForm({
         sale.initialPaymentCurrency.toUpperCase() !== "USD" &&
         !(toNum(sale.initialPaymentOfficialUsd) > 0)
       ) {
-        return "officialAmountUsd > 0 obligatorio cuando la moneda del pago no es USD";
+        return "El equivalente USD oficial es obligatorio cuando la moneda del pago no es USD";
       }
       if (initialPaymentUsdNum - totalAmountUsdNum > 0.01) {
         return "El pago inicial (USD) no puede exceder el monto total";
@@ -437,9 +495,9 @@ export function NuevoEstudianteForm({
     }
     const main = active.find((p) => p.isMainProduct);
     if (main) {
-      return `Producto principal pre-seleccionado: ${main.name}. Podés cambiarlo o desactivar la venta inicial.`;
+      return `Producto principal pre-seleccionado: ${main.name}. Puedes cambiarlo o desactivar la venta inicial.`;
     }
-    return "El catálogo no tiene un producto marcado como principal. Seleccioná uno manualmente abajo.";
+    return "El catálogo no tiene un producto marcado como principal. Selecciona uno manualmente abajo.";
   }, [products, catalogLoading, catalogError]);
 
   return (
@@ -655,7 +713,7 @@ export function NuevoEstudianteForm({
                 checked={sale.grantAccessNow}
                 onChange={(e) => updateSale("grantAccessNow", e.target.checked)}
               />
-              Otorgar acceso ahora (accessStatus = ACTIVE)
+              Otorgar acceso ahora (estado de acceso: Activo)
             </label>
 
             <fieldset className="rounded-md border border-slate-200 p-3">
@@ -786,8 +844,20 @@ export function NuevoEstudianteForm({
                           step="0.000001"
                           min="0"
                           value={sale.initialPaymentExchangeRate}
-                          onChange={(e) => updateSale("initialPaymentExchangeRate", e.target.value)}
+                          onChange={(e) => {
+                            updateSale("initialPaymentExchangeRate", e.target.value);
+                            trm.markManual();
+                          }}
                           className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        />
+                        <ExchangeRateStatusLine
+                          currency={sale.initialPaymentCurrency}
+                          status={trm.status}
+                          effectiveDate={trm.effectiveDate}
+                          source={trm.source}
+                          errorMessage={trm.errorMessage}
+                          paidAt={sale.initialPaymentPaidAt}
+                          onUseToday={trm.reset}
                         />
                       </div>
                       <div>
@@ -799,13 +869,27 @@ export function NuevoEstudianteForm({
                           step="0.01"
                           min="0.01"
                           value={sale.initialPaymentOfficialUsd}
-                          onChange={(e) => updateSale("initialPaymentOfficialUsd", e.target.value)}
+                          onChange={(e) => {
+                            updateSale("initialPaymentOfficialUsd", e.target.value);
+                            setOfficialUsdManual(true);
+                          }}
                           required={initialPaymentInNonUsd}
                           className="mt-1 w-full rounded-md border-2 border-amber-400 bg-amber-50 px-3 py-2 text-sm font-semibold"
                         />
                         <span className="mt-1 block text-xs text-amber-700">
-                          Obligatorio en moneda local — el saldo USD de la inscripción depende de este valor.
+                          {officialUsdManual
+                            ? "Editado manualmente. Bórralo para volver al cálculo automático monto / tasa."
+                            : "Se calcula automáticamente como monto / tasa. Puedes editarlo si lo necesitas."}
                         </span>
+                        {officialUsdManual && (
+                          <button
+                            type="button"
+                            onClick={() => setOfficialUsdManual(false)}
+                            className="mt-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                          >
+                            Volver al cálculo automático
+                          </button>
+                        )}
                       </div>
                     </>
                   )}
@@ -866,8 +950,8 @@ export function NuevoEstudianteForm({
               <legend className="px-1 text-sm font-semibold text-slate-700">Plan de cuotas</legend>
               {balanceWithoutInstallmentsAllowed ? (
                 <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                  Este producto no permite cuotas y el pago inicial no cubre el total. Ajustá el monto o
-                  cambiá el producto.
+                  Este producto no permite cuotas y el pago inicial no cubre el total. Ajusta el monto o
+                  cambia el producto.
                 </p>
               ) : needsInstallmentPlan ? (
                 <div className="grid gap-3 sm:grid-cols-3">
