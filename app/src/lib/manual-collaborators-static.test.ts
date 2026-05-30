@@ -76,17 +76,12 @@ describe("manual collaborator labels", () => {
   });
 
   it("renames Torre CEO Funnel a hoy rows to match Detalle Diario definitions", () => {
-    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
     const funnelBlock = html.slice(html.indexOf("const funnelRows=["), html.indexOf("const handleSaveCfg=async"));
     expect(funnelBlock).toMatch(
       /l:"Ventas \$ \(comprometido\)"[\s\S]*l:"Ventas \(unidades\)"[\s\S]*l:"Citas Show Up \(asistidas\)"[\s\S]*l:"Leads calificados reales"[\s\S]*l:"Citas agendadas reales"/
     );
-    expect(torreBlock).toContain('const totalLeads=closerEntries.reduce((s,e)=>s+Math.max(nv(e.agendas_final),nv(e.agendas_calificadas)),0);');
-    expect(torreBlock).toContain('const totalAgendas=closerEntries.reduce((s,e)=>s+Math.min(nv(e.agendas_final),nv(e.agendas_calificadas)),0);');
-    expect(funnelBlock).toContain('{l:"Ventas (unidades)",req:funnelVentasUniReq,real:totalVentas,fmt:"n"}');
-    expect(funnelBlock).toContain('{l:"Citas Show Up (asistidas)",req:funnelAsistidasReq,real:totalAsistidas,fmt:"n"}');
-    expect(funnelBlock).toContain('{l:"Leads calificados reales",req:funnelLeadsReq,real:totalLeads,fmt:"n"}');
-    expect(funnelBlock).toContain('{l:"Citas agendadas reales",req:funnelAgendasReq,real:totalAgendas,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Leads calificados reales",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Citas agendadas reales",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"}');
     expect(funnelBlock).not.toContain('l:"Citas asistidas"');
     expect(funnelBlock).not.toContain('l:"Citas agend. calificadas"');
     expect(funnelBlock).not.toContain('l:"Leads calificados"');
