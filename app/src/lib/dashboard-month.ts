@@ -35,7 +35,11 @@ export interface RhythmInputs {
   state: MonthState;
   /** Days in the selected month. */
   daysInMonth: number;
-  /** Day-of-month value the user may have stored in cfg (or today's day). */
+  /**
+   * Legacy/manual day-of-month stored in KPI config. Kept in the type so older
+   * callers/tests continue to compile, but current-month rhythm must use the
+   * real dashboard date instead of this stale snapshot value.
+   */
   cfgDay: number | null;
   /** Today's day-of-month in the dashboard timezone. */
   todayDay: number;
@@ -45,8 +49,8 @@ export interface Rhythm {
   /**
    * Effective "day of month" the rhythm uses. For past months we force the
    * final day (the month is closed); for future months we use 0 so the UI
-   * cannot invent progress; for the current month we cap the cfg/today value
-   * at the month length.
+   * cannot invent progress; for the current month we use today's real day and
+   * ignore stale/manual cfg.day values.
    */
   day: number;
   /** Fraction of the month considered elapsed (0..1). */
@@ -54,15 +58,14 @@ export interface Rhythm {
 }
 
 export function resolveRhythm(inputs: RhythmInputs): Rhythm {
-  const { state, daysInMonth, cfgDay, todayDay } = inputs;
+  const { state, daysInMonth, todayDay } = inputs;
   if (state === "past") {
     return { day: daysInMonth, pctElapsed: 1 };
   }
   if (state === "future") {
     return { day: 0, pctElapsed: 0 };
   }
-  const base = cfgDay && cfgDay > 0 ? cfgDay : todayDay;
-  const day = Math.min(Math.max(base, 0), daysInMonth);
+  const day = Math.min(Math.max(todayDay, 0), daysInMonth);
   return { day, pctElapsed: daysInMonth > 0 ? day / daysInMonth : 0 };
 }
 

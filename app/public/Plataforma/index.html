@@ -834,7 +834,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const _curM=_curMM-1;
   const monthState=year<_curY||(year===_curY&&month<_curM)?"past":year===_curY&&month===_curM?"current":"future";
   const isPast=monthState==="past",isFuture=monthState==="future",isCurrent=monthState==="current";
-  const day=isPast?dm:isFuture?0:Math.min(nv(cfg.day)||_curD,dm);
+  // Current-month rhythm must follow the real Bogotá date. `cfg.day` is a
+  // legacy/manual snapshot and can go stale (e.g. May 30 still showing day 28).
+  const day=isPast?dm:isFuture?0:Math.min(_curD,dm);
 
   const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
   const totalRecurring=sumF(closerEntries,"recurring_cash");

@@ -53,15 +53,15 @@ describe("resolveRhythm", () => {
     expect(r.pctElapsed).toBe(0);
   });
 
-  it("uses cfgDay capped to the month length for the current month", () => {
+  it("uses the real current day instead of stale cfgDay for the current month", () => {
     const r = resolveRhythm({
       state: "current",
       daysInMonth: 31,
-      cfgDay: 27,
-      todayDay: 27,
+      cfgDay: 28,
+      todayDay: 30,
     });
-    expect(r.day).toBe(27);
-    expect(r.pctElapsed).toBeCloseTo(27 / 31);
+    expect(r.day).toBe(30);
+    expect(r.pctElapsed).toBeCloseTo(30 / 31);
   });
 
   it("falls back to todayDay when cfgDay is missing", () => {
@@ -79,7 +79,7 @@ describe("resolveRhythm", () => {
       state: "current",
       daysInMonth: 28,
       cfgDay: 99,
-      todayDay: 27,
+      todayDay: 31,
     });
     expect(r.day).toBe(28);
     expect(r.pctElapsed).toBe(1);
