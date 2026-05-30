@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma";
 import {
   COLORS,
   FOLLOW_UP_REASON_LABELS,
-  FOLLOW_UP_STATUS_LABELS,
-  PRIORITY_COLORS,
   PRIORITY_LABELS,
 } from "../_lib/tokens";
 import { SubNav } from "../_components/SubNav";
+import {
+  FollowUpsTable,
+  type FollowUpRow,
+} from "./_components/FollowUpsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +75,29 @@ export default async function SeguimientosPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const rows: FollowUpRow[] = items.map((f) => ({
+    id: f.id,
+    reason: f.reason,
+    priority: f.priority,
+    status: f.status,
+    suggestedAction: f.suggestedAction,
+    notes: f.notes,
+    result: f.result,
+    dueDate: f.dueDate ? f.dueDate.toISOString() : null,
+    contactedAt: f.contactedAt ? f.contactedAt.toISOString() : null,
+    nextActionAt: f.nextActionAt ? f.nextActionAt.toISOString() : null,
+    assignedName: f.assignedTo
+      ? f.assignedTo.name ?? f.assignedTo.email ?? null
+      : null,
+    member: {
+      id: f.member.id,
+      fullName: f.member.fullName,
+      email: f.member.email,
+      phone: f.member.phone,
+      country: f.member.country,
+    },
+  }));
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -141,88 +166,7 @@ export default async function SeguimientosPage({
         </button>
       </form>
 
-      <div
-        style={{
-          backgroundColor: COLORS.surface,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ overflowX: "auto" }}>
-          <table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
-          >
-            <thead style={{ backgroundColor: COLORS.background }}>
-              <tr>
-                <Th>Prioridad</Th>
-                <Th>Miembro</Th>
-                <Th>País</Th>
-                <Th>Motivo</Th>
-                <Th>Acción sugerida</Th>
-                <Th>Asignado</Th>
-                <Th>Estado</Th>
-                <Th>Vence</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={8}
-                    style={{
-                      padding: 24,
-                      textAlign: "center",
-                      color: COLORS.textMuted,
-                    }}
-                  >
-                    No hay seguimientos para este filtro.
-                  </td>
-                </tr>
-              ) : (
-                items.map((f) => (
-                  <tr
-                    key={f.id}
-                    style={{ borderTop: `1px solid ${COLORS.border}` }}
-                  >
-                    <Td>
-                      <PriorityBadge priority={f.priority} />
-                    </Td>
-                    <Td>
-                      <Link
-                        href={`/comunidad-dropi/miembros/${f.member.id}`}
-                        style={{
-                          color: COLORS.text,
-                          fontWeight: 600,
-                          textDecoration: "none",
-                        }}
-                      >
-                        {f.member.fullName ?? f.member.email ?? f.member.phone ?? "—"}
-                      </Link>
-                    </Td>
-                    <Td>{f.member.country ?? "—"}</Td>
-                    <Td>{FOLLOW_UP_REASON_LABELS[f.reason] ?? f.reason}</Td>
-                    <Td>
-                      <span style={{ color: COLORS.textSoft }}>
-                        {f.suggestedAction ?? "—"}
-                      </span>
-                    </Td>
-                    <Td>
-                      {f.assignedTo
-                        ? f.assignedTo.name ?? f.assignedTo.email
-                        : "—"}
-                    </Td>
-                    <Td>{FOLLOW_UP_STATUS_LABELS[f.status] ?? f.status}</Td>
-                    <Td>
-                      {f.dueDate ? f.dueDate.toISOString().slice(0, 10) : "—"}
-                    </Td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <FollowUpsTable items={rows} />
 
       {totalPages > 1 && (
         <div
@@ -253,46 +197,6 @@ export default async function SeguimientosPage({
         </div>
       )}
     </div>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th
-      style={{
-        padding: "8px 12px",
-        textAlign: "left",
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "0.06em",
-        textTransform: "uppercase",
-        color: COLORS.textSoft,
-      }}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return <td style={{ padding: "8px 12px", verticalAlign: "middle" }}>{children}</td>;
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const c = PRIORITY_COLORS[priority] ?? { bg: "#F1F5F9", text: "#475569" };
-  return (
-    <span
-      style={{
-        backgroundColor: c.bg,
-        color: c.text,
-        borderRadius: 999,
-        padding: "2px 8px",
-        fontSize: 11,
-        fontWeight: 700,
-      }}
-    >
-      {priority}
-    </span>
   );
 }
 

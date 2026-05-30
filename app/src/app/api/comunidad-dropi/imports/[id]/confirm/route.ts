@@ -10,6 +10,7 @@ import {
   calculateSegment,
   followUpReasonForSegment,
 } from "@/lib/comunidad-dropi-segments";
+import { computeMemberSnapshotPatch } from "@/lib/comunidad-dropi-snapshot";
 import { validateUploadPayload } from "@/lib/comunidad-dropi-upload-validation";
 
 export const runtime = "nodejs";
@@ -380,20 +381,40 @@ async function refreshMemberSnapshot(
   priority: "P1" | "P2" | "P3" | "P4",
   reportedAt: Date,
 ) {
-  await tx.dropiCommunityMember.update({
+  // Re-importing an older week/month must not degrade the snapshot. Read the
+  // member's current reported-at bounds and let the pure helper decide what
+  // (if anything) to overwrite.
+  const member = await tx.dropiCommunityMember.findUnique({
     where: { id: memberId },
-    data: {
-      currentSegment: segment,
-      currentPriority: priority,
-      lastReportedAt: reportedAt,
-    } as never,
+    select: { firstReportedAt: true, lastReportedAt: true },
   });
-  // firstReportedAt is set on the first observation; using a raw conditional
-  // update keeps the existing value untouched on later imports.
-  await tx.dropiCommunityMember.updateMany({
-    where: { id: memberId, firstReportedAt: null },
-    data: { firstReportedAt: reportedAt },
+  if (!member) return;
+
+  const patch = computeMemberSnapshotPatch({
+    currentFirstReportedAt: member.firstReportedAt,
+    currentLastReportedAt: member.lastReportedAt,
+    periodReportedAt: reportedAt,
+    newSegment: segment,
+    newPriority: priority,
   });
+
+  if (patch.refreshCurrent) {
+    await tx.dropiCommunityMember.update({
+      where: { id: memberId },
+      data: {
+        currentSegment: patch.currentSegment,
+        currentPriority: patch.currentPriority,
+        lastReportedAt: patch.lastReportedAt,
+      } as never,
+    });
+  }
+
+  if (patch.updateFirstReportedAt) {
+    await tx.dropiCommunityMember.update({
+      where: { id: memberId },
+      data: { firstReportedAt: patch.firstReportedAt },
+    });
+  }
 }
 
 function suggestedActionFor(reason: string): string {
