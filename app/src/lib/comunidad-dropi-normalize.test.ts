@@ -98,6 +98,52 @@ describe("detectReportPeriodFromName", () => {
   it("returns null when nothing matches", () => {
     expect(detectReportPeriodFromName("dropi.xlsx")).toBeNull();
   });
+
+  it("detects monthly from Spanish month name plus a YY-MM-DD stamp", () => {
+    const r = detectReportPeriodFromName(
+      "26-04-06 UNLOCKED 1 - 5 ABRIL (1).xlsx",
+    );
+    expect(r?.reportType).toBe("MONTHLY");
+    expect(r?.year).toBe(2026);
+    expect(r?.month).toBe(4);
+    expect(r?.periodStart).toBeUndefined();
+    expect(r?.periodEnd).toBeUndefined();
+  });
+
+  it("detects monthly from a Spanish month with a partial day range", () => {
+    expect(detectReportPeriodFromName("1-5 abril.xlsx")).toEqual({
+      reportType: "MONTHLY",
+      month: 4,
+    });
+    expect(detectReportPeriodFromName("1 a 5 abril.xlsx")).toEqual({
+      reportType: "MONTHLY",
+      month: 4,
+    });
+  });
+
+  it("prefers the Spanish month over the YY-MM prefix when both disagree", () => {
+    // The YY prefix is the upload date stamp; the period is the named month.
+    const r = detectReportPeriodFromName("26-05-10 reporte abril 2026.xlsx");
+    expect(r?.reportType).toBe("MONTHLY");
+    expect(r?.month).toBe(4);
+    expect(r?.year).toBe(2026);
+  });
+
+  it("keeps weekly when there is a real ISO range alongside a Spanish month", () => {
+    const r = detectReportPeriodFromName(
+      "2026-04-01_2026-04-07 abril.xlsx",
+    );
+    expect(r?.reportType).toBe("WEEKLY");
+    expect(r?.periodStart?.toISOString().slice(0, 10)).toBe("2026-04-01");
+    expect(r?.periodEnd?.toISOString().slice(0, 10)).toBe("2026-04-07");
+  });
+
+  it("keeps weekly when the same-month range pattern is present with a Spanish month", () => {
+    const r = detectReportPeriodFromName("2026-04-06 al 12 abril.xlsx");
+    expect(r?.reportType).toBe("WEEKLY");
+    expect(r?.periodStart?.toISOString().slice(0, 10)).toBe("2026-04-06");
+    expect(r?.periodEnd?.toISOString().slice(0, 10)).toBe("2026-04-12");
+  });
 });
 
 describe("safeRate", () => {

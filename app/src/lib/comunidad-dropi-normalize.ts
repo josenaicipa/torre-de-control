@@ -74,10 +74,30 @@ export interface DetectedReportPeriod {
   month?: number;
 }
 
+const SPANISH_MONTHS: Record<string, number> = {
+  enero: 1,
+  febrero: 2,
+  marzo: 3,
+  abril: 4,
+  mayo: 5,
+  junio: 6,
+  julio: 7,
+  agosto: 8,
+  septiembre: 9,
+  setiembre: 9,
+  octubre: 10,
+  noviembre: 11,
+  diciembre: 12,
+};
+
+const SPANISH_MONTH_REGEX =
+  /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\b/;
+
 // Try to recognise the period that an upload covers from the file name.
 // Examples we accept:
 //   "comunidad-dropi-2026-05-01_2026-05-07.xlsx" → weekly 2026-05-01 .. 2026-05-07
 //   "dropi 2026-05-06 al 12.xlsx"                → weekly 2026-05-06 .. 2026-05-12
+//   "26-04-06 UNLOCKED 1 - 5 ABRIL.xlsx"         → monthly 2026 / 4
 //   "dropi 2026-05.xlsx"                          → monthly 2026 / 5
 //   "dropi mensual 05 2026.xlsx"                  → monthly 2026 / 5
 // If we can't be sure, return null so the UI can ask the operator.
@@ -120,6 +140,19 @@ export function detectReportPeriodFromName(
     if (result) return result;
   }
 
+  // Cumulative monthly files that ops actually produce don't carry a complete
+  // weekly ISO range; instead they label the month in Spanish and may include
+  // a partial day window like "1 - 5 ABRIL". Once we've ruled the weekly
+  // patterns out above, a Spanish month name is the strongest signal we have.
+  const monthMatch = lower.match(SPANISH_MONTH_REGEX);
+  if (monthMatch) {
+    const month = SPANISH_MONTHS[monthMatch[1]];
+    const year = detectYearFromName(lower);
+    const result: DetectedReportPeriod = { reportType: "MONTHLY", month };
+    if (year != null) result.year = year;
+    return result;
+  }
+
   const monthly = lower.match(/(20\d{2})[-_./ ](\d{1,2})(?!\d)/);
   if (monthly) {
     const [, ys, ms] = monthly;
@@ -134,6 +167,20 @@ export function detectReportPeriodFromName(
   const weeklyHint = lower.includes("semanal") || lower.includes("weekly");
   if (monthlyHint) return { reportType: "MONTHLY" };
   if (weeklyHint) return { reportType: "WEEKLY" };
+  return null;
+}
+
+// Pull a 4-digit year from the file name, or fall back to a 2-digit prefix in
+// a YY-MM-DD style stamp like "26-04-06" (only when the YY is >= 20 so we do
+// not misread a DD-MM-YY date as a year).
+function detectYearFromName(lower: string): number | null {
+  const full = lower.match(/\b(20\d{2})\b/);
+  if (full) return Number(full[1]);
+  const short = lower.match(/\b(\d{2})[-./](\d{1,2})[-./](\d{1,2})\b/);
+  if (short) {
+    const yy = Number(short[1]);
+    if (yy >= 20 && yy <= 99) return 2000 + yy;
+  }
   return null;
 }
 

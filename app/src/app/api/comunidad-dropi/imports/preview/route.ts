@@ -59,16 +59,38 @@ export async function POST(req: Request) {
     }
 
     const detected = detectReportPeriodFromName(body.fileName);
-    const reportType = body.reportType ?? detected?.reportType ?? "WEEKLY";
+    const reportType: "WEEKLY" | "MONTHLY" =
+      body.reportType ?? detected?.reportType ?? "WEEKLY";
 
-    const periodStart = body.periodStart
-      ? new Date(body.periodStart + "T00:00:00.000Z")
-      : detected?.periodStart ?? null;
-    const periodEnd = body.periodEnd
-      ? new Date(body.periodEnd + "T00:00:00.000Z")
-      : detected?.periodEnd ?? null;
-    const year = body.year ?? detected?.year ?? null;
-    const month = body.month ?? detected?.month ?? null;
+    // Only inherit detected fields that match the chosen reportType. A manual
+    // override (e.g. operator forcing MONTHLY) must never reuse a weekly range
+    // we detected earlier, otherwise the batch ends up as MONTHLY but with
+    // stale periodStart/periodEnd values that confuse the confirm step.
+    const detectedMatches = detected?.reportType === reportType;
+    const periodStart =
+      reportType === "WEEKLY"
+        ? body.periodStart
+          ? new Date(body.periodStart + "T00:00:00.000Z")
+          : detectedMatches
+          ? detected?.periodStart ?? null
+          : null
+        : null;
+    const periodEnd =
+      reportType === "WEEKLY"
+        ? body.periodEnd
+          ? new Date(body.periodEnd + "T00:00:00.000Z")
+          : detectedMatches
+          ? detected?.periodEnd ?? null
+          : null
+        : null;
+    const year =
+      reportType === "MONTHLY"
+        ? body.year ?? (detectedMatches ? detected?.year ?? null : null)
+        : null;
+    const month =
+      reportType === "MONTHLY"
+        ? body.month ?? (detectedMatches ? detected?.month ?? null : null)
+        : null;
 
     const batch = await prisma.dropiImportBatch.upsert({
       where: { fileHash: preview.fileHash },

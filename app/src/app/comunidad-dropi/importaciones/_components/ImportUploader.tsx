@@ -81,6 +81,23 @@ export function ImportUploader() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  function changeReportType(next: "AUTO" | "WEEKLY" | "MONTHLY") {
+    setReportType(next);
+    // Clear fields that don't apply to the new type so the stale state from a
+    // previous attempt can't leak into the next preview body. We also drop the
+    // current preview because its reportType no longer matches the form, and
+    // confirming a stale preview is exactly the bug we want to avoid.
+    if (next === "MONTHLY") {
+      setPeriodStart("");
+      setPeriodEnd("");
+    } else if (next === "WEEKLY") {
+      setYear("");
+      setMonth("");
+    }
+    setPreview(null);
+    setError(null);
+  }
+
   async function ingestFile(file: File) {
     setError(null);
     setPreview(null);
@@ -379,7 +396,7 @@ export function ImportUploader() {
           <select
             value={reportType}
             onChange={(e) =>
-              setReportType(e.target.value as "AUTO" | "WEEKLY" | "MONTHLY")
+              changeReportType(e.target.value as "AUTO" | "WEEKLY" | "MONTHLY")
             }
             style={inputStyle()}
           >
