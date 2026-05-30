@@ -80,6 +80,8 @@ describe("manual collaborator labels", () => {
     expect(funnelBlock).toMatch(
       /l:"Ventas \$ \(comprometido\)"[\s\S]*l:"Ventas \(unidades\)"[\s\S]*l:"Citas Show Up \(asistidas\)"[\s\S]*l:"Leads calificados reales"[\s\S]*l:"Citas agendadas reales"/
     );
+    expect(funnelBlock).toContain('{l:"Leads calificados reales",req:agendaMeta*pctTranscurrido,real:totalLeads,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Citas agendadas reales",req:leadsMeta*pctTranscurrido,real:totalAgendas,fmt:"n"}');
     expect(funnelBlock).not.toContain('l:"Citas asistidas"');
     expect(funnelBlock).not.toContain('l:"Citas agend. calificadas"');
     expect(funnelBlock).not.toContain('l:"Leads calificados"');
