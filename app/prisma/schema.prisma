@@ -110,6 +110,10 @@ model User {
   progressAsMentor     ProgressUpdate[]         @relation("ProgressMentor")
   studentsAsCloser     Student[]                @relation("StudentCloser")
   paymentAccountsOwned PaymentAccount[]         @relation("PaymentAccountOwner")
+  dropiImportsUploaded DropiImportBatch[]       @relation("DropiImportUploader")
+  dropiFollowUpsAssigned DropiFollowUp[]        @relation("DropiFollowUpAssignee")
+  dropiFollowUpsCreated  DropiFollowUp[]        @relation("DropiFollowUpCreator")
+  dropiLinkAuditActions  DropiStudentLinkAudit[] @relation("DropiLinkAuditActor")
 
   @@index([role])
   @@index([position])
@@ -433,6 +437,13 @@ model Student {
   tagAssignments      StudentTagAssignment[]
   referralsMade       Referral[]                 @relation("ReferralReferrer")
   referralsReceived   Referral[]                 @relation("ReferralReferred")
+
+  // Optional back-link from Comunidad Dropi. A student may be linked to one
+  // community member when they also report Dropi sales, but the Student model
+  // remains the source of truth for mentorship and is never required to have
+  // a community-member row.
+  dropiCommunityMembers DropiCommunityMember[]
+  dropiLinkAuditEntries DropiStudentLinkAudit[] @relation("DropiLinkAuditStudent")
 
   @@index([mentorUserId])
   @@index([closerUserId])
@@ -968,4 +979,227 @@ model LearnWorldsAccessConfig {
   @@index([productId])
   @@index([lwProductType])
   @@index([isActive])
+}
+
+// ─── Comunidad Dropi ─────────────────────────────────────────────────────────
+// Independent surface for the Dropi sellers community. Lives next to the
+// Operaciones / Estudiantes 1-1 spine, never on top of it: a community member
+// can optionally be linked to a Student (`linkedStudentId`) when they are also
+// a 1-1 mentee, but Student remains the source of truth for mentorship and is
+// never required to have a community-member row.
+
+// Lifecycle of a community member. Drives the dashboard "operational" filter
+// without touching `currentSegment` (segment is analytical, status is human).
+enum DropiMemberStatus {
+  ACTIVE
+  INACTIVE
+  WATCHLIST
+}
+
+// Reason a follow-up was opened. Mirrors the segments that drive the
+// auto-generated cases plus an explicit "OTHER" for manual ones.
+enum DropiFollowUpReason {
+  ZERO_SALES
+  DROP
+  HIGH_RETURN
+  LOW_VOLUME
+  TOP_PERFORMER
+  OTHER
+}
+
+enum DropiFollowUpStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
+enum DropiPriority {
+  P1
+  P2
+  P3
+  P4
+}
+
+// One row per Dropi community member. Identity is fuzzy (email, phone, Dropi
+// id), so we keep them all nullable and rely on the import upsert logic in
+// src/lib/comunidad-dropi-import.ts to resolve duplicates. `currentSegment`
+// and `currentPriority` are denormalized caches refreshed by the segmentation
+// engine after every confirmed import.
+model DropiCommunityMember {
+  id               String             @id @default(cuid())
+  fullName         String?
+  email            String?
+  phone            String?
+  country          String?
+  dropiExternalId  String?
+  ghlContactId     String?
+  currentSegment   String?
+  currentPriority  DropiPriority?
+  currentStatus    DropiMemberStatus  @default(ACTIVE)
+  firstReportedAt  DateTime?
+  lastReportedAt   DateTime?
+  notes            String?
+  linkedStudentId  String?
+  linkedStudent    Student?           @relation(fields: [linkedStudentId], references: [id], onDelete: SetNull)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  weeklyMetrics    DropiWeeklyMetric[]
+  monthlyMetrics   DropiMonthlyMetric[]
+  followUps        DropiFollowUp[]
+  studentLinkAudit DropiStudentLinkAudit[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([country])
+  @@index([linkedStudentId])
+  @@index([currentSegment])
+  @@index([currentPriority])
+  @@index([currentStatus])
+}
+
+model DropiWeeklyMetric {
+  id                    String               @id @default(cuid())
+  memberId              String
+  member                DropiCommunityMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  periodStart           DateTime             @db.Date
+  periodEnd             DateTime             @db.Date
+  ordersEntered         Int                  @default(0)
+  ordersMoved           Int                  @default(0)
+  ordersDelivered       Int                  @default(0)
+  ordersReturned        Int                  @default(0)
+  movementRate          Decimal              @default(0) @db.Decimal(8, 2)
+  deliveryRate          Decimal              @default(0) @db.Decimal(8, 2)
+  returnRate            Decimal              @default(0) @db.Decimal(8, 2)
+  previousOrdersEntered Int?
+  deltaOrdersEntered    Int?
+  deltaOrdersPercent    Decimal?             @db.Decimal(8, 2)
+  calculatedSegment     String?
+  calculatedPriority    DropiPriority?
+  country               String?
+  importBatchId         String?
+  importBatch           DropiImportBatch?    @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  rawRow                Json?
+  createdAt             DateTime             @default(now())
+
+  @@unique([memberId, periodStart, periodEnd])
+  @@index([memberId])
+  @@index([periodStart, periodEnd])
+  @@index([calculatedSegment])
+  @@index([calculatedPriority])
+  @@index([importBatchId])
+}
+
+model DropiMonthlyMetric {
+  id                  String               @id @default(cuid())
+  memberId            String
+  member              DropiCommunityMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  year                Int
+  month               Int
+  ordersEntered       Int                  @default(0)
+  ordersMoved         Int                  @default(0)
+  ordersDelivered     Int                  @default(0)
+  ordersReturned      Int                  @default(0)
+  monthOverMonthDelta Decimal?             @db.Decimal(8, 2)
+  trend               String?
+  calculatedSegment   String?
+  calculatedPriority  DropiPriority?
+  country             String?
+  importBatchId       String?
+  importBatch         DropiImportBatch?    @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  rawRow              Json?
+  createdAt           DateTime             @default(now())
+
+  @@unique([memberId, year, month])
+  @@index([memberId])
+  @@index([year, month])
+  @@index([trend])
+  @@index([importBatchId])
+}
+
+model DropiImportBatch {
+  id             String       @id @default(cuid())
+  fileName       String
+  fileHash       String?
+  reportType     String
+  periodStart    DateTime?    @db.Date
+  periodEnd      DateTime?    @db.Date
+  year           Int?
+  month          Int?
+  country        String?
+  rowsTotal      Int          @default(0)
+  rowsProcessed  Int          @default(0)
+  rowsFailed     Int          @default(0)
+  status         ImportStatus @default(PENDING)
+  errors         Json?
+  uploadedById   String?
+  uploadedBy     User?        @relation("DropiImportUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  weeklyMetrics  DropiWeeklyMetric[]
+  monthlyMetrics DropiMonthlyMetric[]
+
+  @@unique([fileHash])
+  @@index([reportType])
+  @@index([status])
+  @@index([createdAt])
+  @@index([uploadedById])
+}
+
+// Operational case opened on a community member after a segmentation pass.
+// The system auto-generates follow-ups after every confirmed import; the team
+// can also create them manually. `sourceWeeklyMetricId` / `sourceMonthlyMetricId`
+// keep the trigger metric pinned so de-duplication can avoid re-opening the
+// same case for the same period.
+model DropiFollowUp {
+  id                    String               @id @default(cuid())
+  memberId              String
+  member                DropiCommunityMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  reason                DropiFollowUpReason
+  priority              DropiPriority        @default(P3)
+  status                DropiFollowUpStatus  @default(OPEN)
+  assignedToId          String?
+  assignedTo            User?                @relation("DropiFollowUpAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  suggestedAction       String?
+  notes                 String?
+  result                String?
+  sourceWeeklyMetricId  String?
+  sourceMonthlyMetricId String?
+  dueDate               DateTime?
+  contactedAt           DateTime?
+  nextActionAt          DateTime?
+  createdById           String?
+  createdBy             User?                @relation("DropiFollowUpCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([memberId])
+  @@index([reason])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([dueDate])
+}
+
+// Audit log of link/unlink actions between a Dropi member and a 1-1 Student.
+// Optional but recommended by the blueprint so reviewers can trace why a
+// link exists or was broken. memberId and studentId are nullable + SetNull
+// so the audit row survives deletion of either side and history stays intact.
+model DropiStudentLinkAudit {
+  id            String                @id @default(cuid())
+  memberId      String?
+  member        DropiCommunityMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  studentId     String?
+  student       Student?              @relation("DropiLinkAuditStudent", fields: [studentId], references: [id], onDelete: SetNull)
+  action        String
+  reason        String?
+  createdById   String?
+  createdBy     User?                 @relation("DropiLinkAuditActor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime              @default(now())
+
+  @@index([memberId])
+  @@index([studentId])
+  @@index([createdAt])
 }

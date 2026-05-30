@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   DollarSign,
   Filter,
+  Globe,
   History,
   Home,
   Megaphone,
@@ -114,6 +115,7 @@ interface NavigationContentProps {
   operationsExpanded: boolean;
   onToggleOperations: () => void;
   operationsActive: boolean;
+  comunidadDropiActive: boolean;
   showMentor: boolean;
   showAdmin: boolean;
   onItemClick?: () => void;
@@ -125,6 +127,7 @@ function NavigationContent({
   operationsExpanded,
   onToggleOperations,
   operationsActive,
+  comunidadDropiActive,
   showMentor,
   showAdmin,
   onItemClick,
@@ -199,6 +202,14 @@ function NavigationContent({
         )}
       </div>
 
+      <SidebarItem
+        href="/comunidad-dropi"
+        label="Comunidad Dropi"
+        Icon={Globe}
+        active={comunidadDropiActive}
+        onClick={onItemClick}
+      />
+
       {showMentor && (
         <SidebarItem
           href="/operaciones/mis-estudiantes"
@@ -235,6 +246,7 @@ export function OperationsShell({
     (item) => item.href !== "/admin/users" && item.href !== "/operaciones/mis-estudiantes",
   );
   const operationsActive = pathname.startsWith("/operaciones");
+  const comunidadDropiActive = pathname.startsWith("/comunidad-dropi");
   const showAdmin =
     actor.role === "ADMIN" || navItems.some((item) => item.href === "/admin/users");
   const showMentor = actor.role === "MENTOR";
@@ -339,6 +351,7 @@ export function OperationsShell({
           operationsExpanded={operationsExpanded}
           onToggleOperations={toggleOperations}
           operationsActive={operationsActive}
+          comunidadDropiActive={comunidadDropiActive}
           showMentor={showMentor}
           showAdmin={showAdmin}
         />
@@ -450,6 +463,7 @@ export function OperationsShell({
           operationsExpanded={operationsExpanded}
           onToggleOperations={toggleOperations}
           operationsActive={operationsActive}
+          comunidadDropiActive={comunidadDropiActive}
           showMentor={showMentor}
           showAdmin={showAdmin}
           onItemClick={closeMobileMenu}
