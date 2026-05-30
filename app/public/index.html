@@ -222,18 +222,10 @@ const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
 const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 
-// Original Excel model: "Leads necesarios por dólar" comes from the fixed
-// Parametros_Modelo table, not from the month-to-date real ticket average.
-const MODEL_LEADS_BY_REVENUE={
-  50000:238,75000:359,100000:476,125000:597,140000:667,150000:714,
-  200000:952,280000:1333,400000:1905,550000:2619,850000:4048,
-  880000:4190,1150000:5476,1500000:7143,1850000:8810,2100000:10000,
-};
-const DEFAULT_LEADS_PER_DOLLAR=714/150000;
-const leadsPerDollarForRevenue=(revenue)=>{
-  const key=Math.round(nv(revenue)||0);
-  return key&&MODEL_LEADS_BY_REVENUE[key]?MODEL_LEADS_BY_REVENUE[key]/key:DEFAULT_LEADS_PER_DOLLAR;
-};
+// Modelo objetivo del embudo (plan): fixed hypothetical planning assumption.
+// "Leads necesarios por dólar" was derived from the historical Excel baseline.
+const LEADS_NECESARIOS_POR_DOLAR=0.00476;
+const leadsPerDollarForRevenue=()=>LEADS_NECESARIOS_POR_DOLAR;
 
 const blankEntry=()=>({
   igFollowers:0,posts:0,mensajes:0,followUps:0,bkOffers:0,

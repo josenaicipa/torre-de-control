@@ -75,6 +75,17 @@ describe("manual collaborator labels", () => {
     expect(agendasBlock).not.toContain('l:"% Cualificadas"');
   });
 
+  it("uses the fixed 0.00476 leads-per-dollar assumption for Modelo objetivo del embudo", () => {
+    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
+
+    expect(html).toContain("const LEADS_NECESARIOS_POR_DOLAR=0.00476;");
+    expect(html).toContain("const leadsPerDollarForRevenue=()=>LEADS_NECESARIOS_POR_DOLAR;");
+    expect(torreBlock).toContain("const leadsMeta=metaMensual>0?metaMensual*leadsPorDolar:0;");
+    expect(torreBlock).toContain("const agendaMeta=pctLeadsAg>0?leadsMeta*(pctLeadsAg/100):0;");
+    expect(torreBlock).toContain("const asistidaMeta=pctAgAsis>0?agendaMeta*(pctAgAsis/100):0;");
+    expect(torreBlock).toContain("const ventasUniMeta=closeRateMeta>0?asistidaMeta*(closeRateMeta/100):0;");
+  });
+
   it("renames Torre CEO Funnel a hoy rows to match Detalle Diario definitions", () => {
     const funnelBlock = html.slice(html.indexOf("const funnelRows=["), html.indexOf("const handleSaveCfg=async"));
     expect(funnelBlock).toMatch(
