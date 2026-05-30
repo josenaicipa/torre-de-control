@@ -81,8 +81,8 @@ describe("manual collaborator labels", () => {
     expect(funnelBlock).toMatch(
       /l:"Ventas \$ \(comprometido\)"[\s\S]*l:"Ventas \(unidades\)"[\s\S]*l:"Citas Show Up \(asistidas\)"[\s\S]*l:"Leads calificados reales"[\s\S]*l:"Citas agendadas reales"/
     );
-    expect(torreBlock).toContain('const totalLeads=closerEntries.reduce((s,e)=>s+Math.min(nv(e.agendas_final),nv(e.agendas_calificadas)),0);');
-    expect(torreBlock).toContain('const totalAgendas=closerEntries.reduce((s,e)=>s+Math.max(nv(e.agendas_final),nv(e.agendas_calificadas)),0);');
+    expect(torreBlock).toContain('const totalLeads=closerEntries.reduce((s,e)=>s+Math.max(nv(e.agendas_final),nv(e.agendas_calificadas)),0);');
+    expect(torreBlock).toContain('const totalAgendas=closerEntries.reduce((s,e)=>s+Math.min(nv(e.agendas_final),nv(e.agendas_calificadas)),0);');
     expect(funnelBlock).toContain('{l:"Ventas (unidades)",req:funnelVentasUniReq,real:totalVentas,fmt:"n"}');
     expect(funnelBlock).toContain('{l:"Citas Show Up (asistidas)",req:funnelAsistidasReq,real:totalAsistidas,fmt:"n"}');
     expect(funnelBlock).toContain('{l:"Leads calificados reales",req:funnelLeadsReq,real:totalLeads,fmt:"n"}');
