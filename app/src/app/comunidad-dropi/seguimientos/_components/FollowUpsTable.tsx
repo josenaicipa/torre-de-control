@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   COLORS,
   FOLLOW_UP_REASON_LABELS,
   FOLLOW_UP_STATUS_LABELS,
   PRIORITY_COLORS,
+  PRIORITY_LABELS,
 } from "../../_lib/tokens";
 import {
   BUCKET_COLORS,
@@ -18,6 +19,16 @@ import {
   formatRelativeDateEs,
   groupByBucket,
 } from "../../_lib/follow-ups";
+import {
+  diffSelectionForGroup,
+  isEverySelected,
+  isSomeSelected,
+  summarizeBulkOutcome,
+  toggleSelection,
+  type BulkFailure,
+  type BulkOutcome,
+  type BulkOutcomeSummary,
+} from "../../_lib/bulk";
 import { FollowUpDrawer, type DrawerPatch } from "./FollowUpDrawer";
 
 type Status = "OPEN" | "IN_PROGRESS" | "DONE" | "DISMISSED";
@@ -67,7 +78,12 @@ interface RowSaveState {
   savedAt: number | null;
 }
 
-const COLUMN_COUNT = 9;
+interface BulkBarState {
+  saving: boolean;
+  summary: BulkOutcomeSummary | null;
+}
+
+const COLUMN_COUNT = 10;
 
 export function FollowUpsTable({
   items,
@@ -78,6 +94,11 @@ export function FollowUpsTable({
 }: Props) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkState, setBulkState] = useState<BulkBarState>({
+    saving: false,
+    summary: null,
+  });
   const [saveStates, setSaveStates] = useState<Record<string, RowSaveState>>(
     {},
   );
@@ -203,8 +224,119 @@ export function FollowUpsTable({
   // OVERDUE will already arrive oldest-first and TODAY ordered by priority.
   const grouped = useMemo(() => groupByBucket(list, nowDate), [list, nowDate]);
 
+  const visibleIds = useMemo(() => list.map((r) => r.id), [list]);
+
+  // Drop selections whose rows are no longer in the visible result set (e.g.
+  // after a router.refresh removed completed items). Keeps the bulk bar honest
+  // about which ids will actually receive the patch.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(visibleIds);
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [visibleIds]);
+
   const selectedRow = selectedId ? rows[selectedId] ?? null : null;
   const selectedSave = selectedId ? saveStates[selectedId] : undefined;
+
+  function toggleRow(id: string) {
+    setSelectedIds((s) => toggleSelection(s, id));
+    setBulkState((s) => ({ ...s, summary: null }));
+  }
+
+  function toggleGroup(ids: string[]) {
+    setSelectedIds((s) => diffSelectionForGroup(s, ids));
+    setBulkState((s) => ({ ...s, summary: null }));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setBulkState({ saving: false, summary: null });
+  }
+
+  async function applyBulkPatch(
+    patch: Record<string, unknown>,
+    nextRowPatch: Partial<FollowUpRow>,
+  ): Promise<void> {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    const prev: Record<string, FollowUpRow> = {};
+    setBulkState({ saving: true, summary: null });
+    setRows((r) => {
+      const next = { ...r };
+      for (const id of ids) {
+        if (next[id]) {
+          prev[id] = next[id];
+          next[id] = { ...next[id], ...nextRowPatch };
+        }
+      }
+      return next;
+    });
+    try {
+      const res = await fetch("/api/comunidad-dropi/follow-ups/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, patch }),
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        // Revert optimistic edits for everyone in the batch.
+        setRows((r) => ({ ...r, ...prev }));
+        setBulkState({
+          saving: false,
+          summary: {
+            tone: "error",
+            message: payload?.error ?? "No se pudo aplicar el lote.",
+          },
+        });
+        return;
+      }
+      const outcome: BulkOutcome = {
+        requested: payload.data.requested,
+        updated: payload.data.updated,
+        failed: payload.data.failed,
+        failures: (payload.data.failures ?? []) as BulkFailure[],
+      };
+      // Revert the failed rows so the table reflects reality.
+      if (outcome.failures.length > 0) {
+        setRows((r) => {
+          const next = { ...r };
+          for (const f of outcome.failures) {
+            if (prev[f.id]) next[f.id] = prev[f.id];
+          }
+          return next;
+        });
+        // Drop failed ids from the selection so a retry doesn't keep hitting
+        // them. Keep the survivors so the operator can compose another patch.
+        setSelectedIds((s) => {
+          const next = new Set(s);
+          for (const f of outcome.failures) next.delete(f.id);
+          return next;
+        });
+      } else {
+        setSelectedIds(new Set());
+      }
+      setBulkState({
+        saving: false,
+        summary: summarizeBulkOutcome(outcome),
+      });
+      startTransition(() => router.refresh());
+    } catch (err) {
+      setRows((r) => ({ ...r, ...prev }));
+      const msg = err instanceof Error ? err.message : "Error de red";
+      setBulkState({
+        saving: false,
+        summary: { tone: "error", message: msg },
+      });
+    }
+  }
 
   if (list.length === 0) {
     return (
@@ -223,8 +355,36 @@ export function FollowUpsTable({
     );
   }
 
+  const everyVisibleSelected = isEverySelected(selectedIds, visibleIds);
+  const someVisibleSelected = isSomeSelected(selectedIds, visibleIds);
+
   return (
     <>
+      {selectedIds.size > 0 && (
+        <BulkActionBar
+          count={selectedIds.size}
+          state={bulkState}
+          canAssign={canAssign}
+          actorUserId={actorUserId}
+          assignableUsers={assignableUsers}
+          onAssign={(assignedToId) =>
+            applyBulkPatch(
+              { assignedToId },
+              {
+                assignedToId,
+                assignedName: assignedToId
+                  ? assignableById.get(assignedToId)?.label ?? null
+                  : null,
+              },
+            )
+          }
+          onPriority={(priority) =>
+            applyBulkPatch({ priority }, { priority })
+          }
+          onStatus={(status) => applyBulkPatch({ status }, { status })}
+          onClear={clearSelection}
+        />
+      )}
       <div
         style={{
           backgroundColor: COLORS.surface,
@@ -239,6 +399,15 @@ export function FollowUpsTable({
           >
             <thead style={{ backgroundColor: COLORS.background }}>
               <tr>
+                <Th>
+                  <MasterCheckbox
+                    checked={everyVisibleSelected}
+                    indeterminate={!everyVisibleSelected && someVisibleSelected}
+                    disabled={bulkState.saving}
+                    onChange={() => toggleGroup(visibleIds)}
+                    ariaLabel="Seleccionar todos los seguimientos visibles"
+                  />
+                </Th>
                 <Th>Prioridad</Th>
                 <Th>Miembro</Th>
                 <Th>País</Th>
@@ -253,14 +422,20 @@ export function FollowUpsTable({
             {BUCKET_ORDER.map((bucket) => {
               const bucketRows = grouped[bucket];
               if (bucketRows.length === 0) return null;
+              const bucketIds = bucketRows.map((r) => r.id);
               return (
                 <BucketSection
                   key={bucket}
                   bucket={bucket}
                   rows={bucketRows}
+                  bucketIds={bucketIds}
                   now={nowDate}
                   saveStates={saveStates}
                   selectedId={selectedId}
+                  selectedIds={selectedIds}
+                  bulkSaving={bulkState.saving}
+                  onToggleRow={toggleRow}
+                  onToggleGroup={toggleGroup}
                   onOpenDetail={(id) => setSelectedId(id)}
                   onStatus={handleStatusChange}
                   onAssign={handleAssignChange}
@@ -291,12 +466,216 @@ export function FollowUpsTable({
   );
 }
 
+function BulkActionBar({
+  count,
+  state,
+  canAssign,
+  actorUserId,
+  assignableUsers,
+  onAssign,
+  onPriority,
+  onStatus,
+  onClear,
+}: {
+  count: number;
+  state: BulkBarState;
+  canAssign: boolean;
+  actorUserId: string;
+  assignableUsers: AssignableUser[];
+  onAssign: (assignedToId: string | null) => void;
+  onPriority: (priority: string) => void;
+  onStatus: (status: Status) => void;
+  onClear: () => void;
+}) {
+  const summaryColor =
+    state.summary?.tone === "success"
+      ? COLORS.success
+      : state.summary?.tone === "error"
+        ? COLORS.danger
+        : COLORS.warning;
+
+  return (
+    <div
+      role="region"
+      aria-label="Acciones masivas"
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 20,
+        marginBottom: 10,
+        padding: "10px 14px",
+        backgroundColor: COLORS.surface,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 12,
+        boxShadow: "0 6px 16px rgba(17,17,16,0.06)",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <span
+        aria-live="polite"
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: COLORS.text,
+          marginRight: 4,
+        }}
+      >
+        {count === 1
+          ? "1 seguimiento seleccionado"
+          : `${count} seguimientos seleccionados`}
+      </span>
+
+      {canAssign && (
+        <label style={bulkControlLabel()}>
+          <span>Responsable</span>
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "") return;
+              if (v === "__me__") onAssign(actorUserId);
+              else if (v === "__none__") onAssign(null);
+              else onAssign(v);
+              e.target.value = "";
+            }}
+            disabled={state.saving}
+            aria-label="Asignar responsable en masa"
+            style={bulkSelectStyle()}
+          >
+            <option value="" disabled>
+              Asignar…
+            </option>
+            <option value="__me__">Asignarme a mí</option>
+            <option value="__none__">Quitar responsable</option>
+            {assignableUsers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      <label style={bulkControlLabel()}>
+        <span>Prioridad</span>
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            const v = e.target.value;
+            if (!v) return;
+            onPriority(v);
+            e.target.value = "";
+          }}
+          disabled={state.saving}
+          aria-label="Cambiar prioridad en masa"
+          style={bulkSelectStyle()}
+        >
+          <option value="" disabled>
+            Cambiar a…
+          </option>
+          {Object.entries(PRIORITY_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <button
+        type="button"
+        onClick={() => onStatus("DONE")}
+        disabled={state.saving}
+        style={bulkButtonStyle("success", state.saving)}
+        aria-label="Marcar seleccionados como Hecho"
+      >
+        Marcar Hecho
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onStatus("DISMISSED")}
+        disabled={state.saving}
+        style={bulkButtonStyle("neutral", state.saving)}
+        aria-label="Marcar seleccionados como Descartado"
+      >
+        Descartar
+      </button>
+
+      <button
+        type="button"
+        onClick={onClear}
+        disabled={state.saving}
+        style={bulkButtonStyle("ghost", state.saving)}
+        aria-label="Limpiar selección"
+      >
+        Limpiar
+      </button>
+
+      <span
+        aria-live="polite"
+        style={{
+          marginLeft: "auto",
+          fontSize: 12,
+          fontWeight: 600,
+          minHeight: 16,
+          color: state.saving ? COLORS.textSoft : summaryColor,
+        }}
+      >
+        {state.saving
+          ? "Aplicando…"
+          : state.summary
+            ? state.summary.message
+            : ""}
+      </span>
+    </div>
+  );
+}
+
+function MasterCheckbox({
+  checked,
+  indeterminate,
+  disabled,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  indeterminate: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+  ariaLabel: string;
+}) {
+  const ref = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      onClick={(e) => e.stopPropagation()}
+      aria-label={ariaLabel}
+      style={{ cursor: disabled ? "not-allowed" : "pointer" }}
+    />
+  );
+}
+
 function BucketSection({
   bucket,
   rows,
+  bucketIds,
   now,
   saveStates,
   selectedId,
+  selectedIds,
+  bulkSaving,
+  onToggleRow,
+  onToggleGroup,
   onOpenDetail,
   onStatus,
   onAssign,
@@ -306,9 +685,14 @@ function BucketSection({
 }: {
   bucket: DueBucket;
   rows: FollowUpRow[];
+  bucketIds: string[];
   now: Date;
   saveStates: Record<string, RowSaveState>;
   selectedId: string | null;
+  selectedIds: Set<string>;
+  bulkSaving: boolean;
+  onToggleRow: (id: string) => void;
+  onToggleGroup: (ids: string[]) => void;
   onOpenDetail: (id: string) => void;
   onStatus: (id: string, status: Status) => void;
   onAssign: (id: string, assignedToId: string | null) => void;
@@ -317,6 +701,9 @@ function BucketSection({
   assignableUsers: AssignableUser[];
 }) {
   const palette = BUCKET_COLORS[bucket];
+  const bucketChecked = isEverySelected(selectedIds, bucketIds);
+  const bucketIndeterminate =
+    !bucketChecked && isSomeSelected(selectedIds, bucketIds);
   return (
     <tbody>
       <tr>
@@ -334,18 +721,27 @@ function BucketSection({
             textTransform: "uppercase",
           }}
         >
-          <span
-            style={{
-              display: "inline-block",
-              width: 6,
-              height: 6,
-              borderRadius: 999,
-              backgroundColor: palette.border,
-              marginRight: 8,
-              verticalAlign: "middle",
-            }}
-          />
-          {BUCKET_LABELS[bucket]} · {rows.length}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <MasterCheckbox
+              checked={bucketChecked}
+              indeterminate={bucketIndeterminate}
+              disabled={bulkSaving}
+              onChange={() => onToggleGroup(bucketIds)}
+              ariaLabel={`Seleccionar todos los seguimientos de ${BUCKET_LABELS[bucket]}`}
+            />
+            <span
+              style={{
+                display: "inline-block",
+                width: 6,
+                height: 6,
+                borderRadius: 999,
+                backgroundColor: palette.border,
+              }}
+            />
+            <span>
+              {BUCKET_LABELS[bucket]} · {rows.length}
+            </span>
+          </span>
         </td>
       </tr>
       {rows.map((row) => {
@@ -357,7 +753,10 @@ function BucketSection({
             now={now}
             bucket={bucket}
             isSelected={selectedId === row.id}
+            isChecked={selectedIds.has(row.id)}
+            bulkSaving={bulkSaving}
             save={save}
+            onToggleRow={() => onToggleRow(row.id)}
             onOpenDetail={() => onOpenDetail(row.id)}
             onStatus={(s) => onStatus(row.id, s)}
             onAssign={(assignedToId) => onAssign(row.id, assignedToId)}
@@ -376,7 +775,10 @@ function RowFragment({
   now,
   bucket,
   isSelected,
+  isChecked,
+  bulkSaving,
   save,
+  onToggleRow,
   onOpenDetail,
   onStatus,
   onAssign,
@@ -388,7 +790,10 @@ function RowFragment({
   now: Date;
   bucket: DueBucket;
   isSelected: boolean;
+  isChecked: boolean;
+  bulkSaving: boolean;
   save: RowSaveState | undefined;
+  onToggleRow: () => void;
   onOpenDetail: () => void;
   onStatus: (s: Status) => void;
   onAssign: (assignedToId: string | null) => void;
@@ -402,8 +807,9 @@ function RowFragment({
   const isMine = row.assignedToId === actorUserId;
 
   // The whole row is clickable to open the drawer, but the cells containing
-  // interactive controls (links, selects, buttons) stop propagation so the
-  // drawer doesn't fire when the user is changing status / assignee inline.
+  // interactive controls (checkbox, links, selects, buttons) stop propagation
+  // so the drawer doesn't fire when the user is changing status / assignee
+  // inline or toggling the selection checkbox.
   return (
     <>
       <tr
@@ -412,9 +818,24 @@ function RowFragment({
           borderTop: `1px solid ${COLORS.border}`,
           boxShadow: `inset 3px 0 0 ${palette.rowAccent}`,
           cursor: "pointer",
-          backgroundColor: isSelected ? COLORS.background : undefined,
+          backgroundColor: isChecked
+            ? "#FFFBEB"
+            : isSelected
+              ? COLORS.background
+              : undefined,
         }}
       >
+        <Td onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isChecked}
+            disabled={bulkSaving}
+            onChange={onToggleRow}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Seleccionar seguimiento de ${memberName}`}
+            style={{ cursor: bulkSaving ? "not-allowed" : "pointer" }}
+          />
+        </Td>
         <Td>
           <PriorityBadge priority={row.priority} />
         </Td>
@@ -692,5 +1113,70 @@ function inputStyle(): React.CSSProperties {
     fontWeight: 500,
     textTransform: "none",
     letterSpacing: "normal",
+  };
+}
+
+function bulkControlLabel(): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 11,
+    fontWeight: 700,
+    color: COLORS.textSoft,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+  };
+}
+
+function bulkSelectStyle(): React.CSSProperties {
+  return {
+    padding: "6px 8px",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: 700,
+    backgroundColor: COLORS.surface,
+    color: COLORS.text,
+    fontFamily: "inherit",
+    cursor: "pointer",
+  };
+}
+
+function bulkButtonStyle(
+  tone: "success" | "neutral" | "ghost",
+  disabled: boolean,
+): React.CSSProperties {
+  const palette: Record<
+    "success" | "neutral" | "ghost",
+    { bg: string; color: string; border: string }
+  > = {
+    success: {
+      bg: COLORS.success,
+      color: COLORS.surface,
+      border: COLORS.success,
+    },
+    neutral: {
+      bg: COLORS.surface,
+      color: COLORS.text,
+      border: COLORS.border,
+    },
+    ghost: {
+      bg: "transparent",
+      color: COLORS.textSoft,
+      border: "transparent",
+    },
+  };
+  const c = palette[tone];
+  return {
+    padding: "7px 12px",
+    border: `1px solid ${c.border}`,
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: 700,
+    backgroundColor: c.bg,
+    color: c.color,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.7 : 1,
   };
 }
