@@ -86,4 +86,13 @@ describe("manual collaborator labels", () => {
     expect(funnelBlock).not.toContain('l:"Citas agend. calificadas"');
     expect(funnelBlock).not.toContain('l:"Leads calificados"');
   });
+
+  it("calculates Salud del embudo ratios from the corrected Torre CEO denominators", () => {
+    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
+    expect(torreBlock).toContain("const pctLeadsAgReal=totalAgendas>0?pv(totalLeads,totalAgendas):null;");
+    expect(torreBlock).toContain("const pctAgAsisReal=totalLeads>0?pv(totalAsistidas,totalLeads):null;");
+    expect(torreBlock).toContain("const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;");
+    expect(torreBlock).not.toContain("const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;");
+    expect(torreBlock).not.toContain("const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;");
+  });
 });
