@@ -901,7 +901,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const gapProy=proyeccion?proyeccion-metaMensual:null;
 
   const funnelRows=[
-    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
+    {l:"Ventas $ (comprometido)",req:metaMensual,real:totalValor,fmt:"$"},
     {l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"},
     {l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"},
     {l:"Leads calificados reales",req:leadsReqHoy,real:totalLeads,fmt:"n"},

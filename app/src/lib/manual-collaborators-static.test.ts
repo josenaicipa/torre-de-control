@@ -97,6 +97,7 @@ describe("manual collaborator labels", () => {
     expect(funnelBlock).toMatch(
       /l:"Ventas \$ \(comprometido\)"[\s\S]*l:"Ventas \(unidades\)"[\s\S]*l:"Citas Show Up \(asistidas\)"[\s\S]*l:"Leads calificados reales"[\s\S]*l:"Citas agendadas reales"/
     );
+    expect(funnelBlock).toContain('{l:"Ventas $ (comprometido)",req:metaMensual,real:totalValor,fmt:"$"}');
     expect(funnelBlock).toContain('{l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"}');
     expect(funnelBlock).toContain('{l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"}');
     expect(funnelBlock).toContain('{l:"Leads calificados reales",req:leadsReqHoy,real:totalLeads,fmt:"n"}');
