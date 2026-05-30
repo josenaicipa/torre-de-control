@@ -782,7 +782,7 @@ model StudentProductEnrollment {
   productId              String
   product                Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
   status                 EnrollmentStatus @default(ACTIVE)
-  startedAt              DateTime         @db.Date
+  startedAt              DateTime?        @db.Date
   endsAt                 DateTime?        @db.Date
   totalAmountUsd         Decimal          @db.Decimal(14, 2)
   initialPaymentUsd      Decimal?         @db.Decimal(14, 2)

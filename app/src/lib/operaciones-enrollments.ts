@@ -339,7 +339,9 @@ export async function createValidatedEnrollmentInTx(
       studentId,
       productId: product.id,
       status: "ACTIVE",
-      startedAt: new Date(`${body.startedAt}T00:00:00.000Z`),
+      startedAt: body.startedAt
+        ? new Date(`${body.startedAt}T00:00:00.000Z`)
+        : null,
       endsAt: body.endsAt
         ? new Date(`${body.endsAt}T00:00:00.000Z`)
         : null,

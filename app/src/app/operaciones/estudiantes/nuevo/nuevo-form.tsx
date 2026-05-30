@@ -848,7 +848,7 @@ export function NuevoEstudianteForm({
                     >
                       <option value="DOWN_PAYMENT">Pago inicial</option>
                       <option value="FULL_PAYMENT">Pago total</option>
-                      <option value="RESERVATION">Reserva</option>
+                      <option value="RESERVATION">Separado</option>
                     </select>
                   </div>
 

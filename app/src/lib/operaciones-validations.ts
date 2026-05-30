@@ -407,7 +407,11 @@ export const accessStatusSchema = z.enum([
 export const createEnrollmentBaseSchema = z.object({
   studentId: z.string().cuid(),
   productId: z.string().cuid(),
-  startedAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD"),
+  startedAt: z
+    .string()
+    .regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD")
+    .optional()
+    .nullable(),
   endsAt: z.string().regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD").optional().nullable(),
   totalAmountUsd: moneyUsdSchema,
   initialPaymentUsd: moneyUsdSchema.optional().nullable(),

@@ -583,7 +583,6 @@ function SellProductForm({
 
   function validate(): string | null {
     if (!product) return "Selecciona un producto";
-    if (!state.startedAt) return "Fecha de inicio requerida";
     if (!(totalAmountUsdNum > 0)) return "Monto total USD debe ser > 0";
 
     if (requiresInitialPayment && !state.hasInitialPayment) {
@@ -632,7 +631,7 @@ function SellProductForm({
       const body: Record<string, unknown> = {
         studentId,
         productId: state.productId,
-        startedAt: state.startedAt,
+        startedAt: state.startedAt || null,
         endsAt: state.endsAt || null,
         totalAmountUsd: totalAmountUsdNum,
         currency: state.currency,
@@ -746,12 +745,11 @@ function SellProductForm({
           </select>
         </Field>
 
-        <Field label="Inicio" required>
+        <Field label="Inicio">
           <input
             type="date"
             value={state.startedAt}
             onChange={(e) => update("startedAt", e.target.value)}
-            required
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </Field>
@@ -837,7 +835,7 @@ function SellProductForm({
               >
                 <option value="DOWN_PAYMENT">Pago inicial</option>
                 <option value="FULL_PAYMENT">Pago total</option>
-                <option value="RESERVATION">Reserva</option>
+                <option value="RESERVATION">Separado</option>
               </select>
             </Field>
 
