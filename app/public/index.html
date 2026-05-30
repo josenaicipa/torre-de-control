@@ -3526,6 +3526,7 @@ const TABS=[
     {id:"operaciones-catalogo", l:"Catálogo", href:"/operaciones/catalogo"},
     {id:"operaciones-importar", l:"Importar Excel", href:"/operaciones/importar"},
   ]},
+  {id:"comunidad-dropi", l:"Comunidad Dropi", icon:"users", href:"/comunidad-dropi"},
   {id:"admin",   l:"Admin",              icon:"settings"},
 ];
 
@@ -3541,6 +3542,7 @@ const MOBILE_TABS=[
   TABS.find(t=>t.id==="colab"),
   TABS.find(t=>t.id==="hist"),
   TABS.find(t=>t.id==="operaciones"),
+  TABS.find(t=>t.id==="comunidad-dropi"),
   TABS.find(t=>t.id==="admin"),
 ].filter(Boolean);
 
@@ -4169,6 +4171,21 @@ function App(){
                       );
                     })}
                   </div>
+                );
+              }
+              if(t.href){
+                return(
+                  <a key={t.id} href={t.href} onClick={()=>setMobileOpsMenuOpen(false)}
+                    style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
+                      padding:"11px 18px",fontSize:13,color:TXT2,
+                      background:"transparent",borderLeft:"2px solid transparent",
+                      fontFamily:"'Inter',sans-serif",fontWeight:500,textDecoration:"none"}}>
+                    <Icon name={t.icon} size={14} color={TXT3}/>
+                    <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
+                      <span>{t.l}</span>
+                      {t.sub&&<span style={{fontSize:10,lineHeight:1.15,opacity:.75}}>{t.sub}</span>}
+                    </span>
+                  </a>
                 );
               }
               const active=!embedUrl&&tab===t.id;
