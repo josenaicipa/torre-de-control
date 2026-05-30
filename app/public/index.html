@@ -893,12 +893,13 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   // as Cash Low Ticket and must not inflate this HT committed KPI.
   const totalValor=totalValorHT;
   const totalVentas=sumF(closerEntries,"q_ventas_ht");
-  // Excel parity: Leads calificados is the top-of-funnel count and
-  // Citas agendadas is the next step. Historical imports and the May GHL
-  // correction used these two storage columns in opposite directions, so Torre
-  // CEO normalizes by funnel order instead of trusting the raw column names.
-  const totalLeads=closerEntries.reduce((s,e)=>s+Math.max(nv(e.agendas_final),nv(e.agendas_calificadas)),0);
-  const totalAgendas=closerEntries.reduce((s,e)=>s+Math.min(nv(e.agendas_final),nv(e.agendas_calificadas)),0);
+  // Semántica Torre CEO:
+  // - Citas agendadas reales = todas las agendas que llegaron (volumen mayor).
+  // - Leads calificados reales = personas que pasaron filtro / no cancelaron (volumen menor).
+  // Historical imports and the May GHL correction used these two storage columns
+  // in opposite directions, so Torre CEO normalizes by business meaning.
+  const totalLeads=closerEntries.reduce((s,e)=>s+Math.min(nv(e.agendas_final),nv(e.agendas_calificadas)),0);
+  const totalAgendas=closerEntries.reduce((s,e)=>s+Math.max(nv(e.agendas_final),nv(e.agendas_calificadas)),0);
   const totalAsistidas=sumF(closerEntries,"citas_asistidas");
   // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
   const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
