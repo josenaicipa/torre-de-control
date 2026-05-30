@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Eye, FileSpreadsheet, Upload } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Eye, FileSpreadsheet, Upload } from "lucide-react";
 import { useState } from "react";
 
 interface ParsedStudentMember {
@@ -44,6 +44,8 @@ export function CarteraImportForm() {
   const [preview, setPreview] = useState<PreviewSummary | null>(null);
   const [parsedRows, setParsedRows] = useState<ParsedRowPreview[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [sampleOpen, setSampleOpen] = useState(false);
+  const [allRowsOpen, setAllRowsOpen] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -157,91 +159,123 @@ export function CarteraImportForm() {
             </div>
           )}
 
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-medium text-slate-700">
-              Ver primeras 5 filas procesadas
-            </summary>
-            <div className="mt-2 max-h-96 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-3">
-              {preview.sample.map((row) => (
-                <div
-                  key={row.legacyRowId}
-                  className="mb-3 border-b border-slate-200 pb-2 text-xs last:mb-0 last:border-0"
-                >
-                  <div className="font-bold">
-                    {row.head.fullName}
-                    {row.members.length > 0 && ` + ${row.members.length} miembros`}
-                  </div>
-                  <div className="text-slate-600">
-                    {row.head.email ?? "(sin email)"} · {row.head.phone ?? "-"}
-                  </div>
-                  <div className="text-slate-500">
-                    Closer: {row.closerNameRaw ?? "-"} · Duración: {row.durationMonths} meses
-                    {row.durationAssumed ? " (asumido)" : ""} · Estado: {row.status}
-                  </div>
-                  <div className="text-slate-500">
-                    Cuotas: {row.installments.length} · Pendiente: USD {row.pendingAmount}
-                  </div>
-                  {row.warnings.length > 0 && (
-                    <div className="mt-1 flex items-start gap-1 text-amber-700">
-                      <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                      {row.warnings.join("; ")}
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setSampleOpen((prev) => !prev)}
+              aria-expanded={sampleOpen}
+              aria-controls="cartera-sample-rows"
+              className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900"
+            >
+              {sampleOpen ? (
+                <ChevronDown size={14} className="shrink-0" />
+              ) : (
+                <ChevronRight size={14} className="shrink-0" />
+              )}
+              <span>Ver primeras 5 filas procesadas</span>
+            </button>
+            {sampleOpen && (
+              <div
+                id="cartera-sample-rows"
+                className="mt-2 max-h-96 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-3"
+              >
+                {preview.sample.map((row) => (
+                  <div
+                    key={row.legacyRowId}
+                    className="mb-3 border-b border-slate-200 pb-2 text-xs last:mb-0 last:border-0"
+                  >
+                    <div className="font-bold">
+                      {row.head.fullName}
+                      {row.members.length > 0 && ` + ${row.members.length} miembros`}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </details>
+                    <div className="text-slate-600">
+                      {row.head.email ?? "(sin email)"} · {row.head.phone ?? "-"}
+                    </div>
+                    <div className="text-slate-500">
+                      Closer: {row.closerNameRaw ?? "-"} · Duración: {row.durationMonths} meses
+                      {row.durationAssumed ? " (asumido)" : ""} · Estado: {row.status}
+                    </div>
+                    <div className="text-slate-500">
+                      Cuotas: {row.installments.length} · Pendiente: USD {row.pendingAmount}
+                    </div>
+                    {row.warnings.length > 0 && (
+                      <div className="mt-1 flex items-start gap-1 text-amber-700">
+                        <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                        {row.warnings.join("; ")}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-medium text-slate-700">
-              Ver todas las filas procesadas ({parsedRows.length})
-            </summary>
-            <div className="mt-2 max-h-[600px] overflow-auto rounded-md border border-slate-200 bg-slate-50">
-              <table className="min-w-full divide-y divide-slate-200 text-xs">
-                <thead className="sticky top-0 bg-slate-100">
-                  <tr>
-                    <th className="px-2 py-1 text-left">Fila</th>
-                    <th className="px-2 py-1 text-left">Nombre</th>
-                    <th className="px-2 py-1 text-left">Correo</th>
-                    <th className="px-2 py-1 text-left">Closer</th>
-                    <th className="px-2 py-1 text-left">Meses</th>
-                    <th className="px-2 py-1 text-left">Cuotas</th>
-                    <th className="px-2 py-1 text-right">Pendiente</th>
-                    <th className="px-2 py-1 text-left">Estado</th>
-                    <th className="px-2 py-1 text-left">Avisos</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {parsedRows.map((row) => (
-                    <tr
-                      key={row.legacyRowId}
-                      className={row.warnings.length > 0 ? "bg-amber-50" : ""}
-                    >
-                      <td className="px-2 py-1">{row.legacyRowId}</td>
-                      <td className="px-2 py-1">
-                        {row.head.fullName}
-                        {row.members.length > 0 ? ` +${row.members.length}` : ""}
-                      </td>
-                      <td className="px-2 py-1">{row.head.email ?? "-"}</td>
-                      <td className="px-2 py-1">{row.closerNameRaw ?? "-"}</td>
-                      <td className="px-2 py-1">
-                        {row.durationMonths}
-                        {row.durationAssumed ? "*" : ""}
-                      </td>
-                      <td className="px-2 py-1">{row.installments.length}</td>
-                      <td className="px-2 py-1 text-right">${row.pendingAmount}</td>
-                      <td className="px-2 py-1">{row.status}</td>
-                      <td className="px-2 py-1">
-                        {row.warnings.length > 0 && (
-                          <AlertTriangle size={13} className="text-amber-700" />
-                        )}
-                      </td>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setAllRowsOpen((prev) => !prev)}
+              aria-expanded={allRowsOpen}
+              aria-controls="cartera-all-rows"
+              className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-slate-900"
+            >
+              {allRowsOpen ? (
+                <ChevronDown size={14} className="shrink-0" />
+              ) : (
+                <ChevronRight size={14} className="shrink-0" />
+              )}
+              <span>Ver todas las filas procesadas ({parsedRows.length})</span>
+            </button>
+            {allRowsOpen && (
+              <div
+                id="cartera-all-rows"
+                className="mt-2 max-h-[600px] overflow-auto rounded-md border border-slate-200 bg-slate-50"
+              >
+                <table className="min-w-full divide-y divide-slate-200 text-xs">
+                  <thead className="sticky top-0 bg-slate-100">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Fila</th>
+                      <th className="px-2 py-1 text-left">Nombre</th>
+                      <th className="px-2 py-1 text-left">Correo</th>
+                      <th className="px-2 py-1 text-left">Closer</th>
+                      <th className="px-2 py-1 text-left">Meses</th>
+                      <th className="px-2 py-1 text-left">Cuotas</th>
+                      <th className="px-2 py-1 text-right">Pendiente</th>
+                      <th className="px-2 py-1 text-left">Estado</th>
+                      <th className="px-2 py-1 text-left">Avisos</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {parsedRows.map((row) => (
+                      <tr
+                        key={row.legacyRowId}
+                        className={row.warnings.length > 0 ? "bg-amber-50" : ""}
+                      >
+                        <td className="px-2 py-1">{row.legacyRowId}</td>
+                        <td className="px-2 py-1">
+                          {row.head.fullName}
+                          {row.members.length > 0 ? ` +${row.members.length}` : ""}
+                        </td>
+                        <td className="px-2 py-1">{row.head.email ?? "-"}</td>
+                        <td className="px-2 py-1">{row.closerNameRaw ?? "-"}</td>
+                        <td className="px-2 py-1">
+                          {row.durationMonths}
+                          {row.durationAssumed ? "*" : ""}
+                        </td>
+                        <td className="px-2 py-1">{row.installments.length}</td>
+                        <td className="px-2 py-1 text-right">${row.pendingAmount}</td>
+                        <td className="px-2 py-1">{row.status}</td>
+                        <td className="px-2 py-1">
+                          {row.warnings.length > 0 && (
+                            <AlertTriangle size={13} className="text-amber-700" />
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           <div className="mt-6 flex gap-3 rounded-md bg-slate-100 px-4 py-3 text-sm text-slate-700">
             <FileSpreadsheet size={18} className="shrink-0 text-slate-600" />
