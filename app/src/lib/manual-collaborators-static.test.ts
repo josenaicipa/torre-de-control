@@ -54,7 +54,7 @@ describe("manual collaborator labels", () => {
 
   it("documents and applies the GHL CAPTACION Y VENTAS rule for May Agendas / Leads", () => {
     expect(html).toContain("const GHL_CAPTACION_MAY_2026_APPOINTMENTS={");
-    expect(html).toContain("// Regla aprobada: Cualificadas hoy = citas programadas - canceladas");
+    expect(html).toContain("// Regla aprobada: Calificadas = citas programadas - canceladas");
     expect(html).toContain('"2026-05-20":{scheduled:28,showed:7,cancelled:17}');
     expect(html).toContain("agendas_calificadas:Math.max(0,(r.scheduled||0)-(r.cancelled||0))");
     expect(html).toContain("agendas_final:r.scheduled||0");
@@ -68,25 +68,25 @@ describe("manual collaborator labels", () => {
     );
 
     expect(agendasBlock).toMatch(
-      /l:"Agendas Total"[\s\S]*l:"Agendas Hoy"[\s\S]*l:"Cualificadas hoy"[\s\S]*l:"% Cualificadas"[\s\S]*l:"Show Ups"[\s\S]*l:"% Show Up Rate"/
+      /l:"Agendas Total"[\s\S]*l:"Agendas Hoy"[\s\S]*l:"Calificadas"[\s\S]*l:"% Calificadas"[\s\S]*l:"Show Ups"[\s\S]*l:"% Show Up Rate"/
     );
     expect(agendasBlock).not.toContain('l:"Hoy (en agenda)"');
     expect(agendasBlock).not.toContain('l:"Cualificadas Total"');
+    expect(agendasBlock).not.toContain('l:"Cualificadas');
     expect(agendasBlock).not.toContain('l:"Calificadas hoy"');
-    expect(agendasBlock).not.toContain('l:"% Calificadas"');
   });
 
-  it("uses Cualificadas wording in the Agendas / Leads operational screen", () => {
+  it("uses Calificadas wording and requested section order in the Agendas / Leads operational screen", () => {
     const agendasScreen = html.slice(
       html.indexOf('const AgendasLeadsForm='),
       html.indexOf('// ─── DETALLE DIARIO')
     );
 
-    expect(agendasScreen).toContain('<Stat label="Cualificadas hoy" value={fN(totalCal)} color={C.purple}/>');
-    expect(agendasScreen).toContain('<Stat label="% Cualificadas" value={fP(calRate)} color={cH(calRate,50,30)}/>');
-    expect(agendasScreen).toContain('<CanalGrid prefix="cal" label="Cualificadas"/>');
-    expect(agendasScreen).not.toContain('label="Calificadas');
-    expect(agendasScreen).not.toContain('% Calificadas');
+    expect(agendasScreen).toMatch(/<CanalGrid prefix="agendas" label="Agendas"\/>[\s\S]*<CanalGrid prefix="hoy" label="Agendas Hoy"\/>[\s\S]*<CanalGrid prefix="cal" label="Calificadas"\/>[\s\S]*<CanalGrid prefix="show" label="Show Ups"\/>/);
+    expect(agendasScreen).toContain('<Stat label="Calificadas" value={fN(totalCal)} color={C.purple}/>');
+    expect(agendasScreen).toContain('<Stat label="% Calificadas" value={fP(calRate)} color={cH(calRate,50,30)}/>');
+    expect(agendasScreen).toContain('<CanalGrid prefix="cal" label="Calificadas"/>');
+    expect(agendasScreen).not.toContain('Cualificadas');
   });
 
   it("uses the fixed 0.00476 leads-per-dollar assumption for Modelo objetivo del embudo", () => {

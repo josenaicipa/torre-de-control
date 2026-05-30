@@ -288,7 +288,7 @@ const GHL_CAPTACION_MAY_2026_APPOINTMENTS={
 const applyGhlCaptacionAgendasLeads=(closerObj)=>{
   const next={...closerObj};
   Object.entries(GHL_CAPTACION_MAY_2026_APPOINTMENTS).forEach(([date,r])=>{
-    // Regla aprobada: Cualificadas hoy = citas programadas - canceladas
+    // Regla aprobada: Calificadas = citas programadas - canceladas
     next[date]={
       ...blankCloser(),
       ...(next[date]||{}),
@@ -1733,16 +1733,16 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
           <Stat label="Agendas Total" value={fN(totalAgendas)} color={C.blue}/>
           <Stat label="Agendas Hoy" value={fN(totalHoy)} color={C.teal}/>
-          <Stat label="Cualificadas hoy" value={fN(totalCal)} color={C.purple}/>
-          <Stat label="% Cualificadas" value={fP(calRate)} color={cH(calRate,50,30)}/>
+          <Stat label="Calificadas" value={fN(totalCal)} color={C.purple}/>
+          <Stat label="% Calificadas" value={fP(calRate)} color={cH(calRate,50,30)}/>
           <Stat label="Show Ups" value={fN(totalShow)} color={C.green}/>
           <Stat label="% Show Up Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
         </div>
       )}
 
       <CanalGrid prefix="agendas" label="Agendas"/>
-      <CanalGrid prefix="cal" label="Cualificadas"/>
       <CanalGrid prefix="hoy" label="Agendas Hoy"/>
+      <CanalGrid prefix="cal" label="Calificadas"/>
       <CanalGrid prefix="show" label="Show Ups"/>
 
       <div style={{display:"flex",gap:12,alignItems:"center"}}>
@@ -1874,8 +1874,8 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||null;},fmt:"n"},
       {l:"Agendas Hoy",fn:d=>d.closer.agendas_final||null,fmt:"n"},
-      {l:"Cualificadas hoy",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
-      {l:"% Cualificadas",fn:d=>{const h=d.closer.agendas_final||0,c=d.closer.agendas_calificadas||0;return h>0?pv(c,h):null;},fmt:"%",
+      {l:"Calificadas",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
+      {l:"% Calificadas",fn:d=>{const h=d.closer.agendas_final||0,c=d.closer.agendas_calificadas||0;return h>0?pv(c,h):null;},fmt:"%",
         totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mCalTotal,mHoy):null;}},
       {l:"Show Ups",fn:d=>d.closer.citas_asistidas||null,fmt:"n"},
       {l:"% Show Up Rate",fn:d=>{const h=d.closer.agendas_final||0,s=d.closer.citas_asistidas||0;return h>0?pv(s,h):null;},fmt:"%",
