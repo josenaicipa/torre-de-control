@@ -70,6 +70,13 @@ export async function PATCH(req: Request) {
     if (body.patch.priority !== undefined) data.priority = body.patch.priority;
     if (body.patch.assignedToId !== undefined)
       data.assignedToId = body.patch.assignedToId;
+    if (body.patch.outcome !== undefined) data.outcome = body.patch.outcome;
+    if (body.patch.contactChannel !== undefined)
+      data.contactChannel = body.patch.contactChannel;
+    if (body.patch.snoozedUntil !== undefined)
+      data.snoozedUntil = body.patch.snoozedUntil
+        ? new Date(body.patch.snoozedUntil)
+        : null;
 
     const updatableIds = requestedIds.filter((id) => foundSet.has(id));
 

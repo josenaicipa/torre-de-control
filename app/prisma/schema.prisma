@@ -1014,6 +1014,27 @@ enum DropiFollowUpStatus {
   DISMISSED
 }
 
+// Structured outcome of the most recent contact round (Phase B). Stays
+// independent from the free-form `result` field on DropiFollowUp so reporting
+// can group by outcome without parsing prose.
+enum DropiFollowUpOutcome {
+  ANSWERED
+  NO_ANSWER
+  INTERESTED
+  NOT_INTERESTED
+  SCHEDULED
+  NO_REPLY
+  OTHER
+}
+
+// Channel the operator used to reach the member.
+enum DropiContactChannel {
+  WHATSAPP
+  CALL
+  EMAIL
+  OTHER
+}
+
 enum DropiPriority {
   P1
   P2
@@ -1154,26 +1175,33 @@ model DropiImportBatch {
 // keep the trigger metric pinned so de-duplication can avoid re-opening the
 // same case for the same period.
 model DropiFollowUp {
-  id                    String               @id @default(cuid())
+  id                    String                @id @default(cuid())
   memberId              String
-  member                DropiCommunityMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member                DropiCommunityMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
   reason                DropiFollowUpReason
-  priority              DropiPriority        @default(P3)
-  status                DropiFollowUpStatus  @default(OPEN)
+  priority              DropiPriority         @default(P3)
+  status                DropiFollowUpStatus   @default(OPEN)
   assignedToId          String?
-  assignedTo            User?                @relation("DropiFollowUpAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedTo            User?                 @relation("DropiFollowUpAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   suggestedAction       String?
   notes                 String?
   result                String?
+  // Phase B: structured outcome + channel of the last contact round, plus a
+  // snooze used to defer a case without losing its dueDate. The free-form
+  // `result` and `notes` fields stay alongside so operators can keep context
+  // that does not fit into the picker.
+  outcome               DropiFollowUpOutcome?
+  contactChannel        DropiContactChannel?
+  snoozedUntil          DateTime?
   sourceWeeklyMetricId  String?
   sourceMonthlyMetricId String?
   dueDate               DateTime?
   contactedAt           DateTime?
   nextActionAt          DateTime?
   createdById           String?
-  createdBy             User?                @relation("DropiFollowUpCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  createdBy             User?                 @relation("DropiFollowUpCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   @@index([memberId])
   @@index([reason])
@@ -1181,6 +1209,9 @@ model DropiFollowUp {
   @@index([priority])
   @@index([assignedToId])
   @@index([dueDate])
+  @@index([outcome])
+  @@index([contactChannel])
+  @@index([snoozedUntil])
 }
 
 // Audit log of link/unlink actions between a Dropi member and a 1-1 Student.

@@ -2,12 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COLORS, FOLLOW_UP_REASON_LABELS, FOLLOW_UP_STATUS_LABELS, PRIORITY_LABELS } from "../../_lib/tokens";
+import {
+  COLORS,
+  CONTACT_CHANNEL_LABELS,
+  FOLLOW_UP_OUTCOME_LABELS,
+  FOLLOW_UP_REASON_LABELS,
+  FOLLOW_UP_STATUS_LABELS,
+  PRIORITY_LABELS,
+} from "../../_lib/tokens";
 import {
   buildCallHref,
   buildWhatsAppHref,
   formatLongDateEs,
   formatRelativeDateEs,
+  formatSnoozeShortEs,
 } from "../../_lib/follow-ups";
 import type { AssignableUser, FollowUpRow } from "./FollowUpsTable";
 
@@ -20,6 +28,9 @@ export interface DrawerPatch {
   dueDate: string | null;
   contactedAt: string | null;
   nextActionAt: string | null;
+  snoozedUntil: string | null;
+  outcome: string | null;
+  contactChannel: string | null;
   notes: string | null;
   result: string | null;
 }
@@ -58,6 +69,13 @@ export function FollowUpDrawer({
   const [contactedAt, setContactedAt] = useState(toDateInput(row.contactedAt));
   const [nextActionAt, setNextActionAt] = useState(
     toDateInput(row.nextActionAt),
+  );
+  const [snoozedUntil, setSnoozedUntil] = useState(
+    toDateInput(row.snoozedUntil),
+  );
+  const [outcome, setOutcome] = useState<string>(row.outcome ?? "");
+  const [contactChannel, setContactChannel] = useState<string>(
+    row.contactChannel ?? "",
   );
   const [notes, setNotes] = useState(row.notes ?? "");
   const [result, setResult] = useState(row.result ?? "");
@@ -106,6 +124,9 @@ export function FollowUpDrawer({
       dueDate: dueDate ? dueDate : null,
       contactedAt: contactedAt ? contactedAt : null,
       nextActionAt: nextActionAt ? nextActionAt : null,
+      snoozedUntil: snoozedUntil ? snoozedUntil : null,
+      outcome: outcome ? outcome : null,
+      contactChannel: contactChannel ? contactChannel : null,
       notes: notes.trim() ? notes.trim() : null,
       result: result.trim() ? result.trim() : null,
     });
@@ -355,6 +376,76 @@ export function FollowUpDrawer({
                   style={inputStyle()}
                   disabled={saving}
                 />
+              </Field>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <Field
+                label={`Posponer hasta${
+                  snoozedUntil
+                    ? ` · ${formatSnoozeShortEs(snoozedUntil, now) ?? formatRelativeDateEs(snoozedUntil, now)}`
+                    : ""
+                }`}
+              >
+                <input
+                  type="date"
+                  value={snoozedUntil}
+                  onChange={(e) => setSnoozedUntil(e.target.value)}
+                  style={inputStyle()}
+                  disabled={saving}
+                  aria-label="Posponer hasta"
+                />
+              </Field>
+              {snoozedUntil && (
+                <button
+                  type="button"
+                  onClick={() => setSnoozedUntil("")}
+                  disabled={saving}
+                  style={ghostButtonStyle()}
+                  aria-label="Quitar posponer"
+                >
+                  Quitar posponer
+                </button>
+              )}
+            </div>
+          </Section>
+
+          <Section title="Contacto registrado">
+            <div style={gridTwo()}>
+              <Field label="Resultado del contacto">
+                <select
+                  value={outcome}
+                  onChange={(e) => setOutcome(e.target.value)}
+                  style={inputStyle()}
+                  disabled={saving}
+                  aria-label="Resultado del contacto"
+                >
+                  <option value="">Sin registrar</option>
+                  {Object.entries(FOLLOW_UP_OUTCOME_LABELS).map(
+                    ([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </Field>
+              <Field label="Canal usado">
+                <select
+                  value={contactChannel}
+                  onChange={(e) => setContactChannel(e.target.value)}
+                  style={inputStyle()}
+                  disabled={saving}
+                  aria-label="Canal de contacto"
+                >
+                  <option value="">Sin registrar</option>
+                  {Object.entries(CONTACT_CHANNEL_LABELS).map(
+                    ([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ),
+                  )}
+                </select>
               </Field>
             </div>
           </Section>

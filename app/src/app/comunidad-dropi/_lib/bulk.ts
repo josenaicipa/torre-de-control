@@ -5,12 +5,23 @@
 // up Prisma or the renderer.
 
 import { z } from "zod";
+import { CONTACT_CHANNELS, FOLLOW_UP_OUTCOMES } from "./follow-up-schema";
 
 // The bulk surface intentionally exposes a smaller patch than the per-id
-// endpoint. Free-form text edits (notes / result / dates) stay in the drawer
-// where the operator can review one case at a time; the bulk bar only touches
-// status, priority, and responsable so an accidental click on 50 selected rows
-// cannot wipe out per-case context.
+// endpoint. Free-form text edits (notes / result / per-case dates) stay in
+// the drawer where the operator can review one case at a time; the bulk bar
+// only touches status, priority, responsable, plus the Phase B fields that
+// make sense to apply uniformly to a batch: snoozedUntil (posponer), the
+// contact channel used for the round, and the outcome of the round. An
+// accidental click on 50 selected rows still cannot wipe out per-case notes
+// or one-off dates.
+const dateLikeString = z
+  .string()
+  .trim()
+  .refine((s) => !Number.isNaN(new Date(s).getTime()), {
+    message: "Fecha inválida",
+  });
+
 export const bulkPatchSchema = z
   .object({
     ids: z
@@ -25,6 +36,9 @@ export const bulkPatchSchema = z
         status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "DISMISSED"]).optional(),
         priority: z.enum(["P1", "P2", "P3", "P4"]).optional(),
         assignedToId: z.string().optional().nullable(),
+        outcome: z.enum(FOLLOW_UP_OUTCOMES).optional().nullable(),
+        contactChannel: z.enum(CONTACT_CHANNELS).optional().nullable(),
+        snoozedUntil: dateLikeString.optional().nullable(),
       })
       .strict()
       .refine((p) => Object.keys(p).length > 0, {

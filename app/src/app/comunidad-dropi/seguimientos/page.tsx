@@ -4,6 +4,8 @@ import { getActor } from "@/lib/actor";
 import { prisma } from "@/lib/prisma";
 import {
   COLORS,
+  CONTACT_CHANNEL_LABELS,
+  FOLLOW_UP_OUTCOME_LABELS,
   FOLLOW_UP_REASON_LABELS,
   PRIORITY_LABELS,
 } from "../_lib/tokens";
@@ -59,6 +61,8 @@ export default async function SeguimientosPage({
       : filters.status;
   if (filters.priority) where.priority = filters.priority;
   if (filters.reason) where.reason = filters.reason;
+  if (filters.outcome) where.outcome = filters.outcome;
+  if (filters.contactChannel) where.contactChannel = filters.contactChannel;
   if (filters.mine) where.assignedToId = actor.userId;
   else if (filters.unassigned) where.assignedToId = null;
   else if (filters.assignedToId) where.assignedToId = filters.assignedToId;
@@ -166,6 +170,9 @@ export default async function SeguimientosPage({
     suggestedAction: f.suggestedAction,
     notes: f.notes,
     result: f.result,
+    outcome: f.outcome ?? null,
+    contactChannel: f.contactChannel ?? null,
+    snoozedUntil: f.snoozedUntil ? f.snoozedUntil.toISOString() : null,
     dueDate: f.dueDate ? f.dueDate.toISOString() : null,
     contactedAt: f.contactedAt ? f.contactedAt.toISOString() : null,
     nextActionAt: f.nextActionAt ? f.nextActionAt.toISOString() : null,
@@ -369,6 +376,32 @@ export default async function SeguimientosPage({
           ))}
         </select>
         <select
+          name="outcome"
+          defaultValue={filters.outcome ?? ""}
+          style={inputStyle()}
+          aria-label="Filtrar por resultado del contacto"
+        >
+          <option value="">Cualquier resultado</option>
+          {Object.entries(FOLLOW_UP_OUTCOME_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          name="contactChannel"
+          defaultValue={filters.contactChannel ?? ""}
+          style={inputStyle()}
+          aria-label="Filtrar por canal de contacto"
+        >
+          <option value="">Cualquier canal</option>
+          {Object.entries(CONTACT_CHANNEL_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
           name="country"
           defaultValue={filters.country ?? ""}
           style={inputStyle()}
@@ -421,6 +454,8 @@ export default async function SeguimientosPage({
           filters.bucket ||
           filters.priority ||
           filters.reason ||
+          filters.outcome ||
+          filters.contactChannel ||
           filters.status !== "OPEN_AND_PROGRESS") && (
           <Link href={kpiHref({})} style={ghostButton()}>
             Limpiar

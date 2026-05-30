@@ -9,8 +9,10 @@ import {
   digitsForPhoneLink,
   formatLongDateEs,
   formatRelativeDateEs,
+  formatSnoozeShortEs,
   getDueBucket,
   groupByBucket,
+  isSnoozed,
   kpiHref,
   parseFollowUpsFilters,
   startOfUtcDay,
@@ -143,6 +145,49 @@ describe("formatLongDateEs", () => {
   });
 });
 
+describe("isSnoozed", () => {
+  it("returns false when there is no snoozedUntil", () => {
+    expect(isSnoozed(null, NOW)).toBe(false);
+    expect(isSnoozed(undefined, NOW)).toBe(false);
+    expect(isSnoozed("", NOW)).toBe(false);
+  });
+
+  it("returns false when the snooze is in the past", () => {
+    expect(isSnoozed("2026-05-29T12:00:00.000Z", NOW)).toBe(false);
+  });
+
+  it("returns false when the snooze is today (calendar day) so the row is back on the queue", () => {
+    expect(isSnoozed("2026-05-30T01:00:00.000Z", NOW)).toBe(false);
+  });
+
+  it("returns true when the snooze is in a future day", () => {
+    expect(isSnoozed("2026-05-31T00:00:00.000Z", NOW)).toBe(true);
+    expect(isSnoozed("2026-06-15T00:00:00.000Z", NOW)).toBe(true);
+  });
+
+  it("returns false for invalid date strings instead of throwing", () => {
+    expect(isSnoozed("not-a-date", NOW)).toBe(false);
+  });
+});
+
+describe("formatSnoozeShortEs", () => {
+  it("returns null when there is no active snooze", () => {
+    expect(formatSnoozeShortEs(null, NOW)).toBeNull();
+    expect(formatSnoozeShortEs("2026-05-29T00:00:00.000Z", NOW)).toBeNull();
+    expect(formatSnoozeShortEs("garbage", NOW)).toBeNull();
+  });
+
+  it("renders 'Pospuesto hasta mañana' for the day after now", () => {
+    const text = formatSnoozeShortEs("2026-05-31T00:00:00.000Z", NOW);
+    expect(text).toBe("Pospuesto hasta mañana");
+  });
+
+  it("renders 'Pospuesto · en N días' for further future snoozes", () => {
+    const text = formatSnoozeShortEs("2026-06-06T00:00:00.000Z", NOW);
+    expect(text).toBe("Pospuesto · en 7 días");
+  });
+});
+
 describe("parseFollowUpsFilters", () => {
   it("returns the OPEN_AND_PROGRESS default when status is missing or unknown", () => {
     expect(parseFollowUpsFilters({}).status).toBe("OPEN_AND_PROGRESS");
@@ -188,6 +233,21 @@ describe("parseFollowUpsFilters", () => {
     expect(parseFollowUpsFilters({ page: "abc" }).page).toBe(1);
     expect(parseFollowUpsFilters({ page: "4" }).page).toBe(4);
   });
+
+  it("only accepts known outcome and contactChannel values, undefined otherwise", () => {
+    expect(parseFollowUpsFilters({}).outcome).toBeUndefined();
+    expect(parseFollowUpsFilters({ outcome: "ANSWERED" }).outcome).toBe(
+      "ANSWERED",
+    );
+    expect(parseFollowUpsFilters({ outcome: "GHOSTED" }).outcome).toBeUndefined();
+
+    expect(parseFollowUpsFilters({ contactChannel: "WHATSAPP" }).contactChannel).toBe(
+      "WHATSAPP",
+    );
+    expect(
+      parseFollowUpsFilters({ contactChannel: "SMS" }).contactChannel,
+    ).toBeUndefined();
+  });
 });
 
 describe("buildFollowUpsHref", () => {
@@ -226,6 +286,16 @@ describe("buildFollowUpsHref", () => {
     const params = new URLSearchParams(href.slice(1));
     expect(params.get("priority")).toBeNull();
     expect(params.get("bucket")).toBe("TODAY");
+  });
+
+  it("emits outcome and contactChannel when present", () => {
+    const href = buildFollowUpsHref({
+      outcome: "ANSWERED",
+      contactChannel: "WHATSAPP",
+    });
+    const params = new URLSearchParams(href.slice(1));
+    expect(params.get("outcome")).toBe("ANSWERED");
+    expect(params.get("contactChannel")).toBe("WHATSAPP");
   });
 });
 

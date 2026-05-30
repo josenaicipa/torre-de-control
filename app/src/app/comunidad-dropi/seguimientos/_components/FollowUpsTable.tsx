@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   COLORS,
+  CONTACT_CHANNEL_COLORS,
+  CONTACT_CHANNEL_LABELS,
+  FOLLOW_UP_OUTCOME_COLORS,
+  FOLLOW_UP_OUTCOME_LABELS,
   FOLLOW_UP_REASON_LABELS,
   FOLLOW_UP_STATUS_LABELS,
   PRIORITY_COLORS,
@@ -17,6 +21,7 @@ import {
   type DueBucket,
   formatLongDateEs,
   formatRelativeDateEs,
+  formatSnoozeShortEs,
   groupByBucket,
 } from "../../_lib/follow-ups";
 import {
@@ -46,6 +51,9 @@ export interface FollowUpRow {
   suggestedAction: string | null;
   notes: string | null;
   result: string | null;
+  outcome: string | null;
+  contactChannel: string | null;
+  snoozedUntil: string | null;
   dueDate: string | null;
   contactedAt: string | null;
   nextActionAt: string | null;
@@ -204,6 +212,9 @@ export function FollowUpsTable({
       dueDate: patch.dueDate,
       contactedAt: patch.contactedAt,
       nextActionAt: patch.nextActionAt,
+      snoozedUntil: patch.snoozedUntil,
+      outcome: patch.outcome,
+      contactChannel: patch.contactChannel,
       notes: patch.notes,
       result: patch.result,
     };
@@ -860,24 +871,35 @@ function RowFragment({
           </span>
         </Td>
         <Td onClick={(e) => e.stopPropagation()}>
-          <select
-            value={row.status}
-            onChange={(e) => onStatus(e.target.value as Status)}
-            style={statusSelectStyle(row.status)}
-            disabled={save?.saving}
-            aria-label="Cambiar estado"
-          >
-            {(["OPEN", "IN_PROGRESS", "DONE", "DISMISSED"] as Status[]).map(
-              (s) => (
-                <option key={s} value={s}>
-                  {FOLLOW_UP_STATUS_LABELS[s]}
-                </option>
-              ),
-            )}
-          </select>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <select
+              value={row.status}
+              onChange={(e) => onStatus(e.target.value as Status)}
+              style={statusSelectStyle(row.status)}
+              disabled={save?.saving}
+              aria-label="Cambiar estado"
+            >
+              {(["OPEN", "IN_PROGRESS", "DONE", "DISMISSED"] as Status[]).map(
+                (s) => (
+                  <option key={s} value={s}>
+                    {FOLLOW_UP_STATUS_LABELS[s]}
+                  </option>
+                ),
+              )}
+            </select>
+            <OutcomeChannelChips
+              outcome={row.outcome}
+              channel={row.contactChannel}
+            />
+          </div>
         </Td>
         <Td>
-          <DueCell value={row.dueDate} now={now} bucket={bucket} />
+          <DueCell
+            value={row.dueDate}
+            now={now}
+            bucket={bucket}
+            snoozedUntil={row.snoozedUntil}
+          />
         </Td>
         <Td onClick={(e) => e.stopPropagation()}>
           <AssigneeCell
@@ -918,13 +940,45 @@ function DueCell({
   value,
   now,
   bucket,
+  snoozedUntil,
 }: {
   value: string | null;
   now: Date;
   bucket: DueBucket;
+  snoozedUntil: string | null;
 }) {
+  const snoozeLabel = formatSnoozeShortEs(snoozedUntil, now);
+  const snoozeBadge = snoozeLabel ? (
+    <span
+      title={
+        snoozedUntil ? `Pospuesto hasta ${formatLongDateEs(snoozedUntil)}` : ""
+      }
+      style={{
+        marginTop: 4,
+        alignSelf: "flex-start",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 8px",
+        borderRadius: 999,
+        backgroundColor: "#E0E7FF",
+        color: "#3730A3",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.02em",
+      }}
+    >
+      {snoozeLabel}
+    </span>
+  ) : null;
+
   if (!value) {
-    return <span style={{ color: COLORS.textMuted }}>Sin fecha</span>;
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "column" }}>
+        <span style={{ color: COLORS.textMuted }}>Sin fecha</span>
+        {snoozeBadge}
+      </span>
+    );
   }
   const palette = BUCKET_COLORS[bucket];
   const long = formatLongDateEs(value);
@@ -935,8 +989,68 @@ function DueCell({
         {relative}
       </span>
       <span style={{ color: COLORS.textSoft, fontSize: 11 }}>{long}</span>
+      {snoozeBadge}
     </span>
   );
+}
+
+function OutcomeChannelChips({
+  outcome,
+  channel,
+}: {
+  outcome: string | null;
+  channel: string | null;
+}) {
+  if (!outcome && !channel) return null;
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        flexWrap: "wrap",
+        gap: 4,
+        marginTop: 2,
+      }}
+    >
+      {outcome && (
+        <span
+          style={chipStyle(
+            FOLLOW_UP_OUTCOME_COLORS[outcome] ?? {
+              bg: "#F1F5F9",
+              text: "#475569",
+            },
+          )}
+          title="Resultado del contacto"
+        >
+          {FOLLOW_UP_OUTCOME_LABELS[outcome] ?? outcome}
+        </span>
+      )}
+      {channel && (
+        <span
+          style={chipStyle(
+            CONTACT_CHANNEL_COLORS[channel] ?? {
+              bg: "#F1F5F9",
+              text: "#475569",
+            },
+          )}
+          title="Canal de contacto"
+        >
+          {CONTACT_CHANNEL_LABELS[channel] ?? channel}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function chipStyle(palette: { bg: string; text: string }): React.CSSProperties {
+  return {
+    backgroundColor: palette.bg,
+    color: palette.text,
+    borderRadius: 999,
+    padding: "1px 7px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.02em",
+  };
 }
 
 function AssigneeCell({

@@ -122,6 +122,36 @@ export function formatLongDateEs(value: Date | string | null): string {
   });
 }
 
+// A snooze "wins" over the dueDate until its calendar day arrives. Comparing
+// in UTC days mirrors the bucket math so a follow-up snoozed to today rejoins
+// the queue at midnight UTC without surprising operators with intra-day flips.
+export function isSnoozed(
+  snoozedUntil: Date | string | null | undefined,
+  now: Date,
+): boolean {
+  if (!snoozedUntil) return false;
+  const d =
+    typeof snoozedUntil === "string" ? new Date(snoozedUntil) : snoozedUntil;
+  if (Number.isNaN(d.getTime())) return false;
+  return diffInCalendarDays(d, now) > 0;
+}
+
+// Compact badge label for the table / chips when a snooze is active. Returns
+// null when there is nothing to show so callers can branch on truthiness.
+export function formatSnoozeShortEs(
+  snoozedUntil: Date | string | null | undefined,
+  now: Date,
+): string | null {
+  if (!isSnoozed(snoozedUntil, now)) return null;
+  const d =
+    typeof snoozedUntil === "string"
+      ? new Date(snoozedUntil as string)
+      : (snoozedUntil as Date);
+  const delta = diffInCalendarDays(d, now);
+  if (delta === 1) return "Pospuesto hasta mañana";
+  return `Pospuesto · en ${delta} días`;
+}
+
 // Search params parsing shared by the page and the URL builders. Centralizing
 // avoids drift between the KPI banner links, the filter form, and the bucket
 // query that the server uses to fetch rows.
@@ -129,6 +159,15 @@ export interface FollowUpsFilters {
   status: "OPEN" | "IN_PROGRESS" | "DONE" | "DISMISSED" | "OPEN_AND_PROGRESS";
   priority?: "P1" | "P2" | "P3" | "P4";
   reason?: string;
+  outcome?:
+    | "ANSWERED"
+    | "NO_ANSWER"
+    | "INTERESTED"
+    | "NOT_INTERESTED"
+    | "SCHEDULED"
+    | "NO_REPLY"
+    | "OTHER";
+  contactChannel?: "WHATSAPP" | "CALL" | "EMAIL" | "OTHER";
   q?: string;
   country?: string;
   assignedToId?: string;
@@ -166,10 +205,33 @@ export function parseFollowUpsFilters(sp: Record<string, string | undefined>): F
       ? sp.bucket
       : undefined;
 
+  const outcomeRaw = sp.outcome?.trim();
+  const outcome =
+    outcomeRaw === "ANSWERED" ||
+    outcomeRaw === "NO_ANSWER" ||
+    outcomeRaw === "INTERESTED" ||
+    outcomeRaw === "NOT_INTERESTED" ||
+    outcomeRaw === "SCHEDULED" ||
+    outcomeRaw === "NO_REPLY" ||
+    outcomeRaw === "OTHER"
+      ? outcomeRaw
+      : undefined;
+
+  const channelRaw = sp.contactChannel?.trim();
+  const contactChannel =
+    channelRaw === "WHATSAPP" ||
+    channelRaw === "CALL" ||
+    channelRaw === "EMAIL" ||
+    channelRaw === "OTHER"
+      ? channelRaw
+      : undefined;
+
   return {
     status,
     priority,
     reason: sp.reason?.trim() || undefined,
+    outcome,
+    contactChannel,
     q: sp.q?.trim() || undefined,
     country: sp.country?.trim() || undefined,
     assignedToId: sp.assignedToId?.trim() || undefined,
@@ -195,6 +257,8 @@ export function buildFollowUpsHref(
         : undefined,
     priority: filters.priority,
     reason: filters.reason,
+    outcome: filters.outcome,
+    contactChannel: filters.contactChannel,
     q: filters.q,
     country: filters.country,
     assignedToId: filters.assignedToId,

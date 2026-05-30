@@ -1,24 +1,12 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getActor, requireActor, requireOperatorOrAdmin } from "@/lib/actor";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
+import { followUpPatchSchema } from "@/app/comunidad-dropi/_lib/follow-up-schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const patchSchema = z.object({
-  status: z.enum(["OPEN", "IN_PROGRESS", "DONE", "DISMISSED"]).optional(),
-  priority: z.enum(["P1", "P2", "P3", "P4"]).optional(),
-  assignedToId: z.string().optional().nullable(),
-  suggestedAction: z.string().trim().max(1000).optional().nullable(),
-  notes: z.string().trim().max(2000).optional().nullable(),
-  result: z.string().trim().max(1000).optional().nullable(),
-  dueDate: z.string().optional().nullable(),
-  contactedAt: z.string().optional().nullable(),
-  nextActionAt: z.string().optional().nullable(),
-});
 
 export async function PATCH(
   req: Request,
@@ -29,7 +17,7 @@ export async function PATCH(
     requireActor(actor);
     requireOperatorOrAdmin(actor);
     const { id } = await ctx.params;
-    const body = patchSchema.parse(await req.json());
+    const body = followUpPatchSchema.parse(await req.json());
 
     const existing = await prisma.dropiFollowUp.findUnique({
       where: { id },
@@ -45,6 +33,13 @@ export async function PATCH(
       data.suggestedAction = body.suggestedAction;
     if (body.notes !== undefined) data.notes = body.notes;
     if (body.result !== undefined) data.result = body.result;
+    if (body.outcome !== undefined) data.outcome = body.outcome;
+    if (body.contactChannel !== undefined)
+      data.contactChannel = body.contactChannel;
+    if (body.snoozedUntil !== undefined)
+      data.snoozedUntil = body.snoozedUntil
+        ? new Date(body.snoozedUntil)
+        : null;
     if (body.dueDate !== undefined)
       data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
     if (body.contactedAt !== undefined)

@@ -74,3 +74,48 @@ export const FOLLOW_UP_STATUS_LABELS: Record<string, string> = {
   DONE: "Hecho",
   DISMISSED: "Descartado",
 };
+
+// Structured outcome of the last contact attempt. Internal codes stay in
+// English; only the UI labels are localised.
+export const FOLLOW_UP_OUTCOME_LABELS: Record<string, string> = {
+  ANSWERED: "Respondió",
+  NO_ANSWER: "No contesta",
+  INTERESTED: "Interesado",
+  NOT_INTERESTED: "No interesado",
+  SCHEDULED: "Agendado",
+  NO_REPLY: "Sin respuesta",
+  OTHER: "Otro",
+};
+
+export const FOLLOW_UP_OUTCOME_COLORS: Record<
+  string,
+  { bg: string; text: string }
+> = {
+  ANSWERED: { bg: "#DCFCE7", text: "#166534" },
+  NO_ANSWER: { bg: "#FEF3C7", text: "#92400E" },
+  INTERESTED: { bg: "#E0F2FE", text: "#075985" },
+  NOT_INTERESTED: { bg: "#FEE2E2", text: "#991B1B" },
+  SCHEDULED: { bg: "#FAE8FF", text: "#86198F" },
+  NO_REPLY: { bg: "#F1F5F9", text: "#475569" },
+  OTHER: { bg: "#F1F5F9", text: "#475569" },
+};
+
+// Channel the operator used to reach the member. Free-form "OTHER" exists so
+// the picker stays honest about edge cases (DM, in-person, etc.) without
+// inviting label sprawl.
+export const CONTACT_CHANNEL_LABELS: Record<string, string> = {
+  WHATSAPP: "WhatsApp",
+  CALL: "Llamada",
+  EMAIL: "Email",
+  OTHER: "Otro",
+};
+
+export const CONTACT_CHANNEL_COLORS: Record<
+  string,
+  { bg: string; text: string }
+> = {
+  WHATSAPP: { bg: "#DCFCE7", text: "#166534" },
+  CALL: { bg: "#E0F2FE", text: "#075985" },
+  EMAIL: { bg: "#FEF3C7", text: "#92400E" },
+  OTHER: { bg: "#F1F5F9", text: "#475569" },
+};

@@ -105,6 +105,70 @@ describe("bulkPatchSchema", () => {
         .success,
     ).toBe(false);
   });
+
+  // Phase B step 1: the bulk surface is widened — but only with fields that
+  // make sense to apply uniformly to a batch (posponer hasta una fecha,
+  // marcar canal usado, registrar outcome del round de contacto). Free-form
+  // notes / result / per-case dates still stay in the drawer.
+  it("accepts snoozedUntil as ISO date string for bulk posponer", () => {
+    const result = bulkPatchSchema.safeParse({
+      ids: ["a"],
+      patch: { snoozedUntil: "2026-06-10" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts snoozedUntil: null to lift the snooze on a batch", () => {
+    const result = bulkPatchSchema.safeParse({
+      ids: ["a"],
+      patch: { snoozedUntil: null },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects snoozedUntil garbage strings even in bulk", () => {
+    const result = bulkPatchSchema.safeParse({
+      ids: ["a"],
+      patch: { snoozedUntil: "next week" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts contactChannel and outcome for bulk", () => {
+    const result = bulkPatchSchema.safeParse({
+      ids: ["a"],
+      patch: { contactChannel: "WHATSAPP", outcome: "NO_ANSWER" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects unknown outcome / contactChannel values in bulk", () => {
+    expect(
+      bulkPatchSchema.safeParse({
+        ids: ["a"],
+        patch: { outcome: "GHOSTED" },
+      }).success,
+    ).toBe(false);
+    expect(
+      bulkPatchSchema.safeParse({
+        ids: ["a"],
+        patch: { contactChannel: "SMS" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("still rejects free-form notes / result / dueDate / contactedAt in bulk", () => {
+    for (const patch of [
+      { notes: "no" },
+      { result: "no" },
+      { dueDate: "2026-06-01" },
+      { contactedAt: "2026-05-30" },
+      { nextActionAt: "2026-06-05" },
+    ]) {
+      const result = bulkPatchSchema.safeParse({ ids: ["a"], patch });
+      expect(result.success).toBe(false);
+    }
+  });
 });
 
 describe("toggleSelection", () => {
