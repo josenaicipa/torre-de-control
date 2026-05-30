@@ -1,0 +1,118 @@
+name: Import Torre dashboard payload
+
+on:
+  workflow_dispatch:
+    inputs:
+      payload_path:
+        description: JSON payload path in repository
+        required: true
+        default: imports/torre_import_daily_closer_april_2026_from_ghl.json
+      target_url:
+        description: Torre import endpoint
+        required: true
+        default: https://control.unlockedecom.co/api/dashboard/import
+      aws_region:
+        description: AWS region
+        required: true
+        default: us-east-1
+      apprunner_service_name:
+        description: App Runner service name to read runtime env from
+        required: true
+        default: torre-de-control-v2
+      ecs_stack_name:
+        description: ECS CloudFormation stack fallback
+        required: true
+        default: torre-de-control-v2-ecs
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    name: Sign and import payload
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.aws_region }}
+
+      - name: Resolve Torre runtime secret
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          REGION='${{ github.event.inputs.aws_region }}'
+          SERVICE_NAME='${{ github.event.inputs.apprunner_service_name }}'
+          STACK_NAME='${{ github.event.inputs.ecs_stack_name }}'
+          AUTH_SECRET=""
+
+          SERVICE_ARN="$(aws apprunner list-services \
+            --region "$REGION" \
+            --query "ServiceSummaryList[?ServiceName=='${SERVICE_NAME}'].ServiceArn | [0]" \
+            --output text 2>/dev/null || true)"
+          if [[ -n "$SERVICE_ARN" && "$SERVICE_ARN" != "None" ]]; then
+            aws apprunner describe-service --region "$REGION" --service-arn "$SERVICE_ARN" \
+              --query 'Service.SourceConfiguration.ImageRepository.ImageConfiguration.RuntimeEnvironmentVariables' \
+              --output json > runtime-env.json || true
+            AUTH_SECRET="$(jq -r '.AUTH_SECRET // empty' runtime-env.json 2>/dev/null || true)"
+          fi
+
+          if [[ -z "$AUTH_SECRET" ]]; then
+            TASK_DEF_ARN="$(aws cloudformation describe-stacks \
+              --region "$REGION" --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='TaskDefinitionArn'].OutputValue | [0]" \
+              --output text 2>/dev/null || true)"
+            if [[ -n "$TASK_DEF_ARN" && "$TASK_DEF_ARN" != "None" ]]; then
+              aws ecs describe-task-definition --region "$REGION" --task-definition "$TASK_DEF_ARN" \
+                --query 'taskDefinition.containerDefinitions[0].environment' \
+                --output json > runtime-env.json
+              AUTH_SECRET="$(jq -r '.[] | select(.name=="AUTH_SECRET") | .value' runtime-env.json 2>/dev/null || true)"
+            fi
+          fi
+
+          if [[ -z "$AUTH_SECRET" || ${#AUTH_SECRET} -lt 16 ]]; then
+            echo "Could not resolve AUTH_SECRET from App Runner or ECS runtime env" >&2
+            exit 1
+          fi
+          echo "::add-mask::$AUTH_SECRET"
+          echo "auth_secret=$AUTH_SECRET" >> "$GITHUB_OUTPUT"
+
+      - name: Import payload
+        shell: bash
+        env:
+          AUTH_SECRET: ${{ steps.runtime.outputs.auth_secret }}
+          PAYLOAD_PATH: ${{ github.event.inputs.payload_path }}
+          TARGET_URL: ${{ github.event.inputs.target_url }}
+        run: |
+          set -euo pipefail
+          test -f "$PAYLOAD_PATH"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const body = fs.readFileSync(process.env.PAYLOAD_PATH, 'utf8');
+          const signature = 'sha256=' + crypto.createHmac('sha256', process.env.AUTH_SECRET).update(body).digest('hex');
+          fetch(process.env.TARGET_URL, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'x-torre-import-signature': signature,
+            },
+            body,
+          }).then(async (res) => {
+            const text = await res.text();
+            let parsed;
+            try { parsed = JSON.parse(text); } catch { parsed = { body: text.slice(0, 300) }; }
+            console.log(JSON.stringify({ ok: res.ok, status: res.status, response: parsed }, null, 2));
+            if (!res.ok) process.exit(1);
+          }).catch((err) => {
+            console.error(err);
+            process.exit(1);
+          });
+          NODE
