@@ -381,7 +381,6 @@ async function refreshMemberSnapshot(
       currentSegment: segment,
       currentPriority: priority,
       lastReportedAt: reportedAt,
-      firstReportedAt: { set: undefined },
     } as never,
   });
   // firstReportedAt is set on the first observation; using a raw conditional
