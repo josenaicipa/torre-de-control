@@ -1,0 +1,145 @@
+name: Verify Torre dashboard data
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: Year to verify
+        required: true
+        default: "2026"
+      month:
+        description: 1-indexed month to verify
+        required: true
+        default: "4"
+      aws_region:
+        description: AWS region
+        required: true
+        default: us-east-1
+      apprunner_service_name:
+        description: App Runner service name to read runtime env from
+        required: true
+        default: torre-de-control-v2
+      ecs_stack_name:
+        description: ECS CloudFormation stack fallback
+        required: true
+        default: torre-de-control-v2-ecs
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Query production dashboard tables
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.aws_region }}
+
+      - name: Resolve DATABASE_URL
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          REGION='${{ github.event.inputs.aws_region }}'
+          SERVICE_NAME='${{ github.event.inputs.apprunner_service_name }}'
+          STACK_NAME='${{ github.event.inputs.ecs_stack_name }}'
+          DATABASE_URL=""
+
+          SERVICE_ARN="$(aws apprunner list-services \
+            --region "$REGION" \
+            --query "ServiceSummaryList[?ServiceName=='${SERVICE_NAME}'].ServiceArn | [0]" \
+            --output text 2>/dev/null || true)"
+          if [[ -n "$SERVICE_ARN" && "$SERVICE_ARN" != "None" ]]; then
+            aws apprunner describe-service --region "$REGION" --service-arn "$SERVICE_ARN" \
+              --query 'Service.SourceConfiguration.ImageRepository.ImageConfiguration.RuntimeEnvironmentVariables' \
+              --output json > runtime-env.json || true
+            DATABASE_URL="$(jq -r '.DATABASE_URL // empty' runtime-env.json 2>/dev/null || true)"
+          fi
+
+          if [[ -z "$DATABASE_URL" ]]; then
+            TASK_DEF_ARN="$(aws cloudformation describe-stacks \
+              --region "$REGION" --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='TaskDefinitionArn'].OutputValue | [0]" \
+              --output text 2>/dev/null || true)"
+            if [[ -n "$TASK_DEF_ARN" && "$TASK_DEF_ARN" != "None" ]]; then
+              aws ecs describe-task-definition --region "$REGION" --task-definition "$TASK_DEF_ARN" \
+                --query 'taskDefinition.containerDefinitions[0].environment' \
+                --output json > runtime-env.json
+              DATABASE_URL="$(jq -r '.[] | select(.name=="DATABASE_URL") | .value' runtime-env.json 2>/dev/null || true)"
+            fi
+          fi
+
+          if [[ -z "$DATABASE_URL" ]]; then
+            echo "Could not resolve DATABASE_URL from App Runner or ECS runtime env" >&2
+            exit 1
+          fi
+          echo "::add-mask::$DATABASE_URL"
+          echo "database_url=$DATABASE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci --include=dev
+
+      - name: Query dashboard tables
+        working-directory: app
+        env:
+          DATABASE_URL: ${{ steps.runtime.outputs.database_url }}
+          VERIFY_YEAR: ${{ github.event.inputs.year }}
+          VERIFY_MONTH: ${{ github.event.inputs.month }}
+        run: |
+          node <<'NODE'
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient();
+          const year = Number(process.env.VERIFY_YEAR);
+          const month1 = Number(process.env.VERIFY_MONTH);
+          const month0 = month1 - 1;
+          const start = new Date(Date.UTC(year, month1 - 1, 1));
+          const end = new Date(Date.UTC(year, month1, 1));
+          const asNumber = (v) => v == null ? 0 : Number(v);
+          async function main() {
+            const dailyRows = await prisma.$queryRaw`
+              select
+                count(*)::int as rows,
+                coalesce(sum(agendas_otros),0)::int as agendas_otros,
+                coalesce(sum(cal_otros),0)::int as cal_otros,
+                coalesce(sum(hoy_otros),0)::int as hoy_otros,
+                coalesce(sum(show_otros),0)::int as show_otros,
+                coalesce(sum(agendas_calificadas),0)::int as agendas_calificadas,
+                coalesce(sum(agendas_final),0)::int as agendas_final,
+                coalesce(sum(citas_asistidas),0)::int as citas_asistidas
+              from daily_closer
+              where date >= ${start}::date and date < ${end}::date
+            `;
+            const payments = await prisma.$queryRaw`
+              select
+                count(*)::int as rows,
+                coalesce(sum(case when "contributesToCash" then "amountUsd" else 0 end),0)::numeric as cash_total,
+                coalesce(sum(case when classification = 'high_ticket' and "contributesToCash" then "amountUsd" else 0 end),0)::numeric as high_ticket,
+                coalesce(sum(case when classification = 'low_ticket' and "contributesToCash" then "amountUsd" else 0 end),0)::numeric as low_ticket,
+                coalesce(sum(case when classification = 'reserva' and "contributesToCash" then "amountUsd" else 0 end),0)::numeric as reservas,
+                coalesce(sum(case when "reviewRequired" then 1 else 0 end),0)::int as review_required
+              from dashboard_payment_transactions
+              where "paidAt" >= ${start} and "paidAt" < ${end}
+            `;
+            const kpi = await prisma.$queryRaw`
+              select count(*)::int as rows, max(meta_revenue)::numeric as meta_revenue, max(inversion_planeada)::numeric as inversion_planeada, max(roas_objetivo)::numeric as roas_objetivo
+              from kpi_data
+              where year = ${year} and month = ${month0}
+            `;
+            const result = { year, month: month1, daily_closer: dailyRows[0], payments: payments[0], kpi_data: kpi[0] };
+            console.log(JSON.stringify(result, (_, v) => typeof v === 'bigint' ? Number(v) : v, 2));
+            if (asNumber(dailyRows[0].rows) !== new Date(year, month1, 0).getDate()) {
+              console.error('Expected one daily_closer row per day');
+              process.exitCode = 1;
+            }
+          }
+          main().finally(() => prisma.$disconnect());
+          NODE
