@@ -81,6 +81,8 @@ export async function POST(
       sourceMonthlyMetricId: string | null;
     }> = [];
 
+    // Imports can process hundreds of rows; Prisma's default 5s interactive
+    // transaction timeout causes 500s on large XLSX batches.
     await prisma.$transaction(async (tx) => {
       for (const row of preview.parsedRows) {
         const member = await upsertMember(tx, row, batch.country ?? null);
@@ -289,6 +291,9 @@ export async function POST(
           errors: preview.errors as never,
         },
       });
+    }, {
+      maxWait: 15_000,
+      timeout: 120_000,
     });
 
     await writeAudit({
