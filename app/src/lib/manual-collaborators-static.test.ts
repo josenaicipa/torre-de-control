@@ -86,13 +86,21 @@ describe("manual collaborator labels", () => {
     expect(torreBlock).toContain("const ventasUniMeta=closeRateMeta>0?asistidaMeta*(closeRateMeta/100):0;");
   });
 
-  it("renames Torre CEO Funnel a hoy rows to match Detalle Diario definitions", () => {
+  it("calculates Torre CEO Funnel a hoy required values from current committed ticket and target conversion rates", () => {
+    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
     const funnelBlock = html.slice(html.indexOf("const funnelRows=["), html.indexOf("const handleSaveCfg=async"));
+
+    expect(torreBlock).toContain("const ventasReqHoy=ticketProm>0?metaMensual/ticketProm:0;");
+    expect(torreBlock).toContain("const asistidasReqHoy=closeRateMeta>0?ventasReqHoy/(closeRateMeta/100):0;");
+    expect(torreBlock).toContain("const leadsReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;");
+    expect(torreBlock).toContain("const agendasReqHoy=pctLeadsAg>0?leadsReqHoy/(pctLeadsAg/100):0;");
     expect(funnelBlock).toMatch(
       /l:"Ventas \$ \(comprometido\)"[\s\S]*l:"Ventas \(unidades\)"[\s\S]*l:"Citas Show Up \(asistidas\)"[\s\S]*l:"Leads calificados reales"[\s\S]*l:"Citas agendadas reales"/
     );
-    expect(funnelBlock).toContain('{l:"Leads calificados reales",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"}');
-    expect(funnelBlock).toContain('{l:"Citas agendadas reales",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Leads calificados reales",req:leadsReqHoy,real:totalLeads,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Citas agendadas reales",req:agendasReqHoy,real:totalAgendas,fmt:"n"}');
     expect(funnelBlock).not.toContain('l:"Citas asistidas"');
     expect(funnelBlock).not.toContain('l:"Citas agend. calificadas"');
     expect(funnelBlock).not.toContain('l:"Leads calificados"');
