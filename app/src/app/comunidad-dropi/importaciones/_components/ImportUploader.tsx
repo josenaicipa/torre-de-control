@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { COLORS } from "../../_lib/tokens";
 
 interface PreviewRow {
@@ -62,6 +62,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 //    members/metrics/follow-ups in one transaction.
 export function ImportUploader() {
   const [fileName, setFileName] = useState<string>("");
+  const [fileSize, setFileSize] = useState<number>(0);
   const [csvContent, setCsvContent] = useState<string>("");
   const [xlsxBase64, setXlsxBase64] = useState<string>("");
   const [reportType, setReportType] = useState<"AUTO" | "WEEKLY" | "MONTHLY">(
@@ -77,20 +78,21 @@ export function ImportUploader() {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function ingestFile(file: File) {
     setError(null);
     setPreview(null);
     setSuccessMessage(null);
-    const file = e.target.files?.[0];
-    if (!file) {
-      setFileName("");
-      setCsvContent("");
-      setXlsxBase64("");
+    const isCsv = /\.csv$/i.test(file.name);
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    if (!isCsv && !isXlsx) {
+      setError("Formato no soportado. Usa un archivo .csv o .xlsx.");
       return;
     }
     setFileName(file.name);
-    const isXlsx = /\.xlsx$/i.test(file.name);
+    setFileSize(file.size);
     if (isXlsx) {
       const buffer = await file.arrayBuffer();
       setXlsxBase64(arrayBufferToBase64(buffer));
@@ -100,6 +102,29 @@ export function ImportUploader() {
       setCsvContent(text);
       setXlsxBase64("");
     }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await ingestFile(file);
+  }
+
+  function clearFile() {
+    setFileName("");
+    setFileSize(0);
+    setCsvContent("");
+    setXlsxBase64("");
+    setError(null);
+    setPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await ingestFile(file);
   }
 
   async function handlePreview() {
@@ -164,8 +189,10 @@ export function ImportUploader() {
         );
         setPreview(null);
         setFileName("");
+        setFileSize(0);
         setCsvContent("");
         setXlsxBase64("");
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -177,6 +204,7 @@ export function ImportUploader() {
   return (
     <section
       style={{
+        position: "relative",
         backgroundColor: COLORS.surface,
         border: `1px solid ${COLORS.border}`,
         borderRadius: 12,
@@ -208,22 +236,144 @@ export function ImportUploader() {
         XLSX.
       </p>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        onChange={handleFileChange}
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
+      <div
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!isDragging) setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+        }}
+        onDrop={handleDrop}
+        role="button"
+        tabIndex={0}
+        aria-label="Seleccionar archivo CSV o XLSX"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          padding: "22px 16px",
+          borderRadius: 12,
+          border: `2px dashed ${
+            isDragging ? COLORS.brand : fileName ? COLORS.brand : COLORS.border
+          }`,
+          backgroundColor: isDragging
+            ? "#FFF1EC"
+            : fileName
+            ? "#FFF8F6"
+            : COLORS.background,
+          cursor: "pointer",
+          textAlign: "center",
+          transition:
+            "background-color 120ms ease, border-color 120ms ease",
+          outline: "none",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: COLORS.text,
+          }}
+        >
+          {fileName
+            ? "Archivo listo para previsualizar"
+            : "Arrastra o selecciona el archivo CSV o XLSX"}
+        </div>
+        <div
+          style={{
+            fontSize: 12,
+            color: COLORS.textSoft,
+          }}
+        >
+          {fileName ? (
+            <>
+              <strong style={{ color: COLORS.text }}>{fileName}</strong>
+              {fileSize > 0 && (
+                <span style={{ marginLeft: 6 }}>
+                  · {formatFileSize(fileSize)}
+                </span>
+              )}
+            </>
+          ) : (
+            "Formatos aceptados: .csv y .xlsx"
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <span
+            style={{
+              padding: "7px 14px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 700,
+              backgroundColor: COLORS.brand,
+              color: COLORS.surface,
+            }}
+          >
+            {fileName ? "Elegir otro archivo" : "Seleccionar archivo"}
+          </span>
+          {fileName && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearFile();
+              }}
+              style={{
+                padding: "7px 14px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 700,
+                backgroundColor: COLORS.surface,
+                color: COLORS.textSoft,
+                border: `1px solid ${COLORS.border}`,
+                cursor: "pointer",
+              }}
+            >
+              Quitar
+            </button>
+          )}
+        </div>
+      </div>
+
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: 10,
+          marginTop: 12,
         }}
       >
-        <label style={labelStyle()}>
-          Archivo CSV o XLSX
-          <input
-            type="file"
-            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={handleFileChange}
-            style={{ marginTop: 4, fontSize: 13 }}
-          />
-        </label>
         <label style={labelStyle()}>
           Tipo de reporte
           <select
@@ -490,6 +640,12 @@ export function ImportUploader() {
       )}
     </section>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function Th({ children }: { children: React.ReactNode }) {
