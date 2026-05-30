@@ -51,4 +51,37 @@ describe("manual collaborator labels", () => {
       /<Row2 label="Ventas reales \(unidades\)"[\s\S]*<Row2 label="Citas Show Up \(asistidas\)"[\s\S]*<Row2 label="Leads calificados reales"[\s\S]*<Row2 label="Citas agendadas reales"/
     );
   });
+
+  it("documents and applies the GHL CAPTACION Y VENTAS rule for May Agendas / Leads", () => {
+    expect(html).toContain("const GHL_CAPTACION_MAY_2026_APPOINTMENTS={");
+    expect(html).toContain("// Regla aprobada: Calificadas hoy = citas programadas - canceladas");
+    expect(html).toContain('"2026-05-20":{scheduled:28,showed:7,cancelled:17}');
+    expect(html).toContain("agendas_calificadas:Math.max(0,(r.scheduled||0)-(r.cancelled||0))");
+    expect(html).toContain("agendas_final:r.scheduled||0");
+    expect(html).toContain("citas_asistidas:r.showed||0");
+  });
+
+  it("orders and renames Detalle Diario Agendas / Leads rows around GHL-derived fields", () => {
+    const agendasBlock = html.slice(
+      html.indexOf('{title:"Agendas / Leads",bg:"#0f766e",rows:['),
+      html.indexOf('{title:"Costos por Lead",bg:"#92400e",rows:[')
+    );
+
+    expect(agendasBlock).toMatch(
+      /l:"Agendas Total"[\s\S]*l:"Agendas Hoy"[\s\S]*l:"Calificadas hoy"[\s\S]*l:"% Calificadas"[\s\S]*l:"Show Ups"[\s\S]*l:"% Show Up Rate"/
+    );
+    expect(agendasBlock).not.toContain('l:"Hoy (en agenda)"');
+    expect(agendasBlock).not.toContain('l:"Cualificadas Total"');
+    expect(agendasBlock).not.toContain('l:"% Cualificadas"');
+  });
+
+  it("renames Torre CEO Funnel a hoy rows to match Detalle Diario definitions", () => {
+    const funnelBlock = html.slice(html.indexOf("const funnelRows=["), html.indexOf("const handleSaveCfg=async"));
+    expect(funnelBlock).toMatch(
+      /l:"Ventas \$ \(comprometido\)"[\s\S]*l:"Ventas \(unidades\)"[\s\S]*l:"Citas Show Up \(asistidas\)"[\s\S]*l:"Leads calificados reales"[\s\S]*l:"Citas agendadas reales"/
+    );
+    expect(funnelBlock).not.toContain('l:"Citas asistidas"');
+    expect(funnelBlock).not.toContain('l:"Citas agend. calificadas"');
+    expect(funnelBlock).not.toContain('l:"Leads calificados"');
+  });
 });

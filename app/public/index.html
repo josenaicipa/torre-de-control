@@ -244,6 +244,55 @@ const blankCloser=()=>({
   show_organicas:0,show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
 });
 
+// GHL → Torre rule for Detalle Diario → Agendas / Leads.
+// Source: GHL pipeline CAPTACIÓN Y VENTAS appointments, May 2026.
+const GHL_CAPTACION_MAY_2026_APPOINTMENTS={
+  "2026-05-01":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-02":{scheduled:7,showed:0,cancelled:5},
+  "2026-05-03":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-04":{scheduled:33,showed:2,cancelled:24},
+  "2026-05-05":{scheduled:39,showed:9,cancelled:26},
+  "2026-05-06":{scheduled:29,showed:8,cancelled:17},
+  "2026-05-07":{scheduled:38,showed:10,cancelled:20},
+  "2026-05-08":{scheduled:25,showed:4,cancelled:18},
+  "2026-05-09":{scheduled:15,showed:0,cancelled:13},
+  "2026-05-10":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-11":{scheduled:32,showed:7,cancelled:17},
+  "2026-05-12":{scheduled:22,showed:5,cancelled:9},
+  "2026-05-13":{scheduled:21,showed:4,cancelled:9},
+  "2026-05-14":{scheduled:20,showed:10,cancelled:9},
+  "2026-05-15":{scheduled:24,showed:11,cancelled:6},
+  "2026-05-16":{scheduled:9,showed:2,cancelled:3},
+  "2026-05-17":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-18":{scheduled:18,showed:3,cancelled:9},
+  "2026-05-19":{scheduled:24,showed:4,cancelled:12},
+  "2026-05-20":{scheduled:28,showed:7,cancelled:17},
+  "2026-05-21":{scheduled:28,showed:8,cancelled:11},
+  "2026-05-22":{scheduled:17,showed:6,cancelled:5},
+  "2026-05-23":{scheduled:17,showed:6,cancelled:6},
+  "2026-05-24":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-25":{scheduled:25,showed:8,cancelled:6},
+  "2026-05-26":{scheduled:27,showed:9,cancelled:14},
+  "2026-05-27":{scheduled:18,showed:4,cancelled:8},
+  "2026-05-28":{scheduled:26,showed:5,cancelled:14},
+  "2026-05-29":{scheduled:22,showed:7,cancelled:8},
+};
+const applyGhlCaptacionAgendasLeads=(closerObj)=>{
+  const next={...closerObj};
+  Object.entries(GHL_CAPTACION_MAY_2026_APPOINTMENTS).forEach(([date,r])=>{
+    // Regla aprobada: Calificadas hoy = citas programadas - canceladas
+    next[date]={
+      ...blankCloser(),
+      ...(next[date]||{}),
+      date,
+      agendas_calificadas:Math.max(0,(r.scheduled||0)-(r.cancelled||0)),
+      agendas_final:r.scheduled||0,
+      citas_asistidas:r.showed||0,
+    };
+  });
+  return next;
+};
+
 const rowToEntry=row=>{
   return {
     member:row.member,date:row.date,
@@ -912,9 +961,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const funnelRows=[
     {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
     {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
-    {l:"Citas asistidas",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
-    {l:"Citas agend. calificadas",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
-    {l:"Leads calificados",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+    {l:"Citas Show Up (asistidas)",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
+    {l:"Leads calificados reales",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+    {l:"Citas agendadas reales",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{
@@ -1616,11 +1665,11 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
 
   const totalAgendas=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`agendas_${c}`]||0),0);
-  const totalCal=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`cal_${c}`]||0),0);
-  const totalHoy=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`hoy_${c}`]||0),0);
-  const totalShow=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`show_${c}`]||0),0);
+  const totalCal=form.agendas_calificadas||AG_CANAL_KEYS.reduce((s,c)=>s+(form[`cal_${c}`]||0),0);
+  const totalHoy=form.agendas_final||AG_CANAL_KEYS.reduce((s,c)=>s+(form[`hoy_${c}`]||0),0);
+  const totalShow=form.citas_asistidas||AG_CANAL_KEYS.reduce((s,c)=>s+(form[`show_${c}`]||0),0);
   const showRate=totalHoy>0?pv(totalShow,totalHoy):null;
-  const calRate=totalAgendas>0?pv(totalCal,totalAgendas):null;
+  const calRate=totalHoy>0?pv(totalCal,totalHoy):null;
 
   const handleSave=async()=>{
     setSaving(true);
@@ -1668,12 +1717,12 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
 
       {(totalAgendas>0||totalCal>0||totalShow>0)&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
-          <Stat label="Total Agendas" value={fN(totalAgendas)} color={C.blue}/>
-          <Stat label="Cualificadas" value={fN(totalCal)} color={C.purple}/>
-          <Stat label="Hoy (en agenda)" value={fN(totalHoy)} color={C.teal}/>
+          <Stat label="Agendas Total" value={fN(totalAgendas)} color={C.blue}/>
+          <Stat label="Agendas Hoy" value={fN(totalHoy)} color={C.teal}/>
+          <Stat label="Calificadas hoy" value={fN(totalCal)} color={C.purple}/>
+          <Stat label="% Calificadas" value={fP(calRate)} color={cH(calRate,50,30)}/>
           <Stat label="Show Ups" value={fN(totalShow)} color={C.green}/>
-          <Stat label="Show Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
-          <Stat label="% Cualif." value={fP(calRate)} color={cH(calRate,50,30)}/>
+          <Stat label="% Show Up Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
         </div>
       )}
 
@@ -1810,18 +1859,18 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||null;},fmt:"n"},
+      {l:"Agendas Hoy",fn:d=>d.closer.agendas_final||null,fmt:"n"},
+      {l:"Calificadas hoy",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
+      {l:"% Calificadas",fn:d=>{const h=d.closer.agendas_final||0,c=d.closer.agendas_calificadas||0;return h>0?pv(c,h):null;},fmt:"%",
+        totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mCalTotal,mHoy):null;}},
+      {l:"Show Ups",fn:d=>d.closer.citas_asistidas||null,fmt:"n"},
+      {l:"% Show Up Rate",fn:d=>{const h=d.closer.agendas_final||0,s=d.closer.citas_asistidas||0;return h>0?pv(s,h):null;},fmt:"%",
+        totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mShows,mHoy):null;}},
       {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true},
       {l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true},
       {l:"Google",fn:d=>d.closer.agendas_google||null,fmt:"n",sub:true},
       {l:"TikTok",fn:d=>d.closer.agendas_tiktok||null,fmt:"n",sub:true},
       {l:"Otros",fn:d=>d.closer.agendas_otros||null,fmt:"n",sub:true},
-      {l:"Cualificadas Total",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
-      {l:"% Cualificadas",fn:d=>{const t=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return t>0?pv(d.closer.agendas_calificadas||0,t):null;},fmt:"%",
-        totFn:()=>mAgTotal>0?pv(mCalTotal,mAgTotal):null},
-      {l:"Hoy (en agenda)",fn:d=>d.closer.agendas_final||null,fmt:"n"},
-      {l:"Show Ups",fn:d=>d.closer.citas_asistidas||null,fmt:"n"},
-      {l:"% Show Up Rate",fn:d=>{const h=d.closer.agendas_final||0,s=d.closer.citas_asistidas||0;return h>0?pv(s,h):null;},fmt:"%",
-        totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mShows,mHoy):null;}},
     ]},
     {title:"Costos por Lead",bg:"#92400e",rows:[
       {l:"CPL (Costo/Agenda)",fn:d=>{const ag=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return ag>0?d.totalGastoDay/ag:null;},fmt:"$",
@@ -3592,7 +3641,7 @@ function App(){
         dailyRows?.forEach(row=>{dailyObj[`${row.date}:${row.member}`]=rowToEntry(row);});
         const closerObj={};
         closerRows?.forEach(row=>{closerObj[row.date]=row;});
-        setCloserData(closerObj);
+        setCloserData(applyGhlCaptacionAgendasLeads(closerObj));
         setKpiData(kpiObj);
         setDaily(dailyObj);
       }catch(e){
@@ -3662,7 +3711,7 @@ function App(){
     const citas_asistidas=(data.show_organicas||0)+(data.show_meta||0)+(data.show_google||0)+(data.show_tiktok||0)+(data.show_otros||0);
     const merged={...data,agendas_calificadas,agendas_final,citas_asistidas};
     const nd={...closerData,[date]:merged};
-    setCloserData(nd);
+    setCloserData(applyGhlCaptacionAgendasLeads(nd));
     await db.from("daily_closer").upsert({
       date:data.date||date,
       q_ventas_ht:data.q_ventas_ht||0,valor_venta_ht:data.valor_venta_ht||0,
