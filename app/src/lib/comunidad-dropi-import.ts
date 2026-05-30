@@ -266,7 +266,12 @@ export function previewMatrix(
     const fullName = normalizeFullName(pickCell(row, columnMap.fullName));
     const email = normalizeEmail(pickCell(row, columnMap.email));
     const phone = normalizePhone(pickCell(row, columnMap.phone));
-    const country = normalizeCountry(pickCell(row, columnMap.country));
+    // Comunidad Dropi reports are Colombia-first; many files ship without a
+    // country column or leave the cell blank. Default to CO so segmentation
+    // and rate math still bucket those rows correctly. Explicit values from
+    // the file always win.
+    const country =
+      normalizeCountry(pickCell(row, columnMap.country)) ?? "CO";
     const dropiExternalId =
       pickCell(row, columnMap.dropiExternalId)?.trim() || null;
 
