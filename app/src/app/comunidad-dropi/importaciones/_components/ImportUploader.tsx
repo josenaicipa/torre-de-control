@@ -38,18 +38,32 @@ interface PreviewResponse {
   detectedColumns: Record<string, string>;
   parsedRows: PreviewRow[];
   errors: PreviewError[];
+  sheetName: string | null;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, i + CHUNK);
+    binary += String.fromCharCode.apply(null, Array.from(slice));
+  }
+  return btoa(binary);
 }
 
 // Client-side import flow:
-// 1. Operator picks a CSV file.
-// 2. We send the raw content + manual overrides to /preview.
-// 3. The API returns a PreviewResponse the operator reviews.
-// 4. On confirm we POST the *same* CSV content to /confirm, so the server
+// 1. Operator picks a CSV or XLSX file.
+// 2. CSV is read as text; XLSX is read as ArrayBuffer and sent base64-encoded.
+// 3. We send the raw content + manual overrides to /preview.
+// 4. The API returns a PreviewResponse the operator reviews.
+// 5. On confirm we POST the *same* content to /confirm, so the server
 //    re-validates everything against the original hash and writes the
 //    members/metrics/follow-ups in one transaction.
 export function ImportUploader() {
   const [fileName, setFileName] = useState<string>("");
   const [csvContent, setCsvContent] = useState<string>("");
+  const [xlsxBase64, setXlsxBase64] = useState<string>("");
   const [reportType, setReportType] = useState<"AUTO" | "WEEKLY" | "MONTHLY">(
     "AUTO",
   );
@@ -72,23 +86,34 @@ export function ImportUploader() {
     if (!file) {
       setFileName("");
       setCsvContent("");
+      setXlsxBase64("");
       return;
     }
     setFileName(file.name);
-    const text = await file.text();
-    setCsvContent(text);
+    const isXlsx = /\.xlsx$/i.test(file.name);
+    if (isXlsx) {
+      const buffer = await file.arrayBuffer();
+      setXlsxBase64(arrayBufferToBase64(buffer));
+      setCsvContent("");
+    } else {
+      const text = await file.text();
+      setCsvContent(text);
+      setXlsxBase64("");
+    }
   }
 
   async function handlePreview() {
     setError(null);
     setSuccessMessage(null);
-    if (!fileName || !csvContent) {
-      setError("Selecciona un archivo CSV antes de continuar.");
+    if (!fileName || (!csvContent && !xlsxBase64)) {
+      setError("Selecciona un archivo CSV o XLSX antes de continuar.");
       return;
     }
     setLoading(true);
     try {
-      const body: Record<string, unknown> = { fileName, csvContent };
+      const body: Record<string, unknown> = { fileName };
+      if (xlsxBase64) body.xlsxBase64 = xlsxBase64;
+      else body.csvContent = csvContent;
       if (reportType !== "AUTO") body.reportType = reportType;
       if (periodStart) body.periodStart = periodStart;
       if (periodEnd) body.periodEnd = periodEnd;
@@ -119,12 +144,15 @@ export function ImportUploader() {
     setConfirming(true);
     setError(null);
     try {
+      const confirmBody: Record<string, unknown> = xlsxBase64
+        ? { xlsxBase64 }
+        : { csvContent };
       const res = await fetch(
         `/api/comunidad-dropi/imports/${preview.batchId}/confirm`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ csvContent }),
+          body: JSON.stringify(confirmBody),
         },
       );
       const payload = await res.json();
@@ -137,6 +165,7 @@ export function ImportUploader() {
         setPreview(null);
         setFileName("");
         setCsvContent("");
+        setXlsxBase64("");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -162,7 +191,7 @@ export function ImportUploader() {
           color: COLORS.text,
         }}
       >
-        Subir reporte CSV
+        Subir reporte CSV o XLSX
       </h2>
       <p
         style={{
@@ -172,9 +201,11 @@ export function ImportUploader() {
           lineHeight: 1.5,
         }}
       >
-        Acepta separador coma con encabezados en español (nombre, correo,
-        teléfono, país, órdenes ingresadas/movilizadas/entregadas/devueltas).
-        El sistema intentará detectar el periodo desde el nombre del archivo.
+        Acepta CSV con separador coma o archivos XLSX exportados de Dropi, con
+        encabezados en español (nombre, correo, teléfono, país, órdenes
+        ingresadas/movilizadas/entregadas/devueltas). El sistema intentará
+        detectar el periodo desde el nombre del archivo y la hoja correcta del
+        XLSX.
       </p>
 
       <div
@@ -185,10 +216,10 @@ export function ImportUploader() {
         }}
       >
         <label style={labelStyle()}>
-          Archivo CSV
+          Archivo CSV o XLSX
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={handleFileChange}
             style={{ marginTop: 4, fontSize: 13 }}
           />
@@ -356,6 +387,14 @@ export function ImportUploader() {
               con error
             </span>
             <span>Tipo: {preview.reportType === "WEEKLY" ? "Semanal" : "Mensual"}</span>
+            {preview.sheetName && (
+              <span>
+                Hoja detectada:{" "}
+                <strong style={{ color: COLORS.text }}>
+                  {preview.sheetName}
+                </strong>
+              </span>
+            )}
             {preview.periodStart && preview.periodEnd && (
               <span>
                 Periodo: {preview.periodStart.slice(0, 10)} →{" "}

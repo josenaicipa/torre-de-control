@@ -5,16 +5,19 @@ import { getActor, requireActor, requireOperatorOrAdmin } from "@/lib/actor";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
 import { previewCsv } from "@/lib/comunidad-dropi-import";
+import { previewXlsx } from "@/lib/comunidad-dropi-xlsx";
 import {
   calculateSegment,
   followUpReasonForSegment,
 } from "@/lib/comunidad-dropi-segments";
+import { validateUploadPayload } from "@/lib/comunidad-dropi-upload-validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
-  csvContent: z.string().min(1),
+  csvContent: z.string().min(1).optional(),
+  xlsxBase64: z.string().min(1).optional(),
 });
 
 // Confirms a previously previewed batch. We re-parse the CSV the operator
@@ -40,7 +43,14 @@ export async function POST(
       return jsonError(409, "La importación ya fue confirmada");
     }
 
-    const preview = previewCsv(body.csvContent);
+    const upload = validateUploadPayload({
+      csvContent: body.csvContent,
+      xlsxBase64: body.xlsxBase64,
+    });
+    const preview =
+      upload.kind === "xlsx"
+        ? await previewXlsx(upload.xlsxBuffer)
+        : previewCsv(upload.csvContent);
     if (batch.fileHash && preview.fileHash !== batch.fileHash) {
       return jsonError(
         400,

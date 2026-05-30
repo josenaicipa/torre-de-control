@@ -1,9 +1,9 @@
-// Excel import pipeline for Comunidad Dropi. The Excel parsing itself is
-// intentionally tiny: we accept a CSV-ish representation (header row + rows of
-// strings) so the API route can decide whether the upload is a `.csv` or an
-// `.xlsx` that has already been parsed by another tool. Release 2 will add a
-// proper xlsx parser; for Release 1 the operator can paste CSV from the Dropi
-// report and the same pipeline runs.
+// Import pipeline for Comunidad Dropi. The pipeline core works on a 2D
+// matrix of strings (header row + data rows). CSV uploads parse the text
+// with `parseCsv` and XLSX uploads parse the binary with
+// `comunidad-dropi-xlsx`; both end up calling the shared `previewMatrix` so
+// the normalization, validation and rate math are identical regardless of
+// input format.
 import { createHash } from "node:crypto";
 import {
   normalizeCountry,
@@ -47,9 +47,11 @@ export interface ImportPreviewResult {
 }
 
 // Header aliases — Dropi reports come with slightly different column names
-// per country / week. Add new aliases here, never silently parse a column we
-// don't know.
-const HEADER_ALIASES: Record<string, string[]> = {
+// per country / week. Aliases are matched after passing through
+// `normalizeHeader`, which lowercases, strips diacritics, and drops every
+// punctuation character. Add a new alias whenever a new report shape appears
+// rather than silently parsing an unknown column.
+export const HEADER_ALIASES: Record<string, string[]> = {
   fullName: [
     "nombre",
     "nombre completo",
@@ -58,37 +60,53 @@ const HEADER_ALIASES: Record<string, string[]> = {
     "seller",
     "nombre vendedor",
   ],
-  email: ["correo", "email", "correo electronico", "correo electrónico", "e-mail"],
-  phone: ["telefono", "teléfono", "celular", "phone", "whatsapp"],
-  country: ["pais", "país", "country"],
-  dropiExternalId: ["dropi id", "id dropi", "id_dropi", "user_id", "user id"],
+  email: [
+    "correo",
+    "email",
+    "correo electronico",
+    "e mail",
+  ],
+  phone: [
+    "telefono",
+    "celular",
+    "phone",
+    "whatsapp",
+  ],
+  country: ["pais", "country"],
+  dropiExternalId: ["dropi id", "id dropi", "id dropi", "user id"],
   ordersEntered: [
     "ordenes ingresadas",
-    "órdenes ingresadas",
     "pedidos ingresados",
     "ingresadas",
     "ordenes",
-    "órdenes",
+    "ord ing",
+    "ordenes ing",
   ],
   ordersMoved: [
     "ordenes movilizadas",
-    "órdenes movilizadas",
     "movilizadas",
     "pedidos movilizados",
+    "ord mov",
+    "ordenes mov",
   ],
   ordersDelivered: [
     "ordenes entregadas",
-    "órdenes entregadas",
     "entregadas",
+    "entregados",
     "pedidos entregados",
+    "entregado",
   ],
   ordersReturned: [
     "ordenes devueltas",
-    "órdenes devueltas",
     "devueltas",
     "pedidos devueltos",
+    "devoluciones",
+    "devolucion",
+    "devolucion total",
   ],
 };
+
+export type HeaderField = keyof typeof HEADER_ALIASES;
 
 export function parseCsv(content: string): string[][] {
   const rows: string[][] = [];
@@ -143,7 +161,7 @@ export function parseCsv(content: string): string[][] {
   return rows.filter((r) => r.some((c) => c.trim().length > 0));
 }
 
-function normalizeHeader(h: string): string {
+export function normalizeHeader(h: string): string {
   return h
     .trim()
     .toLowerCase()
@@ -152,16 +170,16 @@ function normalizeHeader(h: string): string {
     .replace(/[íï]/g, "i")
     .replace(/[óö]/g, "o")
     .replace(/[úü]/g, "u")
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function buildColumnMap(
+export function buildColumnMap(
   headers: string[],
-): Record<keyof typeof HEADER_ALIASES, number | null> {
-  const map = {} as Record<keyof typeof HEADER_ALIASES, number | null>;
-  for (const field of Object.keys(HEADER_ALIASES) as Array<
-    keyof typeof HEADER_ALIASES
-  >) {
+): Record<HeaderField, number | null> {
+  const map = {} as Record<HeaderField, number | null>;
+  for (const field of Object.keys(HEADER_ALIASES) as HeaderField[]) {
     map[field] = null;
     const aliases = HEADER_ALIASES[field];
     for (let i = 0; i < headers.length; i++) {
@@ -175,6 +193,14 @@ function buildColumnMap(
   return map;
 }
 
+// How many fields the given header row maps. Used by xlsx parsing to decide
+// which row(s) actually hold the headers when the report has more than one
+// header row (e.g. a pivot table layout).
+export function scoreHeaderRow(headers: string[]): number {
+  const map = buildColumnMap(headers);
+  return Object.values(map).filter((v) => v != null).length;
+}
+
 function parseIntCell(cell: string | undefined): number {
   if (cell == null) return 0;
   const trimmed = String(cell).trim();
@@ -185,16 +211,23 @@ function parseIntCell(cell: string | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function computeFileHash(content: string): string {
+export function computeFileHash(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
-export function previewCsv(
-  fileContent: string,
-): ImportPreviewResult {
+export function previewCsv(fileContent: string): ImportPreviewResult {
   const matrix = parseCsv(fileContent);
   const fileHash = computeFileHash(fileContent);
+  return previewMatrix(matrix, fileHash);
+}
 
+// Shared core. Receives a clean matrix where row 0 is the header and rows
+// 1..n are data, plus the precomputed file hash. Both CSV and XLSX paths
+// converge here so segmentation never sees a divergent parse.
+export function previewMatrix(
+  matrix: string[][],
+  fileHash: string,
+): ImportPreviewResult {
   if (matrix.length < 2) {
     return {
       fileHash,
@@ -230,13 +263,12 @@ export function previewCsv(
       raw[h] = row[idx] ?? "";
     });
 
-    const fullName = normalizeFullName(
-      pickCell(row, columnMap.fullName),
-    );
+    const fullName = normalizeFullName(pickCell(row, columnMap.fullName));
     const email = normalizeEmail(pickCell(row, columnMap.email));
     const phone = normalizePhone(pickCell(row, columnMap.phone));
     const country = normalizeCountry(pickCell(row, columnMap.country));
-    const dropiExternalId = pickCell(row, columnMap.dropiExternalId)?.trim() || null;
+    const dropiExternalId =
+      pickCell(row, columnMap.dropiExternalId)?.trim() || null;
 
     if (!fullName && !email && !phone && !dropiExternalId) {
       errors.push({
@@ -268,8 +300,14 @@ export function previewCsv(
       ordersDelivered,
       ordersReturned,
       movementRate: safeRate(ordersMoved, ordersEntered),
-      deliveryRate: safeRate(ordersDelivered, Math.max(ordersMoved, ordersEntered)),
-      returnRate: safeRate(ordersReturned, Math.max(ordersMoved, ordersEntered)),
+      deliveryRate: safeRate(
+        ordersDelivered,
+        Math.max(ordersMoved, ordersEntered),
+      ),
+      returnRate: safeRate(
+        ordersReturned,
+        Math.max(ordersMoved, ordersEntered),
+      ),
       raw,
     });
   }

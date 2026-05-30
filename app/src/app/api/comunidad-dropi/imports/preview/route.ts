@@ -4,14 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { getActor, requireActor, requireOperatorOrAdmin } from "@/lib/actor";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { previewCsv } from "@/lib/comunidad-dropi-import";
+import { previewXlsx } from "@/lib/comunidad-dropi-xlsx";
 import { detectReportPeriodFromName } from "@/lib/comunidad-dropi-normalize";
+import { validateUploadPayload } from "@/lib/comunidad-dropi-upload-validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   fileName: z.string().trim().min(1),
-  csvContent: z.string().min(1),
+  csvContent: z.string().min(1).optional(),
+  xlsxBase64: z.string().min(1).optional(),
   reportType: z.enum(["WEEKLY", "MONTHLY"]).optional(),
   periodStart: z.string().optional(),
   periodEnd: z.string().optional(),
@@ -31,8 +34,20 @@ export async function POST(req: Request) {
     requireActor(actor);
     requireOperatorOrAdmin(actor);
     const body = bodySchema.parse(await req.json());
+    const upload = validateUploadPayload({
+      csvContent: body.csvContent,
+      xlsxBase64: body.xlsxBase64,
+    });
 
-    const preview = previewCsv(body.csvContent);
+    let sheetName: string | null = null;
+    let preview;
+    if (upload.kind === "xlsx") {
+      const xlsxPreview = await previewXlsx(upload.xlsxBuffer);
+      sheetName = xlsxPreview.sheetName;
+      preview = xlsxPreview;
+    } else {
+      preview = previewCsv(upload.csvContent);
+    }
 
     const existingByHash = await prisma.dropiImportBatch.findFirst({
       where: { fileHash: preview.fileHash },
@@ -106,6 +121,7 @@ export async function POST(req: Request) {
         detectedColumns: preview.detectedColumns,
         parsedRows: preview.parsedRows.slice(0, 50),
         errors: preview.errors.slice(0, 50),
+        sheetName,
       },
     });
   } catch (err) {
