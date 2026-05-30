@@ -249,7 +249,10 @@ const blankCloser=()=>({
   show_organicas:0,show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
 });
 
-// GHL → Torre rule for Detalle Diario → Agendas / Leads.
+// GHL → daily_closer / Detalle Diario → Torre CEO.
+// Agendas / Leads and Área Comercial are operational entry screens; Torre CEO
+// must consume the consolidated daily_closer rows so daily traceability remains
+// visible in Detalle Diario before monthly totals are shown in Torre.
 // Source: GHL pipeline CAPTACIÓN Y VENTAS appointments, May 2026.
 const GHL_CAPTACION_MAY_2026_APPOINTMENTS={
   "2026-05-01":{scheduled:0,showed:0,cancelled:0},

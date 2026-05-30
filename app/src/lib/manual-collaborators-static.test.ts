@@ -107,6 +107,25 @@ describe("manual collaborator labels", () => {
     expect(funnelBlock).not.toContain('l:"Leads calificados"');
   });
 
+  it("documents the data flow: operational screens and GHL feed daily_closer before Torre CEO totals", () => {
+    const loadBlock = html.slice(html.indexOf('const [{data:kpiRows'), html.indexOf('const kk=`kpi:${year}-${month}`'));
+    const saveCloserBlock = html.slice(html.indexOf('const saveCloserEntry=async'), html.indexOf('const saveKpiConfig=async'));
+    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
+
+    expect(html).toContain("// GHL → daily_closer / Detalle Diario → Torre CEO.");
+    expect(html).toContain("Agendas / Leads and Área Comercial are operational entry screens");
+    expect(loadBlock).toContain('db.from("daily_closer").select("*")');
+    expect(loadBlock).toContain('setCloserData(applyGhlCaptacionAgendasLeads(closerObj));');
+    expect(saveCloserBlock).toContain('await db.from("daily_closer").upsert({');
+    expect(saveCloserBlock).toContain('{onConflict:"date"}');
+    expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
+    expect(torreBlock).toContain('const totalValor=totalValorHT;');
+    expect(torreBlock).toContain('const totalVentas=sumF(closerEntries,"q_ventas_ht");');
+    expect(torreBlock).toContain('const totalLeads=sumF(closerEntries,"agendas_calificadas");');
+    expect(torreBlock).toContain('const totalAgendas=sumF(closerEntries,"agendas_final");');
+    expect(torreBlock).toContain('const totalAsistidas=sumF(closerEntries,"citas_asistidas");');
+  });
+
   it("calculates Salud del embudo ratios from the corrected Torre CEO denominators", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
     expect(torreBlock).toContain("const pctLeadsAgReal=totalAgendas>0?pv(totalLeads,totalAgendas):null;");
