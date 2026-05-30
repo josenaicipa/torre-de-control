@@ -9,44 +9,107 @@ import {
 } from "../_lib/tokens";
 import { SubNav } from "../_components/SubNav";
 import {
+  BUCKET_COLORS,
+  addDays,
+  buildFollowUpsHref,
+  kpiHref,
+  parseFollowUpsFilters,
+  startOfUtcDay,
+} from "../_lib/follow-ups";
+import {
   FollowUpsTable,
+  type AssignableUser,
   type FollowUpRow,
 } from "./_components/FollowUpsTable";
 
 export const dynamic = "force-dynamic";
 
-interface SearchParams {
-  status?: "OPEN" | "IN_PROGRESS" | "DONE" | "DISMISSED";
-  priority?: "P1" | "P2" | "P3" | "P4";
-  reason?: string;
-  page?: string;
+type RawSearchParams = Record<string, string | string[] | undefined>;
+
+function flattenParams(sp: RawSearchParams): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(sp)) {
+    if (Array.isArray(value)) out[key] = value[0];
+    else out[key] = value;
+  }
+  return out;
 }
 
 export default async function SeguimientosPage({
   searchParams,
 }: {
-  searchParams: Promise<SearchParams>;
+  searchParams: Promise<RawSearchParams>;
 }) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  const sp = await searchParams;
-  const page = Math.max(1, parseInt(sp.page ?? "1", 10));
+  const sp = flattenParams(await searchParams);
+  const filters = parseFollowUpsFilters(sp);
   const pageSize = 50;
 
-  const where: Record<string, unknown> = {};
-  where.status = sp.status ?? { in: ["OPEN", "IN_PROGRESS"] };
-  if (sp.priority) where.priority = sp.priority;
-  if (sp.reason) where.reason = sp.reason;
+  const canAssign = actor.role === "ADMIN" || actor.role === "OPERATOR";
+  const now = new Date();
+  const todayStart = startOfUtcDay(now);
+  const tomorrowStart = addDays(todayStart, 1);
+  const weekEnd = addDays(todayStart, 8);
 
-  const [items, total, openCount, urgentCount] = await Promise.all([
+  const where: Record<string, unknown> = {};
+  where.status =
+    filters.status === "OPEN_AND_PROGRESS"
+      ? { in: ["OPEN", "IN_PROGRESS"] }
+      : filters.status;
+  if (filters.priority) where.priority = filters.priority;
+  if (filters.reason) where.reason = filters.reason;
+  if (filters.mine) where.assignedToId = actor.userId;
+  else if (filters.unassigned) where.assignedToId = null;
+  else if (filters.assignedToId) where.assignedToId = filters.assignedToId;
+
+  if (filters.bucket === "OVERDUE") where.dueDate = { lt: todayStart };
+  else if (filters.bucket === "TODAY")
+    where.dueDate = { gte: todayStart, lt: tomorrowStart };
+  else if (filters.bucket === "THIS_WEEK")
+    where.dueDate = { gte: tomorrowStart, lt: weekEnd };
+  else if (filters.bucket === "UPCOMING") where.dueDate = { gte: weekEnd };
+  else if (filters.bucket === "NO_DATE") where.dueDate = null;
+
+  if (filters.country) {
+    where.member = { country: filters.country };
+  }
+
+  if (filters.q) {
+    const q = filters.q;
+    const memberFilter = (where.member as Record<string, unknown>) ?? {};
+    memberFilter.OR = [
+      { fullName: { contains: q, mode: "insensitive" } },
+      { email: { contains: q, mode: "insensitive" } },
+      { phone: { contains: q } },
+    ];
+    where.member = memberFilter;
+  }
+
+  const baseOpen = {
+    status: { in: ["OPEN", "IN_PROGRESS"] as ("OPEN" | "IN_PROGRESS")[] },
+  };
+
+  const [
+    items,
+    total,
+    openCount,
+    urgentCount,
+    todayCount,
+    overdueCount,
+    mineCount,
+    unassignedCount,
+    countriesRaw,
+    assignableUsers,
+  ] = await Promise.all([
     prisma.dropiFollowUp.findMany({
       where,
       orderBy: [
+        { dueDate: { sort: "asc", nulls: "last" } },
         { priority: "asc" },
-        { dueDate: "asc" },
         { createdAt: "desc" },
       ],
-      skip: (page - 1) * pageSize,
+      skip: (filters.page - 1) * pageSize,
       take: pageSize,
       include: {
         member: {
@@ -63,14 +126,33 @@ export default async function SeguimientosPage({
       },
     }),
     prisma.dropiFollowUp.count({ where }),
+    prisma.dropiFollowUp.count({ where: baseOpen }),
+    prisma.dropiFollowUp.count({ where: { ...baseOpen, priority: "P1" } }),
     prisma.dropiFollowUp.count({
-      where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
+      where: { ...baseOpen, dueDate: { gte: todayStart, lt: tomorrowStart } },
     }),
     prisma.dropiFollowUp.count({
+      where: { ...baseOpen, dueDate: { lt: todayStart } },
+    }),
+    prisma.dropiFollowUp.count({
+      where: { ...baseOpen, assignedToId: actor.userId },
+    }),
+    prisma.dropiFollowUp.count({
+      where: { ...baseOpen, assignedToId: null },
+    }),
+    prisma.dropiCommunityMember.groupBy({
+      by: ["country"],
+      _count: { _all: true },
+      orderBy: { _count: { country: "desc" } },
+      take: 20,
+    }),
+    prisma.user.findMany({
       where: {
-        status: { in: ["OPEN", "IN_PROGRESS"] },
-        priority: "P1",
+        active: true,
+        role: { in: ["ADMIN", "OPERATOR", "MENTOR"] },
       },
+      select: { id: true, name: true, email: true },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
     }),
   ]);
 
@@ -87,6 +169,7 @@ export default async function SeguimientosPage({
     dueDate: f.dueDate ? f.dueDate.toISOString() : null,
     contactedAt: f.contactedAt ? f.contactedAt.toISOString() : null,
     nextActionAt: f.nextActionAt ? f.nextActionAt.toISOString() : null,
+    assignedToId: f.assignedTo ? f.assignedTo.id : null,
     assignedName: f.assignedTo
       ? f.assignedTo.name ?? f.assignedTo.email ?? null
       : null,
@@ -98,6 +181,81 @@ export default async function SeguimientosPage({
       country: f.member.country,
     },
   }));
+
+  const countries = countriesRaw
+    .map((c) => c.country)
+    .filter((c): c is string => Boolean(c && c.trim()));
+
+  const assignable: AssignableUser[] = assignableUsers.map((u) => ({
+    id: u.id,
+    label: u.name ?? u.email ?? u.id,
+  }));
+
+  const kpis: Array<{
+    key: string;
+    label: string;
+    value: number;
+    href: string;
+    bucket?: keyof typeof BUCKET_COLORS;
+    active: boolean;
+    accent: string;
+  }> = [
+    {
+      key: "open",
+      label: "Abiertos / en curso",
+      value: openCount,
+      href: kpiHref({}),
+      active:
+        filters.status === "OPEN_AND_PROGRESS" &&
+        !filters.priority &&
+        !filters.bucket &&
+        !filters.mine &&
+        !filters.unassigned,
+      accent: COLORS.brand,
+    },
+    {
+      key: "overdue",
+      label: "Vencidos",
+      value: overdueCount,
+      href: kpiHref({ bucket: "OVERDUE" }),
+      bucket: "OVERDUE",
+      active: filters.bucket === "OVERDUE",
+      accent: BUCKET_COLORS.OVERDUE.border,
+    },
+    {
+      key: "today",
+      label: "Para hoy",
+      value: todayCount,
+      href: kpiHref({ bucket: "TODAY" }),
+      bucket: "TODAY",
+      active: filters.bucket === "TODAY",
+      accent: BUCKET_COLORS.TODAY.border,
+    },
+    {
+      key: "urgent",
+      label: "Urgentes (P1)",
+      value: urgentCount,
+      href: kpiHref({ priority: "P1" }),
+      active: filters.priority === "P1" && !filters.bucket,
+      accent: "#FCA5A5",
+    },
+    {
+      key: "mine",
+      label: "Asignados a mí",
+      value: mineCount,
+      href: kpiHref({ mine: "1" }),
+      active: filters.mine,
+      accent: "#A78BFA",
+    },
+    {
+      key: "unassigned",
+      label: "Sin asignar",
+      value: unassignedCount,
+      href: kpiHref({ unassigned: "1" }),
+      active: filters.unassigned,
+      accent: "#CBD5E1",
+    },
+  ];
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -117,18 +275,67 @@ export default async function SeguimientosPage({
             Seguimientos
           </h1>
           <p style={{ margin: "4px 0 0", color: COLORS.textSoft, fontSize: 13 }}>
-            {openCount} abiertos · {urgentCount} urgentes (P1).
+            {openCount} abiertos · {urgentCount} urgentes (P1) · {overdueCount}{" "}
+            vencidos.
           </p>
         </div>
       </header>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: 10,
+          marginBottom: 14,
+        }}
+      >
+        {kpis.map((kpi) => (
+          <Link
+            key={kpi.key}
+            href={kpi.href}
+            style={kpiCardStyle(kpi.active, kpi.accent)}
+          >
+            <span
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: COLORS.textSoft,
+              }}
+            >
+              {kpi.label}
+            </span>
+            <span
+              style={{
+                display: "block",
+                fontSize: 22,
+                fontWeight: 800,
+                color: COLORS.text,
+                marginTop: 4,
+              }}
+            >
+              {kpi.value}
+            </span>
+          </Link>
+        ))}
+      </div>
 
       <form
         method="get"
         style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}
       >
+        <input
+          type="text"
+          name="q"
+          defaultValue={filters.q ?? ""}
+          placeholder="Buscar por nombre, email o teléfono"
+          style={{ ...inputStyle(), minWidth: 220, flex: "1 1 220px" }}
+        />
         <select
           name="status"
-          defaultValue={sp.status ?? ""}
+          defaultValue={filters.status === "OPEN_AND_PROGRESS" ? "" : filters.status}
           style={inputStyle()}
         >
           <option value="">Abiertos y en curso</option>
@@ -139,7 +346,7 @@ export default async function SeguimientosPage({
         </select>
         <select
           name="priority"
-          defaultValue={sp.priority ?? ""}
+          defaultValue={filters.priority ?? ""}
           style={inputStyle()}
         >
           <option value="">Todas las prioridades</option>
@@ -151,7 +358,7 @@ export default async function SeguimientosPage({
         </select>
         <select
           name="reason"
-          defaultValue={sp.reason ?? ""}
+          defaultValue={filters.reason ?? ""}
           style={inputStyle()}
         >
           <option value="">Todos los motivos</option>
@@ -161,12 +368,73 @@ export default async function SeguimientosPage({
             </option>
           ))}
         </select>
+        <select
+          name="country"
+          defaultValue={filters.country ?? ""}
+          style={inputStyle()}
+        >
+          <option value="">Todos los países</option>
+          {countries.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <select
+          name="assignedToId"
+          defaultValue={filters.mine ? "" : filters.assignedToId ?? ""}
+          disabled={filters.mine}
+          style={inputStyle()}
+        >
+          <option value="">Cualquier responsable</option>
+          {assignable.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            color: COLORS.textSoft,
+          }}
+        >
+          <input
+            type="checkbox"
+            name="mine"
+            value="1"
+            defaultChecked={filters.mine}
+          />
+          Solo míos
+        </label>
         <button type="submit" style={primaryButton()}>
           Filtrar
         </button>
+        {(filters.q ||
+          filters.country ||
+          filters.assignedToId ||
+          filters.mine ||
+          filters.unassigned ||
+          filters.bucket ||
+          filters.priority ||
+          filters.reason ||
+          filters.status !== "OPEN_AND_PROGRESS") && (
+          <Link href={kpiHref({})} style={ghostButton()}>
+            Limpiar
+          </Link>
+        )}
       </form>
 
-      <FollowUpsTable items={rows} />
+      <FollowUpsTable
+        items={rows}
+        actorUserId={actor.userId}
+        canAssign={canAssign}
+        assignableUsers={assignable}
+        now={now.toISOString()}
+      />
 
       {totalPages > 1 && (
         <div
@@ -180,16 +448,22 @@ export default async function SeguimientosPage({
           }}
         >
           <span>
-            Página {page} de {totalPages}
+            Página {filters.page} de {totalPages}
           </span>
           <div style={{ display: "flex", gap: 8 }}>
-            {page > 1 && (
-              <Link href={pageHref(sp, page - 1)} style={ghostButton()}>
+            {filters.page > 1 && (
+              <Link
+                href={buildFollowUpsHref(filters, { page: String(filters.page - 1) })}
+                style={ghostButton()}
+              >
                 ← Anterior
               </Link>
             )}
-            {page < totalPages && (
-              <Link href={pageHref(sp, page + 1)} style={ghostButton()}>
+            {filters.page < totalPages && (
+              <Link
+                href={buildFollowUpsHref(filters, { page: String(filters.page + 1) })}
+                style={ghostButton()}
+              >
                 Siguiente →
               </Link>
             )}
@@ -200,14 +474,20 @@ export default async function SeguimientosPage({
   );
 }
 
-function pageHref(sp: SearchParams, page: number) {
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(sp)) {
-    if (k === "page") continue;
-    if (v) params.set(k, String(v));
-  }
-  params.set("page", String(page));
-  return `?${params.toString()}`;
+function kpiCardStyle(active: boolean, accent: string): React.CSSProperties {
+  return {
+    display: "block",
+    padding: "12px 14px",
+    border: `1px solid ${active ? accent : COLORS.border}`,
+    borderTop: `1px solid ${accent}`,
+    borderRadius: 10,
+    backgroundColor: active
+      ? `color-mix(in srgb, ${accent} 8%, ${COLORS.surface})`
+      : COLORS.surface,
+    textDecoration: "none",
+    color: COLORS.text,
+    boxShadow: active ? "0 1px 0 rgba(17,17,16,0.04)" : "none",
+  };
 }
 
 function inputStyle(): React.CSSProperties {

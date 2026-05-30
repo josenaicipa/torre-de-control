@@ -2,15 +2,29 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
   COLORS,
   FOLLOW_UP_REASON_LABELS,
   FOLLOW_UP_STATUS_LABELS,
   PRIORITY_COLORS,
 } from "../../_lib/tokens";
+import {
+  BUCKET_COLORS,
+  BUCKET_LABELS,
+  BUCKET_ORDER,
+  type DueBucket,
+  formatLongDateEs,
+  formatRelativeDateEs,
+  groupByBucket,
+} from "../../_lib/follow-ups";
 
 type Status = "OPEN" | "IN_PROGRESS" | "DONE" | "DISMISSED";
+
+export interface AssignableUser {
+  id: string;
+  label: string;
+}
 
 export interface FollowUpRow {
   id: string;
@@ -23,6 +37,7 @@ export interface FollowUpRow {
   dueDate: string | null;
   contactedAt: string | null;
   nextActionAt: string | null;
+  assignedToId: string | null;
   assignedName: string | null;
   member: {
     id: string;
@@ -35,6 +50,14 @@ export interface FollowUpRow {
 
 interface Props {
   items: FollowUpRow[];
+  actorUserId: string;
+  canAssign: boolean;
+  assignableUsers: AssignableUser[];
+  // ISO string for the request's "now". Passing it from the server keeps the
+  // bucket math and relative-date rendering deterministic between SSR and
+  // hydration, avoiding the flash users would otherwise see if we used
+  // Date.now() in the client.
+  now: string;
 }
 
 interface RowSaveState {
@@ -43,7 +66,15 @@ interface RowSaveState {
   savedAt: number | null;
 }
 
-export function FollowUpsTable({ items }: Props) {
+const COLUMN_COUNT = 9;
+
+export function FollowUpsTable({
+  items,
+  actorUserId,
+  canAssign,
+  assignableUsers,
+  now,
+}: Props) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [saveStates, setSaveStates] = useState<Record<string, RowSaveState>>(
@@ -59,6 +90,14 @@ export function FollowUpsTable({ items }: Props) {
     for (const it of items) map[it.id] = it;
     return map;
   });
+
+  const nowDate = useMemo(() => new Date(now), [now]);
+
+  const assignableById = useMemo(() => {
+    const map = new Map<string, AssignableUser>();
+    for (const u of assignableUsers) map.set(u.id, u);
+    return map;
+  }, [assignableUsers]);
 
   async function patchFollowUp(
     id: string,
@@ -112,6 +151,23 @@ export function FollowUpsTable({ items }: Props) {
     startTransition(() => router.refresh());
   }
 
+  async function handleAssignChange(id: string, assignedToId: string | null) {
+    const prev = rows[id];
+    const nextLabel = assignedToId
+      ? assignableById.get(assignedToId)?.label ?? prev.assignedName
+      : null;
+    setRows((r) => ({
+      ...r,
+      [id]: { ...r[id], assignedToId, assignedName: nextLabel ?? null },
+    }));
+    const result = await patchFollowUp(id, { assignedToId });
+    if (!result.ok) {
+      setRows((r) => ({ ...r, [id]: prev }));
+      return;
+    }
+    startTransition(() => router.refresh());
+  }
+
   async function handleSaveDetail(
     id: string,
     patch: {
@@ -147,6 +203,11 @@ export function FollowUpsTable({ items }: Props) {
 
   const list = items.map((it) => rows[it.id] ?? it);
 
+  // Group while preserving the server's incoming row order within each
+  // bucket. The server orders by (dueDate asc nulls last, priority asc), so
+  // OVERDUE will already arrive oldest-first and TODAY ordered by priority.
+  const grouped = useMemo(() => groupByBucket(list, nowDate), [list, nowDate]);
+
   if (list.length === 0) {
     return (
       <div
@@ -174,7 +235,9 @@ export function FollowUpsTable({ items }: Props) {
       }}
     >
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <table
+          style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+        >
           <thead style={{ backgroundColor: COLORS.background }}>
             <tr>
               <Th>Prioridad</Th>
@@ -184,45 +247,154 @@ export function FollowUpsTable({ items }: Props) {
               <Th>Acción sugerida</Th>
               <Th>Estado</Th>
               <Th>Vence</Th>
+              <Th>Responsable</Th>
               <Th>Detalle</Th>
             </tr>
           </thead>
-          <tbody>
-            {list.map((f) => {
-              const save = saveStates[f.id];
-              const isOpen = expanded === f.id;
-              return (
-                <RowFragment
-                  key={f.id}
-                  row={f}
-                  isOpen={isOpen}
-                  save={save}
-                  onToggle={() => setExpanded(isOpen ? null : f.id)}
-                  onStatus={(s) => handleStatusChange(f.id, s)}
-                  onSaveDetail={(patch) => handleSaveDetail(f.id, patch)}
-                />
-              );
-            })}
-          </tbody>
+          {BUCKET_ORDER.map((bucket) => {
+            const bucketRows = grouped[bucket];
+            if (bucketRows.length === 0) return null;
+            return (
+              <BucketSection
+                key={bucket}
+                bucket={bucket}
+                rows={bucketRows}
+                now={nowDate}
+                saveStates={saveStates}
+                expanded={expanded}
+                onToggle={(id) =>
+                  setExpanded((current) => (current === id ? null : id))
+                }
+                onStatus={handleStatusChange}
+                onAssign={handleAssignChange}
+                onSaveDetail={handleSaveDetail}
+                actorUserId={actorUserId}
+                canAssign={canAssign}
+                assignableUsers={assignableUsers}
+              />
+            );
+          })}
         </table>
       </div>
     </div>
   );
 }
 
+function BucketSection({
+  bucket,
+  rows,
+  now,
+  saveStates,
+  expanded,
+  onToggle,
+  onStatus,
+  onAssign,
+  onSaveDetail,
+  actorUserId,
+  canAssign,
+  assignableUsers,
+}: {
+  bucket: DueBucket;
+  rows: FollowUpRow[];
+  now: Date;
+  saveStates: Record<string, RowSaveState>;
+  expanded: string | null;
+  onToggle: (id: string) => void;
+  onStatus: (id: string, status: Status) => void;
+  onAssign: (id: string, assignedToId: string | null) => void;
+  onSaveDetail: (
+    id: string,
+    patch: {
+      notes: string;
+      result: string;
+      contactedAt: string;
+      nextActionAt: string;
+      dueDate: string;
+    },
+  ) => void;
+  actorUserId: string;
+  canAssign: boolean;
+  assignableUsers: AssignableUser[];
+}) {
+  const palette = BUCKET_COLORS[bucket];
+  return (
+    <tbody>
+      <tr>
+        <td
+          colSpan={COLUMN_COUNT}
+          style={{
+            backgroundColor: palette.bg,
+            color: palette.text,
+            borderTop: `1px solid ${COLORS.border}`,
+            borderBottom: `1px solid ${palette.border}`,
+            padding: "6px 12px",
+            fontSize: 11,
+            fontWeight: 800,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              backgroundColor: palette.border,
+              marginRight: 8,
+              verticalAlign: "middle",
+            }}
+          />
+          {BUCKET_LABELS[bucket]} · {rows.length}
+        </td>
+      </tr>
+      {rows.map((row) => {
+        const save = saveStates[row.id];
+        const isOpen = expanded === row.id;
+        return (
+          <RowFragment
+            key={row.id}
+            row={row}
+            now={now}
+            bucket={bucket}
+            isOpen={isOpen}
+            save={save}
+            onToggle={() => onToggle(row.id)}
+            onStatus={(s) => onStatus(row.id, s)}
+            onAssign={(assignedToId) => onAssign(row.id, assignedToId)}
+            onSaveDetail={(patch) => onSaveDetail(row.id, patch)}
+            actorUserId={actorUserId}
+            canAssign={canAssign}
+            assignableUsers={assignableUsers}
+          />
+        );
+      })}
+    </tbody>
+  );
+}
+
 function RowFragment({
   row,
+  now,
+  bucket,
   isOpen,
   save,
   onToggle,
   onStatus,
+  onAssign,
   onSaveDetail,
+  actorUserId,
+  canAssign,
+  assignableUsers,
 }: {
   row: FollowUpRow;
+  now: Date;
+  bucket: DueBucket;
   isOpen: boolean;
   save: RowSaveState | undefined;
   onToggle: () => void;
   onStatus: (s: Status) => void;
+  onAssign: (assignedToId: string | null) => void;
   onSaveDetail: (patch: {
     notes: string;
     result: string;
@@ -230,13 +402,23 @@ function RowFragment({
     nextActionAt: string;
     dueDate: string;
   }) => void;
+  actorUserId: string;
+  canAssign: boolean;
+  assignableUsers: AssignableUser[];
 }) {
   const memberName =
     row.member.fullName ?? row.member.email ?? row.member.phone ?? "—";
+  const palette = BUCKET_COLORS[bucket];
+  const isMine = row.assignedToId === actorUserId;
 
   return (
     <>
-      <tr style={{ borderTop: `1px solid ${COLORS.border}` }}>
+      <tr
+        style={{
+          borderTop: `1px solid ${COLORS.border}`,
+          boxShadow: `inset 3px 0 0 ${palette.rowAccent}`,
+        }}
+      >
         <Td>
           <PriorityBadge priority={row.priority} />
         </Td>
@@ -276,7 +458,20 @@ function RowFragment({
             )}
           </select>
         </Td>
-        <Td>{formatDate(row.dueDate)}</Td>
+        <Td>
+          <DueCell value={row.dueDate} now={now} bucket={bucket} />
+        </Td>
+        <Td>
+          <AssigneeCell
+            row={row}
+            save={save}
+            canAssign={canAssign}
+            isMine={isMine}
+            assignableUsers={assignableUsers}
+            actorUserId={actorUserId}
+            onAssign={onAssign}
+          />
+        </Td>
         <Td>
           <button
             type="button"
@@ -290,14 +485,14 @@ function RowFragment({
       </tr>
       {isOpen && (
         <tr style={{ backgroundColor: COLORS.background }}>
-          <td colSpan={8} style={{ padding: 14 }}>
+          <td colSpan={COLUMN_COUNT} style={{ padding: 14 }}>
             <DetailEditor row={row} save={save} onSave={onSaveDetail} />
           </td>
         </tr>
       )}
       {save?.error && !isOpen && (
         <tr>
-          <td colSpan={8} style={{ padding: "4px 14px" }}>
+          <td colSpan={COLUMN_COUNT} style={{ padding: "4px 14px" }}>
             <span style={{ color: COLORS.danger, fontSize: 12 }}>
               {save.error}
             </span>
@@ -305,6 +500,92 @@ function RowFragment({
         </tr>
       )}
     </>
+  );
+}
+
+function DueCell({
+  value,
+  now,
+  bucket,
+}: {
+  value: string | null;
+  now: Date;
+  bucket: DueBucket;
+}) {
+  if (!value) {
+    return <span style={{ color: COLORS.textMuted }}>Sin fecha</span>;
+  }
+  const palette = BUCKET_COLORS[bucket];
+  const long = formatLongDateEs(value);
+  const relative = formatRelativeDateEs(value, now);
+  return (
+    <span title={long} style={{ display: "inline-flex", flexDirection: "column" }}>
+      <span style={{ color: palette.text, fontWeight: 700, fontSize: 12 }}>
+        {relative}
+      </span>
+      <span style={{ color: COLORS.textSoft, fontSize: 11 }}>{long}</span>
+    </span>
+  );
+}
+
+function AssigneeCell({
+  row,
+  save,
+  canAssign,
+  isMine,
+  assignableUsers,
+  actorUserId,
+  onAssign,
+}: {
+  row: FollowUpRow;
+  save: RowSaveState | undefined;
+  canAssign: boolean;
+  isMine: boolean;
+  assignableUsers: AssignableUser[];
+  actorUserId: string;
+  onAssign: (assignedToId: string | null) => void;
+}) {
+  if (!canAssign) {
+    return (
+      <span style={{ color: row.assignedName ? COLORS.text : COLORS.textMuted }}>
+        {row.assignedName ?? "Sin asignar"}
+      </span>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <select
+        value={row.assignedToId ?? ""}
+        onChange={(e) => onAssign(e.target.value ? e.target.value : null)}
+        disabled={save?.saving}
+        aria-label="Asignar responsable"
+        style={{
+          ...inputStyle(),
+          padding: "4px 6px",
+          fontSize: 12,
+          fontWeight: 600,
+          minWidth: 140,
+        }}
+      >
+        <option value="">Sin asignar</option>
+        {assignableUsers.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.label}
+          </option>
+        ))}
+      </select>
+      {!isMine && (
+        <button
+          type="button"
+          onClick={() => onAssign(actorUserId)}
+          disabled={save?.saving}
+          style={assignMeButtonStyle(Boolean(save?.saving))}
+          aria-label="Asignarme este seguimiento"
+        >
+          Asignarme
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -468,11 +749,6 @@ function PriorityBadge({ priority }: { priority: string }) {
   );
 }
 
-function formatDate(d: string | null): string {
-  if (!d) return "—";
-  return d.slice(0, 10);
-}
-
 function toDateInput(d: string | null): string {
   if (!d) return "";
   return d.slice(0, 10);
@@ -509,6 +785,20 @@ function ghostButtonStyle(): React.CSSProperties {
     backgroundColor: COLORS.surface,
     color: COLORS.text,
     cursor: "pointer",
+  };
+}
+
+function assignMeButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: "3px 8px",
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 6,
+    fontSize: 11,
+    fontWeight: 700,
+    backgroundColor: disabled ? COLORS.border : COLORS.background,
+    color: disabled ? COLORS.textMuted : COLORS.text,
+    cursor: disabled ? "not-allowed" : "pointer",
+    alignSelf: "flex-start",
   };
 }
 
