@@ -1,0 +1,139 @@
+{
+  "tables": {
+    "kpi_data": [
+      {
+        "year": 2026,
+        "month": 0,
+        "revenue": 72700.0,
+        "ad_spend": 21036.18,
+        "leads": 508.5,
+        "agendas": 260.0,
+        "shows": 177.0,
+        "cierres": 24.0,
+        "meta_revenue": 100000.0,
+        "day": 31,
+        "pct_leads_agendadas": 45.0,
+        "pct_agendadas_asistidas": 70.0,
+        "close_rate_meta": 25.0,
+        "inversion_planeada": 25000.0,
+        "roas_objetivo": 4.0
+      },
+      {
+        "year": 2026,
+        "month": 1,
+        "revenue": 85800.0,
+        "ad_spend": 32055.12,
+        "leads": 675.0,
+        "agendas": 312.0,
+        "shows": 209.0,
+        "cierres": 29.0,
+        "meta_revenue": 140000.0,
+        "day": 28,
+        "pct_leads_agendadas": 45.0,
+        "pct_agendadas_asistidas": 70.0,
+        "close_rate_meta": 25.0,
+        "inversion_planeada": 35000.0,
+        "roas_objetivo": 4.0
+      },
+      {
+        "year": 2026,
+        "month": 2,
+        "revenue": 139550.0,
+        "ad_spend": 34764.32,
+        "leads": 687.0,
+        "agendas": 281.0,
+        "shows": 190.0,
+        "cierres": 43.0,
+        "meta_revenue": 150000.0,
+        "day": 31,
+        "pct_leads_agendadas": 45.0,
+        "pct_agendadas_asistidas": 70.0,
+        "close_rate_meta": 25.0,
+        "inversion_planeada": 37500.0,
+        "roas_objetivo": 4.0
+      }
+    ],
+    "daily_closer": [
+      {
+        "date": "2026-01-31",
+        "q_ventas_ht": 24.0,
+        "valor_venta_ht": 72700.0,
+        "upfront_cash_ht": 0,
+        "ventas_cash": 58142.0,
+        "recurring_cash": 0,
+        "q_ventas_lt": 0,
+        "valor_venta_lt": 0,
+        "q_reservas": 0,
+        "cash_reservas": 0,
+        "agendas_calificadas": 508.5,
+        "agendas_final": 260.0,
+        "citas_asistidas": 177.0,
+        "cal_otros": 508.5,
+        "hoy_otros": 260.0,
+        "show_otros": 177.0
+      },
+      {
+        "date": "2026-02-28",
+        "q_ventas_ht": 29.0,
+        "valor_venta_ht": 85800.0,
+        "upfront_cash_ht": 50000.0,
+        "ventas_cash": 64458.6,
+        "recurring_cash": 0,
+        "q_ventas_lt": 0,
+        "valor_venta_lt": 0,
+        "q_reservas": 0,
+        "cash_reservas": 0,
+        "agendas_calificadas": 675.0,
+        "agendas_final": 312.0,
+        "citas_asistidas": 209.0,
+        "cal_otros": 675.0,
+        "hoy_otros": 312.0,
+        "show_otros": 209.0
+      },
+      {
+        "date": "2026-03-31",
+        "q_ventas_ht": 43.0,
+        "valor_venta_ht": 139550.0,
+        "upfront_cash_ht": 50299.0,
+        "ventas_cash": 79507.2,
+        "recurring_cash": 0,
+        "q_ventas_lt": 0,
+        "valor_venta_lt": 344.0,
+        "q_reservas": 0,
+        "cash_reservas": 0,
+        "agendas_calificadas": 687.0,
+        "agendas_final": 281.0,
+        "citas_asistidas": 190.0,
+        "cal_otros": 687.0,
+        "hoy_otros": 281.0,
+        "show_otros": 190.0
+      }
+    ],
+    "daily_entries": [
+      {
+        "date": "2026-01-31",
+        "member": "Marketing Histórico",
+        "gasto_meta": 21036.18,
+        "gasto_google": 0,
+        "gasto_tiktok": 0,
+        "gasto_otros": 0
+      },
+      {
+        "date": "2026-02-28",
+        "member": "Marketing Histórico",
+        "gasto_meta": 32055.12,
+        "gasto_google": 0,
+        "gasto_tiktok": 0,
+        "gasto_otros": 0
+      },
+      {
+        "date": "2026-03-31",
+        "member": "Marketing Histórico",
+        "gasto_meta": 34764.32,
+        "gasto_google": 0,
+        "gasto_tiktok": 0,
+        "gasto_otros": 0
+      }
+    ]
+  }
+}

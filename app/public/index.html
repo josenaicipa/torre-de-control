@@ -222,6 +222,19 @@ const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
 const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 
+// Original Excel model: "Leads necesarios por dólar" comes from the fixed
+// Parametros_Modelo table, not from the month-to-date real ticket average.
+const MODEL_LEADS_BY_REVENUE={
+  50000:238,75000:359,100000:476,125000:597,140000:667,150000:714,
+  200000:952,280000:1333,400000:1905,550000:2619,850000:4048,
+  880000:4190,1150000:5476,1500000:7143,1850000:8810,2100000:10000,
+};
+const DEFAULT_LEADS_PER_DOLLAR=714/150000;
+const leadsPerDollarForRevenue=(revenue)=>{
+  const key=Math.round(nv(revenue)||0);
+  return key&&MODEL_LEADS_BY_REVENUE[key]?MODEL_LEADS_BY_REVENUE[key]/key:DEFAULT_LEADS_PER_DOLLAR;
+};
+
 const blankEntry=()=>({
   igFollowers:0,posts:0,mensajes:0,followUps:0,bkOffers:0,
   gastoMeta:0,gastoGoogle:0,gastoTikTok:0,gastoOtros:0,
@@ -948,11 +961,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const invEsperadaHoy=inversionPlaneada*pctTranscurrido;
   const gapInversion=totalGasto-invEsperadaHoy;
 
-  const ventasUniMeta=ticketProm>0?metaMensual/ticketProm:0;
-  const asistidaMeta=closeRateMeta>0?ventasUniMeta/(closeRateMeta/100):0;
-  const agendaMeta=pctAgAsis>0?asistidaMeta/(pctAgAsis/100):0;
-  const leadsMeta=pctLeadsAg>0?agendaMeta/(pctLeadsAg/100):0;
-  const leadsPorDolar=metaMensual>0?leadsMeta/metaMensual:0;
+  const leadsPorDolar=metaMensual>0?leadsPerDollarForRevenue(metaMensual):0;
+  const leadsMeta=metaMensual>0?metaMensual*leadsPorDolar:0;
+  const agendaMeta=pctLeadsAg>0?leadsMeta*(pctLeadsAg/100):0;
+  const asistidaMeta=pctAgAsis>0?agendaMeta*(pctAgAsis/100):0;
+  const ventasUniMeta=closeRateMeta>0?asistidaMeta*(closeRateMeta/100):0;
 
   const roasCash=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
