@@ -824,8 +824,12 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const totalReservasManual=sumF(closerEntries,"cash_reservas");
   const totalValor=totalValorHT+totalValorLT;
   const totalVentas=sumF(closerEntries,"q_ventas_ht");
-  const totalLeads=sumF(closerEntries,"agendas_calificadas");
-  const totalAgendas=sumF(closerEntries,"agendas_final");
+  // Excel parity: Leads calificados is the top-of-funnel count and
+  // Citas agendadas is the next step. Historical imports and the May GHL
+  // correction used these two storage columns in opposite directions, so Torre
+  // CEO normalizes by funnel order instead of trusting the raw column names.
+  const totalLeads=closerEntries.reduce((s,e)=>s+Math.max(nv(e.agendas_final),nv(e.agendas_calificadas)),0);
+  const totalAgendas=closerEntries.reduce((s,e)=>s+Math.min(nv(e.agendas_final),nv(e.agendas_calificadas)),0);
   const totalAsistidas=sumF(closerEntries,"citas_asistidas");
   // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
   const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
@@ -898,6 +902,21 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const asistidaMeta=pctAgAsis>0?agendaMeta*(pctAgAsis/100):0;
   const ventasUniMeta=closeRateMeta>0?asistidaMeta*(closeRateMeta/100):0;
 
+  // Excel parity: FUNNEL A HOY (Plan vs Real) uses the selected period's
+  // required revenue and actual ticket promedio, then works backwards through
+  // the strongest conversion rate between target and actual for each step.
+  const funnelVentasReq=metaEsperadaHoy;
+  const funnelVentasUniReq=ticketProm>0?funnelVentasReq/ticketProm:0;
+  // The January workbook tab uses target rates only; February onward guards each
+  // step with the stronger of target vs actual rate.
+  const useActualRateGuard=!(year===2026&&month===0);
+  const funnelCloseRateReq=useActualRateGuard?Math.max(closeRateMeta/100,totalAsistidas>0?totalVentas/totalAsistidas:0):closeRateMeta/100;
+  const funnelShowUpReq=useActualRateGuard?Math.max(pctAgAsis/100,totalAgendas>0?totalAsistidas/totalAgendas:0):pctAgAsis/100;
+  const funnelLeadToAgendaReq=useActualRateGuard?Math.max(pctLeadsAg/100,totalLeads>0?totalAgendas/totalLeads:0):pctLeadsAg/100;
+  const funnelAsistidasReq=funnelCloseRateReq>0?funnelVentasUniReq/funnelCloseRateReq:0;
+  const funnelAgendasReq=funnelShowUpReq>0?funnelAsistidasReq/funnelShowUpReq:0;
+  const funnelLeadsReq=funnelLeadToAgendaReq>0?funnelAgendasReq/funnelLeadToAgendaReq:0;
+
   const roasCash=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
 
@@ -905,11 +924,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const gapProy=proyeccion?proyeccion-metaMensual:null;
 
   const funnelRows=[
-    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
-    {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
-    {l:"Citas asistidas",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
-    {l:"Citas agend. calificadas",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
-    {l:"Leads calificados",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+    {l:"Ventas $ (comprometido)",req:funnelVentasReq,real:totalValor,fmt:"$"},
+    {l:"Ventas (unidades)",req:funnelVentasUniReq,real:totalVentas,fmt:"n"},
+    {l:"Citas asistidas",req:funnelAsistidasReq,real:totalAsistidas,fmt:"n"},
+    {l:"Citas agend. calificadas",req:funnelAgendasReq,real:totalAgendas,fmt:"n"},
+    {l:"Leads calificados",req:funnelLeadsReq,real:totalLeads,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{
