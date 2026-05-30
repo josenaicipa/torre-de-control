@@ -18,6 +18,7 @@ import {
   formatRelativeDateEs,
   groupByBucket,
 } from "../../_lib/follow-ups";
+import { FollowUpDrawer, type DrawerPatch } from "./FollowUpDrawer";
 
 type Status = "OPEN" | "IN_PROGRESS" | "DONE" | "DISMISSED";
 
@@ -76,7 +77,7 @@ export function FollowUpsTable({
   now,
 }: Props) {
   const router = useRouter();
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saveStates, setSaveStates] = useState<Record<string, RowSaveState>>(
     {},
   );
@@ -168,37 +169,31 @@ export function FollowUpsTable({
     startTransition(() => router.refresh());
   }
 
-  async function handleSaveDetail(
-    id: string,
-    patch: {
-      notes: string;
-      result: string;
-      contactedAt: string;
-      nextActionAt: string;
-      dueDate: string;
-    },
-  ) {
-    const body: Record<string, unknown> = {
-      notes: patch.notes.trim() ? patch.notes.trim() : null,
-      result: patch.result.trim() ? patch.result.trim() : null,
-      contactedAt: patch.contactedAt ? patch.contactedAt : null,
-      nextActionAt: patch.nextActionAt ? patch.nextActionAt : null,
-      dueDate: patch.dueDate ? patch.dueDate : null,
+  async function handleDrawerSave(id: string, patch: DrawerPatch) {
+    const prev = rows[id];
+    const nextLabel = patch.assignedToId
+      ? assignableById.get(patch.assignedToId)?.label ?? prev.assignedName
+      : null;
+    const optimistic: FollowUpRow = {
+      ...prev,
+      status: patch.status,
+      priority: patch.priority,
+      assignedToId: patch.assignedToId,
+      assignedName: patch.assignedToId ? nextLabel : null,
+      dueDate: patch.dueDate,
+      contactedAt: patch.contactedAt,
+      nextActionAt: patch.nextActionAt,
+      notes: patch.notes,
+      result: patch.result,
     };
-    const result = await patchFollowUp(id, body);
-    if (!result.ok) return;
-    setRows((r) => ({
-      ...r,
-      [id]: {
-        ...r[id],
-        notes: body.notes as string | null,
-        result: body.result as string | null,
-        contactedAt: body.contactedAt as string | null,
-        nextActionAt: body.nextActionAt as string | null,
-        dueDate: body.dueDate as string | null,
-      },
-    }));
+    setRows((r) => ({ ...r, [id]: optimistic }));
+    const res = await patchFollowUp(id, { ...patch });
+    if (!res.ok) {
+      setRows((r) => ({ ...r, [id]: prev }));
+      return { ok: false as const };
+    }
     startTransition(() => router.refresh());
+    return { ok: true as const };
   }
 
   const list = items.map((it) => rows[it.id] ?? it);
@@ -207,6 +202,9 @@ export function FollowUpsTable({
   // bucket. The server orders by (dueDate asc nulls last, priority asc), so
   // OVERDUE will already arrive oldest-first and TODAY ordered by priority.
   const grouped = useMemo(() => groupByBucket(list, nowDate), [list, nowDate]);
+
+  const selectedRow = selectedId ? rows[selectedId] ?? null : null;
+  const selectedSave = selectedId ? saveStates[selectedId] : undefined;
 
   if (list.length === 0) {
     return (
@@ -226,57 +224,70 @@ export function FollowUpsTable({
   }
 
   return (
-    <div
-      style={{
-        backgroundColor: COLORS.surface,
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 12,
-        overflow: "hidden",
-      }}
-    >
-      <div style={{ overflowX: "auto" }}>
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
-        >
-          <thead style={{ backgroundColor: COLORS.background }}>
-            <tr>
-              <Th>Prioridad</Th>
-              <Th>Miembro</Th>
-              <Th>País</Th>
-              <Th>Motivo</Th>
-              <Th>Acción sugerida</Th>
-              <Th>Estado</Th>
-              <Th>Vence</Th>
-              <Th>Responsable</Th>
-              <Th>Detalle</Th>
-            </tr>
-          </thead>
-          {BUCKET_ORDER.map((bucket) => {
-            const bucketRows = grouped[bucket];
-            if (bucketRows.length === 0) return null;
-            return (
-              <BucketSection
-                key={bucket}
-                bucket={bucket}
-                rows={bucketRows}
-                now={nowDate}
-                saveStates={saveStates}
-                expanded={expanded}
-                onToggle={(id) =>
-                  setExpanded((current) => (current === id ? null : id))
-                }
-                onStatus={handleStatusChange}
-                onAssign={handleAssignChange}
-                onSaveDetail={handleSaveDetail}
-                actorUserId={actorUserId}
-                canAssign={canAssign}
-                assignableUsers={assignableUsers}
-              />
-            );
-          })}
-        </table>
+    <>
+      <div
+        style={{
+          backgroundColor: COLORS.surface,
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ overflowX: "auto" }}>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+          >
+            <thead style={{ backgroundColor: COLORS.background }}>
+              <tr>
+                <Th>Prioridad</Th>
+                <Th>Miembro</Th>
+                <Th>País</Th>
+                <Th>Motivo</Th>
+                <Th>Acción sugerida</Th>
+                <Th>Estado</Th>
+                <Th>Vence</Th>
+                <Th>Responsable</Th>
+                <Th>Detalle</Th>
+              </tr>
+            </thead>
+            {BUCKET_ORDER.map((bucket) => {
+              const bucketRows = grouped[bucket];
+              if (bucketRows.length === 0) return null;
+              return (
+                <BucketSection
+                  key={bucket}
+                  bucket={bucket}
+                  rows={bucketRows}
+                  now={nowDate}
+                  saveStates={saveStates}
+                  selectedId={selectedId}
+                  onOpenDetail={(id) => setSelectedId(id)}
+                  onStatus={handleStatusChange}
+                  onAssign={handleAssignChange}
+                  actorUserId={actorUserId}
+                  canAssign={canAssign}
+                  assignableUsers={assignableUsers}
+                />
+              );
+            })}
+          </table>
+        </div>
       </div>
-    </div>
+      {selectedRow && (
+        <FollowUpDrawer
+          row={selectedRow}
+          now={nowDate}
+          canAssign={canAssign}
+          assignableUsers={assignableUsers}
+          actorUserId={actorUserId}
+          saving={Boolean(selectedSave?.saving)}
+          error={selectedSave?.error ?? null}
+          savedAt={selectedSave?.savedAt ?? null}
+          onClose={() => setSelectedId(null)}
+          onSave={(patch) => handleDrawerSave(selectedRow.id, patch)}
+        />
+      )}
+    </>
   );
 }
 
@@ -285,11 +296,10 @@ function BucketSection({
   rows,
   now,
   saveStates,
-  expanded,
-  onToggle,
+  selectedId,
+  onOpenDetail,
   onStatus,
   onAssign,
-  onSaveDetail,
   actorUserId,
   canAssign,
   assignableUsers,
@@ -298,20 +308,10 @@ function BucketSection({
   rows: FollowUpRow[];
   now: Date;
   saveStates: Record<string, RowSaveState>;
-  expanded: string | null;
-  onToggle: (id: string) => void;
+  selectedId: string | null;
+  onOpenDetail: (id: string) => void;
   onStatus: (id: string, status: Status) => void;
   onAssign: (id: string, assignedToId: string | null) => void;
-  onSaveDetail: (
-    id: string,
-    patch: {
-      notes: string;
-      result: string;
-      contactedAt: string;
-      nextActionAt: string;
-      dueDate: string;
-    },
-  ) => void;
   actorUserId: string;
   canAssign: boolean;
   assignableUsers: AssignableUser[];
@@ -350,19 +350,17 @@ function BucketSection({
       </tr>
       {rows.map((row) => {
         const save = saveStates[row.id];
-        const isOpen = expanded === row.id;
         return (
           <RowFragment
             key={row.id}
             row={row}
             now={now}
             bucket={bucket}
-            isOpen={isOpen}
+            isSelected={selectedId === row.id}
             save={save}
-            onToggle={() => onToggle(row.id)}
+            onOpenDetail={() => onOpenDetail(row.id)}
             onStatus={(s) => onStatus(row.id, s)}
             onAssign={(assignedToId) => onAssign(row.id, assignedToId)}
-            onSaveDetail={(patch) => onSaveDetail(row.id, patch)}
             actorUserId={actorUserId}
             canAssign={canAssign}
             assignableUsers={assignableUsers}
@@ -377,12 +375,11 @@ function RowFragment({
   row,
   now,
   bucket,
-  isOpen,
+  isSelected,
   save,
-  onToggle,
+  onOpenDetail,
   onStatus,
   onAssign,
-  onSaveDetail,
   actorUserId,
   canAssign,
   assignableUsers,
@@ -390,18 +387,11 @@ function RowFragment({
   row: FollowUpRow;
   now: Date;
   bucket: DueBucket;
-  isOpen: boolean;
+  isSelected: boolean;
   save: RowSaveState | undefined;
-  onToggle: () => void;
+  onOpenDetail: () => void;
   onStatus: (s: Status) => void;
   onAssign: (assignedToId: string | null) => void;
-  onSaveDetail: (patch: {
-    notes: string;
-    result: string;
-    contactedAt: string;
-    nextActionAt: string;
-    dueDate: string;
-  }) => void;
   actorUserId: string;
   canAssign: boolean;
   assignableUsers: AssignableUser[];
@@ -411,12 +401,18 @@ function RowFragment({
   const palette = BUCKET_COLORS[bucket];
   const isMine = row.assignedToId === actorUserId;
 
+  // The whole row is clickable to open the drawer, but the cells containing
+  // interactive controls (links, selects, buttons) stop propagation so the
+  // drawer doesn't fire when the user is changing status / assignee inline.
   return (
     <>
       <tr
+        onClick={onOpenDetail}
         style={{
           borderTop: `1px solid ${COLORS.border}`,
           boxShadow: `inset 3px 0 0 ${palette.rowAccent}`,
+          cursor: "pointer",
+          backgroundColor: isSelected ? COLORS.background : undefined,
         }}
       >
         <Td>
@@ -425,6 +421,7 @@ function RowFragment({
         <Td>
           <Link
             href={`/comunidad-dropi/miembros/${row.member.id}`}
+            onClick={(e) => e.stopPropagation()}
             style={{
               color: COLORS.text,
               fontWeight: 600,
@@ -441,7 +438,7 @@ function RowFragment({
             {row.suggestedAction ?? "—"}
           </span>
         </Td>
-        <Td>
+        <Td onClick={(e) => e.stopPropagation()}>
           <select
             value={row.status}
             onChange={(e) => onStatus(e.target.value as Status)}
@@ -461,7 +458,7 @@ function RowFragment({
         <Td>
           <DueCell value={row.dueDate} now={now} bucket={bucket} />
         </Td>
-        <Td>
+        <Td onClick={(e) => e.stopPropagation()}>
           <AssigneeCell
             row={row}
             save={save}
@@ -472,25 +469,18 @@ function RowFragment({
             onAssign={onAssign}
           />
         </Td>
-        <Td>
+        <Td onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            onClick={onToggle}
+            onClick={onOpenDetail}
             style={ghostButtonStyle()}
-            aria-expanded={isOpen}
+            aria-label={`Ver detalle del seguimiento de ${memberName}`}
           >
-            {isOpen ? "Ocultar" : "Editar"}
+            Ver detalle
           </button>
         </Td>
       </tr>
-      {isOpen && (
-        <tr style={{ backgroundColor: COLORS.background }}>
-          <td colSpan={COLUMN_COUNT} style={{ padding: 14 }}>
-            <DetailEditor row={row} save={save} onSave={onSaveDetail} />
-          </td>
-        </tr>
-      )}
-      {save?.error && !isOpen && (
+      {save?.error && (
         <tr>
           <td colSpan={COLUMN_COUNT} style={{ padding: "4px 14px" }}>
             <span style={{ color: COLORS.danger, fontSize: 12 }}>
@@ -589,124 +579,6 @@ function AssigneeCell({
   );
 }
 
-function DetailEditor({
-  row,
-  save,
-  onSave,
-}: {
-  row: FollowUpRow;
-  save: RowSaveState | undefined;
-  onSave: (patch: {
-    notes: string;
-    result: string;
-    contactedAt: string;
-    nextActionAt: string;
-    dueDate: string;
-  }) => void;
-}) {
-  const [notes, setNotes] = useState(row.notes ?? "");
-  const [result, setResult] = useState(row.result ?? "");
-  const [contactedAt, setContactedAt] = useState(toDateInput(row.contactedAt));
-  const [nextActionAt, setNextActionAt] = useState(
-    toDateInput(row.nextActionAt),
-  );
-  const [dueDate, setDueDate] = useState(toDateInput(row.dueDate));
-
-  return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 10,
-        }}
-      >
-        <label style={fieldLabelStyle()}>
-          Fecha de contacto
-          <input
-            type="date"
-            value={contactedAt}
-            onChange={(e) => setContactedAt(e.target.value)}
-            style={inputStyle()}
-          />
-        </label>
-        <label style={fieldLabelStyle()}>
-          Próxima acción
-          <input
-            type="date"
-            value={nextActionAt}
-            onChange={(e) => setNextActionAt(e.target.value)}
-            style={inputStyle()}
-          />
-        </label>
-        <label style={fieldLabelStyle()}>
-          Vence
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            style={inputStyle()}
-          />
-        </label>
-      </div>
-      <label style={fieldLabelStyle()}>
-        Notas
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={3}
-          maxLength={2000}
-          placeholder="Lo que sabemos del miembro, intentos, contexto…"
-          style={{ ...inputStyle(), resize: "vertical", minHeight: 64 }}
-        />
-      </label>
-      <label style={fieldLabelStyle()}>
-        Resultado
-        <textarea
-          value={result}
-          onChange={(e) => setResult(e.target.value)}
-          rows={2}
-          maxLength={1000}
-          placeholder="Qué pasó al contactar (respondió, no contesta, agendó…)."
-          style={{ ...inputStyle(), resize: "vertical", minHeight: 48 }}
-        />
-      </label>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          justifyContent: "flex-end",
-        }}
-      >
-        {save?.error && (
-          <span style={{ color: COLORS.danger, fontSize: 12 }}>
-            {save.error}
-          </span>
-        )}
-        {save?.saving && (
-          <span style={{ color: COLORS.textSoft, fontSize: 12 }}>
-            Guardando…
-          </span>
-        )}
-        {!save?.saving && save?.savedAt && !save.error && (
-          <span style={{ color: COLORS.success, fontSize: 12 }}>Guardado</span>
-        )}
-        <button
-          type="button"
-          onClick={() =>
-            onSave({ notes, result, contactedAt, nextActionAt, dueDate })
-          }
-          disabled={save?.saving}
-          style={primaryButtonStyle(Boolean(save?.saving))}
-        >
-          Guardar cambios
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function Th({ children }: { children: React.ReactNode }) {
   return (
     <th
@@ -725,9 +597,20 @@ function Th({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Td({ children }: { children: React.ReactNode }) {
+function Td({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode;
+  onClick?: React.MouseEventHandler<HTMLTableCellElement>;
+}) {
   return (
-    <td style={{ padding: "8px 12px", verticalAlign: "middle" }}>{children}</td>
+    <td
+      onClick={onClick}
+      style={{ padding: "8px 12px", verticalAlign: "middle" }}
+    >
+      {children}
+    </td>
   );
 }
 
@@ -747,11 +630,6 @@ function PriorityBadge({ priority }: { priority: string }) {
       {priority}
     </span>
   );
-}
-
-function toDateInput(d: string | null): string {
-  if (!d) return "";
-  return d.slice(0, 10);
 }
 
 function statusSelectStyle(status: Status): React.CSSProperties {
@@ -802,19 +680,6 @@ function assignMeButtonStyle(disabled: boolean): React.CSSProperties {
   };
 }
 
-function fieldLabelStyle(): React.CSSProperties {
-  return {
-    display: "flex",
-    flexDirection: "column",
-    fontSize: 11,
-    fontWeight: 700,
-    color: COLORS.textSoft,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-    gap: 4,
-  };
-}
-
 function inputStyle(): React.CSSProperties {
   return {
     padding: "8px 10px",
@@ -827,18 +692,5 @@ function inputStyle(): React.CSSProperties {
     fontWeight: 500,
     textTransform: "none",
     letterSpacing: "normal",
-  };
-}
-
-function primaryButtonStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "8px 14px",
-    border: "none",
-    borderRadius: 8,
-    fontSize: 13,
-    fontWeight: 700,
-    backgroundColor: disabled ? COLORS.border : COLORS.brand,
-    color: disabled ? COLORS.textMuted : COLORS.surface,
-    cursor: disabled ? "not-allowed" : "pointer",
   };
 }

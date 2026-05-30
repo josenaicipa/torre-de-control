@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   BUCKET_ORDER,
   addDays,
+  buildCallHref,
   buildFollowUpsHref,
+  buildWhatsAppHref,
   diffInCalendarDays,
+  digitsForPhoneLink,
   formatLongDateEs,
   formatRelativeDateEs,
   getDueBucket,
@@ -244,6 +247,52 @@ describe("kpiHref", () => {
 
   it("returns just '?' when given no preset", () => {
     expect(kpiHref({})).toBe("?");
+  });
+});
+
+describe("digitsForPhoneLink", () => {
+  it("returns null for missing values", () => {
+    expect(digitsForPhoneLink(null)).toBeNull();
+    expect(digitsForPhoneLink(undefined)).toBeNull();
+    expect(digitsForPhoneLink("")).toBeNull();
+  });
+
+  it("strips non-digit characters and keeps the rest", () => {
+    expect(digitsForPhoneLink("+57 300 123 4567")).toBe("573001234567");
+    expect(digitsForPhoneLink("(300) 123-4567")).toBe("3001234567");
+  });
+
+  it("rejects strings with fewer than 7 digits to avoid inventing links", () => {
+    expect(digitsForPhoneLink("12345")).toBeNull();
+  });
+
+  it("rejects strings with more than 15 digits (beyond ITU range)", () => {
+    expect(digitsForPhoneLink("1234567890123456")).toBeNull();
+  });
+});
+
+describe("buildWhatsAppHref", () => {
+  it("builds a wa.me link without the leading plus", () => {
+    expect(buildWhatsAppHref("+57 300 123 4567")).toBe(
+      "https://wa.me/573001234567",
+    );
+  });
+
+  it("returns null when the phone is unusable", () => {
+    expect(buildWhatsAppHref(null)).toBeNull();
+    expect(buildWhatsAppHref("123")).toBeNull();
+  });
+});
+
+describe("buildCallHref", () => {
+  it("emits a tel: link, preserving the leading plus when present", () => {
+    expect(buildCallHref("+57 300 123 4567")).toBe("tel:+573001234567");
+    expect(buildCallHref("3001234567")).toBe("tel:3001234567");
+  });
+
+  it("returns null when the phone is unusable so the action can be hidden", () => {
+    expect(buildCallHref("")).toBeNull();
+    expect(buildCallHref("12")).toBeNull();
   });
 });
 

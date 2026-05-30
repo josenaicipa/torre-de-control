@@ -222,6 +222,37 @@ export function kpiHref(
   return buildFollowUpsHref({}, preset);
 }
 
+// Phone strings stored on members come from `normalizePhone` which already
+// strips formatting but tolerates anything from a partial 4-digit fragment up
+// to full E.164. For "click to chat / call" links we want to refuse anything
+// outside the ITU range (a 5-digit short code or a 25-digit copy/paste mess
+// would only break the action). Returns the digit-only form when usable, or
+// null when we should hide the affordance entirely instead of inventing a bad
+// link.
+export function digitsForPhoneLink(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D+/g, "");
+  if (digits.length < 7 || digits.length > 15) return null;
+  return digits;
+}
+
+// wa.me requires the international number without "+". We only emit it when
+// `digitsForPhoneLink` accepts the input so callers can branch on null.
+export function buildWhatsAppHref(phone: string | null | undefined): string | null {
+  const digits = digitsForPhoneLink(phone);
+  if (!digits) return null;
+  return `https://wa.me/${digits}`;
+}
+
+// tel: links accept "+", which is friendlier for mobile dialers that need to
+// dial the country code explicitly.
+export function buildCallHref(phone: string | null | undefined): string | null {
+  const digits = digitsForPhoneLink(phone);
+  if (!digits) return null;
+  const hadPlus = typeof phone === "string" && phone.trim().startsWith("+");
+  return `tel:${hadPlus ? "+" : ""}${digits}`;
+}
+
 // Used by the table to know which rows fall in each bucket. Keeps the bucket
 // header rendering free of per-row date math.
 export function groupByBucket<T extends { dueDate: string | null }>(
