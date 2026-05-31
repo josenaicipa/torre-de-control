@@ -47,13 +47,13 @@ const MAY_2026_FILTERED_AGENDAS: Record<
   "2026-05-22": { agendas: 13, hoy: 11, canceladas: 6, show: 1 },
   "2026-05-23": { agendas: 7, hoy: 12, canceladas: 7, show: 2 },
   "2026-05-24": { agendas: 15, hoy: 0, canceladas: 0, show: 0 },
-  "2026-05-25": { agendas: 18, hoy: 21, canceladas: 6, show: 4 },
+  "2026-05-25": { agendas: 18, hoy: 21, canceladas: 6, show: 5 },
   "2026-05-26": { agendas: 19, hoy: 23, canceladas: 14, show: 7 },
-  "2026-05-27": { agendas: 19, hoy: 10, canceladas: 6, show: 2 },
+  "2026-05-27": { agendas: 18, hoy: 10, canceladas: 6, show: 2 },
   "2026-05-28": { agendas: 23, hoy: 23, canceladas: 15, show: 4 },
-  "2026-05-29": { agendas: 5, hoy: 16, canceladas: 10, show: 2 },
-  "2026-05-30": { agendas: 0, hoy: 14, canceladas: 4, show: 0 },
-  "2026-05-31": { agendas: 0, hoy: 0, canceladas: 0, show: 0 },
+  "2026-05-29": { agendas: 14, hoy: 19, canceladas: 11, show: 3 },
+  "2026-05-30": { agendas: 15, hoy: 14, canceladas: 12, show: 1 },
+  "2026-05-31": { agendas: 6, hoy: 0, canceladas: 0, show: 0 },
 };
 
 describe("May 2026 GHL Agendas / Leads import rule", () => {
@@ -86,7 +86,7 @@ describe("May 2026 GHL Agendas / Leads import rule", () => {
       { agendas: 0, hoy: 0, calificadas: 0, show: 0 },
     );
 
-    expect(totals).toEqual({ agendas: 478, hoy: 496, calificadas: 203, show: 89 });
+    expect(totals).toEqual({ agendas: 507, hoy: 499, calificadas: 197, show: 92 });
   });
 
   it("keeps the production static GHL override aligned with the final import payload", () => {
