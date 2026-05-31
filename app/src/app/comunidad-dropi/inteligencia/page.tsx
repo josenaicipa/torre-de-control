@@ -94,7 +94,7 @@ export default async function InteligenciaPage() {
           delta={overview.deltas?.movementRate.pct ?? null}
         />
         <Kpi
-          label="Tasa de entrega"
+          label="Entrega operativa entregadas/movidas"
           value={`${overview.current.rates.deliveryRate}%`}
           delta={overview.deltas?.deliveryRate.pct ?? null}
         />
@@ -441,7 +441,7 @@ function Header() {
           textTransform: "uppercase",
         }}
       >
-        Comunidad Dropi · Inteligencia de datos
+        Comunidad Dropi · Histórico
       </p>
       <h1
         style={{
@@ -451,7 +451,7 @@ function Header() {
           letterSpacing: "-0.02em",
         }}
       >
-        Inteligencia de la comunidad
+        Análisis histórico
       </h1>
       <p
         style={{
@@ -461,9 +461,10 @@ function Header() {
           lineHeight: 1.5,
         }}
       >
-        KPIs operativos, tendencias semanales y mensuales, distribución por
-        país y segmento, y un ranking automático de oportunidades para los
-        seguimientos comerciales.
+        Detalle histórico: tendencia semanal y mensual, distribución por país
+        y segmento, y ranking automático de oportunidades. No es el pulso
+        operativo vivo — para eso usá Radar; esta pantalla es diagnóstico
+        sobre los cierres ya cargados.
       </p>
     </header>
   );
@@ -763,7 +764,7 @@ function CountryTable({
             <Th align="right">Miembros</Th>
             <Th align="right">% comunidad</Th>
             <Th align="right">Ingresadas</Th>
-            <Th align="right">Tasa entrega</Th>
+            <Th align="right">Entrega op. entregadas/movidas</Th>
           </tr>
         </thead>
         <tbody>

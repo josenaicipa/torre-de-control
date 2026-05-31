@@ -310,7 +310,7 @@ function RankingsTable({
             <Th>Segmento</Th>
             <Th align="right">Entregadas</Th>
             <Th align="right">Ingresadas</Th>
-            <Th align="right">Tasa entrega</Th>
+            <Th align="right">Conversión entrega/ingresadas</Th>
             <Th align="right">Tasa devol.</Th>
             <Th align="right">Δ entregadas</Th>
             <Th align="right">Score ★</Th>

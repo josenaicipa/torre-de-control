@@ -81,7 +81,7 @@ export default async function SegmentosPage({
 function Header() {
   return (
     <header style={{ marginBottom: 18 }}>
-      <p style={eyebrowStyle()}>Comunidad Dropi · Segmentos</p>
+      <p style={eyebrowStyle()}>Comunidad Dropi · Drill-down de segmentos</p>
       <h1
         style={{
           margin: "4px 0 0",
@@ -90,7 +90,7 @@ function Header() {
           letterSpacing: "-0.02em",
         }}
       >
-        Segmentación automática
+        Segmentos — diagnóstico
       </h1>
       <p
         style={{
@@ -100,8 +100,10 @@ function Header() {
           lineHeight: 1.5,
         }}
       >
-        Cada Miembro Dropi cae en un segmento del cierre mensual según
-        entregadas, crecimiento y devoluciones. Útil para priorizar acciones.
+        Drill-down de los segmentos que Radar resume arriba. Cada Miembro Dropi
+        cae en un segmento del cierre mensual según entregadas, crecimiento y
+        devoluciones. Pantalla de diagnóstico — para el pulso operativo y las
+        listas accionables del día, volvé a Radar.
       </p>
     </header>
   );

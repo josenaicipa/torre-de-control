@@ -14,14 +14,18 @@ export const COLORS = {
   danger: "#B91C1C",
 };
 
+// Orden: Radar es la pantalla reina (decisión en 5s), Seguimientos es la cola
+// oficial de trabajo. Rankings y Segmentos son drill-down operativo. Histórico
+// (antes "Inteligencia") es diagnóstico, va después porque no compite con
+// Radar como pulso vivo. Miembros e Importaciones cierran el subnav como
+// utilidades.
 export const SUBNAV = [
   { href: "/comunidad-dropi/radar", label: "Radar" },
+  { href: "/comunidad-dropi/seguimientos", label: "Seguimientos" },
   { href: "/comunidad-dropi/rankings", label: "Rankings" },
   { href: "/comunidad-dropi/segmentos", label: "Segmentos" },
-  { href: "/comunidad-dropi/acciones", label: "Acciones" },
-  { href: "/comunidad-dropi/seguimientos", label: "Seguimientos" },
+  { href: "/comunidad-dropi/inteligencia", label: "Histórico" },
   { href: "/comunidad-dropi/miembros", label: "Miembros" },
-  { href: "/comunidad-dropi/inteligencia", label: "Inteligencia" },
   { href: "/comunidad-dropi/importaciones", label: "Importaciones" },
 ];
 

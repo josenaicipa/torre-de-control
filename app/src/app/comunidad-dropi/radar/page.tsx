@@ -1,14 +1,21 @@
-// Pulso Comunidad Dropi — pantalla principal del módulo.
+// Pulso Comunidad Dropi — pantalla reina del módulo.
 //
-// Objetivo de UX: en máximo 5 segundos el operador entiende si la comunidad va
-// creciendo, estable, en alerta o a la baja; quién merece amor, a quién hay
-// que ayudar y quiénes son las estrellas. La ruta se mantiene en
-// /comunidad-dropi/radar para no romper enlaces existentes.
+// Objetivo de UX: en máximo 5 segundos el operador entiende:
+//   1) qué hay que hacer hoy (P1 abiertos, vencidos, para hoy, sin asignar),
+//   2) si la comunidad va creciendo / estable / en alerta / a la baja,
+//   3) a quién darle amor, a quién ayudar, quiénes son las estrellas y
+//      quiénes están en riesgo por devoluciones.
 //
-// El bloque de calidad de datos separa explícitamente "Sin historial" o
-// "Falta cruce GHL ↔ Dropi" del bajo rendimiento, usando aproximaciones
-// honestas sobre los campos disponibles (linkedStudentId, mes previo ausente,
-// inactividad del mes).
+// El bloque "Qué hacer hoy" vive arriba porque la decisión operativa es la
+// pregunta más urgente. El resto del Pulso (KPIs, segmentos, calidad) queda
+// debajo como diagnóstico complementario.
+//
+// Notas:
+//   - La ruta sigue siendo /comunidad-dropi/radar para no romper enlaces.
+//   - Las listas de personas clave se cruzan con DropiFollowUp abierto/en
+//     curso real para no proponer trabajo duplicado.
+//   - "Decreciendo" se ordena por pérdida absoluta primero y porcentaje como
+//     desempate: una caída de 200 entregadas pesa más que un −90% sobre 5.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -41,6 +48,17 @@ import {
   classifyImportAge,
   type ImportAgeInfo,
 } from "../_lib/import-age";
+import {
+  buildMemberFollowUpStatus,
+  computeRadarFollowUpStats,
+  memberFollowUpStateOf,
+  MEMBER_FOLLOW_UP_STATE_COLORS,
+  MEMBER_FOLLOW_UP_STATE_LABELS,
+  type MemberFollowUpState,
+  type MemberFollowUpStatus,
+  type RadarFollowUpStats,
+} from "../_lib/follow-up-stats";
+import { pickHelp, pickLove } from "../_lib/radar-lists";
 import { SubNav } from "../_components/SubNav";
 import { PeriodSelector } from "../_components/PeriodSelector";
 
@@ -90,7 +108,7 @@ export default async function PulsoPage({
 function Header() {
   return (
     <header style={{ marginBottom: 18 }}>
-      <p style={eyebrowStyle()}>Comunidad Dropi · Pulso mensual</p>
+      <p style={eyebrowStyle()}>Comunidad Dropi · Pantalla reina</p>
       <h1
         style={{
           margin: "4px 0 0",
@@ -109,9 +127,9 @@ function Header() {
           lineHeight: 1.5,
         }}
       >
-        En 5 segundos: ¿vamos creciendo o a la baja?, ¿a quién darle amor?, ¿a
-        quién ayudar?, ¿quiénes son las estrellas? Entregadas como métrica
-        reina, ingresadas como secundaria.
+        En 5 segundos: ¿qué hago hoy?, ¿vamos creciendo o a la baja?, ¿a quién
+        darle amor?, ¿a quién ayudar?, ¿quiénes son las estrellas? Entregadas
+        es la métrica reina.
       </p>
     </header>
   );
@@ -132,23 +150,16 @@ async function PulsoBody({
   const previousLabel = radar.previous ? formatMonthRef(radar.previous) : null;
   const period = periodKey(radar.current);
 
+  // "Dar amor" amplía el bucket GROWING con RECOVERED y NEW para que la
+  // pantalla muestre todo lo que merece reconocimiento explícito. "Ayudar"
+  // junta DROPPING con INACTIVE para no esconder a los miembros que se
+  // apagaron este mes. Los selectores viven en `_lib/radar-lists.ts` para
+  // que la regla "pérdida absoluta manda sobre porcentaje" sea testeable.
+  const love = pickLove(radar.members, 5);
+  const help = pickHelp(radar.members, 5);
   const stars = topBy(
     radar.members.filter((m) => m.segment === "STAR"),
     (a, b) => b.starScore - a.starScore,
-    5,
-  );
-  const growing = topBy(
-    radar.members.filter((m) => m.segment === "GROWING"),
-    (a, b) =>
-      (b.deliveredDeltaPct ?? Number.NEGATIVE_INFINITY) -
-      (a.deliveredDeltaPct ?? Number.NEGATIVE_INFINITY),
-    5,
-  );
-  const dropping = topBy(
-    radar.members.filter((m) => m.segment === "DROPPING"),
-    (a, b) =>
-      (a.deliveredDeltaPct ?? Number.POSITIVE_INFINITY) -
-      (b.deliveredDeltaPct ?? Number.POSITIVE_INFINITY),
     5,
   );
   const highReturn = topBy(
@@ -157,18 +168,35 @@ async function PulsoBody({
     5,
   );
 
-  const openFollowUps = await prisma.dropiFollowUp.findMany({
+  // Una sola query alimenta tanto el banner "Qué hacer hoy" como los chips
+  // de seguimiento por miembro. Filtramos por status activo para que el
+  // payload no crezca con histórico ya resuelto.
+  const activeFollowUps = await prisma.dropiFollowUp.findMany({
     where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
-    orderBy: [
-      { priority: "asc" },
-      { dueDate: { sort: "asc", nulls: "last" } },
-      { createdAt: "desc" },
-    ],
-    take: 5,
-    include: {
-      member: { select: { id: true, fullName: true, email: true } },
+    select: {
+      memberId: true,
+      status: true,
+      priority: true,
+      dueDate: true,
+      assignedToId: true,
+      assignedTo: { select: { name: true, email: true } },
     },
   });
+  const now = new Date();
+  const followUpStats = computeRadarFollowUpStats(activeFollowUps, now);
+  const memberFollowUpStatus = buildMemberFollowUpStatus(
+    activeFollowUps.map((f) => ({
+      memberId: f.memberId,
+      status: f.status,
+      priority: f.priority,
+      dueDate: f.dueDate,
+      assignedToId: f.assignedToId,
+      assignedName: f.assignedTo
+        ? f.assignedTo.name ?? f.assignedTo.email ?? null
+        : null,
+    })),
+    now,
+  );
 
   return (
     <>
@@ -182,7 +210,51 @@ async function PulsoBody({
 
       {weeklyPulse ? <WeeklyPulseCard summary={weeklyPulse} /> : null}
 
+      <TodayActionsCard stats={followUpStats} />
+
       <PulseHero radar={radar} period={period} />
+
+      <section style={twoColStyle()}>
+        <MembersCard
+          title="Dar amor"
+          subtitle="Creciendo, recuperados y nuevos con tracción"
+          tone="GROWING"
+          members={love}
+          empty="Ningún miembro creció, se recuperó o reactivó esta ventana."
+          metric="growth"
+          followUpStatus={memberFollowUpStatus}
+        />
+        <MembersCard
+          title="Ayudar"
+          subtitle="Decreciendo o sin actividad este mes"
+          tone="DROPPING"
+          members={help}
+          empty="Ningún miembro cayó >10% en entregadas vs. mes anterior."
+          metric="decline"
+          followUpStatus={memberFollowUpStatus}
+        />
+      </section>
+
+      <section style={twoColStyle()}>
+        <MembersCard
+          title="Estrellas"
+          subtitle="Alto volumen, baja devolución y score sostenido"
+          tone="STAR"
+          members={stars}
+          empty="Aún no hay miembros con score estrella este mes."
+          metric="starScore"
+          followUpStatus={memberFollowUpStatus}
+        />
+        <MembersCard
+          title="Riesgo por devoluciones"
+          subtitle="Tasa de devolución ≥ 25% sobre ingresadas"
+          tone="HIGH_RETURN"
+          members={highReturn}
+          empty="Ningún miembro supera el umbral de 25% de devoluciones."
+          metric="returnRate"
+          followUpStatus={memberFollowUpStatus}
+        />
+      </section>
 
       <section style={kpiGridStyle()} aria-label="KPIs del mes">
         <KpiCard label="Entregadas" hero kpi={radar.kpis.delivered} />
@@ -199,7 +271,7 @@ async function PulsoBody({
           hint="entregadas ÷ ingresadas"
         />
         <RateCard
-          label="Tasa de entrega operativa"
+          label="Entrega operativa entregadas/movidas"
           current={radar.kpis.deliveryRateOperational.current}
           previous={radar.kpis.deliveryRateOperational.previous}
           hint="entregadas ÷ movidas"
@@ -219,85 +291,11 @@ async function PulsoBody({
         <SegmentMix radar={radar} period={period} />
       </section>
 
-      <section style={twoColStyle()}>
-        <MembersCard
-          title="Creciendo — dar amor"
-          tone="GROWING"
-          members={growing}
-          empty="Ningún miembro creció >10% en entregadas vs. mes anterior."
-          metric="growth"
-        />
-        <MembersCard
-          title="Decreciendo — ayudar"
-          tone="DROPPING"
-          members={dropping}
-          empty="Ningún miembro cayó >10% en entregadas vs. mes anterior."
-          metric="decline"
-        />
-      </section>
-
-      <section style={twoColStyle()}>
-        <MembersCard
-          title="Miembros estrella"
-          tone="STAR"
-          members={stars}
-          empty="Aún no hay miembros con score estrella este mes."
-          metric="starScore"
-        />
-        <MembersCard
-          title="Devoluciones altas — alerta"
-          tone="HIGH_RETURN"
-          members={highReturn}
-          empty="Ningún miembro supera el umbral de 25% de devoluciones."
-          metric="returnRate"
-        />
-      </section>
-
       <QualityBlock
         quality={radar.quality}
         importAge={importAge}
         currentLabel={currentLabel}
       />
-
-      <section style={{ marginTop: 18 }}>
-        <Card
-          title="Acciones abiertas"
-          right={
-            <Link href="/comunidad-dropi/acciones" style={ghostLinkStyle()}>
-              Ver todas →
-            </Link>
-          }
-        >
-          {openFollowUps.length === 0 ? (
-            <EmptyText text="No hay acciones abiertas en este momento." />
-          ) : (
-            <ul style={listStyle()}>
-              {openFollowUps.map((f) => (
-                <li key={f.id} style={listItemStyle()}>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    <Link
-                      href={`/comunidad-dropi/miembros/${f.member.id}`}
-                      style={memberLinkStyle()}
-                    >
-                      {f.member.fullName ?? f.member.email ?? "Sin nombre"}
-                    </Link>
-                    <span
-                      style={{
-                        color: COLORS.textSoft,
-                        fontSize: 12,
-                        marginTop: 2,
-                      }}
-                    >
-                      {f.suggestedAction ?? labelReason(f.reason)}
-                    </span>
-                  </div>
-                  <span style={priorityChipStyle(f.priority)}>{f.priority}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </section>
     </>
   );
 }
@@ -310,16 +308,156 @@ function topBy(
   return [...arr].sort(cmp).slice(0, n);
 }
 
-function labelReason(reason: string): string {
-  const map: Record<string, string> = {
-    ZERO_SALES: "Sin ventas",
-    DROP: "Caída",
-    HIGH_RETURN: "Devoluciones altas",
-    LOW_VOLUME: "Bajo volumen",
-    TOP_PERFORMER: "Mejor vendedor",
-    OTHER: "Otro",
-  };
-  return map[reason] ?? reason;
+function TodayActionsCard({ stats }: { stats: RadarFollowUpStats }) {
+  const tiles: Array<{
+    key: string;
+    label: string;
+    value: number;
+    href: string;
+    accent: string;
+    hint?: string;
+  }> = [
+    {
+      key: "urgent",
+      label: "P1 abiertos",
+      value: stats.urgentCount,
+      href: "/comunidad-dropi/seguimientos?priority=P1",
+      accent: "#B91C1C",
+      hint: "Prioridad máxima en cola",
+    },
+    {
+      key: "overdue",
+      label: "Vencidos",
+      value: stats.overdueCount,
+      href: "/comunidad-dropi/seguimientos?bucket=OVERDUE",
+      accent: "#B91C1C",
+      hint: "Días atrás de la fecha límite",
+    },
+    {
+      key: "today",
+      label: "Para hoy",
+      value: stats.todayCount,
+      href: "/comunidad-dropi/seguimientos?bucket=TODAY",
+      accent: "#D97706",
+      hint: "Cierre antes de fin de día",
+    },
+    {
+      key: "unassigned",
+      label: "Sin asignar",
+      value: stats.unassignedCount,
+      href: "/comunidad-dropi/seguimientos?unassigned=1",
+      accent: "#475569",
+      hint: "Aún sin responsable",
+    },
+  ];
+
+  return (
+    <section
+      aria-label="Qué hacer hoy"
+      style={{
+        backgroundColor: COLORS.surface,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <p style={eyebrowStyle()}>Qué hacer hoy</p>
+          <p
+            style={{
+              margin: "4px 0 0",
+              fontSize: 16,
+              fontWeight: 700,
+              color: COLORS.text,
+            }}
+          >
+            {stats.openCount === 0
+              ? "Cola vacía: sin seguimientos abiertos."
+              : `${stats.openCount} seguimientos abiertos o en curso ahora mismo.`}
+          </p>
+        </div>
+        <Link
+          href="/comunidad-dropi/seguimientos"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "8px 14px",
+            borderRadius: 8,
+            backgroundColor: COLORS.brand,
+            color: COLORS.surface,
+            fontSize: 13,
+            fontWeight: 700,
+            textDecoration: "none",
+          }}
+        >
+          Ir a Seguimientos →
+        </Link>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 10,
+        }}
+      >
+        {tiles.map((t) => (
+          <Link
+            key={t.key}
+            href={t.href}
+            style={{
+              display: "block",
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: `1px solid ${COLORS.border}`,
+              borderTop: `3px solid ${t.accent}`,
+              textDecoration: "none",
+              color: COLORS.text,
+              backgroundColor: COLORS.surface,
+            }}
+          >
+            <span style={eyebrowStyle()}>{t.label}</span>
+            <span
+              style={{
+                display: "block",
+                marginTop: 6,
+                fontSize: 26,
+                fontWeight: 800,
+                color: COLORS.text,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {t.value}
+            </span>
+            {t.hint ? (
+              <span
+                style={{
+                  display: "block",
+                  marginTop: 4,
+                  fontSize: 11,
+                  color: COLORS.textMuted,
+                }}
+              >
+                {t.hint}
+              </span>
+            ) : null}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function PulseHero({ radar, period }: { radar: Radar; period: string }) {
@@ -824,20 +962,25 @@ function SegmentMix({ radar, period }: { radar: Radar; period: string }) {
 
 function MembersCard({
   title,
+  subtitle,
   tone,
   members,
   empty,
   metric,
+  followUpStatus,
 }: {
   title: string;
+  subtitle?: string;
   tone: RadarSegment;
   members: RadarMember[];
   empty: string;
   metric: "starScore" | "growth" | "decline" | "returnRate";
+  followUpStatus: ReadonlyMap<string, MemberFollowUpStatus>;
 }) {
   return (
     <Card
       title={title}
+      subtitle={subtitle}
       badge={
         <span
           style={{
@@ -858,50 +1001,92 @@ function MembersCard({
         <EmptyText text={empty} />
       ) : (
         <ul style={listStyle()}>
-          {members.map((m) => (
-            <li key={m.id} style={listItemStyle()}>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  flex: 1,
-                  minWidth: 0,
-                }}
-              >
-                <Link
-                  href={`/comunidad-dropi/miembros/${m.id}`}
-                  style={memberLinkStyle()}
-                >
-                  {m.fullName ?? m.email ?? "Sin nombre"}
-                </Link>
-                <span
+          {members.map((m) => {
+            const fu = memberFollowUpStateOf(followUpStatus, m.id);
+            return (
+              <li key={m.id} style={listItemStyle()}>
+                <div
                   style={{
-                    color: COLORS.textSoft,
-                    fontSize: 12,
-                    marginTop: 2,
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minWidth: 0,
+                    gap: 4,
                   }}
                 >
-                  {m.current.ordersDelivered.toLocaleString("es-CO")} entregadas
-                  · {m.current.ordersEntered.toLocaleString("es-CO")} ingresadas
-                  {m.country ? ` · ${m.country}` : ""}
-                </span>
-                <span
-                  style={{
-                    color: COLORS.textMuted,
-                    fontSize: 12,
-                    marginTop: 4,
-                    fontStyle: "italic",
-                  }}
-                >
-                  Acción sugerida: {m.suggestedAction}
-                </span>
-              </div>
-              <MetricBadge member={m} metric={metric} />
-            </li>
-          ))}
+                  <Link
+                    href={`/comunidad-dropi/miembros/${m.id}`}
+                    style={memberLinkStyle()}
+                  >
+                    {m.fullName ?? m.email ?? "Sin nombre"}
+                  </Link>
+                  <span
+                    style={{
+                      color: COLORS.textSoft,
+                      fontSize: 12,
+                    }}
+                  >
+                    {m.current.ordersDelivered.toLocaleString("es-CO")} entregadas
+                    · {m.current.ordersEntered.toLocaleString("es-CO")} ingresadas
+                    {m.country ? ` · ${m.country}` : ""}
+                  </span>
+                  <FollowUpStateLine state={fu.state} assignedName={fu.assignedName} />
+                  <span
+                    style={{
+                      color: COLORS.textMuted,
+                      fontSize: 12,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Acción sugerida: {m.suggestedAction}
+                  </span>
+                </div>
+                <MetricBadge member={m} metric={metric} />
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
+  );
+}
+
+function FollowUpStateLine({
+  state,
+  assignedName,
+}: {
+  state: MemberFollowUpState;
+  assignedName: string | null;
+}) {
+  const palette = MEMBER_FOLLOW_UP_STATE_COLORS[state];
+  const label = MEMBER_FOLLOW_UP_STATE_LABELS[state];
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        color: COLORS.textSoft,
+        flexWrap: "wrap",
+      }}
+    >
+      <span
+        style={{
+          display: "inline-flex",
+          padding: "2px 8px",
+          borderRadius: 999,
+          backgroundColor: palette.bg,
+          color: palette.text,
+          fontSize: 11,
+          fontWeight: 700,
+          border: `1px solid ${palette.border}`,
+        }}
+      >
+        {label}
+      </span>
+      {assignedName ? <span>· asignado a {assignedName}</span> : null}
+    </span>
   );
 }
 
@@ -921,17 +1106,21 @@ function MetricBadge({
   }
   if (metric === "growth") {
     const pct = member.deliveredDeltaPct;
+    const delta = member.deliveredDelta;
     return (
       <span style={metricChipStyle(COLORS.success)}>
-        ▲ {pct != null ? `${Math.abs(pct)}%` : "—"}
+        ▲ {delta != null ? `+${delta.toLocaleString("es-CO")}` : `+${member.current.ordersDelivered}`}
+        {pct != null ? ` · ${Math.abs(pct)}%` : ""}
       </span>
     );
   }
   if (metric === "decline") {
     const pct = member.deliveredDeltaPct;
+    const delta = member.deliveredDelta;
     return (
       <span style={metricChipStyle(COLORS.danger)}>
-        ▼ {pct != null ? `${Math.abs(pct)}%` : "—"}
+        ▼ {delta != null ? delta.toLocaleString("es-CO") : `-${member.previous?.ordersDelivered ?? 0}`}
+        {pct != null ? ` · ${Math.abs(pct)}%` : ""}
       </span>
     );
   }
@@ -1102,11 +1291,13 @@ function QualityTile({
 
 function Card({
   title,
+  subtitle,
   badge,
   right,
   children,
 }: {
   title: string;
+  subtitle?: string;
   badge?: React.ReactNode;
   right?: React.ReactNode;
   children: React.ReactNode;
@@ -1129,20 +1320,34 @@ function Card({
           marginBottom: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: COLORS.textSoft,
-            }}
-          >
-            {title}
-          </h2>
-          {badge}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: COLORS.textSoft,
+              }}
+            >
+              {title}
+            </h2>
+            {badge}
+          </div>
+          {subtitle ? (
+            <p
+              style={{
+                margin: 0,
+                fontSize: 12,
+                color: COLORS.textMuted,
+                lineHeight: 1.4,
+              }}
+            >
+              {subtitle}
+            </p>
+          ) : null}
         </div>
         {right}
       </div>
@@ -1316,7 +1521,7 @@ function WeeklyPulseCard({ summary }: { summary: WeeklyPulseSummary }) {
             textDecoration: "underline",
           }}
         >
-          Ver tendencia semanal completa →
+          Ver histórico semanal completo →
         </Link>
       </div>
     </section>
@@ -1458,35 +1663,6 @@ function metricChipStyle(color: string): React.CSSProperties {
     fontWeight: 700,
     color,
     whiteSpace: "nowrap",
-  };
-}
-
-function priorityChipStyle(priority: string): React.CSSProperties {
-  const map: Record<string, { bg: string; text: string }> = {
-    P1: { bg: "#FEE2E2", text: "#991B1B" },
-    P2: { bg: "#FEF3C7", text: "#92400E" },
-    P3: { bg: "#F1F5F9", text: "#475569" },
-    P4: { bg: "#FAE8FF", text: "#86198F" },
-  };
-  const c = map[priority] ?? { bg: "#F1F5F9", text: "#475569" };
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "2px 8px",
-    borderRadius: 999,
-    backgroundColor: c.bg,
-    color: c.text,
-    fontSize: 11,
-    fontWeight: 700,
-  };
-}
-
-function ghostLinkStyle(): React.CSSProperties {
-  return {
-    color: COLORS.textSoft,
-    fontSize: 12,
-    fontWeight: 700,
-    textDecoration: "none",
   };
 }
 

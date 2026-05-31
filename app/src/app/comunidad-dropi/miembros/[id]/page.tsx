@@ -446,7 +446,7 @@ function DiagnosticSection({
           value={`${diagnostic.rates.movementRate}%`}
         />
         <DiagnosticMetric
-          label="Tasa de entrega"
+          label="Entrega operativa entregadas/movidas"
           value={`${diagnostic.rates.deliveryRate}%`}
         />
         <DiagnosticMetric
