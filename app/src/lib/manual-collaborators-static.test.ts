@@ -55,6 +55,24 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('await saveCloserEntry(entry.date,closerRow);');
   });
 
+  it("integrates the useful numeric operator daily report fields into Area Comercial por colaborador", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
+
+    expect(html).toContain('callsScheduled:0,hotLeads:0,');
+    expect(html).toContain('callsScheduled:row.ig_followers||0,');
+    expect(html).toContain('hotLeads:row.bk_offers||0,');
+    expect(llenarBlock).toContain('<STit icon="📞" title="Actividad de llamadas" sub="Campos traídos del reporte manual diario"/>');
+    expect(llenarBlock).toContain('<Inp label="# Llamadas / citas que tenías" value={form.callsScheduled} onChange={v=>sf("callsScheduled",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="# Leads calientes" value={form.hotLeads} onChange={v=>sf("hotLeads",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="# Cierres" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>');
+    expect(tablaBlock).toContain('{l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"}');
+    expect(tablaBlock).toContain('{l:"# Leads calientes",k:"hotLeads",fmt:"n"}');
+    expect(html).toContain('{title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[');
+    expect(html).toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"}');
+    expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"}');
+  });
+
   it("orders Torre CEO execution metrics as sales, show ups, qualified leads, then scheduled calls", () => {
     const realidadBlock = html.slice(
       html.indexOf('<SectionTitle>Realidad del mes (ejecución)</SectionTitle>'),

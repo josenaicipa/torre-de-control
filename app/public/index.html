@@ -235,7 +235,8 @@ const blankEntry=()=>({
   agendas:0,calificadas:0,agendasHoy:0,showUps:0,
   ventasHT:0,valorVentaHT:0,upfrontCash:0,recurringCash:0,
   pendDiaAnterior:0,pendAcumulados:0,reservas:0,cashReservas:0,
-  horasDisponibilidad:0,outboundContactados:0,outboundAgendados:0,referidosAgendados:0,
+  callsScheduled:0,hotLeads:0,
+  outboundContactados:0,outboundAgendados:0,
 });
 
 const blankCloser=()=>({
@@ -307,10 +308,10 @@ const rowToEntry=row=>{
     // Marketing fields
     igFollowers:row.ig_followers||0,
     posts:row.posts||0,mensajes:row.mensajes||0,followUps:row.follow_ups||0,bkOffers:row.bk_offers||0,
-    horasDisponibilidad:row.ig_followers||0,
+    callsScheduled:row.ig_followers||0,
     outboundContactados:row.posts||0,
     outboundAgendados:row.mensajes||0,
-    referidosAgendados:row.bk_offers||0,
+    hotLeads:row.bk_offers||0,
     gastoMeta:row.gasto_meta||0,gastoGoogle:row.gasto_google||0,gastoTikTok:row.gasto_tiktok||0,gastoOtros:row.gasto_otros||0,
     // Closer manual fields are stored in repurposed daily_entries columns:
     //   noShow → new_bk_organic, calificadas → qual_bk_organic,
@@ -321,8 +322,8 @@ const rowToEntry=row=>{
     //   reservas → reservas_organic.
     // For commercial/Admin rows, otherwise-marketing columns are safely reused
     // for Otros because Detalle Diario filters commercial members out of marketing
-    // aggregates: horasDisponibilidad → ig_followers, outboundContactados → posts,
-    // outboundAgendados → mensajes, referidosAgendados → bk_offers.
+    // aggregates: callsScheduled → ig_followers, outboundContactados → posts,
+    // outboundAgendados → mensajes, hotLeads → bk_offers.
     agendas:row.new_bk_organic||0,
     calificadas:row.qual_bk_organic||0,
     agendasHoy:row.today_bk_organic||0,
@@ -1894,6 +1895,12 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Follow Ups",fn:d=>d.sdMkt("followUps")||null,fmt:"n"},
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
     ]},
+    {title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[
+      {l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.sdCommercial("showUps")||null,fmt:"n"},
+      {l:"# Follow Ups contactados",fn:d=>d.sdCommercial("followUps")||null,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"},
+    ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||null;},fmt:"n"},
       {l:"Agendas Hoy",fn:d=>d.closer.agendas_final||null,fmt:"n"},
@@ -2115,10 +2122,9 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
       upfrontCash:s("upfrontCash"),recurringCash:s("recurringCash"),
       pendDiaAnterior:s("pendDiaAnterior"),pendAcumulados:s("pendAcumulados"),
       reservas:s("reservas"),cashReservas:s("cashReservas"),
-      horasDisponibilidad:s("horasDisponibilidad"),
+      callsScheduled:s("callsScheduled"),hotLeads:s("hotLeads"),
       outboundContactados:s("outboundContactados"),
       outboundAgendados:s("outboundAgendados"),
-      referidosAgendados:s("referidosAgendados"),
     };
   };
 
@@ -2253,18 +2259,26 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
       {role==="closer"&&(
         <>
           <Card>
+            <STit icon="📞" title="Actividad de llamadas" sub="Campos traídos del reporte manual diario"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Llamadas / citas que tenías" value={form.callsScheduled} onChange={v=>sf("callsScheduled",v)}/>
+              <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
+              <Inp label="# Follow Ups contactados" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+              <Inp label="# Leads calientes" value={form.hotLeads} onChange={v=>sf("hotLeads",v)}/>
+            </div>
+          </Card>
+          <Card>
             <STit icon="📅" title="Agendas / Leads" sub={`Llenado por ${collab.label}`}/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
               <Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>
               <Inp label="# Cualificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
-              <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
               <Inp label="# No Show" value={form.agendas} onChange={v=>sf("agendas",v)}/>
             </div>
           </Card>
           <Card>
             <STit icon="💰" title="Ventas — Área Comercial"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-              <Inp label="# Ventas HT" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
+              <Inp label="# Cierres" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
               <Inp label="$ Venta HT" prefix="$" value={form.valorVentaHT} onChange={v=>sf("valorVentaHT",v)}/>
               <Inp label="Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
               <Inp label="Recurring Cash $" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>
@@ -2282,10 +2296,8 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
           <Card>
             <STit icon="🧭" title="Otros"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-              <Inp label="# Horas Disponibilidad" value={form.horasDisponibilidad} onChange={v=>sf("horasDisponibilidad",v)}/>
               <Inp label="# Outbound contactados" value={form.outboundContactados} onChange={v=>sf("outboundContactados",v)}/>
               <Inp label="# Outbound agendados" value={form.outboundAgendados} onChange={v=>sf("outboundAgendados",v)}/>
-              <Inp label="# Referidos agendados" value={form.referidosAgendados} onChange={v=>sf("referidosAgendados",v)}/>
             </div>
           </Card>
         </>
@@ -2342,10 +2354,15 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"# Follow Ups",k:"followUps",fmt:"n"},
       {l:"# Booking Offers",k:"bkOffers",fmt:"n"},
     ]},
+    {title:"Actividad de llamadas",bg:"#0369a1",role:"closer",rows:[
+      {l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"},
+      {l:"# Show Ups",k:"showUps",fmt:"n"},
+      {l:"# Follow Ups contactados",k:"followUps",fmt:"n"},
+      {l:"# Leads calientes",k:"hotLeads",fmt:"n"},
+    ]},
     {title:"Agendas / Leads",bg:"#0f766e",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
       {l:"# Cualificadas",k:"calificadas",fmt:"n"},
-      {l:"# Show Ups",k:"showUps",fmt:"n"},
       {l:"# No Show",k:"agendas",fmt:"n"},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",role:"closer",rows:[
@@ -2360,10 +2377,8 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"$ Cash Reservas",k:"cashReservas",fmt:"$"},
     ]},
     {title:"Otros",bg:"#334155",role:"closer",rows:[
-      {l:"# Horas Disponibilidad",k:"horasDisponibilidad",fmt:"n"},
       {l:"# Outbound contactados",k:"outboundContactados",fmt:"n"},
       {l:"# Outbound agendados",k:"outboundAgendados",fmt:"n"},
-      {l:"# Referidos agendados",k:"referidosAgendados",fmt:"n"},
     ]},
   ];
 
@@ -2566,10 +2581,15 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
     ]},
   ];
   const CLOSER_ROWS=[
+    {title:"Actividad de llamadas",bg:"#0369a1",rows:[
+      {l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
+      {l:"# Follow Ups contactados",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.e?d.e.hotLeads:0,fmt:"n"},
+    ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
       {l:"# Cualificadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
-      {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
       {l:"# No Show",fn:d=>d.e?d.e.agendas:0,fmt:"n"},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
@@ -2584,10 +2604,8 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
       {l:"$ Cash Reservas",fn:d=>d.e?d.e.cashReservas:0,fmt:"$"},
     ]},
     {title:"Otros",bg:"#334155",rows:[
-      {l:"# Horas Disponibilidad",fn:d=>d.e?d.e.horasDisponibilidad:0,fmt:"n"},
       {l:"# Outbound contactados",fn:d=>d.e?d.e.outboundContactados:0,fmt:"n"},
       {l:"# Outbound agendados",fn:d=>d.e?d.e.outboundAgendados:0,fmt:"n"},
-      {l:"# Referidos agendados",fn:d=>d.e?d.e.referidosAgendados:0,fmt:"n"},
     ]},
   ];
   const ROWS=role==="marketing"?MARKETING_ROWS:CLOSER_ROWS;
@@ -3717,11 +3735,11 @@ function App(){
     // when present (commercial collaborators) or default to 0 (marketing rows).
     const {error}=await db.from("daily_entries").upsert({
       date:entry.date,member:entry.member,
-      ig_followers:isCommercialMember(entry.member)?(entry.horasDisponibilidad||0):(entry.igFollowers||0),
+      ig_followers:isCommercialMember(entry.member)?(entry.callsScheduled||0):(entry.igFollowers||0),
       posts:isCommercialMember(entry.member)?(entry.outboundContactados||0):(entry.posts||0),
       mensajes:isCommercialMember(entry.member)?(entry.outboundAgendados||0):(entry.mensajes||0),
       follow_ups:entry.followUps||0,
-      bk_offers:isCommercialMember(entry.member)?(entry.referidosAgendados||0):(entry.bkOffers||0),
+      bk_offers:isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
       gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
       gasto_tiktok:entry.gastoTikTok||0,gasto_otros:entry.gastoOtros||0,
       new_bk_organic:entry.agendas||0,
