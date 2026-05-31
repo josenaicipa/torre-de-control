@@ -23,6 +23,8 @@ import {
   type AssignableUser,
   type FollowUpRow,
 } from "./_components/FollowUpsTable";
+import { ViewToggle } from "./_components/ViewToggle";
+import { buildKanbanHref } from "../_lib/kanban";
 
 export const dynamic = "force-dynamic";
 
@@ -286,6 +288,19 @@ export default async function SeguimientosPage({
             vencidos.
           </p>
         </div>
+        <ViewToggle
+          activeView="table"
+          tableHref={`/comunidad-dropi/seguimientos${buildFollowUpsHref(filters)}`}
+          kanbanHref={`/comunidad-dropi/seguimientos/kanban${buildKanbanHref({
+            priority: filters.priority,
+            reason: filters.reason,
+            q: filters.q,
+            country: filters.country,
+            assignedToId: filters.assignedToId,
+            mine: filters.mine,
+            unassigned: filters.unassigned,
+          })}`}
+        />
       </header>
 
       <div
