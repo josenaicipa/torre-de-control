@@ -102,6 +102,10 @@ describe("manual collaborator labels", () => {
     expect(llenarBlock).toContain('<Inp label="Orgánicos" value={form.setterOrganicLeads} onChange={v=>sf("setterOrganicLeads",v)}/>');
     expect(llenarBlock).toContain('<Inp label="Ads" value={form.setterAdsLeads} onChange={v=>sf("setterAdsLeads",v)}/>');
     expect(llenarBlock).toContain('<Txt label="Hallazgos importantes" value={form.setterFindings} onChange={v=>st("setterFindings",v)} placeholder="Ej: iniciales + hallazgo: presupuesto, objeción, urgencia, mala calidad, etc."/>');
+    expect(llenarBlock).toContain('{isValentina?(');
+    expect(llenarBlock).toContain('<STit icon="📝" title="Notas generales" sub="Contexto cualitativo administrativo"/>');
+    expect(llenarBlock).toContain('<Txt label="Notas generales" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: contexto general del día, seguimiento administrativo, pendientes o alertas..."/>');
+    expect(llenarBlock).toContain('<STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>');
     expect(llenarBlock).toContain('<Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>');
     expect(llenarBlock).toContain('<Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>');
     expect(llenarBlock).toContain('<Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>');

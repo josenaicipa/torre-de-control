@@ -2371,14 +2371,23 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Inp label="# Pendientes cierre (acumulados)" value={form.pendAcumulados} onChange={v=>sf("pendAcumulados",v)}/>
             </div>
           </Card>
-          <Card>
-            <STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
-              <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
-              <Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>
-              <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
-            </div>
-          </Card>
+          {isValentina?(
+            <Card>
+              <STit icon="📝" title="Notas generales" sub="Contexto cualitativo administrativo"/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+                <Txt label="Notas generales" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: contexto general del día, seguimiento administrativo, pendientes o alertas..."/>
+              </div>
+            </Card>
+          ):(
+            <Card>
+              <STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+                <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
+                <Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>
+                <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
+              </div>
+            </Card>
+          )}
         </>
       )}
 
