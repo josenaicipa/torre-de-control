@@ -1,13 +1,27 @@
+// Pulso Comunidad Dropi — pantalla principal del módulo.
+//
+// Objetivo de UX: en máximo 5 segundos el operador entiende si la comunidad va
+// creciendo, estable, en alerta o a la baja; quién merece amor, a quién hay
+// que ayudar y quiénes son las estrellas. La ruta se mantiene en
+// /comunidad-dropi/radar para no romper enlaces existentes.
+//
+// El bloque de calidad de datos separa explícitamente "Sin historial" o
+// "Falta cruce GHL ↔ Dropi" del bajo rendimiento, usando aproximaciones
+// honestas sobre los campos disponibles (linkedStudentId, mes previo ausente,
+// inactividad del mes).
+
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getActor } from "@/lib/actor";
 import { prisma } from "@/lib/prisma";
 import {
+  RADAR_PULSE_COLORS,
   RADAR_SEGMENT_COLORS,
   RADAR_SEGMENT_LABELS,
   type Radar,
   type RadarKpi,
   type RadarMember,
+  type RadarQualitySummary,
   type RadarSegment,
 } from "@/lib/comunidad-dropi-radar";
 import {
@@ -40,7 +54,11 @@ function parseMonth(sp: Record<string, string | undefined>): {
   return {};
 }
 
-export default async function RadarPage({
+function periodKey(ref: { year: number; month: number }): string {
+  return `${ref.year}-${ref.month}`;
+}
+
+export default async function PulsoPage({
   searchParams,
 }: {
   searchParams: Promise<RawSearchParams>;
@@ -49,14 +67,18 @@ export default async function RadarPage({
   if (!actor) redirect("/login");
   const sp = flatten(await searchParams);
   const { year, month } = parseMonth(sp);
-  const { radar, available } = await loadRadar({ year, month });
+  const { radar, available, lastImportAt } = await loadRadar({ year, month });
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
       <Header />
       <SubNav />
       {radar ? (
-        <RadarBody radar={radar} available={available} />
+        <PulsoBody
+          radar={radar}
+          available={available}
+          lastImportAt={lastImportAt}
+        />
       ) : (
         <EmptyState />
       )}
@@ -67,7 +89,7 @@ export default async function RadarPage({
 function Header() {
   return (
     <header style={{ marginBottom: 18 }}>
-      <p style={eyebrowStyle()}>Comunidad Dropi · Radar mensual</p>
+      <p style={eyebrowStyle()}>Comunidad Dropi · Pulso mensual</p>
       <h1
         style={{
           margin: "4px 0 0",
@@ -76,7 +98,7 @@ function Header() {
           letterSpacing: "-0.02em",
         }}
       >
-        Radar de rendimiento
+        Pulso Comunidad Dropi
       </h1>
       <p
         style={{
@@ -86,48 +108,51 @@ function Header() {
           lineHeight: 1.5,
         }}
       >
-        Foto del cierre mensual: entregadas como métrica reina, segmentación
-        automática y ranking de Miembros Dropi. Ingresadas siempre como
-        secundaria.
+        En 5 segundos: ¿vamos creciendo o a la baja?, ¿a quién darle amor?, ¿a
+        quién ayudar?, ¿quiénes son las estrellas? Entregadas como métrica
+        reina, ingresadas como secundaria.
       </p>
     </header>
   );
 }
 
-async function RadarBody({
+async function PulsoBody({
   radar,
   available,
+  lastImportAt,
 }: {
   radar: Radar;
   available: AvailableMonth[];
+  lastImportAt: Date | null;
 }) {
   const currentLabel = formatMonthRef(radar.current);
   const previousLabel = radar.previous ? formatMonthRef(radar.previous) : null;
+  const period = periodKey(radar.current);
 
-  const stars = radar.members
-    .filter((m) => m.segment === "STAR")
-    .sort((a, b) => b.starScore - a.starScore)
-    .slice(0, 5);
-  const growing = radar.members
-    .filter((m) => m.segment === "GROWING")
-    .sort(
-      (a, b) =>
-        (b.deliveredDeltaPct ?? Number.NEGATIVE_INFINITY) -
-        (a.deliveredDeltaPct ?? Number.NEGATIVE_INFINITY),
-    )
-    .slice(0, 5);
-  const dropping = radar.members
-    .filter((m) => m.segment === "DROPPING")
-    .sort(
-      (a, b) =>
-        (a.deliveredDeltaPct ?? Number.POSITIVE_INFINITY) -
-        (b.deliveredDeltaPct ?? Number.POSITIVE_INFINITY),
-    )
-    .slice(0, 5);
-  const highReturn = radar.members
-    .filter((m) => m.segment === "HIGH_RETURN")
-    .sort((a, b) => b.returnRate - a.returnRate)
-    .slice(0, 5);
+  const stars = topBy(
+    radar.members.filter((m) => m.segment === "STAR"),
+    (a, b) => b.starScore - a.starScore,
+    5,
+  );
+  const growing = topBy(
+    radar.members.filter((m) => m.segment === "GROWING"),
+    (a, b) =>
+      (b.deliveredDeltaPct ?? Number.NEGATIVE_INFINITY) -
+      (a.deliveredDeltaPct ?? Number.NEGATIVE_INFINITY),
+    5,
+  );
+  const dropping = topBy(
+    radar.members.filter((m) => m.segment === "DROPPING"),
+    (a, b) =>
+      (a.deliveredDeltaPct ?? Number.POSITIVE_INFINITY) -
+      (b.deliveredDeltaPct ?? Number.POSITIVE_INFINITY),
+    5,
+  );
+  const highReturn = topBy(
+    radar.members.filter((m) => m.segment === "HIGH_RETURN"),
+    (a, b) => b.returnRate - a.returnRate,
+    5,
+  );
 
   const openFollowUps = await prisma.dropiFollowUp.findMany({
     where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
@@ -151,61 +176,70 @@ async function RadarBody({
         active={{ year: radar.current.year, month: radar.current.month }}
       />
 
+      <PulseHero radar={radar} period={period} />
+
       <section style={kpiGridStyle()} aria-label="KPIs del mes">
         <KpiCard label="Entregadas" hero kpi={radar.kpis.delivered} />
         <KpiCard label="Ingresadas" kpi={radar.kpis.entered} />
-        <KpiCard label="Movidas" kpi={radar.kpis.moved} />
         <KpiCard
-          label="Devueltas"
+          label="Devoluciones"
           kpi={radar.kpis.returned}
           accent="inverse"
         />
         <RateCard
-          label="Tasa de entrega"
+          label="Conversión entrega/ingresadas"
           current={radar.kpis.deliveryRate.current}
           previous={radar.kpis.deliveryRate.previous}
+          hint="entregadas ÷ ingresadas"
+        />
+        <RateCard
+          label="Tasa de entrega operativa"
+          current={radar.kpis.deliveryRateOperational.current}
+          previous={radar.kpis.deliveryRateOperational.previous}
+          hint="entregadas ÷ movidas"
         />
         <RateCard
           label="Tasa de devolución"
           current={radar.kpis.returnRate.current}
           previous={radar.kpis.returnRate.previous}
           accent="inverse"
+          hint="devoluciones ÷ ingresadas"
         />
         <SimpleKpi
           label="Miembros activos"
           value={radar.kpis.activeMembers.current}
           sublabel={`${radar.kpis.totalMembers} miembros en total`}
         />
-        <SegmentMix radar={radar} />
+        <SegmentMix radar={radar} period={period} />
       </section>
 
       <section style={twoColStyle()}>
         <MembersCard
-          title="Top estrellas"
+          title="Creciendo — dar amor"
+          tone="GROWING"
+          members={growing}
+          empty="Ningún miembro creció >10% en entregadas vs. mes anterior."
+          metric="growth"
+        />
+        <MembersCard
+          title="Decreciendo — ayudar"
+          tone="DROPPING"
+          members={dropping}
+          empty="Ningún miembro cayó >10% en entregadas vs. mes anterior."
+          metric="decline"
+        />
+      </section>
+
+      <section style={twoColStyle()}>
+        <MembersCard
+          title="Miembros estrella"
           tone="STAR"
           members={stars}
           empty="Aún no hay miembros con score estrella este mes."
           metric="starScore"
         />
         <MembersCard
-          title="Creciendo"
-          tone="GROWING"
-          members={growing}
-          empty="Ningún miembro creció >10% en entregadas vs. mes anterior."
-          metric="growth"
-        />
-      </section>
-
-      <section style={twoColStyle()}>
-        <MembersCard
-          title="Decreciendo"
-          tone="DROPPING"
-          members={dropping}
-          empty="Ningún miembro cayó >10% en entregadas vs. mes anterior."
-          metric="decline"
-        />
-        <MembersCard
-          title="Devoluciones altas"
+          title="Devoluciones altas — alerta"
           tone="HIGH_RETURN"
           members={highReturn}
           empty="Ningún miembro supera el umbral de 25% de devoluciones."
@@ -213,14 +247,17 @@ async function RadarBody({
         />
       </section>
 
+      <QualityBlock
+        quality={radar.quality}
+        lastImportAt={lastImportAt}
+        currentLabel={currentLabel}
+      />
+
       <section style={{ marginTop: 18 }}>
         <Card
           title="Acciones abiertas"
           right={
-            <Link
-              href="/comunidad-dropi/acciones"
-              style={ghostLinkStyle()}
-            >
+            <Link href="/comunidad-dropi/acciones" style={ghostLinkStyle()}>
               Ver todas →
             </Link>
           }
@@ -248,9 +285,7 @@ async function RadarBody({
                       {f.suggestedAction ?? labelReason(f.reason)}
                     </span>
                   </div>
-                  <span style={priorityChipStyle(f.priority)}>
-                    {f.priority}
-                  </span>
+                  <span style={priorityChipStyle(f.priority)}>{f.priority}</span>
                 </li>
               ))}
             </ul>
@@ -259,6 +294,14 @@ async function RadarBody({
       </section>
     </>
   );
+}
+
+function topBy(
+  arr: RadarMember[],
+  cmp: (a: RadarMember, b: RadarMember) => number,
+  n: number,
+): RadarMember[] {
+  return [...arr].sort(cmp).slice(0, n);
 }
 
 function labelReason(reason: string): string {
@@ -271,6 +314,130 @@ function labelReason(reason: string): string {
     OTHER: "Otro",
   };
   return map[reason] ?? reason;
+}
+
+function PulseHero({ radar, period }: { radar: Radar; period: string }) {
+  const colors = RADAR_PULSE_COLORS[radar.pulse.state];
+  return (
+    <section
+      aria-label="Pulso general"
+      style={{
+        backgroundColor: colors.bg,
+        border: `1px solid ${colors.text}33`,
+        borderLeft: `6px solid ${colors.dot}`,
+        borderRadius: 14,
+        padding: 18,
+        marginBottom: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 999,
+            backgroundColor: colors.dot,
+            display: "inline-block",
+          }}
+        />
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 800,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: colors.text,
+          }}
+        >
+          Pulso del mes
+        </span>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "4px 12px",
+            borderRadius: 999,
+            backgroundColor: colors.dot,
+            color: "#FFFFFF",
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.02em",
+          }}
+        >
+          {radar.pulse.label}
+        </span>
+      </div>
+      <p
+        style={{
+          margin: 0,
+          color: colors.text,
+          fontSize: 18,
+          fontWeight: 700,
+          lineHeight: 1.35,
+        }}
+      >
+        {radar.pulse.headline}
+      </p>
+      {radar.pulse.signals.length > 0 ? (
+        <ul
+          style={{
+            margin: 0,
+            padding: 0,
+            listStyle: "none",
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          {radar.pulse.signals.map((s, i) => (
+            <li
+              key={i}
+              style={{
+                color: colors.text,
+                fontSize: 13,
+                fontWeight: 500,
+                lineHeight: 1.45,
+              }}
+            >
+              · {s}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginTop: 2,
+        }}
+      >
+        <Link
+          href={`/comunidad-dropi/rankings?period=${period}`}
+          style={heroLinkStyle(colors.text)}
+        >
+          Ver rankings del mes →
+        </Link>
+        <Link
+          href={`/comunidad-dropi/segmentos?period=${period}`}
+          style={heroLinkStyle(colors.text)}
+        >
+          Ver segmentos →
+        </Link>
+      </div>
+    </section>
+  );
 }
 
 function PeriodNote({
@@ -338,6 +505,9 @@ function PeriodNote({
           </button>
         </form>
       ) : null}
+      <span style={{ color: COLORS.textMuted }}>
+        Modo semanal vs. mes anterior: pendiente (ver iteración 3).
+      </span>
     </div>
   );
 }
@@ -423,11 +593,13 @@ function RateCard({
   current,
   previous,
   accent,
+  hint,
 }: {
   label: string;
   current: number;
   previous: number | null;
   accent?: "normal" | "inverse";
+  hint?: string;
 }) {
   const dir = accent ?? "normal";
   const delta = previous == null ? null : current - previous;
@@ -480,6 +652,18 @@ function RateCard({
           Sin mes previo
         </p>
       )}
+      {hint ? (
+        <p
+          style={{
+            margin: "6px 0 0",
+            fontSize: 11,
+            color: COLORS.textMuted,
+            fontStyle: "italic",
+          }}
+        >
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -515,9 +699,7 @@ function SimpleKpi({
         {value.toLocaleString("es-CO")}
       </p>
       {sublabel ? (
-        <p
-          style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.textMuted }}
-        >
+        <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.textMuted }}>
           {sublabel}
         </p>
       ) : null}
@@ -525,7 +707,7 @@ function SimpleKpi({
   );
 }
 
-function SegmentMix({ radar }: { radar: Radar }) {
+function SegmentMix({ radar, period }: { radar: Radar; period: string }) {
   const buckets = radar.segmentBuckets;
   return (
     <div
@@ -585,7 +767,7 @@ function SegmentMix({ radar }: { radar: Radar }) {
             {buckets.map((b) => (
               <li key={b.segment}>
                 <Link
-                  href={`/comunidad-dropi/segmentos#${b.segment}`}
+                  href={`/comunidad-dropi/segmentos?period=${period}#${b.segment}`}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -648,7 +830,14 @@ function MembersCard({
         <ul style={listStyle()}>
           {members.map((m) => (
             <li key={m.id} style={listItemStyle()}>
-              <div style={{ display: "flex", flexDirection: "column" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
                 <Link
                   href={`/comunidad-dropi/miembros/${m.id}`}
                   style={memberLinkStyle()}
@@ -662,10 +851,19 @@ function MembersCard({
                     marginTop: 2,
                   }}
                 >
-                  {m.current.ordersDelivered.toLocaleString("es-CO")}{" "}
-                  entregadas ·{" "}
-                  {m.current.ordersEntered.toLocaleString("es-CO")} ingresadas
+                  {m.current.ordersDelivered.toLocaleString("es-CO")} entregadas
+                  · {m.current.ordersEntered.toLocaleString("es-CO")} ingresadas
                   {m.country ? ` · ${m.country}` : ""}
+                </span>
+                <span
+                  style={{
+                    color: COLORS.textMuted,
+                    fontSize: 12,
+                    marginTop: 4,
+                    fontStyle: "italic",
+                  }}
+                >
+                  Acción sugerida: {m.suggestedAction}
                 </span>
               </div>
               <MetricBadge member={m} metric={metric} />
@@ -711,6 +909,161 @@ function MetricBadge({
     <span style={metricChipStyle(COLORS.danger)}>
       {member.returnRate}% devol.
     </span>
+  );
+}
+
+function QualityBlock({
+  quality,
+  lastImportAt,
+  currentLabel,
+}: {
+  quality: RadarQualitySummary;
+  lastImportAt: Date | null;
+  currentLabel: string;
+}) {
+  const sharePct = (count: number) => {
+    if (quality.totalMembers === 0) return 0;
+    return Math.round((count / quality.totalMembers) * 100);
+  };
+  const noHistoryPct = sharePct(quality.membersWithoutHistory);
+  const noLinkedPct = sharePct(quality.membersWithoutLinkedStudent);
+  const inactivePct = sharePct(quality.membersInactiveThisMonth);
+
+  return (
+    <section style={{ marginTop: 18, marginBottom: 18 }}>
+      <Card
+        title="Calidad de datos"
+        badge={
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "2px 8px",
+              borderRadius: 999,
+              backgroundColor: "#FEF3C7",
+              color: "#92400E",
+            }}
+          >
+            Aproximación honesta
+          </span>
+        }
+      >
+        <p
+          style={{
+            margin: "0 0 12px",
+            color: COLORS.textSoft,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          Estas señales no son bajo rendimiento. Sirven para separar problemas
+          de datos (sin historial, sin cruce con GHL) de miembros que
+          efectivamente están vendiendo poco.
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 10,
+          }}
+        >
+          <QualityTile
+            label="Sin historial este cierre"
+            value={quality.membersWithoutHistory}
+            share={noHistoryPct}
+            hint={`Miembros que no aparecen en el cierre anterior a ${currentLabel}. Pueden ser nuevos o faltarles el cruce.`}
+          />
+          <QualityTile
+            label="Sin cruce GHL ↔ Dropi"
+            value={quality.membersWithoutLinkedStudent}
+            share={noLinkedPct}
+            hint="Miembros Dropi sin contacto CRM vinculado. Aproximación al match faltante."
+          />
+          <QualityTile
+            label="Sin actividad este mes"
+            value={quality.membersInactiveThisMonth}
+            share={inactivePct}
+            hint="Cero ingresos, movimientos, entregas y devoluciones este mes. Puede ser falta de reporte, no necesariamente abandono."
+          />
+          <QualityTile
+            label="Última importación"
+            value={
+              lastImportAt ? formatLastImport(lastImportAt) : "Sin registro"
+            }
+            hint="Fecha del último cierre confirmado para este módulo."
+            isTextValue
+          />
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function formatLastImport(date: Date): string {
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function QualityTile({
+  label,
+  value,
+  share,
+  hint,
+  isTextValue,
+}: {
+  label: string;
+  value: number | string;
+  share?: number;
+  hint?: string;
+  isTextValue?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 10,
+        padding: 12,
+        backgroundColor: COLORS.background,
+      }}
+    >
+      <p style={eyebrowStyle()}>{label}</p>
+      <p
+        style={{
+          margin: "6px 0 0",
+          fontSize: isTextValue ? 16 : 22,
+          fontWeight: 800,
+          color: COLORS.text,
+        }}
+      >
+        {typeof value === "number" ? value.toLocaleString("es-CO") : value}
+        {!isTextValue && share != null ? (
+          <span
+            style={{
+              marginLeft: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              color: COLORS.textMuted,
+            }}
+          >
+            {share}%
+          </span>
+        ) : null}
+      </p>
+      {hint ? (
+        <p
+          style={{
+            margin: "6px 0 0",
+            fontSize: 11,
+            color: COLORS.textMuted,
+            lineHeight: 1.4,
+          }}
+        >
+          {hint}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -783,7 +1136,7 @@ function EmptyState() {
       }}
     >
       <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>
-        Aún no hay datos para el radar
+        Aún no hay datos para el Pulso
       </h2>
       <p
         style={{
@@ -793,8 +1146,8 @@ function EmptyState() {
           maxWidth: 480,
         }}
       >
-        Importa al menos un cierre mensual para que el radar muestre KPIs,
-        segmentación y ranking de Miembros Dropi.
+        Importa al menos un cierre mensual para que el Pulso muestre estado
+        general, KPIs y miembros accionables.
       </p>
       <Link href="/comunidad-dropi/importaciones" style={primaryLinkStyle()}>
         Ir a Importaciones
@@ -891,6 +1244,15 @@ function ghostLinkStyle(): React.CSSProperties {
     fontSize: 12,
     fontWeight: 700,
     textDecoration: "none",
+  };
+}
+
+function heroLinkStyle(color: string): React.CSSProperties {
+  return {
+    color,
+    fontSize: 12,
+    fontWeight: 700,
+    textDecoration: "underline",
   };
 }
 

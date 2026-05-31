@@ -65,14 +65,26 @@ export interface RadarLoadInput {
 export interface RadarLoadResult {
   radar: Radar | null;
   available: AvailableMonth[];
+  // Última importación confirmada en cualquier estado terminal. Sirve para el
+  // bloque de calidad de datos: si pasó mucho tiempo, el Pulso puede estar
+  // desactualizado y conviene avisarlo.
+  lastImportAt: Date | null;
 }
 
 export async function loadRadar(
   input: RadarLoadInput = {},
 ): Promise<RadarLoadResult> {
-  const available = await listAvailableMonths();
+  const [available, lastImport] = await Promise.all([
+    listAvailableMonths(),
+    prisma.dropiImportBatch.findFirst({
+      where: { status: "COMPLETED" },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    }),
+  ]);
+  const lastImportAt = lastImport?.updatedAt ?? null;
   if (available.length === 0) {
-    return { radar: null, available };
+    return { radar: null, available, lastImportAt };
   }
 
   let currentRef = available[0];
@@ -172,5 +184,5 @@ export async function loadRadar(
       : null,
     members,
   });
-  return { radar, available };
+  return { radar, available, lastImportAt };
 }

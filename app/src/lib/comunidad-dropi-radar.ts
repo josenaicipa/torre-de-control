@@ -1,15 +1,19 @@
-// Comunidad Dropi — Radar de Rendimiento Mensual.
+// Comunidad Dropi — Pulso mensual de la comunidad.
 //
 // Pure analytics layer (no Prisma) so it stays unit-testable. Callers prepare
-// the monthly slice for each Miembro Dropi and pass plain shapes in. The
-// resulting `Radar` is consumed by the CEO/operativa pages: KPIs, ranking,
-// segmentación automática y top miembros por segmento.
+// the monthly slice for each Miembro Dropi and pass plain shapes in. El
+// resultado alimenta el Pulso (semáforo global), KPIs, segmentación automática
+// y rankings.
 //
 // Reglas del producto:
 //   - Entregadas (ordersDelivered) es la métrica reina.
 //   - Ingresadas siempre se muestra como secundaria.
 //   - Se compara mes cerrado actual vs. mes cerrado anterior.
-//   - tasaEntrega = entregadas / ingresadas (no entregadas / movidas).
+//   - tasaEntrega = entregadas / ingresadas (visible como
+//     "Conversión entrega/ingresadas"). Se conserva el campo `deliveryRate`
+//     para no romper consumidores ni tests existentes.
+//   - tasaEntregaOperativa = entregadas / movidas (campo nuevo
+//     `deliveryRateOperational`).
 //   - tasaDevolucion = devoluciones / ingresadas.
 //   - "Miembro Dropi", nunca "estudiante" — no fusionar con Operaciones.
 
@@ -43,6 +47,41 @@ export const RADAR_SEGMENT_COLORS: Record<RadarSegment, { bg: string; text: stri
   RECOVERED: { bg: "#E0E7FF", text: "#3730A3" },
   INACTIVE: { bg: "#FEF3C7", text: "#92400E" },
   NEW: { bg: "#E0F2FE", text: "#075985" },
+};
+
+// Acción humana sugerida por segmento — se muestra junto a cada miembro en el
+// Pulso y en seguimientos para que la pantalla sea accionable, no solo
+// descriptiva.
+export const RADAR_SUGGESTED_ACTIONS: Record<RadarSegment, string> = {
+  STAR: "Felicitar y pedir testimonio · documentar caso de éxito",
+  GROWING: "Dar amor: felicitar el avance y mantener el ritmo",
+  DROPPING:
+    "Llamada diagnóstico · revisar producto/proveedor/logística · revisar pauta/oferta · asignar asesor",
+  STABLE: "Mantener seguimiento ligero · buscar oportunidad de upsell",
+  HIGH_RETURN:
+    "Revisar productos, mensajería, proveedor y logística antes de subir volumen",
+  RECOVERED: "Reconocer · entrevistar para entender qué cambió",
+  INACTIVE: "Llamada de reactivación · asignar asesor · revisar oferta",
+  NEW: "Onboarding cercano · acompañar primeras ventas",
+};
+
+export type RadarPulseState = "GROWING" | "STABLE" | "ALERT" | "DECLINING";
+
+export const RADAR_PULSE_LABELS: Record<RadarPulseState, string> = {
+  GROWING: "Creciendo",
+  STABLE: "Estable",
+  ALERT: "En alerta",
+  DECLINING: "A la baja",
+};
+
+export const RADAR_PULSE_COLORS: Record<
+  RadarPulseState,
+  { bg: string; text: string; dot: string }
+> = {
+  GROWING: { bg: "#DCFCE7", text: "#166534", dot: "#15803D" },
+  STABLE: { bg: "#F1F5F9", text: "#475569", dot: "#94A3B8" },
+  ALERT: { bg: "#FEF3C7", text: "#92400E", dot: "#D97706" },
+  DECLINING: { bg: "#FEE2E2", text: "#991B1B", dot: "#B91C1C" },
 };
 
 export interface RadarOrderTotals {
@@ -83,7 +122,13 @@ export interface RadarKpis {
   entered: RadarKpi;
   moved: RadarKpi;
   returned: RadarKpi;
+  // Conversión entrega/ingresadas. Nombre conservado para no romper consumidores
+  // ni los tests existentes; en UI se muestra como "Conversión entrega/ingresadas".
   deliveryRate: RadarRateKpi;
+  // Tasa de entrega operativa = entregadas / movidas. Útil para separar el
+  // problema de conversión (ingresadas → entregadas) del problema operativo
+  // (movidas → entregadas, que aísla logística/proveedor).
+  deliveryRateOperational: RadarRateKpi;
   returnRate: RadarRateKpi;
   activeMembers: { current: number; previous: number | null };
   totalMembers: number;
@@ -102,6 +147,7 @@ export interface RadarMember {
   current: RadarOrderTotals;
   previous: RadarOrderTotals | null;
   deliveryRate: number;
+  deliveryRateOperational: number;
   returnRate: number;
   deliveredDelta: number | null;
   deliveredDeltaPct: number | null;
@@ -110,6 +156,9 @@ export interface RadarMember {
   starScore: number;
   segment: RadarSegment;
   reason: string;
+  // Acción humana sugerida derivada del segmento: lo que la operación debería
+  // hacer con este miembro este mes (felicitar/llamar/reactivar/etc).
+  suggestedAction: string;
 }
 
 export interface RadarSegmentBucket {
@@ -125,10 +174,41 @@ export interface RadarMonthRef {
   month: number;
 }
 
+// Pulso global: respuesta de 5 segundos sobre cómo va la comunidad este mes.
+//
+// El estado se deriva de las señales globales (entregadas, ingresadas, tasa
+// entrega, tasa devolución) y los conteos de segmentos (creciendo, decreciendo,
+// inactivos, devoluciones altas). `headline` es la razón humana corta para
+// poner arriba; `signals` son las viñetas justificándolo.
+export interface RadarPulse {
+  state: RadarPulseState;
+  label: string;
+  headline: string;
+  signals: string[];
+}
+
+// Bloque de calidad de datos: separa "miembros sin historial" o "sin cruce
+// GHL ↔ Dropi" del problema de bajo rendimiento. Cifras aproximadas calculadas
+// con los campos disponibles; el copy del UI debe etiquetarlas como tales.
+export interface RadarQualitySummary {
+  totalMembers: number;
+  // Miembros sin mes previo en el set actual. Aproximación de "Sin historial":
+  // no aparecieron en el cierre anterior (puede ser miembro nuevo o sin cruce).
+  membersWithoutHistory: number;
+  // Aproximación a "sin cruce GHL ↔ Dropi": miembros Dropi sin linkedStudentId
+  // (el linked student es el match con un Student/contacto del CRM).
+  membersWithoutLinkedStudent: number;
+  // Miembros con cero actividad este mes (no necesariamente bajo rendimiento;
+  // puede ser falta de reporte o miembro inactivo en plataforma).
+  membersInactiveThisMonth: number;
+}
+
 export interface Radar {
   current: RadarMonthRef;
   previous: RadarMonthRef | null;
   kpis: RadarKpis;
+  pulse: RadarPulse;
+  quality: RadarQualitySummary;
   members: RadarMember[];
   segmentBuckets: RadarSegmentBucket[];
 }
@@ -420,6 +500,11 @@ export function buildRadar(input: RadarBuildInput): Radar {
       starScore,
     });
 
+    const deliveryRateOperational = safePct(
+      m.current.ordersDelivered,
+      m.current.ordersMoved,
+    );
+
     return {
       id: m.id,
       fullName: m.fullName ?? null,
@@ -433,6 +518,7 @@ export function buildRadar(input: RadarBuildInput): Radar {
       current: m.current,
       previous: m.previous,
       deliveryRate: s.deliveryRate,
+      deliveryRateOperational,
       returnRate: s.returnRate,
       deliveredDelta: s.deliveredDelta,
       deliveredDeltaPct: s.deliveredDeltaPct,
@@ -441,6 +527,7 @@ export function buildRadar(input: RadarBuildInput): Radar {
       starScore,
       segment,
       reason,
+      suggestedAction: RADAR_SUGGESTED_ACTIONS[segment],
     };
   });
 
@@ -449,6 +536,7 @@ export function buildRadar(input: RadarBuildInput): Radar {
   const curMoved = sum(members.map((m) => m.current.ordersMoved));
   const curDelivered = sum(members.map((m) => m.current.ordersDelivered));
   const curReturned = sum(members.map((m) => m.current.ordersReturned));
+  const curInactive = members.filter((m) => !hasActivity(m.current)).length;
 
   const hasPrev = members.some((m) => m.previous != null);
   let prevEntered: number | null = null;
@@ -474,6 +562,10 @@ export function buildRadar(input: RadarBuildInput): Radar {
     deliveryRate: {
       current: safePct(curDelivered, curEntered),
       previous: hasPrev ? safePct(prevDelivered ?? 0, prevEntered ?? 0) : null,
+    },
+    deliveryRateOperational: {
+      current: safePct(curDelivered, curMoved),
+      previous: hasPrev ? safePct(prevDelivered ?? 0, prevMoved ?? 0) : null,
     },
     returnRate: {
       current: safePct(curReturned, curEntered),
@@ -508,12 +600,247 @@ export function buildRadar(input: RadarBuildInput): Radar {
     })
     .sort((a, b) => b.memberCount - a.memberCount);
 
+  const segmentCounts = countSegments(enriched);
+  const pulse = computePulse({
+    kpis,
+    segmentCounts,
+    hasPrev,
+  });
+  const quality = computeQualitySummary(members, curInactive);
+
   return {
     current: input.current,
     previous: input.previous,
     kpis,
+    pulse,
+    quality,
     members: enriched,
     segmentBuckets,
+  };
+}
+
+export interface RadarSegmentCounts {
+  growing: number;
+  dropping: number;
+  star: number;
+  highReturn: number;
+  inactive: number;
+  recovered: number;
+  newSeller: number;
+  stable: number;
+}
+
+function countSegments(members: readonly RadarMember[]): RadarSegmentCounts {
+  const counts: RadarSegmentCounts = {
+    growing: 0,
+    dropping: 0,
+    star: 0,
+    highReturn: 0,
+    inactive: 0,
+    recovered: 0,
+    newSeller: 0,
+    stable: 0,
+  };
+  for (const m of members) {
+    switch (m.segment) {
+      case "GROWING":
+        counts.growing++;
+        break;
+      case "DROPPING":
+        counts.dropping++;
+        break;
+      case "STAR":
+        counts.star++;
+        break;
+      case "HIGH_RETURN":
+        counts.highReturn++;
+        break;
+      case "INACTIVE":
+        counts.inactive++;
+        break;
+      case "RECOVERED":
+        counts.recovered++;
+        break;
+      case "NEW":
+        counts.newSeller++;
+        break;
+      case "STABLE":
+        counts.stable++;
+        break;
+    }
+  }
+  return counts;
+}
+
+// Umbrales del pulso global. 5% es ruido aceptable; abajo de eso se considera
+// estable. Tasas en puntos porcentuales: ±3 pts es la banda donde un cambio en
+// la tasa de entrega o de devolución empieza a ser material.
+const PULSE_GROW_THRESHOLD = 5;
+const PULSE_DROP_THRESHOLD = -5;
+const PULSE_RATE_DELTA_THRESHOLD = 3;
+
+export function computePulse(input: {
+  kpis: RadarKpis;
+  segmentCounts: RadarSegmentCounts;
+  hasPrev: boolean;
+}): RadarPulse {
+  const { kpis, segmentCounts, hasPrev } = input;
+  const deliveredPct = kpis.delivered.deltaPct;
+  const enteredPct = kpis.entered.deltaPct;
+  const deliveryRateDelta =
+    kpis.deliveryRate.previous == null
+      ? null
+      : round2(kpis.deliveryRate.current - kpis.deliveryRate.previous);
+  const returnRateDelta =
+    kpis.returnRate.previous == null
+      ? null
+      : round2(kpis.returnRate.current - kpis.returnRate.previous);
+
+  const signals: string[] = [];
+  if (kpis.delivered.current > 0 || hasPrev) {
+    if (deliveredPct != null) {
+      const arrow = deliveredPct >= 0 ? "▲" : "▼";
+      signals.push(
+        `Entregadas: ${kpis.delivered.current.toLocaleString("es-CO")} (${arrow} ${Math.abs(deliveredPct)}% vs. mes anterior)`,
+      );
+    } else {
+      signals.push(
+        `Entregadas: ${kpis.delivered.current.toLocaleString("es-CO")}`,
+      );
+    }
+  }
+  if (enteredPct != null) {
+    const arrow = enteredPct >= 0 ? "▲" : "▼";
+    signals.push(
+      `Ingresadas: ${kpis.entered.current.toLocaleString("es-CO")} (${arrow} ${Math.abs(enteredPct)}% vs. mes anterior)`,
+    );
+  }
+  if (deliveryRateDelta != null) {
+    const arrow = deliveryRateDelta >= 0 ? "▲" : "▼";
+    signals.push(
+      `Conversión entrega/ingresadas: ${kpis.deliveryRate.current}% (${arrow} ${Math.abs(deliveryRateDelta).toFixed(2)} pts)`,
+    );
+  } else {
+    signals.push(
+      `Conversión entrega/ingresadas: ${kpis.deliveryRate.current}%`,
+    );
+  }
+  if (returnRateDelta != null) {
+    const arrow = returnRateDelta >= 0 ? "▲" : "▼";
+    signals.push(
+      `Devoluciones: ${kpis.returnRate.current}% (${arrow} ${Math.abs(returnRateDelta).toFixed(2)} pts)`,
+    );
+  }
+  signals.push(
+    `Miembros: ${segmentCounts.growing} creciendo · ${segmentCounts.dropping} decreciendo · ${segmentCounts.highReturn} con devoluciones altas · ${segmentCounts.inactive} sin actividad`,
+  );
+
+  if (!hasPrev || (deliveredPct == null && enteredPct == null)) {
+    return {
+      state: "STABLE",
+      label: RADAR_PULSE_LABELS.STABLE,
+      headline:
+        "Primera ventana cerrada: aún no hay mes previo para comparar el pulso.",
+      signals,
+    };
+  }
+
+  const dPct = deliveredPct ?? 0;
+  const ePct = enteredPct ?? 0;
+
+  if (dPct >= PULSE_GROW_THRESHOLD && ePct >= PULSE_GROW_THRESHOLD) {
+    return {
+      state: "GROWING",
+      label: RADAR_PULSE_LABELS.GROWING,
+      headline: `Creciendo: entregadas suben ${dPct}% e ingresadas suben ${ePct}% vs. mes anterior.`,
+      signals,
+    };
+  }
+
+  if (dPct <= PULSE_DROP_THRESHOLD && ePct <= PULSE_DROP_THRESHOLD) {
+    return {
+      state: "DECLINING",
+      label: RADAR_PULSE_LABELS.DECLINING,
+      headline: `A la baja: entregadas caen ${Math.abs(dPct)}% e ingresadas caen ${Math.abs(ePct)}% vs. mes anterior.`,
+      signals,
+    };
+  }
+
+  if (ePct >= PULSE_GROW_THRESHOLD && dPct < 0) {
+    return {
+      state: "ALERT",
+      label: RADAR_PULSE_LABELS.ALERT,
+      headline: `En alerta de conversión: ingresadas suben ${ePct}% pero entregadas caen ${Math.abs(dPct)}%. Revisar calidad de pedidos y entrega.`,
+      signals,
+    };
+  }
+
+  if (dPct <= PULSE_DROP_THRESHOLD) {
+    return {
+      state: "DECLINING",
+      label: RADAR_PULSE_LABELS.DECLINING,
+      headline: `A la baja: entregadas caen ${Math.abs(dPct)}% vs. mes anterior (entregadas es la métrica reina).`,
+      signals,
+    };
+  }
+
+  if (
+    returnRateDelta != null &&
+    returnRateDelta >= PULSE_RATE_DELTA_THRESHOLD
+  ) {
+    return {
+      state: "ALERT",
+      label: RADAR_PULSE_LABELS.ALERT,
+      headline: `En alerta de devoluciones: la tasa de devolución sube ${returnRateDelta.toFixed(2)} pts vs. mes anterior.`,
+      signals,
+    };
+  }
+
+  if (
+    deliveryRateDelta != null &&
+    deliveryRateDelta <= -PULSE_RATE_DELTA_THRESHOLD
+  ) {
+    return {
+      state: "ALERT",
+      label: RADAR_PULSE_LABELS.ALERT,
+      headline: `En alerta de conversión: la tasa de entrega cae ${Math.abs(deliveryRateDelta).toFixed(2)} pts vs. mes anterior.`,
+      signals,
+    };
+  }
+
+  if (dPct >= PULSE_GROW_THRESHOLD) {
+    return {
+      state: "GROWING",
+      label: RADAR_PULSE_LABELS.GROWING,
+      headline: `Creciendo: entregadas suben ${dPct}% vs. mes anterior.`,
+      signals,
+    };
+  }
+
+  return {
+    state: "STABLE",
+    label: RADAR_PULSE_LABELS.STABLE,
+    headline:
+      "Mes estable: entregadas e ingresadas se mueven dentro de la banda esperada vs. mes anterior.",
+    signals,
+  };
+}
+
+function computeQualitySummary(
+  members: readonly RadarMemberInput[],
+  inactiveCount: number,
+): RadarQualitySummary {
+  let noHistory = 0;
+  let noLinked = 0;
+  for (const m of members) {
+    if (m.previous == null) noHistory++;
+    if (m.linkedStudentId == null) noLinked++;
+  }
+  return {
+    totalMembers: members.length,
+    membersWithoutHistory: noHistory,
+    membersWithoutLinkedStudent: noLinked,
+    membersInactiveThisMonth: inactiveCount,
   };
 }
 

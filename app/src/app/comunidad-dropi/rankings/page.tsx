@@ -39,6 +39,18 @@ function isSegment(value: string): value is RadarSegment {
   return Object.keys(RADAR_SEGMENT_LABELS).includes(value);
 }
 
+function parsePeriod(value: string | undefined): {
+  year?: number;
+  month?: number;
+} {
+  if (!value) return {};
+  const [y, m] = value.split("-");
+  const year = Number.parseInt(y ?? "", 10);
+  const month = Number.parseInt(m ?? "", 10);
+  if (Number.isFinite(year) && Number.isFinite(month)) return { year, month };
+  return {};
+}
+
 export default async function RankingsPage({
   searchParams,
 }: {
@@ -51,8 +63,10 @@ export default async function RankingsPage({
   const segmentFilter =
     sp.segment && isSegment(sp.segment) ? (sp.segment as RadarSegment) : null;
   const countryFilter = sp.country?.trim() || null;
+  const period = sp.period ?? null;
+  const { year, month } = parsePeriod(period ?? undefined);
 
-  const { radar } = await loadRadar();
+  const { radar } = await loadRadar({ year, month });
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -66,6 +80,7 @@ export default async function RankingsPage({
           sort={sort}
           segmentFilter={segmentFilter}
           countryFilter={countryFilter}
+          period={period}
         />
       )}
     </div>
@@ -107,11 +122,13 @@ function Body({
   sort,
   segmentFilter,
   countryFilter,
+  period,
 }: {
   radar: NonNullable<Awaited<ReturnType<typeof loadRadar>>["radar"]>;
   sort: RadarRankingCriterion;
   segmentFilter: RadarSegment | null;
   countryFilter: string | null;
+  period: string | null;
 }) {
   let pool: RadarMember[] = radar.members;
   if (segmentFilter) pool = pool.filter((m) => m.segment === segmentFilter);
@@ -159,7 +176,7 @@ function Body({
         {RADAR_RANKING_CRITERIA.map((c) => (
           <Link
             key={c}
-            href={buildHref({ sort: c, segmentFilter, countryFilter })}
+            href={buildHref({ sort: c, segmentFilter, countryFilter, period })}
             style={pillStyle(c === sort)}
           >
             {RADAR_RANKING_LABELS[c]}
@@ -177,6 +194,9 @@ function Body({
         }}
       >
         <input type="hidden" name="sort" value={sort} />
+        {period ? (
+          <input type="hidden" name="period" value={period} />
+        ) : null}
         <select
           name="segment"
           defaultValue={segmentFilter ?? ""}
@@ -212,6 +232,7 @@ function Body({
               sort,
               segmentFilter: null,
               countryFilter: null,
+              period,
             })}
             style={ghostLinkStyle()}
           >
@@ -233,11 +254,13 @@ function buildHref(params: {
   sort: RadarRankingCriterion;
   segmentFilter: RadarSegment | null;
   countryFilter: string | null;
+  period: string | null;
 }): string {
   const search = new URLSearchParams();
   if (params.sort !== "STAR_SCORE") search.set("sort", params.sort);
   if (params.segmentFilter) search.set("segment", params.segmentFilter);
   if (params.countryFilter) search.set("country", params.countryFilter);
+  if (params.period) search.set("period", params.period);
   const qs = search.toString();
   return `/comunidad-dropi/rankings${qs ? `?${qs}` : ""}`;
 }

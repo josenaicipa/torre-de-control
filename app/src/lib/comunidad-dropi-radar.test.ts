@@ -4,6 +4,7 @@ import {
   computeStarScore,
   rankRadarMembers,
   RADAR_RANKING_CRITERIA,
+  RADAR_SUGGESTED_ACTIONS,
   type RadarMemberInput,
   type RadarRankingCriterion,
 } from "./comunidad-dropi-radar";
@@ -671,5 +672,385 @@ describe("buildRadar — uses ingresadas/devoluciones safely", () => {
     const z = radar.members.find((m) => m.id === "z")!;
     expect(z.deliveryRate).toBe(0);
     expect(z.returnRate).toBe(0);
+  });
+});
+
+describe("buildRadar — Pulso global (semáforo de comunidad)", () => {
+  it("GROWING cuando suben entregadas e ingresadas por encima del umbral", () => {
+    const members = [
+      makeMember({
+        id: "a",
+        current: {
+          ordersEntered: 150,
+          ordersMoved: 130,
+          ordersDelivered: 100,
+          ordersReturned: 2,
+        },
+        previous: {
+          ordersEntered: 100,
+          ordersMoved: 85,
+          ordersDelivered: 60,
+          ordersReturned: 1,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: PREVIOUS, members });
+    expect(radar.pulse.state).toBe("GROWING");
+    expect(radar.pulse.label).toBe("Creciendo");
+    expect(radar.pulse.headline.toLowerCase()).toContain("creciendo");
+  });
+
+  it("ALERT cuando ingresadas suben pero entregadas bajan (no acompañan)", () => {
+    const members = [
+      makeMember({
+        id: "a",
+        current: {
+          ordersEntered: 200,
+          ordersMoved: 150,
+          ordersDelivered: 55,
+          ordersReturned: 3,
+        },
+        previous: {
+          ordersEntered: 100,
+          ordersMoved: 80,
+          ordersDelivered: 60,
+          ordersReturned: 2,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: PREVIOUS, members });
+    expect(radar.pulse.state).toBe("ALERT");
+    expect(radar.pulse.label).toBe("En alerta");
+    expect(radar.pulse.headline.toLowerCase()).toContain("alerta");
+  });
+
+  it("DECLINING cuando bajan entregadas e ingresadas", () => {
+    const members = [
+      makeMember({
+        id: "a",
+        current: {
+          ordersEntered: 60,
+          ordersMoved: 45,
+          ordersDelivered: 30,
+          ordersReturned: 1,
+        },
+        previous: {
+          ordersEntered: 120,
+          ordersMoved: 100,
+          ordersDelivered: 80,
+          ordersReturned: 2,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: PREVIOUS, members });
+    expect(radar.pulse.state).toBe("DECLINING");
+    expect(radar.pulse.label).toBe("A la baja");
+    expect(radar.pulse.headline.toLowerCase()).toContain("baja");
+  });
+
+  it("STABLE cuando no hay mes previo para comparar", () => {
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: null,
+      members: [
+        makeMember({
+          id: "a",
+          current: {
+            ordersEntered: 50,
+            ordersMoved: 40,
+            ordersDelivered: 30,
+            ordersReturned: 1,
+          },
+        }),
+      ],
+    });
+    expect(radar.pulse.state).toBe("STABLE");
+  });
+});
+
+describe("buildRadar — tasa de entrega operativa vs. conversión", () => {
+  it("deliveryRateOperational = entregadas/movidas y deliveryRate = entregadas/ingresadas", () => {
+    const members = [
+      makeMember({
+        id: "a",
+        current: {
+          ordersEntered: 100,
+          ordersMoved: 80,
+          ordersDelivered: 60,
+          ordersReturned: 2,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: null, members });
+    const m = radar.members[0];
+    expect(m.deliveryRate).toBe(60);
+    expect(m.deliveryRateOperational).toBe(75);
+    expect(radar.kpis.deliveryRate.current).toBe(60);
+    expect(radar.kpis.deliveryRateOperational.current).toBe(75);
+  });
+
+  it("agrega deliveryRateOperational al nivel comunidad sumando entregadas y movidas", () => {
+    const members = [
+      makeMember({
+        id: "a",
+        current: {
+          ordersEntered: 100,
+          ordersMoved: 80,
+          ordersDelivered: 60,
+          ordersReturned: 1,
+        },
+      }),
+      makeMember({
+        id: "b",
+        current: {
+          ordersEntered: 50,
+          ordersMoved: 40,
+          ordersDelivered: 20,
+          ordersReturned: 0,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: null, members });
+    // entregadas=80, movidas=120 → 66.67% operativa
+    expect(radar.kpis.deliveryRateOperational.current).toBeCloseTo(66.67, 1);
+    // entregadas=80, ingresadas=150 → 53.33% conversión
+    expect(radar.kpis.deliveryRate.current).toBeCloseTo(53.33, 1);
+  });
+
+  it("deliveryRateOperational es 0 cuando movidas=0 (sin NaN ni Infinity)", () => {
+    const members = [
+      makeMember({
+        id: "a",
+        current: {
+          ordersEntered: 20,
+          ordersMoved: 0,
+          ordersDelivered: 0,
+          ordersReturned: 0,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: null, members });
+    expect(radar.members[0].deliveryRateOperational).toBe(0);
+    expect(radar.kpis.deliveryRateOperational.current).toBe(0);
+  });
+});
+
+describe("buildRadar — bloque de calidad de datos", () => {
+  it("membersWithoutHistory cuenta miembros sin mes previo, no los mezcla con bajo rendimiento", () => {
+    const members = [
+      makeMember({
+        id: "new-and-strong",
+        linkedStudentId: "s1",
+        current: {
+          ordersEntered: 80,
+          ordersMoved: 70,
+          ordersDelivered: 50,
+          ordersReturned: 1,
+        },
+        previous: null,
+      }),
+      makeMember({
+        id: "dropping",
+        linkedStudentId: "s2",
+        current: {
+          ordersEntered: 10,
+          ordersMoved: 8,
+          ordersDelivered: 5,
+          ordersReturned: 1,
+        },
+        previous: {
+          ordersEntered: 60,
+          ordersMoved: 50,
+          ordersDelivered: 40,
+          ordersReturned: 2,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: PREVIOUS, members });
+    expect(radar.quality.totalMembers).toBe(2);
+    expect(radar.quality.membersWithoutHistory).toBe(1);
+
+    // "Sin historial" no se mezcla con bajo rendimiento: el miembro nuevo
+    // queda en NEW (no DROPPING) y el dropping aparece en su propio segmento.
+    const newMember = radar.members.find((m) => m.id === "new-and-strong")!;
+    expect(newMember.segment).toBe("NEW");
+    const dropping = radar.members.find((m) => m.id === "dropping")!;
+    expect(dropping.segment).toBe("DROPPING");
+  });
+
+  it("membersWithoutLinkedStudent cuenta miembros sin cruce GHL, no los mezcla con bajo rendimiento", () => {
+    const members = [
+      makeMember({
+        id: "linked-strong",
+        linkedStudentId: "s1",
+        current: {
+          ordersEntered: 80,
+          ordersMoved: 70,
+          ordersDelivered: 50,
+          ordersReturned: 1,
+        },
+        previous: {
+          ordersEntered: 40,
+          ordersMoved: 35,
+          ordersDelivered: 25,
+          ordersReturned: 1,
+        },
+      }),
+      makeMember({
+        id: "no-linked-strong",
+        linkedStudentId: null,
+        current: {
+          ordersEntered: 100,
+          ordersMoved: 90,
+          ordersDelivered: 70,
+          ordersReturned: 1,
+        },
+        previous: {
+          ordersEntered: 50,
+          ordersMoved: 45,
+          ordersDelivered: 35,
+          ordersReturned: 1,
+        },
+      }),
+      makeMember({
+        id: "no-linked-dropping",
+        linkedStudentId: null,
+        current: {
+          ordersEntered: 5,
+          ordersMoved: 4,
+          ordersDelivered: 3,
+          ordersReturned: 0,
+        },
+        previous: {
+          ordersEntered: 30,
+          ordersMoved: 25,
+          ordersDelivered: 20,
+          ordersReturned: 1,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: PREVIOUS, members });
+    expect(radar.quality.totalMembers).toBe(3);
+    expect(radar.quality.membersWithoutLinkedStudent).toBe(2);
+
+    // "Sin cruce GHL ↔ Dropi" no implica bajo rendimiento: uno de los sin
+    // cruce es de hecho fuerte (GROWING/STAR), separado del que sí decrece.
+    const strong = radar.members.find((m) => m.id === "no-linked-strong")!;
+    expect(strong.segment).not.toBe("DROPPING");
+    expect(strong.segment).not.toBe("HIGH_RETURN");
+  });
+
+  it("membersInactiveThisMonth solo cuenta miembros sin actividad este mes", () => {
+    const members = [
+      makeMember({
+        id: "active",
+        current: {
+          ordersEntered: 10,
+          ordersMoved: 8,
+          ordersDelivered: 5,
+          ordersReturned: 0,
+        },
+      }),
+      makeMember({
+        id: "idle",
+        current: {
+          ordersEntered: 0,
+          ordersMoved: 0,
+          ordersDelivered: 0,
+          ordersReturned: 0,
+        },
+        previous: {
+          ordersEntered: 30,
+          ordersMoved: 25,
+          ordersDelivered: 20,
+          ordersReturned: 1,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: PREVIOUS, members });
+    expect(radar.quality.membersInactiveThisMonth).toBe(1);
+  });
+});
+
+describe("buildRadar — suggestedAction por segmento", () => {
+  it("expone la acción humana sugerida para GROWING/DROPPING/STAR/HIGH_RETURN", () => {
+    const members = [
+      makeMember({
+        id: "star",
+        current: {
+          ordersEntered: 200,
+          ordersMoved: 180,
+          ordersDelivered: 150,
+          ordersReturned: 2,
+        },
+        previous: {
+          ordersEntered: 100,
+          ordersMoved: 90,
+          ordersDelivered: 70,
+          ordersReturned: 1,
+        },
+      }),
+      makeMember({
+        id: "growing",
+        current: {
+          ordersEntered: 60,
+          ordersMoved: 50,
+          ordersDelivered: 40,
+          ordersReturned: 1,
+        },
+        previous: {
+          ordersEntered: 40,
+          ordersMoved: 30,
+          ordersDelivered: 20,
+          ordersReturned: 1,
+        },
+      }),
+      makeMember({
+        id: "dropping",
+        current: {
+          ordersEntered: 15,
+          ordersMoved: 12,
+          ordersDelivered: 8,
+          ordersReturned: 1,
+        },
+        previous: {
+          ordersEntered: 50,
+          ordersMoved: 40,
+          ordersDelivered: 30,
+          ordersReturned: 2,
+        },
+      }),
+      makeMember({
+        id: "highReturn",
+        current: {
+          ordersEntered: 120,
+          ordersMoved: 100,
+          ordersDelivered: 80,
+          ordersReturned: 40,
+        },
+        previous: {
+          ordersEntered: 80,
+          ordersMoved: 70,
+          ordersDelivered: 60,
+          ordersReturned: 20,
+        },
+      }),
+    ];
+    const radar = buildRadar({ current: CURRENT, previous: PREVIOUS, members });
+    const star = radar.members.find((m) => m.id === "star")!;
+    const growing = radar.members.find((m) => m.id === "growing")!;
+    const dropping = radar.members.find((m) => m.id === "dropping")!;
+    const highReturn = radar.members.find((m) => m.id === "highReturn")!;
+
+    expect(star.segment).toBe("STAR");
+    expect(star.suggestedAction).toBe(RADAR_SUGGESTED_ACTIONS.STAR);
+    expect(growing.segment).toBe("GROWING");
+    expect(growing.suggestedAction).toBe(RADAR_SUGGESTED_ACTIONS.GROWING);
+    expect(dropping.segment).toBe("DROPPING");
+    expect(dropping.suggestedAction).toBe(RADAR_SUGGESTED_ACTIONS.DROPPING);
+    expect(highReturn.segment).toBe("HIGH_RETURN");
+    expect(highReturn.suggestedAction).toBe(
+      RADAR_SUGGESTED_ACTIONS.HIGH_RETURN,
+    );
   });
 });

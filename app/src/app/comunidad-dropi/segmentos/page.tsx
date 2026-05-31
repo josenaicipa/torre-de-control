@@ -30,10 +30,37 @@ const SEGMENT_DESCRIPTIONS: Record<string, string> = {
   NEW: "Primera ventana con actividad. Onboarding y seguimiento cercano.",
 };
 
-export default async function SegmentosPage() {
+type RawSearchParams = Record<string, string | string[] | undefined>;
+
+function flatten(sp: RawSearchParams): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(sp)) out[k] = Array.isArray(v) ? v[0] : v;
+  return out;
+}
+
+function parsePeriod(value: string | undefined): {
+  year?: number;
+  month?: number;
+} {
+  if (!value) return {};
+  const [y, m] = value.split("-");
+  const year = Number.parseInt(y ?? "", 10);
+  const month = Number.parseInt(m ?? "", 10);
+  if (Number.isFinite(year) && Number.isFinite(month)) return { year, month };
+  return {};
+}
+
+export default async function SegmentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<RawSearchParams>;
+}) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  const { radar } = await loadRadar();
+  const sp = flatten(await searchParams);
+  const period = sp.period ?? null;
+  const { year, month } = parsePeriod(period ?? undefined);
+  const { radar } = await loadRadar({ year, month });
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -46,6 +73,7 @@ export default async function SegmentosPage() {
           buckets={radar.segmentBuckets}
           totalMembers={radar.kpis.totalMembers}
           monthLabel={formatMonthRef(radar.current)}
+          period={period}
         />
       )}
     </div>
@@ -85,10 +113,12 @@ function Body({
   buckets,
   totalMembers,
   monthLabel,
+  period,
 }: {
   buckets: RadarSegmentBucket[];
   totalMembers: number;
   monthLabel: string;
+  period: string | null;
 }) {
   if (buckets.length === 0) {
     return <EmptyText text="Aún no se calculan segmentos para este mes." />;
@@ -137,14 +167,23 @@ function Body({
         }}
       >
         {buckets.map((b) => (
-          <SegmentCard key={b.segment} bucket={b} />
+          <SegmentCard key={b.segment} bucket={b} period={period} />
         ))}
       </div>
     </>
   );
 }
 
-function SegmentCard({ bucket }: { bucket: RadarSegmentBucket }) {
+function SegmentCard({
+  bucket,
+  period,
+}: {
+  bucket: RadarSegmentBucket;
+  period: string | null;
+}) {
+  const rankingsHref = period
+    ? `/comunidad-dropi/rankings?segment=${bucket.segment}&period=${period}`
+    : `/comunidad-dropi/rankings?segment=${bucket.segment}`;
   const colors = RADAR_SEGMENT_COLORS[bucket.segment];
   const description =
     SEGMENT_DESCRIPTIONS[bucket.segment] ?? "Sin descripción.";
@@ -269,7 +308,7 @@ function SegmentCard({ bucket }: { bucket: RadarSegmentBucket }) {
       )}
 
       <Link
-        href={`/comunidad-dropi/rankings?segment=${bucket.segment}`}
+        href={rankingsHref}
         style={{
           alignSelf: "flex-start",
           color: COLORS.brand,
