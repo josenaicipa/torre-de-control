@@ -1388,16 +1388,16 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
       {(totalAgendas>0||totalCal>0||totalShow>0)&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
           <Stat label="Total Agendas" value={fN(totalAgendas)} color={C.blue}/>
-          <Stat label="Cualificadas" value={fN(totalCal)} color={C.purple}/>
+          <Stat label="Calificadas" value={fN(totalCal)} color={C.purple}/>
           <Stat label="Hoy (en agenda)" value={fN(totalHoy)} color={C.teal}/>
           <Stat label="Show Ups" value={fN(totalShow)} color={C.green}/>
           <Stat label="Show Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
-          <Stat label="% Cualif." value={fP(calRate)} color={cH(calRate,50,30)}/>
+          <Stat label="% Calif." value={fP(calRate)} color={cH(calRate,50,30)}/>
         </div>
       )}
 
       <CanalGrid prefix="agendas" label="Agendas"/>
-      <CanalGrid prefix="cal" label="Cualificadas"/>
+      <CanalGrid prefix="cal" label="Calificadas"/>
       <CanalGrid prefix="hoy" label="Agendas Hoy"/>
       <CanalGrid prefix="show" label="Show Ups"/>
 
@@ -1500,10 +1500,10 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"Google",fn:d=>d.closer.agendas_google||null,fmt:"n",sub:true},
       {l:"TikTok",fn:d=>d.closer.agendas_tiktok||null,fmt:"n",sub:true},
       {l:"Otros",fn:d=>d.closer.agendas_otros||null,fmt:"n",sub:true},
-      {l:"Cualificadas Total",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
-      {l:"% Cualificadas",fn:d=>{const t=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return t>0?pv(d.closer.agendas_calificadas||0,t):null;},fmt:"%",
-        totFn:()=>mAgTotal>0?pv(mCalTotal,mAgTotal):null},
       {l:"Hoy (en agenda)",fn:d=>d.closer.agendas_final||null,fmt:"n"},
+      {l:"Calificadas Total",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
+      {l:"% Calificadas",fn:d=>{const t=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return t>0?pv(d.closer.agendas_calificadas||0,t):null;},fmt:"%",
+        totFn:()=>mAgTotal>0?pv(mCalTotal,mAgTotal):null},
       {l:"Show Ups",fn:d=>d.closer.citas_asistidas||null,fmt:"n"},
       {l:"% Show Up Rate",fn:d=>{const h=d.closer.agendas_final||0,s=d.closer.citas_asistidas||0;return h>0?pv(s,h):null;},fmt:"%",
         totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mShows,mHoy):null;}},
@@ -1519,15 +1519,15 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
         totFn:()=>mAgTikTok>0?mGastoTikTok/mAgTikTok:null},
       {l:"CPL Otros",fn:d=>d.closer.agendas_otros>0?d.sd("gastoOtros")/d.closer.agendas_otros:null,fmt:"$",sub:true,
         totFn:()=>mAgOtros>0?mGastoOtros/mAgOtros:null},
-      {l:"CP Cualificada",fn:d=>{const cal=d.closer.agendas_calificadas||0;return cal>0?d.totalGastoDay/cal:null;},fmt:"$",
+      {l:"CP Calificada",fn:d=>{const cal=d.closer.agendas_calificadas||0;return cal>0?d.totalGastoDay/cal:null;},fmt:"$",
         totFn:()=>mCalTotal>0?mGastoTotal/mCalTotal:null},
-      {l:"CP Cualif. Meta",fn:d=>d.closer.cal_meta>0?d.sd("gastoMeta")/d.closer.cal_meta:null,fmt:"$",sub:true,
+      {l:"CP Calif. Meta",fn:d=>d.closer.cal_meta>0?d.sd("gastoMeta")/d.closer.cal_meta:null,fmt:"$",sub:true,
         totFn:()=>mCalMeta>0?mGastoMeta/mCalMeta:null},
-      {l:"CP Cualif. Google",fn:d=>d.closer.cal_google>0?d.sd("gastoGoogle")/d.closer.cal_google:null,fmt:"$",sub:true,
+      {l:"CP Calif. Google",fn:d=>d.closer.cal_google>0?d.sd("gastoGoogle")/d.closer.cal_google:null,fmt:"$",sub:true,
         totFn:()=>mCalGoogle>0?mGastoGoogle/mCalGoogle:null},
-      {l:"CP Cualif. TikTok",fn:d=>d.closer.cal_tiktok>0?d.sd("gastoTikTok")/d.closer.cal_tiktok:null,fmt:"$",sub:true,
+      {l:"CP Calif. TikTok",fn:d=>d.closer.cal_tiktok>0?d.sd("gastoTikTok")/d.closer.cal_tiktok:null,fmt:"$",sub:true,
         totFn:()=>mCalTikTok>0?mGastoTikTok/mCalTikTok:null},
-      {l:"CP Cualif. Otros",fn:d=>d.closer.cal_otros>0?d.sd("gastoOtros")/d.closer.cal_otros:null,fmt:"$",sub:true,
+      {l:"CP Calif. Otros",fn:d=>d.closer.cal_otros>0?d.sd("gastoOtros")/d.closer.cal_otros:null,fmt:"$",sub:true,
         totFn:()=>mCalOtros>0?mGastoOtros/mCalOtros:null},
     ]},
     {title:"Ventas — Area Comercial",bg:"#c2410c",rows:[
@@ -1935,7 +1935,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
   const totalCal=sumCloser("calificadas");
   const COSTS_ROWS=[
     {l:"CPL (Costo / Agenda)",v:totalAgendas>0?monthAdSpend.total/totalAgendas:null,fmt:"$"},
-    {l:"CP Cualificada",v:totalCal>0?monthAdSpend.total/totalCal:null,fmt:"$"},
+    {l:"CP Calificada",v:totalCal>0?monthAdSpend.total/totalCal:null,fmt:"$"},
   ];
 
   return(

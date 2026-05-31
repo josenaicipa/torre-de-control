@@ -138,9 +138,9 @@ describe("manual collaborator labels", () => {
     );
 
     expect(agendasBlock).toMatch(
-      /l:"Agendas Total"[\s\S]*l:"Agendas Hoy"[\s\S]*l:"Calificadas"[\s\S]*l:"% Calificadas"[\s\S]*l:"Show Ups"[\s\S]*l:"% Show Up Rate"/
+      /l:"Agendas Total"[\s\S]*l:"Orgánicas"[\s\S]*l:"Meta"[\s\S]*l:"Google"[\s\S]*l:"TikTok"[\s\S]*l:"Otros"[\s\S]*l:"Hoy \(en agenda\)"[\s\S]*l:"Calificadas Total"[\s\S]*l:"% Calificadas"[\s\S]*l:"Show Ups"[\s\S]*l:"% Show Up Rate"/
     );
-    expect(agendasBlock).not.toContain('l:"Hoy (en agenda)"');
+    expect(agendasBlock).not.toContain('l:"Agendas Hoy"');
     expect(agendasBlock).not.toContain('l:"Cualificadas Total"');
     expect(agendasBlock).not.toContain('l:"Cualificadas');
     expect(agendasBlock).not.toContain('l:"Calificadas hoy"');
