@@ -3,6 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { getActor } from "@/lib/actor";
 import { prisma } from "@/lib/prisma";
 import {
+  buildMemberDiagnostic,
+  type MemberDiagnostic,
+} from "@/lib/comunidad-dropi-analytics";
+import {
   COLORS,
   FOLLOW_UP_REASON_LABELS,
   FOLLOW_UP_STATUS_LABELS,
@@ -46,6 +50,39 @@ export default async function MiembroDetailPage({
   });
 
   if (!member) notFound();
+
+  const diagnostic = buildMemberDiagnostic({
+    member: {
+      id: member.id,
+      fullName: member.fullName,
+      email: member.email,
+      phone: member.phone,
+      country: member.country,
+      currentSegment: member.currentSegment,
+      currentPriority: member.currentPriority,
+      currentStatus: member.currentStatus,
+      firstReportedAt: member.firstReportedAt,
+      lastReportedAt: member.lastReportedAt,
+    },
+    weekly: member.weeklyMetrics.map((w) => ({
+      periodStart: w.periodStart,
+      periodEnd: w.periodEnd,
+      ordersEntered: w.ordersEntered,
+      ordersMoved: w.ordersMoved,
+      ordersDelivered: w.ordersDelivered,
+      ordersReturned: w.ordersReturned,
+      deltaOrdersPercent:
+        w.deltaOrdersPercent == null ? null : Number(w.deltaOrdersPercent),
+    })),
+    monthly: member.monthlyMetrics.map((m) => ({
+      year: m.year,
+      month: m.month,
+      ordersEntered: m.ordersEntered,
+      ordersMoved: m.ordersMoved,
+      ordersDelivered: m.ordersDelivered,
+      ordersReturned: m.ordersReturned,
+    })),
+  });
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", color: COLORS.text }}>
@@ -101,6 +138,8 @@ export default async function MiembroDetailPage({
           <StatusBadge status={member.currentStatus} />
         </div>
       </header>
+
+      <DiagnosticSection diagnostic={diagnostic} />
 
       <section
         style={{
@@ -291,6 +330,291 @@ function Card({
       </h3>
       <div style={{ marginTop: 8 }}>{children}</div>
     </section>
+  );
+}
+
+const TREND_LABELS: Record<MemberDiagnostic["trend"], string> = {
+  UP: "En subida",
+  DOWN: "En bajada",
+  STABLE: "Estable",
+  NEW: "Primera medición",
+  ZERO: "Sin ventas",
+  INSUFFICIENT_DATA: "Datos insuficientes",
+};
+
+const TREND_COLORS: Record<MemberDiagnostic["trend"], string> = {
+  UP: COLORS.success,
+  DOWN: COLORS.danger,
+  STABLE: COLORS.textSoft,
+  NEW: COLORS.textSoft,
+  ZERO: COLORS.warning,
+  INSUFFICIENT_DATA: COLORS.textMuted,
+};
+
+function DiagnosticSection({
+  diagnostic,
+}: {
+  diagnostic: MemberDiagnostic;
+}) {
+  const hasInsights =
+    diagnostic.highlights.length +
+      diagnostic.warnings.length +
+      diagnostic.suggestions.length >
+    0;
+  return (
+    <section
+      style={{
+        backgroundColor: COLORS.surface,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 18,
+      }}
+      aria-label="Diagnóstico inteligente"
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 13,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: COLORS.textSoft,
+          }}
+        >
+          Diagnóstico inteligente
+        </h2>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: TREND_COLORS[diagnostic.trend],
+            backgroundColor: COLORS.background,
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 999,
+            padding: "2px 8px",
+          }}
+        >
+          {TREND_LABELS[diagnostic.trend]}
+        </span>
+      </div>
+
+      <p
+        style={{
+          margin: "10px 0 0",
+          fontSize: 14,
+          color: COLORS.text,
+          lineHeight: 1.5,
+        }}
+      >
+        {diagnostic.summary}
+      </p>
+
+      {diagnostic.latestPeriodLabel ? (
+        <p
+          style={{
+            margin: "4px 0 0",
+            fontSize: 12,
+            color: COLORS.textMuted,
+          }}
+        >
+          Último período: {diagnostic.latestPeriodLabel} · {diagnostic.periodsAnalysed}{" "}
+          semana{diagnostic.periodsAnalysed === 1 ? "" : "s"} analizada
+          {diagnostic.periodsAnalysed === 1 ? "" : "s"}
+        </p>
+      ) : null}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 10,
+          marginTop: 12,
+        }}
+      >
+        <DiagnosticMetric
+          label="Tasa de movimiento"
+          value={`${diagnostic.rates.movementRate}%`}
+        />
+        <DiagnosticMetric
+          label="Tasa de entrega"
+          value={`${diagnostic.rates.deliveryRate}%`}
+        />
+        <DiagnosticMetric
+          label="Tasa de devolución"
+          value={`${diagnostic.rates.returnRate}%`}
+        />
+        <DiagnosticMetric
+          label="Pedidos ingresados"
+          value={String(diagnostic.totals.ordersEntered)}
+          sub={
+            diagnostic.delta.pct != null
+              ? `${diagnostic.delta.pct >= 0 ? "▲" : "▼"} ${Math.abs(
+                  diagnostic.delta.pct,
+                )}% vs. anterior`
+              : "Sin período previo"
+          }
+        />
+      </div>
+
+      {hasInsights ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 10,
+            marginTop: 12,
+          }}
+        >
+          <InsightList
+            title="Buenas señales"
+            items={diagnostic.highlights}
+            color={COLORS.success}
+            emptyText="Sin señales positivas aún."
+          />
+          <InsightList
+            title="Alertas"
+            items={diagnostic.warnings}
+            color={COLORS.danger}
+            emptyText="Sin alertas."
+          />
+          <InsightList
+            title="Sugerencias"
+            items={diagnostic.suggestions}
+            color={COLORS.brand}
+            emptyText="Sin sugerencias para este período."
+          />
+        </div>
+      ) : (
+        <p
+          style={{
+            margin: "10px 0 0",
+            fontSize: 13,
+            color: COLORS.textMuted,
+          }}
+        >
+          No hay observaciones automáticas para este miembro todavía.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function DiagnosticMetric({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div
+      style={{
+        backgroundColor: COLORS.background,
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 10,
+        padding: 12,
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontSize: 11,
+          color: COLORS.textMuted,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          margin: "6px 0 0",
+          fontSize: 20,
+          fontWeight: 800,
+          color: COLORS.text,
+        }}
+      >
+        {value}
+      </p>
+      {sub ? (
+        <p
+          style={{
+            margin: "4px 0 0",
+            fontSize: 11,
+            color: COLORS.textMuted,
+          }}
+        >
+          {sub}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function InsightList({
+  title,
+  items,
+  color,
+  emptyText,
+}: {
+  title: string;
+  items: string[];
+  color: string;
+  emptyText: string;
+}) {
+  return (
+    <div>
+      <h3
+        style={{
+          margin: 0,
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color,
+        }}
+      >
+        {title}
+      </h3>
+      {items.length === 0 ? (
+        <p
+          style={{
+            margin: "6px 0 0",
+            fontSize: 12,
+            color: COLORS.textMuted,
+          }}
+        >
+          {emptyText}
+        </p>
+      ) : (
+        <ul
+          style={{
+            margin: "6px 0 0",
+            padding: "0 0 0 16px",
+            color: COLORS.text,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          {items.map((it, idx) => (
+            <li key={idx}>{it}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
