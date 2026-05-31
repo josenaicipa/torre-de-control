@@ -15,11 +15,14 @@ export const COLORS = {
 };
 
 export const SUBNAV = [
-  { href: "/comunidad-dropi", label: "Resumen" },
-  { href: "/comunidad-dropi/inteligencia", label: "Inteligencia" },
-  { href: "/comunidad-dropi/miembros", label: "Miembros" },
-  { href: "/comunidad-dropi/importaciones", label: "Importaciones" },
+  { href: "/comunidad-dropi/radar", label: "Radar" },
+  { href: "/comunidad-dropi/rankings", label: "Rankings" },
+  { href: "/comunidad-dropi/segmentos", label: "Segmentos" },
+  { href: "/comunidad-dropi/acciones", label: "Acciones" },
   { href: "/comunidad-dropi/seguimientos", label: "Seguimientos" },
+  { href: "/comunidad-dropi/miembros", label: "Miembros" },
+  { href: "/comunidad-dropi/inteligencia", label: "Inteligencia" },
+  { href: "/comunidad-dropi/importaciones", label: "Importaciones" },
 ];
 
 export const SEGMENT_LABELS: Record<string, string> = {
@@ -70,9 +73,9 @@ export const FOLLOW_UP_REASON_LABELS: Record<string, string> = {
 };
 
 export const FOLLOW_UP_STATUS_LABELS: Record<string, string> = {
-  OPEN: "Abierto",
-  IN_PROGRESS: "En curso",
-  DONE: "Hecho",
+  OPEN: "Pendiente",
+  IN_PROGRESS: "En seguimiento",
+  DONE: "Resuelto",
   DISMISSED: "Descartado",
 };
 
