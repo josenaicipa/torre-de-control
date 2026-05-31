@@ -178,8 +178,10 @@ describe("manual collaborator labels", () => {
 
     expect(torreBlock).toContain("const ventasReqHoy=ticketProm>0?metaMensual/ticketProm:0;");
     expect(torreBlock).toContain("const asistidasReqHoy=closeRateMeta>0?ventasReqHoy/(closeRateMeta/100):0;");
-    expect(torreBlock).toContain("const leadsReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;");
-    expect(torreBlock).toContain("const agendasReqHoy=pctLeadsAg>0?leadsReqHoy/(pctLeadsAg/100):0;");
+    expect(torreBlock).toContain("const citasAgendadasReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;");
+    expect(torreBlock).toContain("const leadsReqHoy=pctLeadsAg>0?citasAgendadasReqHoy/(pctLeadsAg/100):0;");
+    expect(torreBlock).not.toContain("const leadsReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;");
+    expect(torreBlock).not.toContain("const agendasReqHoy=pctLeadsAg>0?leadsReqHoy/(pctLeadsAg/100):0;");
     expect(funnelBlock).toMatch(
       /l:"Ventas \$ \(comprometido\)"[\s\S]*l:"Ventas \(unidades\)"[\s\S]*l:"Citas Show Up \(asistidas\)"[\s\S]*l:"Leads calificados reales"[\s\S]*l:"Citas agendadas reales"/
     );
@@ -187,7 +189,7 @@ describe("manual collaborator labels", () => {
     expect(funnelBlock).toContain('{l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"}');
     expect(funnelBlock).toContain('{l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"}');
     expect(funnelBlock).toContain('{l:"Leads calificados reales",req:leadsReqHoy,real:totalLeads,fmt:"n"}');
-    expect(funnelBlock).toContain('{l:"Citas agendadas reales",req:agendasReqHoy,real:totalAgendas,fmt:"n"}');
+    expect(funnelBlock).toContain('{l:"Citas agendadas reales",req:citasAgendadasReqHoy,real:totalAgendas,fmt:"n"}');
     expect(funnelBlock).not.toContain('l:"Citas asistidas"');
     expect(funnelBlock).not.toContain('l:"Citas agend. calificadas"');
     expect(funnelBlock).not.toContain('l:"Leads calificados"');
@@ -214,10 +216,10 @@ describe("manual collaborator labels", () => {
 
   it("calculates Salud del embudo ratios from the corrected Torre CEO denominators", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
-    expect(torreBlock).toContain("const pctLeadsAgReal=totalAgendas>0?pv(totalLeads,totalAgendas):null;");
-    expect(torreBlock).toContain("const pctAgAsisReal=totalLeads>0?pv(totalAsistidas,totalLeads):null;");
+    expect(torreBlock).toContain("const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;");
+    expect(torreBlock).toContain("const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;");
     expect(torreBlock).toContain("const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;");
-    expect(torreBlock).not.toContain("const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;");
-    expect(torreBlock).not.toContain("const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;");
+    expect(torreBlock).not.toContain("const pctLeadsAgReal=totalAgendas>0?pv(totalLeads,totalAgendas):null;");
+    expect(torreBlock).not.toContain("const pctAgAsisReal=totalLeads>0?pv(totalAsistidas,totalLeads):null;");
   });
 });

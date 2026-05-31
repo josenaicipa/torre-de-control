@@ -1012,8 +1012,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const proyeccion=isCurrent&&day>0&&ventasRealesAcum>0?(ventasRealesAcum/day)*dm:null;
   const pctCumpl=pv(dispCash,metaMensual);
 
-  const pctLeadsAgReal=totalAgendas>0?pv(totalLeads,totalAgendas):null;
-  const pctAgAsisReal=totalLeads>0?pv(totalAsistidas,totalLeads):null;
+  const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
+  const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;
   const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;
 
   const roasReal=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
@@ -1027,8 +1027,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const ventasUniMeta=closeRateMeta>0?asistidaMeta*(closeRateMeta/100):0;
   const ventasReqHoy=ticketProm>0?metaMensual/ticketProm:0;
   const asistidasReqHoy=closeRateMeta>0?ventasReqHoy/(closeRateMeta/100):0;
-  const leadsReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;
-  const agendasReqHoy=pctLeadsAg>0?leadsReqHoy/(pctLeadsAg/100):0;
+  const citasAgendadasReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;
+  const leadsReqHoy=pctLeadsAg>0?citasAgendadasReqHoy/(pctLeadsAg/100):0;
 
   const roasCash=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
@@ -1041,7 +1041,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     {l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"},
     {l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"},
     {l:"Leads calificados reales",req:leadsReqHoy,real:totalLeads,fmt:"n"},
-    {l:"Citas agendadas reales",req:agendasReqHoy,real:totalAgendas,fmt:"n"},
+    {l:"Citas agendadas reales",req:citasAgendadasReqHoy,real:totalAgendas,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{
