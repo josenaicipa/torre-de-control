@@ -674,9 +674,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const funnelRows=[
     {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
     {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
-    {l:"Citas asistidas",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
-    {l:"Citas agend. calificadas",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
-    {l:"Leads calificados",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+    {l:"Citas Show Up (asistidas)",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
+    {l:"Citas agendadas reales",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
+    {l:"Leads calificados reales",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{
