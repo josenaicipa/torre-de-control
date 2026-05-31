@@ -6,9 +6,15 @@ import {
   RADAR_SEGMENT_LABELS,
   type RadarSegmentBucket,
 } from "@/lib/comunidad-dropi-radar";
-import { formatMonthRef, loadRadar } from "../_lib/radar-data";
+import {
+  formatMonthRef,
+  loadRadar,
+  type AvailableMonth,
+} from "../_lib/radar-data";
 import { COLORS } from "../_lib/tokens";
+import { parsePeriod, periodKey, buildHref } from "../_lib/period";
 import { SubNav } from "../_components/SubNav";
+import { PeriodSelector } from "../_components/PeriodSelector";
 
 export const dynamic = "force-dynamic";
 
@@ -38,18 +44,6 @@ function flatten(sp: RawSearchParams): Record<string, string | undefined> {
   return out;
 }
 
-function parsePeriod(value: string | undefined): {
-  year?: number;
-  month?: number;
-} {
-  if (!value) return {};
-  const [y, m] = value.split("-");
-  const year = Number.parseInt(y ?? "", 10);
-  const month = Number.parseInt(m ?? "", 10);
-  if (Number.isFinite(year) && Number.isFinite(month)) return { year, month };
-  return {};
-}
-
 export default async function SegmentosPage({
   searchParams,
 }: {
@@ -58,9 +52,11 @@ export default async function SegmentosPage({
   const actor = await getActor();
   if (!actor) redirect("/login");
   const sp = flatten(await searchParams);
-  const period = sp.period ?? null;
-  const { year, month } = parsePeriod(period ?? undefined);
-  const { radar } = await loadRadar({ year, month });
+  const { year, month } = parsePeriod(sp.period);
+  const { radar, available } = await loadRadar({ year, month });
+  // El periodo efectivo viene del loader: si lo pedido no existe, cae al más
+  // reciente, así los links/chips muestran un mes coherente con el calculado.
+  const period = radar ? periodKey(radar.current) : null;
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -74,6 +70,8 @@ export default async function SegmentosPage({
           totalMembers={radar.kpis.totalMembers}
           monthLabel={formatMonthRef(radar.current)}
           period={period}
+          available={available}
+          active={{ year: radar.current.year, month: radar.current.month }}
         />
       )}
     </div>
@@ -114,26 +112,41 @@ function Body({
   totalMembers,
   monthLabel,
   period,
+  available,
+  active,
 }: {
   buckets: RadarSegmentBucket[];
   totalMembers: number;
   monthLabel: string;
   period: string | null;
+  available: AvailableMonth[];
+  active: { year: number; month: number };
 }) {
   if (buckets.length === 0) {
     return <EmptyText text="Aún no se calculan segmentos para este mes." />;
   }
   return (
     <>
-      <p
+      <div
         style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "center",
           margin: "0 0 14px",
           fontSize: 12,
           color: COLORS.textSoft,
         }}
       >
-        Mes: <strong>{monthLabel}</strong> · {totalMembers} miembros en total.
-      </p>
+        <span>
+          Mes: <strong>{monthLabel}</strong> · {totalMembers} miembros en total.
+        </span>
+        <PeriodSelector
+          basePath="/comunidad-dropi/segmentos"
+          active={active}
+          available={available}
+        />
+      </div>
 
       <div
         style={{
@@ -181,9 +194,10 @@ function SegmentCard({
   bucket: RadarSegmentBucket;
   period: string | null;
 }) {
-  const rankingsHref = period
-    ? `/comunidad-dropi/rankings?segment=${bucket.segment}&period=${period}`
-    : `/comunidad-dropi/rankings?segment=${bucket.segment}`;
+  const rankingsHref = buildHref("/comunidad-dropi/rankings", {
+    segment: bucket.segment,
+    period,
+  });
   const colors = RADAR_SEGMENT_COLORS[bucket.segment];
   const description =
     SEGMENT_DESCRIPTIONS[bucket.segment] ?? "Sin descripción.";

@@ -11,9 +11,19 @@ import {
   type RadarRankingCriterion,
   type RadarSegment,
 } from "@/lib/comunidad-dropi-radar";
-import { formatMonthRef, loadRadar } from "../_lib/radar-data";
+import {
+  formatMonthRef,
+  loadRadar,
+  type AvailableMonth,
+} from "../_lib/radar-data";
 import { COLORS } from "../_lib/tokens";
+import {
+  parsePeriod,
+  periodKey,
+  buildHref as buildPeriodHref,
+} from "../_lib/period";
 import { SubNav } from "../_components/SubNav";
+import { PeriodSelector } from "../_components/PeriodSelector";
 
 export const dynamic = "force-dynamic";
 
@@ -39,18 +49,6 @@ function isSegment(value: string): value is RadarSegment {
   return Object.keys(RADAR_SEGMENT_LABELS).includes(value);
 }
 
-function parsePeriod(value: string | undefined): {
-  year?: number;
-  month?: number;
-} {
-  if (!value) return {};
-  const [y, m] = value.split("-");
-  const year = Number.parseInt(y ?? "", 10);
-  const month = Number.parseInt(m ?? "", 10);
-  if (Number.isFinite(year) && Number.isFinite(month)) return { year, month };
-  return {};
-}
-
 export default async function RankingsPage({
   searchParams,
 }: {
@@ -63,10 +61,12 @@ export default async function RankingsPage({
   const segmentFilter =
     sp.segment && isSegment(sp.segment) ? (sp.segment as RadarSegment) : null;
   const countryFilter = sp.country?.trim() || null;
-  const period = sp.period ?? null;
-  const { year, month } = parsePeriod(period ?? undefined);
+  const { year, month } = parsePeriod(sp.period);
 
-  const { radar } = await loadRadar({ year, month });
+  const { radar, available } = await loadRadar({ year, month });
+  // El periodo efectivo viene del loader: si lo pedido no existe, cae al más
+  // reciente. Eso evita que los links/forms preserven un periodo inválido.
+  const period = radar ? periodKey(radar.current) : null;
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -77,6 +77,7 @@ export default async function RankingsPage({
       ) : (
         <Body
           radar={radar}
+          available={available}
           sort={sort}
           segmentFilter={segmentFilter}
           countryFilter={countryFilter}
@@ -119,12 +120,14 @@ function Header() {
 
 function Body({
   radar,
+  available,
   sort,
   segmentFilter,
   countryFilter,
   period,
 }: {
   radar: NonNullable<Awaited<ReturnType<typeof loadRadar>>["radar"]>;
+  available: AvailableMonth[];
   sort: RadarRankingCriterion;
   segmentFilter: RadarSegment | null;
   countryFilter: string | null;
@@ -154,16 +157,32 @@ function Body({
 
   return (
     <>
-      <p
+      <div
         style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "center",
           margin: "0 0 14px",
           fontSize: 12,
           color: COLORS.textSoft,
         }}
       >
-        Mes: <strong>{formatMonthRef(radar.current)}</strong> ·{" "}
-        {ranked.length} miembros mostrados de {radar.members.length}.
-      </p>
+        <span>
+          Mes: <strong>{formatMonthRef(radar.current)}</strong> ·{" "}
+          {ranked.length} miembros mostrados de {radar.members.length}.
+        </span>
+        <PeriodSelector
+          basePath="/comunidad-dropi/rankings"
+          active={{ year: radar.current.year, month: radar.current.month }}
+          available={available}
+          hiddenParams={{
+            sort: sort === "STAR_SCORE" ? null : sort,
+            segment: segmentFilter,
+            country: countryFilter,
+          }}
+        />
+      </div>
 
       <div
         style={{
@@ -256,13 +275,12 @@ function buildHref(params: {
   countryFilter: string | null;
   period: string | null;
 }): string {
-  const search = new URLSearchParams();
-  if (params.sort !== "STAR_SCORE") search.set("sort", params.sort);
-  if (params.segmentFilter) search.set("segment", params.segmentFilter);
-  if (params.countryFilter) search.set("country", params.countryFilter);
-  if (params.period) search.set("period", params.period);
-  const qs = search.toString();
-  return `/comunidad-dropi/rankings${qs ? `?${qs}` : ""}`;
+  return buildPeriodHref("/comunidad-dropi/rankings", {
+    sort: params.sort === "STAR_SCORE" ? null : params.sort,
+    segment: params.segmentFilter,
+    country: params.countryFilter,
+    period: params.period,
+  });
 }
 
 function RankingsTable({

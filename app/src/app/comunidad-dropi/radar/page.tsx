@@ -30,7 +30,17 @@ import {
   type AvailableMonth,
 } from "../_lib/radar-data";
 import { COLORS } from "../_lib/tokens";
+import {
+  parsePeriod,
+  periodKey,
+  buildHref,
+} from "../_lib/period";
+import {
+  classifyImportAge,
+  type ImportAgeInfo,
+} from "../_lib/import-age";
 import { SubNav } from "../_components/SubNav";
+import { PeriodSelector } from "../_components/PeriodSelector";
 
 export const dynamic = "force-dynamic";
 
@@ -42,22 +52,6 @@ function flatten(sp: RawSearchParams): Record<string, string | undefined> {
   return out;
 }
 
-function parseMonth(sp: Record<string, string | undefined>): {
-  year?: number;
-  month?: number;
-} {
-  const period = sp.period ?? "";
-  const [y, m] = period.split("-");
-  const year = Number.parseInt(y ?? "", 10);
-  const month = Number.parseInt(m ?? "", 10);
-  if (Number.isFinite(year) && Number.isFinite(month)) return { year, month };
-  return {};
-}
-
-function periodKey(ref: { year: number; month: number }): string {
-  return `${ref.year}-${ref.month}`;
-}
-
 export default async function PulsoPage({
   searchParams,
 }: {
@@ -66,8 +60,9 @@ export default async function PulsoPage({
   const actor = await getActor();
   if (!actor) redirect("/login");
   const sp = flatten(await searchParams);
-  const { year, month } = parseMonth(sp);
+  const { year, month } = parsePeriod(sp.period);
   const { radar, available, lastImportAt } = await loadRadar({ year, month });
+  const importAge = classifyImportAge(lastImportAt);
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -77,7 +72,7 @@ export default async function PulsoPage({
         <PulsoBody
           radar={radar}
           available={available}
-          lastImportAt={lastImportAt}
+          importAge={importAge}
         />
       ) : (
         <EmptyState />
@@ -119,11 +114,11 @@ function Header() {
 async function PulsoBody({
   radar,
   available,
-  lastImportAt,
+  importAge,
 }: {
   radar: Radar;
   available: AvailableMonth[];
-  lastImportAt: Date | null;
+  importAge: ImportAgeInfo;
 }) {
   const currentLabel = formatMonthRef(radar.current);
   const previousLabel = radar.previous ? formatMonthRef(radar.previous) : null;
@@ -174,6 +169,7 @@ async function PulsoBody({
         previousLabel={previousLabel}
         available={available}
         active={{ year: radar.current.year, month: radar.current.month }}
+        importAge={importAge}
       />
 
       <PulseHero radar={radar} period={period} />
@@ -249,7 +245,7 @@ async function PulsoBody({
 
       <QualityBlock
         quality={radar.quality}
-        lastImportAt={lastImportAt}
+        importAge={importAge}
         currentLabel={currentLabel}
       />
 
@@ -424,13 +420,13 @@ function PulseHero({ radar, period }: { radar: Radar; period: string }) {
         }}
       >
         <Link
-          href={`/comunidad-dropi/rankings?period=${period}`}
+          href={buildHref("/comunidad-dropi/rankings", { period })}
           style={heroLinkStyle(colors.text)}
         >
           Ver rankings del mes →
         </Link>
         <Link
-          href={`/comunidad-dropi/segmentos?period=${period}`}
+          href={buildHref("/comunidad-dropi/segmentos", { period })}
           style={heroLinkStyle(colors.text)}
         >
           Ver segmentos →
@@ -445,69 +441,96 @@ function PeriodNote({
   previousLabel,
   available,
   active,
+  importAge,
 }: {
   currentLabel: string;
   previousLabel: string | null;
   available: AvailableMonth[];
   active: { year: number; month: number };
+  importAge: ImportAgeInfo;
 }) {
   return (
     <div
       style={{
         display: "flex",
-        flexWrap: "wrap",
-        gap: 10,
-        alignItems: "center",
+        flexDirection: "column",
+        gap: 8,
         marginBottom: 14,
-        fontSize: 12,
-        color: COLORS.textSoft,
       }}
     >
-      <span>
-        Mes actual: <strong>{currentLabel}</strong>
-        {previousLabel ? (
-          <>
-            {" "}
-            · Comparado con <strong>{previousLabel}</strong>
-          </>
-        ) : null}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "center",
+          fontSize: 12,
+          color: COLORS.textSoft,
+        }}
+      >
+        <span>
+          Mes actual: <strong>{currentLabel}</strong>
+          {previousLabel ? (
+            <>
+              {" "}
+              · Comparado con <strong>{previousLabel}</strong>
+            </>
+          ) : null}
+        </span>
+        <PeriodSelector
+          basePath="/comunidad-dropi/radar"
+          active={active}
+          available={available}
+        />
+        <span style={{ color: COLORS.textMuted }}>
+          Modo semanal: próximamente, cuando exista feed semanal confiable.
+        </span>
+      </div>
+      <ImportAgeBanner importAge={importAge} />
+    </div>
+  );
+}
+
+function ImportAgeBanner({ importAge }: { importAge: ImportAgeInfo }) {
+  if (importAge.status === "fresh") {
+    return (
+      <p
+        style={{
+          margin: 0,
+          fontSize: 12,
+          color: COLORS.textMuted,
+        }}
+      >
+        {importAge.message}
+      </p>
+    );
+  }
+  const stale = importAge.status === "stale";
+  const palette = stale
+    ? { bg: "#FEF3C7", border: "#FCD34D", text: "#92400E" }
+    : { bg: "#F1F5F9", border: "#CBD5E1", text: "#475569" };
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 10px",
+        borderRadius: 8,
+        backgroundColor: palette.bg,
+        border: `1px solid ${palette.border}`,
+        color: palette.text,
+        fontSize: 12,
+        fontWeight: 600,
+        alignSelf: "flex-start",
+      }}
+    >
+      <span aria-hidden style={{ fontSize: 13 }}>
+        {stale ? "⚠" : "ℹ"}
       </span>
-      {available.length > 1 ? (
-        <form method="get" style={{ display: "inline-flex", gap: 6 }}>
-          <label
-            htmlFor="period"
-            style={{ alignSelf: "center", color: COLORS.textMuted }}
-          >
-            Cambiar mes:
-          </label>
-          <select
-            id="period"
-            name="period"
-            defaultValue={`${active.year}-${active.month}`}
-            style={{
-              padding: "4px 8px",
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 6,
-              fontSize: 12,
-              backgroundColor: COLORS.surface,
-              color: COLORS.text,
-              fontFamily: "inherit",
-            }}
-          >
-            {available.map((a) => (
-              <option key={`${a.year}-${a.month}`} value={`${a.year}-${a.month}`}>
-                {formatMonthRef(a)}
-              </option>
-            ))}
-          </select>
-          <button type="submit" style={ghostButtonStyle()}>
-            Aplicar
-          </button>
-        </form>
-      ) : null}
-      <span style={{ color: COLORS.textMuted }}>
-        Modo semanal vs. mes anterior: pendiente (ver iteración 3).
-      </span>
+      <span>{importAge.message}</span>
     </div>
   );
 }
@@ -767,7 +790,7 @@ function SegmentMix({ radar, period }: { radar: Radar; period: string }) {
             {buckets.map((b) => (
               <li key={b.segment}>
                 <Link
-                  href={`/comunidad-dropi/segmentos?period=${period}#${b.segment}`}
+                  href={`${buildHref("/comunidad-dropi/segmentos", { period })}#${b.segment}`}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -914,11 +937,11 @@ function MetricBadge({
 
 function QualityBlock({
   quality,
-  lastImportAt,
+  importAge,
   currentLabel,
 }: {
   quality: RadarQualitySummary;
-  lastImportAt: Date | null;
+  importAge: ImportAgeInfo;
   currentLabel: string;
 }) {
   const sharePct = (count: number) => {
@@ -928,6 +951,14 @@ function QualityBlock({
   const noHistoryPct = sharePct(quality.membersWithoutHistory);
   const noLinkedPct = sharePct(quality.membersWithoutLinkedStudent);
   const inactivePct = sharePct(quality.membersInactiveThisMonth);
+  const lastImportLabel =
+    importAge.formattedDate ?? "Sin importación confirmada";
+  const lastImportHint =
+    importAge.status === "stale"
+      ? `Hace ${importAge.daysSince} días — el Pulso puede estar desactualizado.`
+      : importAge.status === "missing"
+        ? "No hay cierre confirmado registrado para este módulo."
+        : "Fecha del último cierre confirmado para este módulo.";
 
   return (
     <section style={{ marginTop: 18, marginBottom: 18 }}>
@@ -987,23 +1018,15 @@ function QualityBlock({
           />
           <QualityTile
             label="Última importación"
-            value={
-              lastImportAt ? formatLastImport(lastImportAt) : "Sin registro"
-            }
-            hint="Fecha del último cierre confirmado para este módulo."
+            value={lastImportLabel}
+            hint={lastImportHint}
             isTextValue
+            tone={importAge.status === "stale" ? "warning" : "normal"}
           />
         </div>
       </Card>
     </section>
   );
-}
-
-function formatLastImport(date: Date): string {
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
 }
 
 function QualityTile({
@@ -1012,20 +1035,23 @@ function QualityTile({
   share,
   hint,
   isTextValue,
+  tone,
 }: {
   label: string;
   value: number | string;
   share?: number;
   hint?: string;
   isTextValue?: boolean;
+  tone?: "normal" | "warning";
 }) {
+  const warn = tone === "warning";
   return (
     <div
       style={{
-        border: `1px solid ${COLORS.border}`,
+        border: `1px solid ${warn ? "#FCD34D" : COLORS.border}`,
         borderRadius: 10,
         padding: 12,
-        backgroundColor: COLORS.background,
+        backgroundColor: warn ? "#FEF3C7" : COLORS.background,
       }}
     >
       <p style={eyebrowStyle()}>{label}</p>
@@ -1253,18 +1279,6 @@ function heroLinkStyle(color: string): React.CSSProperties {
     fontSize: 12,
     fontWeight: 700,
     textDecoration: "underline",
-  };
-}
-
-function ghostButtonStyle(): React.CSSProperties {
-  return {
-    padding: "4px 10px",
-    border: `1px solid ${COLORS.border}`,
-    borderRadius: 6,
-    fontSize: 12,
-    backgroundColor: COLORS.surface,
-    color: COLORS.text,
-    cursor: "pointer",
   };
 }
 
