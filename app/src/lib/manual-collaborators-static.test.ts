@@ -10,11 +10,13 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('{id:"Admin",label:"Admin",color:C.red,role:"closer",displayRole:"Admin"}');
   });
 
-  it("renders the exact Area Comercial form inside Valentina's Por Colaborador view", () => {
+  it("renders Valentina as an individual commercial collaborator instead of writing the daily total directly", () => {
     expect(html).toContain('const isValentina=collabId==="Admin";');
     expect(html).toContain('Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>');
-    expect(html).toContain('<CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser} selectedDate={date}/>');
+    expect(html).toContain('const existing=allDaily[`${date}:${collabId}`]||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);');
+    expect(html).toContain('{role==="closer"&&(');
     expect(html).toContain('<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>');
+    expect(html).not.toContain('<CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser} selectedDate={date}/>');
   });
 
   it("uses Detalle Diario $ Venta HT as Torre CEO Valor Total Venta comprometido", () => {
@@ -31,6 +33,7 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('<span style={{fontSize:9,lineHeight:1.1,opacity:.75}}>{t.sub}</span>');
   });
 
+
   it("surfaces legacy Area Comercial daily_closer data under Valentina and uses manual reservas first", () => {
     expect(html).toContain('const closerToValentinaEntry=(date,row)=>({');
     expect(html).toContain('member:"Admin",date,');
@@ -39,6 +42,17 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);');
     expect(html).toContain('{l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
     expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
+  });
+
+  it("consolidates all commercial collaborator daily entries into the daily_closer row used by Detalle Diario", () => {
+    expect(html).toContain('const commercialEntriesForDate=(allDaily,date,overrideKey,overrideEntry)=>{');
+    expect(html).toContain('const aggregateCommercialEntriesForCloser=(date,entries,existingCloser={})=>{');
+    expect(html).toContain('q_ventas_ht:s("ventasHT"),valor_venta_ht:s("valorVentaHT"),');
+    expect(html).toContain('ventas_cash:s("upfrontCash"),upfront_cash_ht:s("upfrontCash"),recurring_cash:s("recurringCash"),');
+    expect(html).toContain('q_reservas:s("reservas"),cash_reservas:s("cashReservas"),');
+    expect(html).toContain('const commercialRows=commercialEntriesForDate(nd,entry.date,key,entry);');
+    expect(html).toContain('const closerRow=aggregateCommercialEntriesForCloser(entry.date,commercialRows,closerData[entry.date]||{});');
+    expect(html).toContain('await saveCloserEntry(entry.date,closerRow);');
   });
 
   it("orders Torre CEO execution metrics as sales, show ups, qualified leads, then scheduled calls", () => {

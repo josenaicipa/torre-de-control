@@ -353,6 +353,29 @@ const closerToValentinaEntry=(date,row)=>({
   cashReservas:row.cash_reservas||0,
 });
 
+const commercialEntriesForDate=(allDaily,date,overrideKey,overrideEntry)=>{
+  const merged={...allDaily};
+  if(overrideKey&&overrideEntry)merged[overrideKey]=overrideEntry;
+  return Object.entries(merged)
+    .filter(([k,e])=>k.startsWith(date+":")&&e&&isCommercialMember(e.member))
+    .map(([,e])=>e);
+};
+
+const aggregateCommercialEntriesForCloser=(date,entries,existingCloser={})=>{
+  const s=k=>sumF(entries,k);
+  return{
+    ...existingCloser,date,
+    q_ventas_ht:s("ventasHT"),valor_venta_ht:s("valorVentaHT"),
+    ventas_cash:s("upfrontCash"),upfront_cash_ht:s("upfrontCash"),recurring_cash:s("recurringCash"),
+    q_reservas:s("reservas"),cash_reservas:s("cashReservas"),
+    agendas_final:s("agendasHoy"),agendas_calificadas:s("calificadas"),citas_asistidas:s("showUps"),
+    agendas_organicas:s("agendasHoy"),agendas_meta:0,agendas_google:0,agendas_tiktok:0,agendas_otros:0,
+    cal_organicas:s("calificadas"),cal_meta:0,cal_google:0,cal_tiktok:0,cal_otros:0,
+    hoy_organicas:s("agendasHoy"),hoy_meta:0,hoy_google:0,hoy_tiktok:0,hoy_otros:0,
+    show_organicas:s("showUps"),show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
+  };
+};
+
 // ─── SVG ICONS ────────────────────────────────────────────────────────────────
 const ICON_PATHS={
   home:'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10',
@@ -2126,10 +2149,10 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   const [saved,setSaved]=useState(false);
 
   useEffect(()=>{
-    const existing=allDaily[`${date}:${collabId}`];
+    const existing=allDaily[`${date}:${collabId}`]||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);
     setForm(existing?{...blankEntry(),...existing}:blankEntry());
     setSaved(false);
-  },[collabId,date,allDaily]);
+  },[collabId,date,allDaily,allCloser]);
 
   const collab=MANUAL_COLLABORATORS.find(c=>c.id===collabId)||MANUAL_COLLABORATORS[0];
   const role=collab.role;
@@ -2192,13 +2215,10 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
       </Card>
 
       {isValentina&&(
-        <>
-          <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.55,
-            background:C.red+"0F",border:`1px solid ${C.red}33`,borderRadius:10,padding:"10px 12px"}}>
-            Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>, pero su captura diaria ahora usa exactamente los campos de <b>Area Comercial</b>.
-          </div>
-          <CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser} selectedDate={date}/>
-        </>
+        <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.55,
+          background:C.red+"0F",border:`1px solid ${C.red}33`,borderRadius:10,padding:"10px 12px"}}>
+          Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>, pero ahora se guarda como una colaboradora comercial individual y suma al consolidado diario junto con los closers.
+        </div>
       )}
 
       {!isValentina&&role==="marketing"&&(
@@ -2230,7 +2250,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         </>
       )}
 
-      {!isValentina&&role==="closer"&&(
+      {role==="closer"&&(
         <>
           <Card>
             <STit icon="📅" title="Agendas / Leads" sub={`Llenado por ${collab.label}`}/>
@@ -2271,7 +2291,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         </>
       )}
 
-      {!isValentina&&<div style={{display:"flex",gap:12,alignItems:"center"}}>
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
@@ -2283,7 +2303,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
           Reporte guardado ✓
         </div>}
-      </div>}
+      </div>
     </div>
   );
 };
@@ -3717,6 +3737,11 @@ function App(){
       reservas_organic:entry.reservas||0,
     },{onConflict:"date,member"});
     if(error){alert("Error guardando: "+error.message);return false;}
+    if(isCommercialMember(entry.member)){
+      const commercialRows=commercialEntriesForDate(nd,entry.date,key,entry);
+      const closerRow=aggregateCommercialEntriesForCloser(entry.date,commercialRows,closerData[entry.date]||{});
+      await saveCloserEntry(entry.date,closerRow);
+    }
     return true;
   };
 
