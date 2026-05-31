@@ -187,14 +187,29 @@ const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahi
 const MARKETING_COLLABORATORS=[
   {id:"Karen",label:"Karen Anquiz",color:C.purple,role:"marketing"},
 ];
-const COMMERCIAL_COLLABORATORS=[
+const ADMIN_COLLABORATORS=[
   {id:"Admin",label:"Valentina Sanchez",color:C.red,role:"closer",displayRole:"Admin"},
+];
+const SETTER_COLLABORATORS=[
+  {id:"Alejandro Gallo",label:"Alejandro Gallo",color:C.teal,role:"setter"},
+  {id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"},
+  {id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"},
+];
+const CLOSER_COLLABORATORS=[
   {id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"},
   {id:"Daryi Uribe",label:"Daryi Uribe",color:C.gold,role:"closer",legacy:"Daryi"},
   {id:"Wiston Quintero",label:"Wiston Quintero",color:C.blue,role:"closer",legacy:"Juan Diego Afanador"},
 ];
-const MANUAL_COLLABORATORS=[...MARKETING_COLLABORATORS,...COMMERCIAL_COLLABORATORS];
+const COMMERCIAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...CLOSER_COLLABORATORS];
+const REPORT_GROUPS={
+  admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS},
+  setters:{label:"Setters",collaborators:SETTER_COLLABORATORS},
+  closers:{label:"Closers",collaborators:CLOSER_COLLABORATORS},
+  marketing:{label:"Marketing",collaborators:MARKETING_COLLABORATORS},
+};
+const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...SETTER_COLLABORATORS,...CLOSER_COLLABORATORS,...MARKETING_COLLABORATORS];
 const MARKETING_MEMBER_IDS=new Set(MARKETING_COLLABORATORS.map(c=>c.id));
+const SETTER_MEMBER_IDS=new Set(SETTER_COLLABORATORS.map(c=>c.id));
 const COMMERCIAL_MEMBER_IDS=new Set([
   ...COMMERCIAL_COLLABORATORS.map(c=>c.id),
   ...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),
@@ -209,6 +224,7 @@ MANUAL_COLLABORATORS.forEach(c=>{MEMBER_LABELS[c.id]=c.label;});
 const memberLabel=m=>MEMBER_LABELS[m]||m;
 const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
 const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
+const isSetterMember=m=>SETTER_MEMBER_IDS.has(m);
 
 const nv=v=>{const x=Number(v);return(!v&&v!==0)||isNaN(x)?null:x};
 const dv=(a,b)=>{const x=nv(a),y=nv(b);return(!x||!y||y===0)?null:x/y};
@@ -237,6 +253,9 @@ const blankEntry=()=>({
   pendDiaAnterior:0,pendAcumulados:0,reservas:0,cashReservas:0,
   callsScheduled:0,hotLeads:0,
   outboundContactados:0,outboundAgendados:0,
+  setterLeadsContacted:0,setterConfirmedAgendas:0,setterCallsToLeads:0,setterMessagesSent:0,
+  setterOrganicLeads:0,setterAdsLeads:0,
+  showupNotes:"",hotLeadsEvidence:"",blockers:"",setterFindings:"",
 });
 
 const blankCloser=()=>({
@@ -336,6 +355,16 @@ const rowToEntry=row=>{
     pendAcumulados:row.pitches_paid||0,
     reservas:row.reservas_organic||0,
     cashReservas:0,
+    setterLeadsContacted:row.new_bk_organic||0,
+    setterConfirmedAgendas:row.qual_bk_organic||0,
+    setterCallsToLeads:row.today_bk_organic||0,
+    setterMessagesSent:row.show_organic||0,
+    setterOrganicLeads:row.sales_organic||0,
+    setterAdsLeads:row.pitches_organic||0,
+    showupNotes:row.showup_notes||"",
+    hotLeadsEvidence:row.hot_leads_evidence||"",
+    blockers:row.blockers||"",
+    setterFindings:row.setter_findings||"",
   };
 };
 
@@ -457,6 +486,15 @@ const Inp=({label,value,onChange,prefix,hint,type="number"})=>(
           fontSize:13,padding:"0 11px",fontFamily:"'Inter',sans-serif",fontWeight:500}}/>
     </div>
     {hint&&<div style={{fontSize:10,color:TXT3}}>{hint}</div>}
+  </div>
+);
+const Txt=({label,value,onChange,placeholder})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    <Lbl>{label}</Lbl>
+    <textarea value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder||""} rows={3}
+      style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+        color:TXT,padding:"10px 11px",fontSize:13,outline:"none",
+        fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:76,width:"100%"}}/>
   </div>
 );
 const STit=({icon,title,sub,right})=>(
@@ -2125,6 +2163,9 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
       callsScheduled:s("callsScheduled"),hotLeads:s("hotLeads"),
       outboundContactados:s("outboundContactados"),
       outboundAgendados:s("outboundAgendados"),
+      setterLeadsContacted:s("setterLeadsContacted"),setterConfirmedAgendas:s("setterConfirmedAgendas"),
+      setterCallsToLeads:s("setterCallsToLeads"),setterMessagesSent:s("setterMessagesSent"),
+      setterOrganicLeads:s("setterOrganicLeads"),setterAdsLeads:s("setterAdsLeads"),
     };
   };
 
@@ -2148,7 +2189,8 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
 
 // ─── LLENAR REPORTE (manual collaborator daily form) ──────────────────────────
 const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdSpend})=>{
-  const [collabId,setCollabId]=useState(MANUAL_COLLABORATORS[0].id);
+  const [reportGroup,setReportGroup]=useState("admin");
+  const [collabId,setCollabId]=useState(REPORT_GROUPS.admin.collaborators[0].id);
   const [date,setDate]=useState(today());
   const [form,setForm]=useState(blankEntry());
   const [saving,setSaving]=useState(false);
@@ -2160,10 +2202,12 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
     setSaved(false);
   },[collabId,date,allDaily,allCloser]);
 
-  const collab=MANUAL_COLLABORATORS.find(c=>c.id===collabId)||MANUAL_COLLABORATORS[0];
+  const collab=MANUAL_COLLABORATORS.find(c=>c.id===collabId)||REPORT_GROUPS[reportGroup].collaborators[0]||MANUAL_COLLABORATORS[0];
   const role=collab.role;
   const isValentina=collabId==="Admin";
+  const isSetter=role==="setter";
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+  const st=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   const handleSave=async()=>{
     setSaving(true);
@@ -2183,9 +2227,21 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         <STit icon="🧑‍💼" title="Reporte manual" sub="Una entrada por día por colaborador"/>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div>
+            <Lbl>Sección</Lbl>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:5}}>
+              {Object.entries(REPORT_GROUPS).map(([key,g])=>(
+                <button key={key} onClick={()=>{setReportGroup(key);setCollabId(g.collaborators[0].id);}} style={{
+                  background:reportGroup===key?BRAND+"18":SURFACE2,border:`1.5px solid ${reportGroup===key?BRAND:BORDER}`,
+                  borderRadius:999,padding:"7px 15px",cursor:"pointer",color:reportGroup===key?BRAND:TXT2,
+                  fontSize:12,fontFamily:"'Inter',sans-serif",fontWeight:reportGroup===key?800:600,
+                  transition:"all .15s"}}>{g.label}</button>
+              ))}
+            </div>
+          </div>
+          <div>
             <Lbl>Colaborador</Lbl>
             <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:5}}>
-              {MANUAL_COLLABORATORS.map(c=>{
+              {(REPORT_GROUPS[reportGroup]?.collaborators||[]).map(c=>{
                 const sel=collabId===c.id;
                 return(<button key={c.id} onClick={()=>setCollabId(c.id)} style={{
                   background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
@@ -2196,7 +2252,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
                   <span style={{width:7,height:7,borderRadius:100,background:c.color,display:"inline-block"}}/>
                   <span>{c.label}</span>
                   <span style={{fontSize:9,color:sel?c.color:TXT3,letterSpacing:"0.08em",textTransform:"uppercase",marginLeft:2}}>
-                    {c.id==="Admin"?"Admin":c.role==="marketing"?"Marketing":"Closer"}
+                    {c.displayRole||c.role}
                   </span>
                 </button>);
               })}
@@ -2227,7 +2283,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         </div>
       )}
 
-      {!isValentina&&role==="marketing"&&(
+      {role==="marketing"&&(
         <>
           <Card>
             <STit icon="📱" title="Actividad Marketing" sub={`Llenado por ${collab.label}`}/>
@@ -2251,6 +2307,28 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Stat label="Otros hoy" value={fD(dayOt)} color={C.purple} size="sm"/>
               <Stat label="Total hoy" value={fD(dayTotal)} color={BRAND} size="sm"/>
               <Stat label="Total mes" value={fD(monthAdSpend.total)} color={BRAND} size="sm"/>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {role==="setter"&&(
+        <>
+          <Card>
+            <STit icon="💬" title="Reporte de Setter" sub="Qué pasó con tus conversaciones"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="Leads contactados" value={form.setterLeadsContacted} onChange={v=>sf("setterLeadsContacted",v)}/>
+              <Inp label="Agendas confirmadas" value={form.setterConfirmedAgendas} onChange={v=>sf("setterConfirmedAgendas",v)}/>
+              <Inp label="Llamadas a leads" value={form.setterCallsToLeads} onChange={v=>sf("setterCallsToLeads",v)}/>
+              <Inp label="Mensajes enviados" value={form.setterMessagesSent} onChange={v=>sf("setterMessagesSent",v)}/>
+              <Inp label="Orgánicos" value={form.setterOrganicLeads} onChange={v=>sf("setterOrganicLeads",v)}/>
+              <Inp label="Ads" value={form.setterAdsLeads} onChange={v=>sf("setterAdsLeads",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+              <Txt label="Hallazgos importantes" value={form.setterFindings} onChange={v=>st("setterFindings",v)} placeholder="Ej: iniciales + hallazgo: presupuesto, objeción, urgencia, mala calidad, etc."/>
+              <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
             </div>
           </Card>
         </>
@@ -2294,10 +2372,11 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
             </div>
           </Card>
           <Card>
-            <STit icon="🧭" title="Otros"/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-              <Inp label="# Outbound contactados" value={form.outboundContactados} onChange={v=>sf("outboundContactados",v)}/>
-              <Inp label="# Outbound agendados" value={form.outboundAgendados} onChange={v=>sf("outboundAgendados",v)}/>
+            <STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+              <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
+              <Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>
+              <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
             </div>
           </Card>
         </>
@@ -2339,10 +2418,12 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
   const aggByCollab={};
   MANUAL_COLLABORATORS.forEach(c=>{aggByCollab[c.id]=collabAgg(c.id);});
   const marketingCols=MARKETING_COLLABORATORS;
+  const setterCols=SETTER_COLLABORATORS;
   const closerCols=COMMERCIAL_COLLABORATORS;
-  const allCols=[...marketingCols,...closerCols];
+  const allCols=[...marketingCols,...setterCols,...closerCols];
 
   const sumCloser=k=>closerCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
+  const sumSetter=k=>setterCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
   const sumMarketing=k=>marketingCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
 
   const SECTIONS=[
@@ -2353,6 +2434,14 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"# Mensajes",k:"mensajes",fmt:"n"},
       {l:"# Follow Ups",k:"followUps",fmt:"n"},
       {l:"# Booking Offers",k:"bkOffers",fmt:"n"},
+    ]},
+    {title:"Reporte de Setter",bg:"#7c3aed",role:"setter",rows:[
+      {l:"Leads contactados",k:"setterLeadsContacted",fmt:"n"},
+      {l:"Agendas confirmadas",k:"setterConfirmedAgendas",fmt:"n"},
+      {l:"Llamadas a leads",k:"setterCallsToLeads",fmt:"n"},
+      {l:"Mensajes enviados",k:"setterMessagesSent",fmt:"n"},
+      {l:"Orgánicos",k:"setterOrganicLeads",fmt:"n"},
+      {l:"Ads",k:"setterAdsLeads",fmt:"n"},
     ]},
     {title:"Actividad de llamadas",bg:"#0369a1",role:"closer",rows:[
       {l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"},
@@ -2442,7 +2531,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                 </tr>
                 {g.rows.map(row=>{
                   const includeCol=c=>g.role===c.role;
-                  const tot=g.role==="marketing"?(sumMarketing(row.k)||null):(sumCloser(row.k)||null);
+                  const tot=g.role==="marketing"?(sumMarketing(row.k)||null):g.role==="setter"?(sumSetter(row.k)||null):(sumCloser(row.k)||null);
                   return(
                     <tr key={row.l}>
                       <td style={{...tdBase,...stickyCol,textAlign:"left",
@@ -3742,17 +3831,21 @@ function App(){
       bk_offers:isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
       gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
       gasto_tiktok:entry.gastoTikTok||0,gasto_otros:entry.gastoOtros||0,
-      new_bk_organic:entry.agendas||0,
-      qual_bk_organic:entry.calificadas||0,
-      today_bk_organic:entry.agendasHoy||0,
-      show_organic:entry.showUps||0,
-      sales_organic:entry.ventasHT||0,
+      new_bk_organic:isSetterMember(entry.member)?(entry.setterLeadsContacted||0):(entry.agendas||0),
+      qual_bk_organic:isSetterMember(entry.member)?(entry.setterConfirmedAgendas||0):(entry.calificadas||0),
+      today_bk_organic:isSetterMember(entry.member)?(entry.setterCallsToLeads||0):(entry.agendasHoy||0),
+      show_organic:isSetterMember(entry.member)?(entry.setterMessagesSent||0):(entry.showUps||0),
+      sales_organic:isSetterMember(entry.member)?(entry.setterOrganicLeads||0):(entry.ventasHT||0),
       revenue_organic:entry.valorVentaHT||0,
       cash_organic:entry.upfrontCash||0,
       recurring_organic:entry.recurringCash||0,
-      pitches_organic:entry.pendDiaAnterior||0,
+      pitches_organic:isSetterMember(entry.member)?(entry.setterAdsLeads||0):(entry.pendDiaAnterior||0),
       pitches_paid:entry.pendAcumulados||0,
       reservas_organic:entry.reservas||0,
+      showup_notes:entry.showupNotes||"",
+      hot_leads_evidence:entry.hotLeadsEvidence||"",
+      blockers:entry.blockers||"",
+      setter_findings:entry.setterFindings||"",
     },{onConflict:"date,member"});
     if(error){alert("Error guardando: "+error.message);return false;}
     if(isCommercialMember(entry.member)){

@@ -245,6 +245,10 @@ model DailyEntry {
   pitches_organic  Int?
   pitches_paid     Int?
   reservas_organic Int?
+  showup_notes     String?
+  hot_leads_evidence String?
+  blockers         String?
+  setter_findings  String?
 
   @@id([date, member])
   @@map("daily_entries")

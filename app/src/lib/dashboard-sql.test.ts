@@ -41,4 +41,14 @@ describe("dashboard-sql", () => {
     expect(coerceInputValue("number", "12.5")).toBe(12.5);
     expect(normalizeOutputValue("date", new Date("2026-05-22T12:00:00Z"))).toBe("2026-05-22");
   });
+
+  it("preserves text values for manual report notes", () => {
+    const { params } = prepareValues("daily_entries", {
+      date: "2026-05-22",
+      member: "Carlos Velez",
+      showup_notes: "nota showup",
+      blockers: "bloqueo",
+    });
+    expect(params).toEqual(["2026-05-22", "Carlos Velez", "nota showup", "bloqueo"]);
+  });
 });

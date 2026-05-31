@@ -37,6 +37,25 @@ describe("sanitizeValues", () => {
     expect(out).toEqual({ date: "2026-05-22", member: "Carlos", posts: 3 });
   });
 
+  it("keeps manual report text fields for qualitative notes", () => {
+    const out = sanitizeValues("daily_entries", {
+      date: "2026-05-22",
+      member: "Carlos Velez",
+      showup_notes: "revisar Fathom",
+      hot_leads_evidence: "AM HOT",
+      blockers: "sin bloqueo",
+      setter_findings: "objeción precio",
+    });
+    expect(out).toEqual({
+      date: "2026-05-22",
+      member: "Carlos Velez",
+      showup_notes: "revisar Fathom",
+      hot_leads_evidence: "AM HOT",
+      blockers: "sin bloqueo",
+      setter_findings: "objeción precio",
+    });
+  });
+
   it("omits undefined values so partial upserts only touch sent fields", () => {
     const out = sanitizeValues("kpi_data", { year: 2026, month: 4, revenue: undefined });
     expect(out).toEqual({ year: 2026, month: 4 });

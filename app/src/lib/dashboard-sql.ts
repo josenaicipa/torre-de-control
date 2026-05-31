@@ -34,7 +34,7 @@ const DATE_COLUMNS: Readonly<Record<DashboardTable, readonly string[]>> = {
 // `id`) is treated as a number.
 const TEXT_COLUMNS: Readonly<Record<DashboardTable, readonly string[]>> = {
   kpi_data: [],
-  daily_entries: ["member"],
+  daily_entries: ["member", "showup_notes", "hot_leads_evidence", "blockers", "setter_findings"],
   ads_entries: ["canal"],
   daily_closer: [],
 };

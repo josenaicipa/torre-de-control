@@ -73,6 +73,40 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"}');
   });
 
+  it("splits Area Comercial report entry into Admin, Setters, Closers, and Marketing sub-tabs", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+
+    expect(html).toContain('const SETTER_COLLABORATORS=[');
+    expect(html).toContain('{id:"Alejandro Gallo",label:"Alejandro Gallo",color:C.teal,role:"setter"}');
+    expect(html).toContain('{id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"}');
+    expect(html).toContain('{id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"}');
+    expect(html).toContain('const REPORT_GROUPS={');
+    expect(html).toContain('admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS}');
+    expect(html).toContain('setters:{label:"Setters",collaborators:SETTER_COLLABORATORS}');
+    expect(html).toContain('closers:{label:"Closers",collaborators:CLOSER_COLLABORATORS}');
+    expect(html).toContain('marketing:{label:"Marketing",collaborators:MARKETING_COLLABORATORS}');
+    expect(llenarBlock).toContain('{Object.entries(REPORT_GROUPS).map(([key,g])=>(');
+  });
+
+  it("replicates the metrics setter form and adds closer notes fields in Area Comercial", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+
+    expect(html).toContain('setterLeadsContacted:0,setterConfirmedAgendas:0,setterCallsToLeads:0,setterMessagesSent:0,');
+    expect(html).toContain('setterOrganicLeads:0,setterAdsLeads:0,');
+    expect(html).toContain('showupNotes:"",hotLeadsEvidence:"",blockers:"",setterFindings:"",');
+    expect(llenarBlock).toContain('<STit icon="💬" title="Reporte de Setter" sub="Qué pasó con tus conversaciones"/>');
+    expect(llenarBlock).toContain('<Inp label="Leads contactados" value={form.setterLeadsContacted} onChange={v=>sf("setterLeadsContacted",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="Agendas confirmadas" value={form.setterConfirmedAgendas} onChange={v=>sf("setterConfirmedAgendas",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="Llamadas a leads" value={form.setterCallsToLeads} onChange={v=>sf("setterCallsToLeads",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="Mensajes enviados" value={form.setterMessagesSent} onChange={v=>sf("setterMessagesSent",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="Orgánicos" value={form.setterOrganicLeads} onChange={v=>sf("setterOrganicLeads",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="Ads" value={form.setterAdsLeads} onChange={v=>sf("setterAdsLeads",v)}/>');
+    expect(llenarBlock).toContain('<Txt label="Hallazgos importantes" value={form.setterFindings} onChange={v=>st("setterFindings",v)} placeholder="Ej: iniciales + hallazgo: presupuesto, objeción, urgencia, mala calidad, etc."/>');
+    expect(llenarBlock).toContain('<Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>');
+    expect(llenarBlock).toContain('<Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>');
+    expect(llenarBlock).toContain('<Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>');
+  });
+
   it("orders Torre CEO execution metrics as sales, show ups, qualified leads, then scheduled calls", () => {
     const realidadBlock = html.slice(
       html.indexOf('<SectionTitle>Realidad del mes (ejecución)</SectionTitle>'),

@@ -66,6 +66,10 @@ export const DASHBOARD_TABLES = {
       "pitches_organic",
       "pitches_paid",
       "reservas_organic",
+      "showup_notes",
+      "hot_leads_evidence",
+      "blockers",
+      "setter_findings",
     ],
   },
   ads_entries: {
