@@ -125,7 +125,9 @@ describe("manual collaborator labels", () => {
   it("documents and applies the GHL CAPTACION Y VENTAS rule for May Agendas / Leads", () => {
     expect(html).toContain("const GHL_CAPTACION_MAY_2026_APPOINTMENTS={");
     expect(html).toContain("// Regla aprobada: Calificadas = citas programadas - canceladas");
-    expect(html).toContain('"2026-05-20":{scheduled:28,showed:7,cancelled:17}');
+    expect(html).toContain('"2026-05-20":{scheduled:23,showed:4,cancelled:15}');
+    expect(html).toContain('"2026-05-30":{scheduled:14,showed:0,cancelled:4}');
+    expect(html).toContain('"2026-05-31":{scheduled:0,showed:0,cancelled:0}');
     expect(html).toContain("agendas_calificadas:Math.max(0,(r.scheduled||0)-(r.cancelled||0))");
     expect(html).toContain("agendas_final:r.scheduled||0");
     expect(html).toContain("citas_asistidas:r.showed||0");

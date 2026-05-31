@@ -88,4 +88,27 @@ describe("May 2026 GHL Agendas / Leads import rule", () => {
 
     expect(totals).toEqual({ agendas: 478, hoy: 496, calificadas: 203, show: 89 });
   });
+
+  it("keeps the production static GHL override aligned with the final import payload", () => {
+    const html = readFileSync(resolve(repoRoot, "app/public/index.html"), "utf8");
+    const match = html.match(/const GHL_CAPTACION_MAY_2026_APPOINTMENTS=(\{[\s\S]*?\n\});/);
+    expect(match, "missing frontend GHL override block").toBeTruthy();
+
+    const frontendRows = Function(`return (${match?.[1] ?? "{}"});`)() as Record<
+      string,
+      { scheduled: number; showed: number; cancelled: number }
+    >;
+
+    const payload = JSON.parse(
+      readFileSync(resolve(repoRoot, "imports/torre_import_daily_closer_may_2026_from_ghl.json"), "utf8"),
+    ) as ImportPayload;
+
+    for (const row of payload.tables.daily_closer) {
+      expect(frontendRows[row.date], `missing frontend row for ${row.date}`).toEqual({
+        scheduled: row.agendas_final ?? 0,
+        showed: row.citas_asistidas ?? 0,
+        cancelled: Math.max(0, (row.agendas_final ?? 0) - (row.agendas_calificadas ?? 0)),
+      });
+    }
+  });
 });
