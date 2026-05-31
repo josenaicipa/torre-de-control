@@ -27,8 +27,10 @@ import {
 import {
   formatMonthRef,
   loadRadar,
+  loadWeeklyPulse,
   type AvailableMonth,
 } from "../_lib/radar-data";
+import type { WeeklyPulseSummary } from "../_lib/weekly-pulse";
 import { COLORS } from "../_lib/tokens";
 import {
   parsePeriod,
@@ -61,7 +63,10 @@ export default async function PulsoPage({
   if (!actor) redirect("/login");
   const sp = flatten(await searchParams);
   const { year, month } = parsePeriod(sp.period);
-  const { radar, available, lastImportAt } = await loadRadar({ year, month });
+  const [{ radar, available, lastImportAt }, weeklyPulse] = await Promise.all([
+    loadRadar({ year, month }),
+    loadWeeklyPulse(),
+  ]);
   const importAge = classifyImportAge(lastImportAt);
 
   return (
@@ -73,9 +78,10 @@ export default async function PulsoPage({
           radar={radar}
           available={available}
           importAge={importAge}
+          weeklyPulse={weeklyPulse}
         />
       ) : (
-        <EmptyState />
+        <EmptyState weeklyPulse={weeklyPulse} />
       )}
     </div>
   );
@@ -115,10 +121,12 @@ async function PulsoBody({
   radar,
   available,
   importAge,
+  weeklyPulse,
 }: {
   radar: Radar;
   available: AvailableMonth[];
   importAge: ImportAgeInfo;
+  weeklyPulse: WeeklyPulseSummary | null;
 }) {
   const currentLabel = formatMonthRef(radar.current);
   const previousLabel = radar.previous ? formatMonthRef(radar.previous) : null;
@@ -171,6 +179,8 @@ async function PulsoBody({
         active={{ year: radar.current.year, month: radar.current.month }}
         importAge={importAge}
       />
+
+      {weeklyPulse ? <WeeklyPulseCard summary={weeklyPulse} /> : null}
 
       <PulseHero radar={radar} period={period} />
 
@@ -482,9 +492,6 @@ function PeriodNote({
           active={active}
           available={available}
         />
-        <span style={{ color: COLORS.textMuted }}>
-          Modo semanal: próximamente, cuando exista feed semanal confiable.
-        </span>
       </div>
       <ImportAgeBanner importAge={importAge} />
     </div>
@@ -1150,35 +1157,245 @@ function EmptyText({ text }: { text: string }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ weeklyPulse }: { weeklyPulse: WeeklyPulseSummary | null }) {
   return (
-    <section
-      style={{
-        backgroundColor: COLORS.surface,
-        border: `1px dashed ${COLORS.border}`,
-        borderRadius: 12,
-        padding: 24,
-        textAlign: "center",
-      }}
-    >
-      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>
-        Aún no hay datos para el Pulso
-      </h2>
-      <p
+    <>
+      {weeklyPulse ? <WeeklyPulseCard summary={weeklyPulse} /> : null}
+      <section
         style={{
-          margin: "8px auto 0",
-          color: COLORS.textSoft,
-          fontSize: 14,
-          maxWidth: 480,
+          backgroundColor: COLORS.surface,
+          border: `1px dashed ${COLORS.border}`,
+          borderRadius: 12,
+          padding: 24,
+          textAlign: "center",
         }}
       >
-        Importa al menos un cierre mensual para que el Pulso muestre estado
-        general, KPIs y miembros accionables.
+        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>
+          Aún no hay cierre mensual confirmado
+        </h2>
+        <p
+          style={{
+            margin: "8px auto 0",
+            color: COLORS.textSoft,
+            fontSize: 14,
+            maxWidth: 520,
+          }}
+        >
+          {weeklyPulse
+            ? "Tenemos datos semanales disponibles arriba como dato parcial. Importa el cierre mensual para activar KPIs comparativos, segmentación y rankings."
+            : "Importa al menos un cierre mensual para que el Pulso muestre estado general, KPIs y miembros accionables."}
+        </p>
+        <Link href="/comunidad-dropi/importaciones" style={primaryLinkStyle()}>
+          Ir a Importaciones
+        </Link>
+      </section>
+    </>
+  );
+}
+
+// Tarjeta "Pulso semanal disponible" — dato parcial honesto antes del cierre
+// mensual. Muestra el rango real de la última ventana cargada, totales
+// principales y delta vs. la semana inmediata anterior si existe. Nunca se
+// mezcla con el cierre mensual ni se hacen comparaciones cruzadas.
+function WeeklyPulseCard({ summary }: { summary: WeeklyPulseSummary }) {
+  const stale = summary.freshness === "stale";
+  const palette = stale
+    ? { bg: "#FEF3C7", border: "#FCD34D", text: "#92400E", soft: "#B45309" }
+    : { bg: "#E0F2FE", border: "#7DD3FC", text: "#075985", soft: "#0369A1" };
+  const ageLabel = (() => {
+    if (summary.daysSinceEnd === 0) return "cierre hoy";
+    if (summary.daysSinceEnd === 1) return "hace 1 día";
+    return `hace ${summary.daysSinceEnd} días`;
+  })();
+
+  return (
+    <section
+      aria-label="Pulso semanal disponible"
+      style={{
+        backgroundColor: palette.bg,
+        border: `1px solid ${palette.border}`,
+        borderLeft: `6px solid ${palette.text}`,
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 18,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 800,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: palette.text,
+          }}
+        >
+          Dato parcial · Pulso semanal disponible
+        </span>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "4px 10px",
+            borderRadius: 999,
+            backgroundColor: palette.text,
+            color: "#FFFFFF",
+            fontSize: 12,
+            fontWeight: 700,
+          }}
+        >
+          {summary.rangeLabel}
+        </span>
+        <span style={{ color: palette.soft, fontSize: 12, fontWeight: 600 }}>
+          {ageLabel}
+          {summary.memberCount > 0
+            ? ` · ${summary.memberCount} miembros reportados`
+            : ""}
+        </span>
+      </div>
+      <p
+        style={{
+          margin: 0,
+          color: palette.text,
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}
+      >
+        Dato semanal real ya cargado. El cierre mensual sigue siendo el dato
+        oficial — esto sirve para no esperar al cierre cuando ya hay tracción
+        visible esta semana.
       </p>
-      <Link href="/comunidad-dropi/importaciones" style={primaryLinkStyle()}>
-        Ir a Importaciones
-      </Link>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: 10,
+        }}
+      >
+        <WeeklyMiniKpi
+          label="Entregadas"
+          value={summary.totals.ordersDelivered}
+          deltaPct={summary.deliveredDeltaPct}
+          accent={palette.text}
+        />
+        <WeeklyMiniKpi
+          label="Ingresadas"
+          value={summary.totals.ordersEntered}
+          deltaPct={summary.enteredDeltaPct}
+          accent={palette.text}
+        />
+        <WeeklyMiniKpi
+          label="Movidas"
+          value={summary.totals.ordersMoved}
+          accent={palette.text}
+        />
+        <WeeklyMiniKpi
+          label="Devoluciones"
+          value={summary.totals.ordersReturned}
+          accent={palette.text}
+          inverse
+        />
+      </div>
+      <div>
+        <Link
+          href="/comunidad-dropi/inteligencia"
+          style={{
+            color: palette.text,
+            fontSize: 12,
+            fontWeight: 700,
+            textDecoration: "underline",
+          }}
+        >
+          Ver tendencia semanal completa →
+        </Link>
+      </div>
     </section>
+  );
+}
+
+function WeeklyMiniKpi({
+  label,
+  value,
+  deltaPct,
+  accent,
+  inverse,
+}: {
+  label: string;
+  value: number;
+  deltaPct?: number | null;
+  accent: string;
+  inverse?: boolean;
+}) {
+  const showDelta = deltaPct != null && Number.isFinite(deltaPct);
+  const positive = (deltaPct ?? 0) >= 0;
+  const goodColor = inverse ? COLORS.danger : COLORS.success;
+  const badColor = inverse ? COLORS.success : COLORS.danger;
+  const deltaColor = positive ? goodColor : badColor;
+  return (
+    <div
+      style={{
+        backgroundColor: "rgba(255,255,255,0.65)",
+        borderRadius: 10,
+        padding: "10px 12px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontSize: 11,
+          color: accent,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          margin: "4px 0 0",
+          fontSize: 20,
+          fontWeight: 800,
+          color: COLORS.text,
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {value.toLocaleString("es-CO")}
+      </p>
+      {showDelta ? (
+        <p
+          style={{
+            margin: "2px 0 0",
+            fontSize: 11,
+            fontWeight: 700,
+            color: deltaColor,
+          }}
+        >
+          {positive ? "▲" : "▼"} {Math.abs(deltaPct as number)}% vs. semana
+          anterior
+        </p>
+      ) : (
+        <p
+          style={{
+            margin: "2px 0 0",
+            fontSize: 11,
+            color: COLORS.textMuted,
+          }}
+        >
+          Sin semana previa
+        </p>
+      )}
+    </div>
   );
 }
 

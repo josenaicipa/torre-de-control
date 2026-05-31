@@ -1,8 +1,19 @@
 // Server-side loader for the Comunidad Dropi Radar de Rendimiento.
 // Pulls monthly metrics from Prisma, builds the `Radar` analytics object from
-// `comunidad-dropi-radar.ts`, and exposes the list of months available so the
-// UI can let the operator switch between cierres mensuales.
+// `comunidad-dropi-radar.ts`, and exposes la lista de meses disponibles para
+// que el UI permita cambiar de cierre mensual.
+//
+// Para que cambiar entre /radar /rankings /segmentos no recalcule todo en
+// cada navegación, las lecturas pesadas viven detrás de un memo en proceso
+// con TTL corto. El confirm de importación llama `bustRadarCache()` para
+// invalidarlo y disparar `revalidatePath` en las páginas afectadas.
+//
+// El memo se hace en proceso (no Next `unstable_cache`) porque Next
+// serializa el valor cacheado vía JSON y eso convierte los `Date` (por
+// ejemplo `lastImportAt`, `periodStart`) a strings; preferimos preservar
+// los tipos.
 
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import {
   buildRadar,
@@ -10,6 +21,18 @@ import {
   type RadarMemberInput,
   type RadarOrderTotals,
 } from "@/lib/comunidad-dropi-radar";
+import {
+  buildWeeklyPulseSummary,
+  type WeeklyPulseSummary,
+} from "./weekly-pulse";
+import {
+  AVAILABLE_MONTHS_CACHE_KEY,
+  formatMonthRef,
+  radarCacheKey,
+  WEEKLY_PULSE_CACHE_KEY,
+} from "./radar-cache";
+
+export { formatMonthRef, radarCacheKey, WEEKLY_PULSE_CACHE_KEY };
 
 const ZERO_TOTALS: RadarOrderTotals = {
   ordersEntered: 0,
@@ -18,33 +41,78 @@ const ZERO_TOTALS: RadarOrderTotals = {
   ordersReturned: 0,
 };
 
+// TTL corto: 60s da margen para que múltiples navegaciones consecutivas
+// reutilicen el resultado sin desfasar de forma visible con el estado real.
+const CACHE_TTL_MS = 60_000;
+
+// Singleton del cache entre hot reloads / múltiples imports del módulo en
+// dev — análogo al patrón usado por `prisma.ts`.
+const globalForRadarCache = globalThis as unknown as {
+  __comunidadDropiRadarCache?: Map<string, CacheEntry<unknown>>;
+};
+
+interface CacheEntry<T> {
+  expiresAt: number;
+  value: Promise<T>;
+}
+
+function getCache(): Map<string, CacheEntry<unknown>> {
+  if (!globalForRadarCache.__comunidadDropiRadarCache) {
+    globalForRadarCache.__comunidadDropiRadarCache = new Map();
+  }
+  return globalForRadarCache.__comunidadDropiRadarCache;
+}
+
+async function memo<T>(key: string, build: () => Promise<T>): Promise<T> {
+  const cache = getCache();
+  const now = Date.now();
+  const existing = cache.get(key) as CacheEntry<T> | undefined;
+  if (existing && existing.expiresAt > now) {
+    return existing.value;
+  }
+  const value = build().catch((err) => {
+    // Si falla, no dejamos la promesa rota cacheada — la siguiente lectura
+    // reintenta desde Prisma.
+    cache.delete(key);
+    throw err;
+  });
+  cache.set(key, { expiresAt: now + CACHE_TTL_MS, value });
+  return value;
+}
+
+const COMMON_MEMBER_SELECT = {
+  id: true,
+  fullName: true,
+  email: true,
+  phone: true,
+  country: true,
+  currentSegment: true,
+  currentPriority: true,
+  currentStatus: true,
+  linkedStudentId: true,
+} as const;
+
 export interface AvailableMonth {
   year: number;
   month: number;
   metricCount: number;
 }
 
-const SPANISH_MONTHS = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
-
-export function formatMonthRef(ref: { year: number; month: number }): string {
-  const idx = Math.max(0, Math.min(11, ref.month - 1));
-  return `${SPANISH_MONTHS[idx]} ${ref.year}`;
+export interface RadarLoadInput {
+  year?: number;
+  month?: number;
 }
 
-export async function listAvailableMonths(): Promise<AvailableMonth[]> {
+export interface RadarLoadResult {
+  radar: Radar | null;
+  available: AvailableMonth[];
+  // Última importación confirmada en cualquier estado terminal. Sirve para
+  // el bloque de calidad de datos: si pasó mucho tiempo, el Pulso puede
+  // estar desactualizado y conviene avisarlo.
+  lastImportAt: Date | null;
+}
+
+async function listAvailableMonthsRaw(): Promise<AvailableMonth[]> {
   const grouped = await prisma.dropiMonthlyMetric.groupBy({
     by: ["year", "month"],
     _count: { _all: true },
@@ -57,25 +125,15 @@ export async function listAvailableMonths(): Promise<AvailableMonth[]> {
   }));
 }
 
-export interface RadarLoadInput {
-  year?: number;
-  month?: number;
+export async function listAvailableMonths(): Promise<AvailableMonth[]> {
+  return memo(AVAILABLE_MONTHS_CACHE_KEY, listAvailableMonthsRaw);
 }
 
-export interface RadarLoadResult {
-  radar: Radar | null;
-  available: AvailableMonth[];
-  // Última importación confirmada en cualquier estado terminal. Sirve para el
-  // bloque de calidad de datos: si pasó mucho tiempo, el Pulso puede estar
-  // desactualizado y conviene avisarlo.
-  lastImportAt: Date | null;
-}
-
-export async function loadRadar(
-  input: RadarLoadInput = {},
+async function loadRadarUncached(
+  input: RadarLoadInput,
 ): Promise<RadarLoadResult> {
   const [available, lastImport] = await Promise.all([
-    listAvailableMonths(),
+    memo(AVAILABLE_MONTHS_CACHE_KEY, listAvailableMonthsRaw),
     prisma.dropiImportBatch.findFirst({
       where: { status: "COMPLETED" },
       orderBy: { updatedAt: "desc" },
@@ -107,14 +165,31 @@ export async function loadRadar(
       ? available[currentIdx + 1]
       : null;
 
+  // El `select` reemplaza a `include: { member: true }` para no traer
+  // campos pesados (notes, timestamps internos) que el Pulso no usa.
+  // Reduce el payload Prisma → JS notablemente cuando hay muchos miembros.
   const [currentMetrics, previousMetrics] = await Promise.all([
     prisma.dropiMonthlyMetric.findMany({
       where: { year: currentRef.year, month: currentRef.month },
-      include: { member: true },
+      select: {
+        memberId: true,
+        ordersEntered: true,
+        ordersMoved: true,
+        ordersDelivered: true,
+        ordersReturned: true,
+        member: { select: COMMON_MEMBER_SELECT },
+      },
     }),
     previousRef
       ? prisma.dropiMonthlyMetric.findMany({
           where: { year: previousRef.year, month: previousRef.month },
+          select: {
+            memberId: true,
+            ordersEntered: true,
+            ordersMoved: true,
+            ordersDelivered: true,
+            ordersReturned: true,
+          },
         })
       : Promise.resolve([]),
   ]);
@@ -136,6 +211,7 @@ export async function loadRadar(
   const previousOnlyMembers = previousOnlyIds.length
     ? await prisma.dropiCommunityMember.findMany({
         where: { id: { in: previousOnlyIds } },
+        select: COMMON_MEMBER_SELECT,
       })
     : [];
 
@@ -185,4 +261,83 @@ export async function loadRadar(
     members,
   });
   return { radar, available, lastImportAt };
+}
+
+export async function loadRadar(
+  input: RadarLoadInput = {},
+): Promise<RadarLoadResult> {
+  return memo(radarCacheKey(input), () => loadRadarUncached(input));
+}
+
+// ─── Pulso semanal disponible ──────────────────────────────────────────────
+//
+// Dato parcial honesto: si hay al menos una ventana semanal cargada, el
+// Pulso puede mostrarla como "Pulso semanal disponible" mientras se cierra
+// el mensual. Nunca se mezcla con el cierre mensual ni se hacen
+// comparaciones cruzadas — solo se reporta la ventana real con su delta vs
+// la inmediata anterior.
+
+async function loadWeeklyPulseUncached(): Promise<WeeklyPulseSummary | null> {
+  const recent = await prisma.dropiWeeklyMetric.groupBy({
+    by: ["periodStart", "periodEnd"],
+    orderBy: [{ periodEnd: "desc" }, { periodStart: "desc" }],
+    take: 2,
+  });
+  if (recent.length === 0) return null;
+
+  const latest = recent[0];
+  const previous = recent[1] ?? null;
+
+  const [currentRows, previousRows] = await Promise.all([
+    prisma.dropiWeeklyMetric.findMany({
+      where: {
+        periodStart: latest.periodStart,
+        periodEnd: latest.periodEnd,
+      },
+      select: {
+        memberId: true,
+        ordersEntered: true,
+        ordersMoved: true,
+        ordersDelivered: true,
+        ordersReturned: true,
+      },
+    }),
+    previous
+      ? prisma.dropiWeeklyMetric.findMany({
+          where: {
+            periodStart: previous.periodStart,
+            periodEnd: previous.periodEnd,
+          },
+          select: {
+            ordersEntered: true,
+            ordersMoved: true,
+            ordersDelivered: true,
+            ordersReturned: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return buildWeeklyPulseSummary({
+    period: { periodStart: latest.periodStart, periodEnd: latest.periodEnd },
+    previousPeriod: previous
+      ? { periodStart: previous.periodStart, periodEnd: previous.periodEnd }
+      : null,
+    currentRows,
+    previousRows,
+  });
+}
+
+export async function loadWeeklyPulse(): Promise<WeeklyPulseSummary | null> {
+  return memo(WEEKLY_PULSE_CACHE_KEY, loadWeeklyPulseUncached);
+}
+
+// Vacía todo el estado memoizado por el Pulso e invalida los paths que lo
+// renderizan para que la siguiente navegación lea Prisma fresco sin
+// esperar al TTL del memo.
+export function bustRadarCache(): void {
+  getCache().clear();
+  revalidatePath("/comunidad-dropi/radar");
+  revalidatePath("/comunidad-dropi/rankings");
+  revalidatePath("/comunidad-dropi/segmentos");
 }

@@ -12,6 +12,7 @@ import {
 } from "@/lib/comunidad-dropi-segments";
 import { computeMemberSnapshotPatch } from "@/lib/comunidad-dropi-snapshot";
 import { validateUploadPayload } from "@/lib/comunidad-dropi-upload-validation";
+import { bustRadarCache } from "@/app/comunidad-dropi/_lib/radar-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -296,6 +297,11 @@ export async function POST(
       maxWait: 15_000,
       timeout: 120_000,
     });
+
+    // Tras un confirm el Pulso (radar mensual + pulso semanal + acciones
+    // abiertas) cambió: invalidamos sus tags para que la próxima navegación
+    // no sirva datos viejos del cache.
+    bustRadarCache();
 
     await writeAudit({
       actorId: actor.userId,
