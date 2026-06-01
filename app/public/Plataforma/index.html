@@ -216,6 +216,8 @@ MANUAL_COLLABORATORS.forEach(c=>{MEMBER_LABELS[c.id]=c.label;});
 const memberLabel=m=>MEMBER_LABELS[m]||m;
 const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
 const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
+const HISTORICAL_MARKETING_MEMBER="Marketing Histórico";
+const isHistoricalMonthlyAdSpendEntry=e=>e?.member===HISTORICAL_MARKETING_MEMBER;
 
 const nv=v=>{const x=Number(v);return(!v&&v!==0)||isNaN(x)?null:x};
 const dv=(a,b)=>{const x=nv(a),y=nv(b);return(!x||!y||y===0)?null:x/y};
@@ -1744,13 +1746,17 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     // inflate mensajes/follow-ups/ig in the Detalle Diario marketing section.
     const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member));
     const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));
+    // Jan-Mar historical ad spend was imported as one month-total row on the
+    // last day. Keep it in Total / Mes, but don't paint it as a daily spend.
+    const dailyAdEntries=entries.filter(e=>!isHistoricalMonthlyAdSpendEntry(e));
     const closer=allCloser[d]||{};
     const ledger=ledgerByDay[d]||{};
     const sd=f=>sumF(entries,f);
+    const sdAds=f=>sumF(dailyAdEntries,f);
     const sdMkt=f=>sumF(mktEntries,f);
     const sdCommercial=f=>sumF(commercialEntries,f);
-    const totalGastoDay=sd("gastoMeta")+sd("gastoGoogle")+sd("gastoTikTok")+sd("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,commercialEntries,closer,ledger,sd,sdMkt,sdCommercial,totalGastoDay};
+    const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
+    return{day:i+1,d,entries,mktEntries,commercialEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -1799,11 +1805,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
 
   const GROUPS=[
     {title:"Gasto Publicitario",bg:"#1e40af",rows:[
-      {l:"$ Total Gasto",fn:d=>d.totalGastoDay||null,fmt:"$"},
-      {l:"Meta",fn:d=>d.sd("gastoMeta")||null,fmt:"$",sub:true},
-      {l:"Google",fn:d=>d.sd("gastoGoogle")||null,fmt:"$",sub:true},
-      {l:"TikTok",fn:d=>d.sd("gastoTikTok")||null,fmt:"$",sub:true},
-      {l:"Otros",fn:d=>d.sd("gastoOtros")||null,fmt:"$",sub:true},
+      {l:"$ Total Gasto",fn:d=>d.totalGastoDay||null,fmt:"$",totFn:()=>mGastoTotal||null},
+      {l:"Meta",fn:d=>d.sdAds("gastoMeta")||null,fmt:"$",sub:true,totFn:()=>mGastoMeta||null},
+      {l:"Google",fn:d=>d.sdAds("gastoGoogle")||null,fmt:"$",sub:true,totFn:()=>mGastoGoogle||null},
+      {l:"TikTok",fn:d=>d.sdAds("gastoTikTok")||null,fmt:"$",sub:true,totFn:()=>mGastoTikTok||null},
+      {l:"Otros",fn:d=>d.sdAds("gastoOtros")||null,fmt:"$",sub:true,totFn:()=>mGastoOtros||null},
     ]},
     {title:"Actividad Marketing",bg:"#6d28d9",rows:[
       {l:"# IG Seguidores",fn:d=>d.sdMkt("igFollowers")||null,fmt:"n"},
