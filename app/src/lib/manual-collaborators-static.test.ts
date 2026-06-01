@@ -209,8 +209,8 @@ describe("manual collaborator labels", () => {
     expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
     expect(torreBlock).toContain('const totalValor=totalValorHT;');
     expect(torreBlock).toContain('const totalVentas=sumF(closerEntries,"q_ventas_ht");');
-    expect(torreBlock).toContain('const totalLeads=sumF(closerEntries,"agendas_calificadas");');
-    expect(torreBlock).toContain('const totalAgendas=sumF(closerEntries,"agendas_final");');
+    expect(torreBlock).toContain('const totalLeads=sumF(closerEntries,"agendas_final");');
+    expect(torreBlock).toContain('const totalAgendas=sumF(closerEntries,"agendas_calificadas");');
     expect(torreBlock).toContain('const totalAsistidas=sumF(closerEntries,"citas_asistidas");');
   });
 
