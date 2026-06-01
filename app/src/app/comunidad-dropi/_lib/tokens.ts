@@ -22,6 +22,7 @@ export const COLORS = {
 export const SUBNAV = [
   { href: "/comunidad-dropi/radar", label: "Radar" },
   { href: "/comunidad-dropi/seguimientos", label: "Seguimientos" },
+  { href: "/comunidad-dropi/crecimiento", label: "Crecimiento" },
   { href: "/comunidad-dropi/rankings", label: "Rankings" },
   { href: "/comunidad-dropi/segmentos", label: "Segmentos" },
   { href: "/comunidad-dropi/inteligencia", label: "Histórico" },

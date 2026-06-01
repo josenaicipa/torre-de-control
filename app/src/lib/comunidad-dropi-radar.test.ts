@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildDeclineCohort,
+  buildGrowthCohorts,
   buildRadar,
+  buildTopDelivered,
   computeStarScore,
+  DROPI_RADAR_THRESHOLDS,
   rankRadarMembers,
   RADAR_RANKING_CRITERIA,
   RADAR_SUGGESTED_ACTIONS,
@@ -1052,5 +1056,213 @@ describe("buildRadar — suggestedAction por segmento", () => {
     expect(highReturn.suggestedAction).toBe(
       RADAR_SUGGESTED_ACTIONS.HIGH_RETURN,
     );
+  });
+});
+
+describe("DROPI_RADAR_THRESHOLDS — config central del motor mensual", () => {
+  it("expone bandas de crecimiento 10/20/30 y umbral de cohorte 50", () => {
+    expect(DROPI_RADAR_THRESHOLDS.deliveredCohortMin).toBe(50);
+    expect(DROPI_RADAR_THRESHOLDS.growthBandsPct).toEqual([10, 20, 30]);
+    expect(DROPI_RADAR_THRESHOLDS.topDeliveredLimit).toBe(20);
+  });
+});
+
+// Cohortes de Crecimiento — eje entregadas. Test exhaustivo de exclusión por
+// volumen y de la asignación a la banda mayor cumplida.
+function deliveredMember(
+  id: string,
+  currentDelivered: number,
+  previousDelivered: number | null,
+): RadarMemberInput {
+  return makeMember({
+    id,
+    current: {
+      ordersEntered: Math.max(currentDelivered, 0),
+      ordersMoved: Math.max(currentDelivered, 0),
+      ordersDelivered: currentDelivered,
+      ordersReturned: 0,
+    },
+    previous:
+      previousDelivered == null
+        ? null
+        : {
+            ordersEntered: Math.max(previousDelivered, 0),
+            ordersMoved: Math.max(previousDelivered, 0),
+            ordersDelivered: previousDelivered,
+            ordersReturned: 0,
+          },
+  });
+}
+
+describe("buildTopDelivered — Top N por entregas", () => {
+  it("ordena por entregas desc y respeta el límite", () => {
+    const inputs = [
+      deliveredMember("a", 30, 10),
+      deliveredMember("b", 100, 90),
+      deliveredMember("c", 75, 70),
+      deliveredMember("d", 5, 0),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const top = buildTopDelivered(radar.members, 2);
+    expect(top.map((m) => m.id)).toEqual(["b", "c"]);
+  });
+
+  it("excluye miembros con cero entregas en el período", () => {
+    const inputs = [
+      deliveredMember("a", 0, 50),
+      deliveredMember("b", 10, 5),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const top = buildTopDelivered(radar.members, 20);
+    expect(top.map((m) => m.id)).toEqual(["b"]);
+  });
+});
+
+describe("buildDeclineCohort — alerta de caída sobre entregas", () => {
+  it("incluye solo miembros con previousDelivered >= 50 y delta negativo", () => {
+    const inputs = [
+      // Cumple: previo 80, actual 40 → -40
+      deliveredMember("drop-strong", 40, 80),
+      // Cumple: previo 50, actual 30 → -20
+      deliveredMember("drop-edge", 30, 50),
+      // Excluido: previo 49 (debajo del umbral)
+      deliveredMember("below-min", 10, 49),
+      // Excluido: actual >= previo (no es caída)
+      deliveredMember("flat", 80, 80),
+      // Excluido: sin mes previo
+      deliveredMember("new", 70, null),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const decline = buildDeclineCohort(radar.members);
+    expect(decline.map((d) => d.member.id)).toEqual([
+      "drop-strong",
+      "drop-edge",
+    ]);
+    expect(decline[0].deliveredDelta).toBe(-40);
+    expect(decline[1].deliveredDelta).toBe(-20);
+  });
+
+  it("ordena por mayor pérdida absoluta primero (no por porcentaje)", () => {
+    const inputs = [
+      // -10%, pérdida -50
+      deliveredMember("big-absolute", 450, 500),
+      // -50%, pérdida -25
+      deliveredMember("big-pct", 25, 50),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const decline = buildDeclineCohort(radar.members);
+    expect(decline[0].member.id).toBe("big-absolute");
+    expect(decline[1].member.id).toBe("big-pct");
+  });
+
+  it("respeta minPrevious custom", () => {
+    const inputs = [
+      deliveredMember("drop", 30, 60),
+      deliveredMember("under-100", 50, 80),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const decline = buildDeclineCohort(radar.members, 100);
+    expect(decline).toHaveLength(0);
+  });
+});
+
+describe("buildGrowthCohorts — bandas 10/20/30 sobre entregas mensuales", () => {
+  it("clasifica a cada miembro en la banda mayor cumplida", () => {
+    const inputs = [
+      // +50% (cae en 30)
+      deliveredMember("top-band", 150, 100),
+      // +25% (cae en 20)
+      deliveredMember("mid-band", 125, 100),
+      // +15% (cae en 10)
+      deliveredMember("low-band", 115, 100),
+      // +5% (no llega a ninguna banda → fuera)
+      deliveredMember("below-bands", 105, 100),
+      // -10% (caída → fuera)
+      deliveredMember("negative", 90, 100),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const buckets = buildGrowthCohorts(radar.members);
+    const byBand = new Map(buckets.map((b) => [b.bandPct, b.members]));
+    expect(byBand.get(30)?.map((g) => g.member.id)).toEqual(["top-band"]);
+    expect(byBand.get(20)?.map((g) => g.member.id)).toEqual(["mid-band"]);
+    expect(byBand.get(10)?.map((g) => g.member.id)).toEqual(["low-band"]);
+  });
+
+  it("excluye miembros con entregas actuales < 50 aunque crezcan mucho", () => {
+    const inputs = [
+      // +200% pero entregas actuales 30 → fuera
+      deliveredMember("tiny-fast", 30, 10),
+      // +30% con entregas actuales 65 → entra en banda 30
+      deliveredMember("solid", 65, 50),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const buckets = buildGrowthCohorts(radar.members);
+    const cohortIds = buckets.flatMap((b) =>
+      b.members.map((g) => g.member.id),
+    );
+    expect(cohortIds).toEqual(["solid"]);
+  });
+
+  it("excluye miembros sin mes previo o con caída", () => {
+    const inputs = [
+      deliveredMember("new-no-prev", 200, null),
+      deliveredMember("falling", 60, 80),
+      deliveredMember("strong", 80, 50),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const cohortIds = buildGrowthCohorts(radar.members)
+      .flatMap((b) => b.members.map((g) => g.member.id))
+      .sort();
+    expect(cohortIds).toEqual(["strong"]);
+  });
+
+  it("acepta override de bandas y umbral mínimo", () => {
+    const inputs = [
+      // +6% con 60 entregadas
+      deliveredMember("smallish", 53, 50),
+    ];
+    const radar = buildRadar({
+      current: CURRENT,
+      previous: PREVIOUS,
+      members: inputs,
+    });
+    const buckets = buildGrowthCohorts(radar.members, {
+      minDelivered: 50,
+      bandsPct: [5],
+    });
+    expect(buckets[0].bandPct).toBe(5);
+    expect(buckets[0].members.map((g) => g.member.id)).toEqual(["smallish"]);
   });
 });

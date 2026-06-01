@@ -242,17 +242,57 @@ export const RADAR_RANKING_LABELS: Record<RadarRankingCriterion, string> = {
   DECLINE: "Mayor caída",
 };
 
-// Umbrales del radar — documentados en blueprint sección 6.
-// Un miembro con devolución >= 25% nunca debe aparecer como Estrella.
-const HIGH_RETURN_THRESHOLD = 25;
-// Volumen mínimo absoluto para considerar a alguien Estrella; evita que un
-// miembro con pocas entregas pero crecimiento porcentual alto entre al podio.
-const STAR_MIN_DELIVERED = 50;
-// Corte de score estrella sobre 100 — combinación de cuatro percentiles.
-const STAR_SCORE_THRESHOLD = 80;
-// Banda STABLE: ±10% en entregadas vs. mes anterior.
-const GROWING_DELTA_PCT = 10;
-const DROPPING_DELTA_PCT = -10;
+// Configuración central del motor mensual / radar. Vive acá para que las
+// vistas (Pulso, Crecimiento) y los helpers de cohortes lean los mismos
+// umbrales sin hardcodearlos en cada lugar. NO se mezcla con
+// `DROPI_THRESHOLDS` (motor weekly en `comunidad-dropi-segments.ts`).
+export interface RadarMonthlyThresholds {
+  // Tope mínimo de entregas en el mes para que un miembro entre a las
+  // cohortes de crecimiento y de caída. Por debajo no clasificamos ni
+  // generamos alerta de seguimiento (la tracción no es suficiente para que
+  // el caso merezca acción).
+  deliveredCohortMin: number;
+  // Bandas de crecimiento porcentual sobre entregas vs. mes anterior. Un
+  // miembro cae en la banda mayor que cumple (p. ej. con 35% cae en 30, no
+  // en 10). Mantener ordenadas ascendentes para legibilidad — el helper
+  // ordena descendente internamente.
+  growthBandsPct: readonly number[];
+  // Cantidad de miembros a mostrar en el "Top entregas" del Crecimiento.
+  topDeliveredLimit: number;
+  // Tope porcentual a partir del cual un miembro entra al bucket DROPPING
+  // de segmentación. Se mantiene como constante visible para el UI.
+  droppingDeltaPct: number;
+  // Tope porcentual a partir del cual un miembro entra al bucket GROWING
+  // de segmentación. Equivalente positivo de `droppingDeltaPct`.
+  growingDeltaPct: number;
+  // Umbral de devoluciones (% sobre ingresadas) que marca un miembro como
+  // HIGH_RETURN y lo excluye del podio Estrella.
+  highReturnPct: number;
+  // Score estrella mínimo (0-100) para entrar al segmento STAR.
+  starScoreThreshold: number;
+  // Volumen mínimo de entregadas para considerar a alguien Estrella.
+  starMinDelivered: number;
+}
+
+export const DROPI_RADAR_THRESHOLDS: RadarMonthlyThresholds = {
+  deliveredCohortMin: 50,
+  growthBandsPct: [10, 20, 30],
+  topDeliveredLimit: 20,
+  droppingDeltaPct: -10,
+  growingDeltaPct: 10,
+  highReturnPct: 25,
+  starScoreThreshold: 80,
+  starMinDelivered: 50,
+};
+
+// Aliases internos que conservan los nombres viejos para no tocar la lógica
+// de segmentación existente. Si un test antiguo lee `STAR_MIN_DELIVERED`, lo
+// resuelve desde el config central.
+const HIGH_RETURN_THRESHOLD = DROPI_RADAR_THRESHOLDS.highReturnPct;
+const STAR_MIN_DELIVERED = DROPI_RADAR_THRESHOLDS.starMinDelivered;
+const STAR_SCORE_THRESHOLD = DROPI_RADAR_THRESHOLDS.starScoreThreshold;
+const GROWING_DELTA_PCT = DROPI_RADAR_THRESHOLDS.growingDeltaPct;
+const DROPPING_DELTA_PCT = DROPI_RADAR_THRESHOLDS.droppingDeltaPct;
 
 const STAR_WEIGHTS = {
   delivered: 0.4,
@@ -842,6 +882,115 @@ function computeQualitySummary(
     membersWithoutLinkedStudent: noLinked,
     membersInactiveThisMonth: inactiveCount,
   };
+}
+
+// ─── Cohortes de Seguimiento de Crecimiento ─────────────────────────────────
+//
+// Lectura sobre `RadarMember[]` ya construido para alimentar la vista de
+// "Crecimiento" del módulo. NO degrada el snapshot ni crea follow-ups por sí
+// sola; la auto-generación sigue siendo responsabilidad del confirm de
+// importación (motor weekly) o del operador via CTA.
+//
+// El eje de las cohortes es SIEMPRE `ordersDelivered`. Los miembros con
+// `ordersDelivered` actual < `deliveredCohortMin` no entran ni a Top 20, ni
+// a la cohorte de caída (porque la línea base del prev se chequea), ni a
+// las bandas de crecimiento.
+
+export interface GrowthCohortMember {
+  member: RadarMember;
+  band: number;
+  deliveredDeltaPct: number;
+}
+
+export interface GrowthCohortBucket {
+  bandPct: number;
+  members: GrowthCohortMember[];
+}
+
+export interface DeclineCohortMember {
+  member: RadarMember;
+  previousDelivered: number;
+  deliveredDelta: number;
+  deliveredDeltaPct: number | null;
+}
+
+// Top N por entregas en el período actual. Excluye miembros con cero
+// entregas para que el ranking no incluya cuentas inactivas.
+export function buildTopDelivered(
+  members: readonly RadarMember[],
+  limit: number = DROPI_RADAR_THRESHOLDS.topDeliveredLimit,
+): RadarMember[] {
+  return [...members]
+    .filter((m) => m.current.ordersDelivered > 0)
+    .sort((a, b) => b.current.ordersDelivered - a.current.ordersDelivered)
+    .slice(0, Math.max(0, limit));
+}
+
+// Cohorte en caída — alerta "necesita ayuda". Filtra miembros cuyo mes
+// previo tenía `previousDelivered >= minPrevious` y cuya variación de
+// entregadas vs. ese mes es negativa. Ordena por pérdida absoluta más
+// grande primero (impacto real > porcentaje), igual que el bucket Ayudar
+// del Pulso (`pickHelp`).
+export function buildDeclineCohort(
+  members: readonly RadarMember[],
+  minPrevious: number = DROPI_RADAR_THRESHOLDS.deliveredCohortMin,
+): DeclineCohortMember[] {
+  const result: DeclineCohortMember[] = [];
+  for (const m of members) {
+    const prev = m.previous?.ordersDelivered ?? null;
+    if (prev == null || prev < minPrevious) continue;
+    const delta = m.current.ordersDelivered - prev;
+    if (delta >= 0) continue;
+    result.push({
+      member: m,
+      previousDelivered: prev,
+      deliveredDelta: delta,
+      deliveredDeltaPct: m.deliveredDeltaPct,
+    });
+  }
+  result.sort((a, b) => a.deliveredDelta - b.deliveredDelta);
+  return result;
+}
+
+// Cohorte de crecimiento por bandas. Devuelve un bucket por cada banda de
+// `bandsPct` con los miembros que cumplen `currentDelivered >= minDelivered`
+// y `deliveredDeltaPct >= bandPct`. Un miembro cae en la banda más alta
+// alcanzada (orden descendente), por lo que las bandas son disjuntas.
+export function buildGrowthCohorts(
+  members: readonly RadarMember[],
+  options?: {
+    minDelivered?: number;
+    bandsPct?: readonly number[];
+  },
+): GrowthCohortBucket[] {
+  const minDelivered =
+    options?.minDelivered ?? DROPI_RADAR_THRESHOLDS.deliveredCohortMin;
+  const bands = (options?.bandsPct ?? DROPI_RADAR_THRESHOLDS.growthBandsPct)
+    .slice()
+    .sort((a, b) => b - a);
+  const buckets: GrowthCohortBucket[] = bands.map((bandPct) => ({
+    bandPct,
+    members: [],
+  }));
+  for (const m of members) {
+    if (m.current.ordersDelivered < minDelivered) continue;
+    const pct = m.deliveredDeltaPct;
+    if (pct == null || pct <= 0) continue;
+    for (const bucket of buckets) {
+      if (pct >= bucket.bandPct) {
+        bucket.members.push({
+          member: m,
+          band: bucket.bandPct,
+          deliveredDeltaPct: pct,
+        });
+        break;
+      }
+    }
+  }
+  for (const b of buckets) {
+    b.members.sort((a, b) => b.deliveredDeltaPct - a.deliveredDeltaPct);
+  }
+  return buckets;
 }
 
 export function rankRadarMembers(
