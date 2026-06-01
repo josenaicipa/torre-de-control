@@ -615,8 +615,12 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const totalValorLT=sumF(closerEntries,"valor_venta_lt");
   const totalValor=totalValorHT+totalValorLT;
   const totalVentas=sumF(closerEntries,"q_ventas_ht");
-  const totalLeads=sumF(closerEntries,"agendas_calificadas");
-  const totalAgendas=sumF(closerEntries,"agendas_final");
+  // Torre CEO must show the larger upstream count as "Citas agendadas reales"
+  // consistently across historical imports (Jan-May) and future GHL/manual rows.
+  const totalAgendasCampo=sumF(closerEntries,"agendas_final");
+  const totalLeadsCampo=sumF(closerEntries,"agendas_calificadas");
+  const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);
+  const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);
   const totalAsistidas=sumF(closerEntries,"citas_asistidas");
   // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
   const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
