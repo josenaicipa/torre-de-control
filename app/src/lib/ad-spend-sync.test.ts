@@ -21,6 +21,18 @@ describe("buildAutoAdsRows", () => {
 
     expect(rows).toEqual([
       expect.objectContaining({
+        date: "2026-01-31",
+        member: AUTO_ADS_MEMBER,
+        gasto_meta: 21036.18,
+        gasto_google: 0,
+      }),
+      expect.objectContaining({
+        date: "2026-05-21",
+        member: AUTO_ADS_MEMBER,
+        gasto_meta: 555.55,
+        gasto_google: 0,
+      }),
+      expect.objectContaining({
         date: "2026-05-30",
         member: AUTO_ADS_MEMBER,
         gasto_meta: 669.46,
@@ -34,17 +46,6 @@ describe("buildAutoAdsRows", () => {
         gasto_meta: 980.43,
         gasto_google: 150.43,
       }),
-    ]);
-  });
-
-  it("keeps pre-cutoff historical months out of Auto Ads sync", () => {
-    expect(buildAutoAdsRows({
-      daily_totals: [
-        { date: "2026-05-21", funnel: "high_ticket", channel: "meta", spend: 555.55 },
-        { date: "2026-05-22", funnel: "high_ticket", channel: "meta", spend: 740.89 },
-      ],
-    })).toEqual([
-      expect.objectContaining({ date: "2026-05-22", gasto_meta: 740.89, gasto_google: 0 }),
     ]);
   });
 

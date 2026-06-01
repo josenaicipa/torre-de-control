@@ -3,7 +3,6 @@ import { dashboardUpsert } from "./dashboard-store";
 export const DEFAULT_AD_SPEND_ENDPOINT =
   "https://metrics.unlockedecom.co/api/jarvis-metrics/dashboard/ad-spend-daily";
 export const AUTO_ADS_MEMBER = "Auto Ads";
-export const AUTO_ADS_DAILY_START_DATE = "2026-05-22";
 
 type RawAdSpendRow = {
   date?: unknown;
@@ -51,7 +50,6 @@ export function buildAutoAdsRows(payload: unknown): AutoAdsDailyEntry[] {
     const funnel = typeof row.funnel === "string" ? row.funnel.toLowerCase() : "";
     const channel = typeof row.channel === "string" ? row.channel.toLowerCase() : "";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-    if (date < AUTO_ADS_DAILY_START_DATE) continue;
     if (funnel !== "high_ticket") continue;
     if (channel !== "meta" && channel !== "google") continue;
 

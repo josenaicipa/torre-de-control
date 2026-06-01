@@ -21,10 +21,7 @@ describe("Detalle Diario > Gasto Publicitario historical monthly rows", () => {
         "const isHistoricalMonthlyAdSpendEntry=e=>e?.member===HISTORICAL_MARKETING_MEMBER;",
       );
       expect(source).toContain('const AUTO_ADS_MEMBER="Auto Ads";');
-      expect(source).toContain('const HISTORICAL_AD_SPEND_DAILY_CUTOFF="2026-05-22";');
-      expect(source).toContain(
-        'const isAutoAdSpendBeforeDailyCutoff=e=>e?.member===AUTO_ADS_MEMBER&&String(e?.date||"")<HISTORICAL_AD_SPEND_DAILY_CUTOFF;',
-      );
+      expect(source).not.toContain('const HISTORICAL_AD_SPEND_DAILY_CUTOFF="2026-05-22";');
       expect(source).toContain(
         "const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e));",
       );
