@@ -35,12 +35,19 @@ describe("manual collaborator labels", () => {
 
 
   it("surfaces legacy Area Comercial daily_closer data under Valentina and uses manual reservas first", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('// Admin/closer legacy daily_closer values'));
+
     expect(html).toContain('const closerToValentinaEntry=(date,row)=>({');
     expect(html).toContain('member:"Admin",date,');
     expect(html).toContain('cashReservas:row.cash_reservas||0');
     expect(html).toContain('entriesByCollab.Admin.push(...valentinaCloserEntries);');
     expect(html).toContain('const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);');
-    expect(html).toContain('{l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
+    expect(llenarBlock).toContain('<Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="$ Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>');
+    expect(llenarBlock).toMatch(/<Inp label="# Reservas" value=\{form\.reservas\}[\s\S]*<Inp label="\$ Reservas" prefix="\$" value=\{form\.cashReservas\}/);
+    expect(detalleBlock).toContain('{l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"}');
+    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
     expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
   });
 

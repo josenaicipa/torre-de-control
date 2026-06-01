@@ -2403,6 +2403,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Inp label="Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
               <Inp label="Recurring Cash $" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>
               <Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>
+              <Inp label="$ Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>
             </div>
           </Card>
           <Card>

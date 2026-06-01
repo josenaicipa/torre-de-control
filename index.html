@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Torre de Control — Unlocked</title>
-<link rel="icon" type="image/png" href="logo.png"/>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<link rel="icon" href="/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"/>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -17,11 +18,111 @@
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect } = React;
-const { createClient } = supabase;
 
-const SUPABASE_URL = 'https://vluuftzeivluexuhdupu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsdXVmdHplaXZsdWV4dWhkdXB1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxOTczNTAsImV4cCI6MjA4OTc3MzM1MH0.DlM-t41BzH0TBxaxiZBQfjg6l-zO0Cs17Uvn4FBZlkQ';
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// ─── Authenticated data client ───────────────────────────────────────────────
+// The browser no longer talks to Supabase directly. All reads/writes go through
+// same-origin Next routes (/api/dashboard/*) that enforce session + permissions
+// + data scope server-side. This `db` shim mirrors the small slice of the
+// Supabase query API the dashboard actually used, so call sites stay unchanged.
+const DASH_API = "/api/dashboard";
+const _post = (path, body) =>
+  fetch(DASH_API + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+async function _errFrom(r) {
+  const j = await r.json().catch(() => ({}));
+  return { message: j.error || `HTTP ${r.status}`, status: r.status };
+}
+const db = {
+  from(table) {
+    return {
+      // .select("*") — read a whole table (server scope-filters the rows).
+      select() {
+        return (async () => {
+          try {
+            const r = await fetch(
+              `${DASH_API}/select?table=${encodeURIComponent(table)}`,
+              { credentials: "same-origin" },
+            );
+            if (!r.ok) return { data: null, error: await _errFrom(r) };
+            const j = await r.json();
+            return { data: j.rows || [], error: null };
+          } catch (e) {
+            return { data: null, error: { message: String(e) } };
+          }
+        })();
+      },
+      // .upsert(values, {onConflict}) — insert or merge.
+      upsert(values, opts) {
+        return (async () => {
+          try {
+            const r = await _post("/mutate", {
+              op: "upsert",
+              table,
+              values,
+              onConflict: opts && opts.onConflict,
+            });
+            if (!r.ok) return { data: null, error: await _errFrom(r) };
+            return { data: null, error: null };
+          } catch (e) {
+            return { data: null, error: { message: String(e) } };
+          }
+        })();
+      },
+      // .insert(values) — supports both `await insert()` and `insert().select().single()`.
+      insert(values) {
+        const exec = async (single) => {
+          try {
+            const r = await _post("/mutate", { op: "insert", table, values });
+            if (!r.ok) return { data: null, error: await _errFrom(r) };
+            const j = await r.json();
+            const rows = j.rows || [];
+            return { data: single ? rows[0] || null : rows, error: null };
+          } catch (e) {
+            return { data: null, error: { message: String(e) } };
+          }
+        };
+        return {
+          select() {
+            return {
+              single: () => exec(true),
+              then: (res, rej) => exec(false).then(res, rej),
+            };
+          },
+          then: (res, rej) => exec(false).then(res, rej),
+        };
+      },
+      // .delete().eq(col,val) / .delete().match({...})
+      delete() {
+        const run = (match) =>
+          (async () => {
+            try {
+              const r = await _post("/mutate", { op: "delete", table, match });
+              if (!r.ok) return { data: null, error: await _errFrom(r) };
+              return { data: null, error: null };
+            } catch (e) {
+              return { data: null, error: { message: String(e) } };
+            }
+          })();
+        return {
+          eq: (col, val) => run({ [col]: val }),
+          match: (obj) => run(obj),
+        };
+      },
+    };
+  },
+};
+
+const syncAutoAdSpend=async()=>{
+  try{
+    const r=await _post("/sync-ad-spend",{});
+    if(!r.ok){console.warn("No se pudo sincronizar Gasto Publicitario",await _errFrom(r));return null;}
+    return await r.json().catch(()=>null);
+  }catch(e){console.warn("No se pudo sincronizar Gasto Publicitario",e);return null;}
+};
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const MDAYS  = [31,28,31,30,31,30,31,31,30,31,30,31];
@@ -83,22 +184,41 @@ const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];B
 applyTheme(false);
 const C={gold:BRAND,green:"#22C55E",amber:"#F59E0B",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F97316",pink:"#EC4899"};
 const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Daryi:C.gold,Otro:"#64748b",
-  "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Uribe":C.gold,"Juan Diego Afanador":C.blue};
+  "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Perez":C.gold,"Luisa Vega":C.pink,"Daniel Garcia":C.blue,"Wiston Quintero":C.blue,"Juan Diego Afanador":C.blue,"Valentina Sanchez":C.red,Admin:C.red};
 
 // ─── Manual Collaborator Reports (Por Colaborador) ──────────────────────────────
-// Karen is the marketing/IG setter; Carlos Velez, Daryi Uribe and Juan Diego Afanador
-// are the high-ticket closers. Karen's id is preserved as "Karen" for backward
-// compatibility; legacy ids "Carlos" / "Daryi" still resolve to the new closer names.
+// Karen is the marketing/IG setter; Valentina Sanchez (stored as "Admin" for
+// backward compatibility) uses the Area Comercial form. Carlos Velez, Daryi
+// Perez and Wiston Quintero use the closer fields. Karen's id is preserved as
+// "Karen" for backward compatibility; legacy ids "Carlos" / "Daryi" and
+// "Juan Diego Afanador" still resolve to the current collaborator names.
 const MARKETING_COLLABORATORS=[
   {id:"Karen",label:"Karen Anquiz",color:C.purple,role:"marketing"},
 ];
-const COMMERCIAL_COLLABORATORS=[
-  {id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"},
-  {id:"Daryi Uribe",label:"Daryi Uribe",color:C.gold,role:"closer",legacy:"Daryi"},
-  {id:"Juan Diego Afanador",label:"Juan Diego Afanador",color:C.blue,role:"closer"},
+const ADMIN_COLLABORATORS=[
+  {id:"Admin",label:"Valentina Sanchez",color:C.red,role:"closer",displayRole:"Admin"},
 ];
-const MANUAL_COLLABORATORS=[...MARKETING_COLLABORATORS,...COMMERCIAL_COLLABORATORS];
+const SETTER_COLLABORATORS=[
+  {id:"Alejandro Gallo",label:"Alejandro Gallo",color:C.teal,role:"setter"},
+  {id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"},
+  {id:"Luisa Vega",label:"Luisa Vega",color:C.pink,role:"setter"},
+  {id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"},
+];
+const CLOSER_COLLABORATORS=[
+  {id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"},
+  {id:"Daryi Perez",label:"Daryi Perez",color:C.gold,role:"closer",legacy:"Daryi"},
+  {id:"Wiston Quintero",label:"Wiston Quintero",color:C.blue,role:"closer",legacy:"Juan Diego Afanador"},
+  {id:"Daniel Garcia Closer",label:"Daniel Garcia",color:C.blue,role:"closer",legacy:"Daniel Garcia"},
+];
+const COMMERCIAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...CLOSER_COLLABORATORS];
+const REPORT_GROUPS={
+  admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS},
+  setters:{label:"Setters",collaborators:SETTER_COLLABORATORS},
+  closers:{label:"Closers",collaborators:CLOSER_COLLABORATORS},
+};
+const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...SETTER_COLLABORATORS,...CLOSER_COLLABORATORS];
 const MARKETING_MEMBER_IDS=new Set(MARKETING_COLLABORATORS.map(c=>c.id));
+const SETTER_MEMBER_IDS=new Set(SETTER_COLLABORATORS.map(c=>c.id));
 const COMMERCIAL_MEMBER_IDS=new Set([
   ...COMMERCIAL_COLLABORATORS.map(c=>c.id),
   ...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),
@@ -106,12 +226,15 @@ const COMMERCIAL_MEMBER_IDS=new Set([
 const MEMBER_LABELS={
   "Karen":"Karen Anquiz",
   "Carlos":"Carlos Velez",
-  "Daryi":"Daryi Uribe",
+  "Daryi":"Daryi Perez",
+  "Daryi Uribe":"Daryi Perez",
+  "Juan Diego Afanador":"Wiston Quintero",
 };
 MANUAL_COLLABORATORS.forEach(c=>{MEMBER_LABELS[c.id]=c.label;});
 const memberLabel=m=>MEMBER_LABELS[m]||m;
 const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
 const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
+const isSetterMember=m=>SETTER_MEMBER_IDS.has(m);
 const HISTORICAL_MARKETING_MEMBER="Marketing Histórico";
 const AUTO_ADS_MEMBER="Auto Ads";
 const isHistoricalMonthlyAdSpendEntry=e=>e?.member===HISTORICAL_MARKETING_MEMBER;
@@ -129,6 +252,11 @@ const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
 const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 
+// Modelo objetivo del embudo (plan): fixed hypothetical planning assumption.
+// "Leads necesarios por dólar" was derived from the historical Excel baseline.
+const LEADS_NECESARIOS_POR_DOLAR=0.00476;
+const leadsPerDollarForRevenue=()=>LEADS_NECESARIOS_POR_DOLAR;
+
 const blankEntry=()=>({
   igFollowers:0,posts:0,mensajes:0,followUps:0,bkOffers:0,
   gastoMeta:0,gastoGoogle:0,gastoTikTok:0,gastoOtros:0,
@@ -136,7 +264,12 @@ const blankEntry=()=>({
   // through repurposed daily_entries columns — see rowToEntry/saveEntry.
   agendas:0,calificadas:0,agendasHoy:0,showUps:0,
   ventasHT:0,valorVentaHT:0,upfrontCash:0,recurringCash:0,
-  pendDiaAnterior:0,pendAcumulados:0,reservas:0,
+  pendDiaAnterior:0,pendAcumulados:0,reservas:0,cashReservas:0,
+  callsScheduled:0,hotLeads:0,
+  outboundContactados:0,outboundAgendados:0,
+  setterLeadsContacted:0,setterConfirmedAgendas:0,setterCallsToLeads:0,setterMessagesSent:0,
+  setterOrganicLeads:0,setterAdsLeads:0,
+  showupNotes:"",hotLeadsEvidence:"",blockers:"",setterFindings:"",
 });
 
 const blankCloser=()=>({
@@ -150,22 +283,82 @@ const blankCloser=()=>({
   show_organicas:0,show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
 });
 
+// GHL → daily_closer / Detalle Diario → Torre CEO.
+// Agendas / Leads and Área Comercial are operational entry screens; Torre CEO
+// must consume the consolidated daily_closer rows so daily traceability remains
+// visible in Detalle Diario before monthly totals are shown in Torre.
+// Source: GHL pipeline CAPTACIÓN Y VENTAS appointments, May 2026.
+const GHL_CAPTACION_MAY_2026_APPOINTMENTS={
+  "2026-05-01":{scheduled:1,showed:0,cancelled:1},
+  "2026-05-02":{scheduled:17,showed:2,cancelled:10},
+  "2026-05-03":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-04":{scheduled:39,showed:5,cancelled:27},
+  "2026-05-05":{scheduled:37,showed:6,cancelled:27},
+  "2026-05-06":{scheduled:31,showed:9,cancelled:18},
+  "2026-05-07":{scheduled:36,showed:9,cancelled:20},
+  "2026-05-08":{scheduled:26,showed:3,cancelled:20},
+  "2026-05-09":{scheduled:15,showed:0,cancelled:13},
+  "2026-05-10":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-11":{scheduled:32,showed:6,cancelled:18},
+  "2026-05-12":{scheduled:23,showed:4,cancelled:9},
+  "2026-05-13":{scheduled:22,showed:3,cancelled:11},
+  "2026-05-14":{scheduled:19,showed:9,cancelled:9},
+  "2026-05-15":{scheduled:21,showed:8,cancelled:6},
+  "2026-05-16":{scheduled:10,showed:2,cancelled:4},
+  "2026-05-17":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-18":{scheduled:17,showed:3,cancelled:9},
+  "2026-05-19":{scheduled:24,showed:4,cancelled:12},
+  "2026-05-20":{scheduled:24,showed:5,cancelled:15},
+  "2026-05-21":{scheduled:26,showed:8,cancelled:11},
+  "2026-05-22":{scheduled:14,showed:4,cancelled:6},
+  "2026-05-23":{scheduled:15,showed:3,cancelled:7},
+  "2026-05-24":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-25":{scheduled:25,showed:9,cancelled:6},
+  "2026-05-26":{scheduled:24,showed:8,cancelled:14},
+  "2026-05-27":{scheduled:15,showed:4,cancelled:7},
+  "2026-05-28":{scheduled:25,showed:5,cancelled:15},
+  "2026-05-29":{scheduled:21,showed:5,cancelled:11},
+  "2026-05-30":{scheduled:16,showed:2,cancelled:12},
+  "2026-05-31":{scheduled:0,showed:0,cancelled:0},
+};
+const applyGhlCaptacionAgendasLeads=(closerObj)=>{
+  const next={...closerObj};
+  Object.entries(GHL_CAPTACION_MAY_2026_APPOINTMENTS).forEach(([date,r])=>{
+    // Regla aprobada: Calificadas = citas programadas - canceladas
+    next[date]={
+      ...blankCloser(),
+      ...(next[date]||{}),
+      date,
+      agendas_calificadas:Math.max(0,(r.scheduled||0)-(r.cancelled||0)),
+      agendas_final:r.scheduled||0,
+      citas_asistidas:r.showed||0,
+    };
+  });
+  return next;
+};
+
 const rowToEntry=row=>{
   return {
     member:row.member,date:row.date,
     // Marketing fields
     igFollowers:row.ig_followers||0,
     posts:row.posts||0,mensajes:row.mensajes||0,followUps:row.follow_ups||0,bkOffers:row.bk_offers||0,
+    callsScheduled:row.ig_followers||0,
+    outboundContactados:row.posts||0,
+    outboundAgendados:row.mensajes||0,
+    hotLeads:row.bk_offers||0,
     gastoMeta:row.gasto_meta||0,gastoGoogle:row.gasto_google||0,gastoTikTok:row.gasto_tiktok||0,gastoOtros:row.gasto_otros||0,
     // Closer manual fields are stored in repurposed daily_entries columns:
-    //   agendas → new_bk_organic, calificadas → qual_bk_organic,
+    //   noShow → new_bk_organic, calificadas → qual_bk_organic,
     //   agendasHoy → today_bk_organic, showUps → show_organic,
     //   ventasHT → sales_organic, valorVentaHT → revenue_organic,
-    //   upfrontCash → cash_organic, recurringCash → recurring_organic,
+    //   cashCollected → cash_organic, recurringCash → recurring_organic,
     //   pendDiaAnterior → pitches_organic, pendAcumulados → pitches_paid,
     //   reservas → reservas_organic.
-    // followUps (column follow_ups) is shared with the marketing schema but stored
-    // per-member so closer follow-ups and Karen's follow-ups stay on separate rows.
+    // For commercial/Admin rows, otherwise-marketing columns are safely reused
+    // for Otros because Detalle Diario filters commercial members out of marketing
+    // aggregates: callsScheduled → ig_followers, outboundContactados → posts,
+    // outboundAgendados → mensajes, hotLeads → bk_offers.
     agendas:row.new_bk_organic||0,
     calificadas:row.qual_bk_organic||0,
     agendasHoy:row.today_bk_organic||0,
@@ -177,6 +370,55 @@ const rowToEntry=row=>{
     pendDiaAnterior:row.pitches_organic||0,
     pendAcumulados:row.pitches_paid||0,
     reservas:row.reservas_organic||0,
+    cashReservas:0,
+    setterLeadsContacted:row.new_bk_organic||0,
+    setterConfirmedAgendas:row.qual_bk_organic||0,
+    setterCallsToLeads:row.today_bk_organic||0,
+    setterMessagesSent:row.show_organic||0,
+    setterOrganicLeads:row.sales_organic||0,
+    setterAdsLeads:row.pitches_organic||0,
+    showupNotes:row.showup_notes||"",
+    hotLeadsEvidence:row.hot_leads_evidence||"",
+    blockers:row.blockers||"",
+    setterFindings:row.setter_findings||"",
+  };
+};
+
+const closerToValentinaEntry=(date,row)=>({
+  ...blankEntry(),
+  member:"Admin",date,
+  agendas:(row.agendas_organicas||0)+(row.agendas_meta||0)+(row.agendas_google||0)+(row.agendas_tiktok||0)+(row.agendas_otros||0),
+  calificadas:row.agendas_calificadas||((row.cal_organicas||0)+(row.cal_meta||0)+(row.cal_google||0)+(row.cal_tiktok||0)+(row.cal_otros||0)),
+  agendasHoy:row.agendas_final||((row.hoy_organicas||0)+(row.hoy_meta||0)+(row.hoy_google||0)+(row.hoy_tiktok||0)+(row.hoy_otros||0)),
+  showUps:row.citas_asistidas||((row.show_organicas||0)+(row.show_meta||0)+(row.show_google||0)+(row.show_tiktok||0)+(row.show_otros||0)),
+  ventasHT:row.q_ventas_ht||0,
+  valorVentaHT:row.valor_venta_ht||0,
+  upfrontCash:row.ventas_cash||row.upfront_cash_ht||0,
+  recurringCash:row.recurring_cash||0,
+  reservas:row.q_reservas||0,
+  cashReservas:row.cash_reservas||0,
+});
+
+const commercialEntriesForDate=(allDaily,date,overrideKey,overrideEntry)=>{
+  const merged={...allDaily};
+  if(overrideKey&&overrideEntry)merged[overrideKey]=overrideEntry;
+  return Object.entries(merged)
+    .filter(([k,e])=>k.startsWith(date+":")&&e&&isCommercialMember(e.member))
+    .map(([,e])=>e);
+};
+
+const aggregateCommercialEntriesForCloser=(date,entries,existingCloser={})=>{
+  const s=k=>sumF(entries,k);
+  return{
+    ...existingCloser,date,
+    q_ventas_ht:s("ventasHT"),valor_venta_ht:s("valorVentaHT"),
+    ventas_cash:s("upfrontCash"),upfront_cash_ht:s("upfrontCash"),recurring_cash:s("recurringCash"),
+    q_reservas:s("reservas"),cash_reservas:s("cashReservas"),
+    agendas_final:s("agendasHoy"),agendas_calificadas:s("calificadas"),citas_asistidas:s("showUps"),
+    agendas_organicas:s("agendasHoy"),agendas_meta:0,agendas_google:0,agendas_tiktok:0,agendas_otros:0,
+    cal_organicas:s("calificadas"),cal_meta:0,cal_google:0,cal_tiktok:0,cal_otros:0,
+    hoy_organicas:s("agendasHoy"),hoy_meta:0,hoy_google:0,hoy_tiktok:0,hoy_otros:0,
+    show_organicas:s("showUps"),show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
   };
 };
 
@@ -196,6 +438,9 @@ const ICON_PATHS={
   user:'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   lock:'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z M7 11V7a5 5 0 0 1 10 0v4',
   clipboardCheck:'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2 M9 4h6v4H9z M9 14l2 2 4-4',
+  menu:'M3 6h18 M3 12h18 M3 18h18',
+  x:'M18 6L6 18 M6 6l12 12',
+  briefcase:'M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16',
 };
 const Icon=({name,size=16,color="currentColor",strokeWidth=1.8})=>(
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -257,6 +502,15 @@ const Inp=({label,value,onChange,prefix,hint,type="number"})=>(
           fontSize:13,padding:"0 11px",fontFamily:"'Inter',sans-serif",fontWeight:500}}/>
     </div>
     {hint&&<div style={{fontSize:10,color:TXT3}}>{hint}</div>}
+  </div>
+);
+const Txt=({label,value,onChange,placeholder})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    <Lbl>{label}</Lbl>
+    <textarea value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder||""} rows={3}
+      style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
+        color:TXT,padding:"10px 11px",fontSize:13,outline:"none",
+        fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:76,width:"100%"}}/>
   </div>
 );
 const STit=({icon,title,sub,right})=>(
@@ -580,11 +834,15 @@ const ResumenEquipo=({year,month,allDaily})=>{
 };
 
 // ─── TORRE CEO ────────────────────────────────────────────────────────────────
-const Row2=({label,value,color=TXT,bold=false,bg=null})=>(
-  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-    padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`}}>
+const Row2=({label,value,color=TXT,bold=false,bg=null,onClick=null})=>(
+  <div onClick={onClick||undefined} role={onClick?"button":undefined} tabIndex={onClick?0:undefined}
+    onKeyDown={onClick?(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onClick();}}:undefined}
+    style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+    padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`,
+    cursor:onClick?"pointer":"default"}}>
     <span style={{fontSize:10,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{label}</span>
-    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace"}}>{value}</span>
+    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace",
+      textDecoration:onClick?"underline dotted":"none",textUnderlineOffset:3}}>{value}{onClick?" ›":""}</span>
   </div>
 );
 const SectionTitle=({children})=>(
@@ -593,10 +851,92 @@ const SectionTitle=({children})=>(
     fontFamily:"'Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
 );
 
+// Spanish labels for the ticket classification returned by /api/payments/summary.
+const CLASS_ES={LOW_TICKET:"Low Ticket",HIGH_TICKET:"High Ticket",RESERVA:"Reserva",UNKNOWN:"—"};
+const fDateShort=iso=>{if(!iso)return"—";const d=new Date(iso);if(isNaN(d.getTime()))return"—";
+  return d.toLocaleDateString("es-CO",{day:"2-digit",month:"short",year:"numeric"});};
+
+// Drill-down drawer for Cash Collected. Shows the transactions behind one metric
+// (Lead, Monto, Fecha, Fuente, Producto, Clasificación, Revisión). It renders only
+// the curated PaymentTransactionView fields the API returns — never raw payloads.
+const PaymentsDrawer=({drill,onClose})=>{
+  if(!drill)return null;
+  const rows=drill.rows||[];
+  const total=rows.reduce((s,r)=>s+(Number(r.amountUsd)||0),0);
+  const cols=["Lead","Monto","Fecha","Fuente","Producto","Clasificación","Revisión"];
+  return(
+    <div onClick={onClose} role="presentation"
+      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(15,23,42,.55)",display:"flex",justifyContent:"flex-end"}}>
+      <div onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-label={drill.title}
+        style={{width:"min(780px,96vw)",height:"100%",background:SURFACE,display:"flex",flexDirection:"column",boxShadow:"-8px 0 30px rgba(0,0,0,.25)"}}>
+        <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+          <div>
+            <div style={{fontSize:9,color:"#94a3b8",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>Cash Collected — detalle</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Inter',sans-serif"}}>{drill.title}</div>
+            <div style={{fontSize:11,color:"#cbd5e1",fontFamily:"'DM Mono',monospace",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
+          </div>
+          <button onClick={onClose} aria-label="Cerrar"
+            style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:8,padding:"6px 12px",fontSize:13,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>✕</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto"}}>
+          {rows.length===0?(
+            <div style={{padding:"40px 20px",textAlign:"center",color:TXT3,fontSize:13,fontFamily:"'Inter',sans-serif"}}>Sin transacciones para este periodo.</div>
+          ):(
+            <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+              <thead>
+                <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
+                  {cols.map(h=>(
+                    <th key={h} style={{padding:"9px 12px",color:TXT3,textAlign:h==="Monto"?"right":"left",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",whiteSpace:"nowrap",position:"sticky",top:0,background:SURFACE2}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${BORDER2}`,background:r.reviewRequired?(C.amber+"12"):"transparent"}}>
+                    <td style={{padding:"9px 12px",color:TXT}}>
+                      <div style={{fontWeight:600}}>{r.leadName||r.leadEmail||"—"}</div>
+                      {r.leadName&&r.leadEmail&&<div style={{fontSize:9,color:TXT3}}>{r.leadEmail}</div>}
+                    </td>
+                    <td style={{padding:"9px 12px",color:TXT,fontWeight:700,textAlign:"right",whiteSpace:"nowrap"}}>{fD(r.amountUsd)}</td>
+                    <td style={{padding:"9px 12px",color:TXT2,whiteSpace:"nowrap"}}>{fDateShort(r.paidAt)}</td>
+                    <td style={{padding:"9px 12px",color:TXT2}}>{r.source||"—"}</td>
+                    <td style={{padding:"9px 12px",color:TXT2}}>{r.product||"—"}</td>
+                    <td style={{padding:"9px 12px",color:TXT2,whiteSpace:"nowrap"}}>{CLASS_ES[r.classification]||r.classification||"—"}</td>
+                    <td style={{padding:"9px 12px",whiteSpace:"nowrap"}}>
+                      {r.reviewRequired
+                        ?<span title={r.reviewReason||""} style={{color:C.amber,fontWeight:700}}>⚠ Revisar</span>
+                        :<span style={{color:C.green}}>✓ OK</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const [editConfig,setEditConfig]=useState(false);
   const [cfg,setCfg]=useState({});
   const [savingCfg,setSavingCfg]=useState(false);
+  const [cash,setCash]=useState(null);   // /api/payments/summary response (null until loaded)
+  const [drill,setDrill]=useState(null);  // open drawer: {title, rows} | null
+
+  // Load Cash Collected truth for the selected month. month is 0-indexed here; the
+  // API expects 1-12. On 401/403/error we leave `cash` falsy so the UI falls back
+  // to the legacy closer-entered totals and the cells stay non-clickable.
+  useEffect(()=>{
+    let active=true;
+    setCash(null);
+    fetch(`/api/payments/summary?year=${year}&month=${month+1}`,{credentials:"same-origin"})
+      .then(r=>r.ok?r.json():null)
+      .then(j=>{if(active)setCash(j);})
+      .catch(()=>{if(active)setCash({available:false});});
+    return()=>{active=false;};
+  },[year,month]);
 
   useEffect(()=>{
     setCfg({
@@ -614,10 +954,17 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
   const dailyEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
 
-  const totalCash=sumF(closerEntries,"ventas_cash");
+  const collabCommercialEntries=dailyEntries.filter(e=>e&&isCommercialMember(e.member));
+  const totalCashFromCollaborators=sumF(collabCommercialEntries,"upfrontCash");
+  const totalCashBase=sumF(closerEntries,"ventas_cash");
+  const totalCash=totalCashBase||totalCashFromCollaborators;
   const totalValorHT=sumF(closerEntries,"valor_venta_ht");
   const totalValorLT=sumF(closerEntries,"valor_venta_lt");
-  const totalValor=totalValorHT+totalValorLT;
+  const totalReservasManual=sumF(closerEntries,"cash_reservas");
+  // Keep Torre CEO's committed sales total aligned with Detalle Diario →
+  // Ventas — Área Comercial → $ Venta HT. Low Ticket remains shown separately
+  // as Cash Low Ticket and must not inflate this HT committed KPI.
+  const totalValor=totalValorHT;
   const totalVentas=sumF(closerEntries,"q_ventas_ht");
   // Torre CEO must show the larger upstream count as "Citas agendadas reales"
   // consistently across historical imports (Jan-May) and future GHL/manual rows.
@@ -646,45 +993,80 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const _curM=_curMM-1;
   const monthState=year<_curY||(year===_curY&&month<_curM)?"past":year===_curY&&month===_curM?"current":"future";
   const isPast=monthState==="past",isFuture=monthState==="future",isCurrent=monthState==="current";
-  const day=isPast?dm:isFuture?0:Math.min(nv(cfg.day)||_curD,dm);
+  // Current-month rhythm must follow the real Bogotá date. `cfg.day` is a
+  // legacy/manual snapshot and can go stale (e.g. May 30 still showing day 28).
+  const day=isPast?dm:isFuture?0:Math.min(_curD,dm);
+
+  const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
+  const totalRecurring=sumF(closerEntries,"recurring_cash");
+
+  // Cash Collected from the payment ledger is authoritative when present; otherwise
+  // we fall back to the legacy closer-entered totals so default behavior is unchanged.
+  const cashApi=cash&&cash.available&&cash.totals?cash.totals:null;
+  const cashGroups=(cash&&cash.groups)||{};
+  const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;
+  const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;
+  const dispHighT=cashApi?cashApi.highTicket:totalUpfront;
+  const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);
+  const reviewCount=cashApi&&cashApi.counts?cashApi.counts.reviewRequired:0;
+  const reviewAmount=cashApi?cashApi.reviewRequired:0;
+  const manualCommercialCash=totalCash+totalValorLT+totalReservasManual;
+  const hasManualCommercialCash=manualCommercialCash>0;
+  const openDrill=(title,key)=>{if(!cashApi)return;setDrill({title,rows:cashGroups[key]||[]});};
 
   const ticketProm=totalVentas>0?totalValor/totalVentas:0;
   const pctTranscurrido=dm>0?day/dm:0;
   const metaEsperadaHoy=metaMensual*pctTranscurrido;
-  const gapVsRitmo=totalCash-metaEsperadaHoy;
+  // Cash Total = Cash Low Ticket + Ventas $ (cash cobrado) + Recurring Cash.
+  const cashTotal=dispLowT+dispCash+totalRecurring;
+  // Header adds reservas visually without mixing them into the core Cash Total KPI.
+  const cashHeaderTotal=cashTotal+(dispReservas||0);
+  // Ventas reales acumuladas = Valor Total Venta (comprometido) + Cash Low Ticket.
+  // Past months stay anchored to the realized cash so closed history is not retold.
+  const ventasRealesAcum=isPast?dispCash:totalValor+dispLowT;
+  const gapVsRitmo=ventasRealesAcum-metaEsperadaHoy;
   // Only the current month projects forward — past months are closed and
   // future months must not fabricate progress.
-  const proyeccion=isCurrent&&day>0&&totalCash>0?(totalCash/day)*dm:null;
-  const pctCumpl=pv(totalCash,metaMensual);
+  const proyeccion=isCurrent&&day>0&&ventasRealesAcum>0?(ventasRealesAcum/day)*dm:null;
+  const pctCumpl=pv(dispCash,metaMensual);
 
+  // Salud del embudo formulas requested by Juan:
+  // % Leads → Agendadas = Leads calificados reales / Citas agendadas reales
+  // % Agendadas → Asistidas = Citas Show Up (asistidas) / Leads calificados reales
   const pctLeadsAgReal=totalAgendas>0?pv(totalLeads,totalAgendas):null;
   const pctAgAsisReal=totalLeads>0?pv(totalAsistidas,totalLeads):null;
   const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;
 
-  const roasReal=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const roasReal=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const invEsperadaHoy=inversionPlaneada*pctTranscurrido;
   const gapInversion=totalGasto-invEsperadaHoy;
 
-  const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
-  const ventasUniMeta=ticketProm>0?metaMensual/ticketProm:0;
-  const asistidaMeta=closeRateMeta>0?ventasUniMeta/(closeRateMeta/100):0;
-  const agendaMeta=pctAgAsis>0?asistidaMeta/(pctAgAsis/100):0;
-  const leadsMeta=pctLeadsAg>0?agendaMeta/(pctLeadsAg/100):0;
-  const leadsPorDolar=metaMensual>0?leadsMeta/metaMensual:0;
+  const leadsPorDolar=metaMensual>0?leadsPerDollarForRevenue(metaMensual):0;
+  const leadsMeta=metaMensual>0?metaMensual*leadsPorDolar:0;
+  const agendaMeta=pctLeadsAg>0?leadsMeta*(pctLeadsAg/100):0;
+  const asistidaMeta=pctAgAsis>0?agendaMeta*(pctAgAsis/100):0;
+  const ventasUniMeta=closeRateMeta>0?asistidaMeta*(closeRateMeta/100):0;
+  const ventasReqHoy=ticketProm>0?metaMensual/ticketProm:0;
+  const asistidasReqHoy=closeRateMeta>0?ventasReqHoy/(closeRateMeta/100):0;
+  const citasAgendadasReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;
+  const leadsReqHoy=pctLeadsAg>0?citasAgendadasReqHoy/(pctLeadsAg/100):0;
+  // Same display rule as real-month values: larger upstream funnel number is
+  // shown as "Citas agendadas reales" and smaller one as "Leads calificados reales".
+  const citasAgendadasDisplayReqHoy=Math.max(citasAgendadasReqHoy,leadsReqHoy);
+  const leadsCalificadosDisplayReqHoy=Math.min(citasAgendadasReqHoy,leadsReqHoy);
 
-  const roasCash=totalGasto>0&&totalCash>0?totalCash/totalGasto:null;
+  const roasCash=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
-  const roasUpfront=totalGasto>0&&totalUpfront>0?totalUpfront/totalGasto:null;
 
   const pctCumplProy=pv(proyeccion,metaMensual);
   const gapProy=proyeccion?proyeccion-metaMensual:null;
 
   const funnelRows=[
-    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
-    {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
-    {l:"Citas Show Up (asistidas)",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
-    {l:"Citas agendadas reales",req:Math.max(agendaMeta*pctTranscurrido,leadsMeta*pctTranscurrido),real:totalAgendas,fmt:"n"},
-    {l:"Leads calificados reales",req:Math.min(agendaMeta*pctTranscurrido,leadsMeta*pctTranscurrido),real:totalLeads,fmt:"n"},
+    {l:"Ventas $ (comprometido)",req:metaMensual,real:totalValor,fmt:"$"},
+    {l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"},
+    {l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"},
+    {l:"Leads calificados reales",req:leadsCalificadosDisplayReqHoy,real:totalLeads,fmt:"n"},
+    {l:"Citas agendadas reales",req:citasAgendadasDisplayReqHoy,real:totalAgendas,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{
@@ -715,12 +1097,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         </div>
         <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Upfront Cash</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fbbf24",fontFamily:"'DM Mono',monospace"}}>{fD(totalUpfront)}</div>
-          </div>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Low Ticket</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(totalValorLT)}</div>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Cash Total</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(cashHeaderTotal)}</div>
           </div>
           <div style={{textAlign:"center"}}>
             <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
@@ -729,6 +1107,38 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
         </div>
       </div>
+
+      {/* DATO COMERCIAL MANUAL — keep auto cash as source of truth, but flag manual entries for validation */}
+      {cashApi&&hasManualCommercialCash&&(
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
+          background:C.amber+"10",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:18}}>📝</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato comercial manual para verificar</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>Valentina registró/actualizó datos manuales en Área Comercial. El cash oficial lo seguimos tomando del ledger de pagos; revisar que el dato manual no duplique ni contradiga la realidad.</div>
+            </div>
+          </div>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
+        </div>
+      )}
+
+      {/* PAGOS A REVISAR — amber alert, clickable to open the reviewRequired drill-down */}
+      {reviewCount>0&&(
+        <div onClick={()=>openDrill("Pagos a revisar","reviewRequired")} role="button" tabIndex={0}
+          onKeyDown={(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openDrill("Pagos a revisar","reviewRequired");}}}
+          style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,cursor:"pointer",
+            background:C.amber+"14",border:`1px solid ${C.amber}66`,borderRadius:10,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:18}}>⚠️</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Pagos a revisar</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{reviewCount} {reviewCount===1?"pago de fuente no oficial":"pagos de fuente no oficial"} · {fD(reviewAmount)}</div>
+            </div>
+          </div>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>Ver detalle ›</span>
+        </div>
+      )}
 
       {/* CONFIG EDIT PANEL */}
       {editConfig&&(
@@ -773,13 +1183,14 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         <div style={block}>
           <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
           <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
-          <Row2 label="Ventas $ (cash cobrado)" value={fD(totalCash)} bold color={C.green}/>
-          <Row2 label="Upfront Cash HT" value={fD(totalUpfront)} color={C.green}/>
-          <Row2 label="Cash Low Ticket" value={fD(totalValorLT)} color={C.teal}/>
+          <Row2 label="Ventas $ (cash cobrado)" value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label="Recurring Cash" value={fD(totalRecurring)} color={C.purple}/>
+          <Row2 label="Cash Low Ticket" value={fD(dispLowT)} color={C.teal} onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):null}/>
+          {cashApi&&<Row2 label="Reservas (cash)" value={fD(dispReservas)} color={C.amber} onClick={()=>openDrill("Reservas","reservas")}/>}
           <Row2 label="Ventas reales (unidades)" value={fN(totalVentas)}/>
+          <Row2 label="Citas Show Up (asistidas)" value={fN(totalAsistidas)}/>
           <Row2 label="Leads calificados reales" value={fN(totalLeads)}/>
           <Row2 label="Citas agendadas reales" value={fN(totalAgendas)}/>
-          <Row2 label="Citas Show Up (asistidas)" value={fN(totalAsistidas)}/>
           <Row2 label="Ticket promedio (comprometido)" value={fD(ticketProm)} bold/>
           <Row2 label="Close rate real" value={fP(closeRateReal)} bold color={cH(closeRateReal,closeRateMeta*0.9,closeRateMeta*0.7)}/>
         </div>
@@ -797,7 +1208,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
           <Row2 label={isCurrent?"Meta esperada a hoy ($)":isPast?"Meta total del mes ($)":"Meta esperada al cierre ($)"} value={fD(metaEsperadaHoy)} bold/>
-          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(totalCash)} bold color={C.green}/>
+          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
           <Row2 label={isPast?"Gap vs meta ($)":"Gap vs ritmo ($)"} value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
         </div>
 
@@ -805,9 +1216,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <SectionTitle>{isCurrent?"Proyección fin de mes (si seguimos así)":isPast?"Cierre del mes (real)":"Proyección fin de mes (sin datos aún)"}</SectionTitle>
           <div style={{padding:"18px 14px",display:"flex",flexDirection:"column",gap:0}}>
             {isPast?(<>
-              <Row2 label="Ventas reales al cierre ($)" value={fD(totalCash)} bold color={totalCash>=metaMensual?C.green:C.red}/>
+              <Row2 label="Ventas reales al cierre ($)" value={fD(dispCash)} bold color={dispCash>=metaMensual?C.green:C.red}/>
               <Row2 label="% cumplimiento real" value={fP(pctCumpl)} bold color={cH(pctCumpl,85,65)}/>
-              <Row2 label="Gap real vs meta ($)" value={fD(totalCash-metaMensual)} bold color={totalCash>=metaMensual?C.green:C.red} bg={totalCash>=metaMensual?"#f0fdf4":"#fef2f2"}/>
+              <Row2 label="Gap real vs meta ($)" value={fD(dispCash-metaMensual)} bold color={dispCash>=metaMensual?C.green:C.red} bg={dispCash>=metaMensual?"#f0fdf4":"#fef2f2"}/>
             </>):isFuture?(<>
               <Row2 label="Ventas proyectadas fin de mes ($)" value="—"/>
               <Row2 label="% cumplimiento proyectado" value="—"/>
@@ -818,9 +1229,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
               <Row2 label="Gap proyectado vs meta ($)" value={gapProy!=null?fD(gapProy):"—"} bold color={gapProy!=null&&gapProy>=0?C.green:C.red} bg={gapProy!=null&&gapProy>=0?"#f0fdf4":"#fef2f2"}/>
             </>)}
           </div>
-          {totalCash>0&&(
+          {dispCash>0&&(
             <div style={{padding:"0 10px 12px"}}>
-              <Barz value={totalCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`${isPast?"Cash final":"Cash actual"}: ${fP(pctCumpl)}`} right={fD(totalCash)}/>
+              <Barz value={dispCash} max={metaMensual} color={cH(pctCumpl,85,60)} h={10} label={`${isPast?"Cash final":"Cash actual"}: ${fP(pctCumpl)}`} right={fD(dispCash)}/>
               {proyeccion&&<div style={{marginTop:6}}><Barz value={proyeccion} max={metaMensual} color={C.blue} h={5} label={`Proyección: ${fP(pctCumplProy)}`} right={fD(proyeccion)}/></div>}
             </div>
           )}
@@ -917,7 +1328,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2}}>
-                {["","Cash Total","Upfront Cash","Comprometido HT"].map(h=>(
+                {["","Cash Total","Comprometido HT"].map(h=>(
                   <th key={h} style={{padding:"6px 10px",color:TXT3,textAlign:"center",fontSize:8,letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</th>
                 ))}
               </tr>
@@ -926,12 +1337,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
               <tr style={{borderTop:`1px solid ${BORDER}`}}>
                 <td style={{padding:"9px 10px",color:TXT2,fontSize:10}}>ROAS real</td>
                 <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasCash,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasCash)}</td>
-                <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasUpfront,roasObj*0.5,roasObj*0.3),fontWeight:700}}>{fX(roasUpfront)}</td>
                 <td style={{padding:"9px 10px",textAlign:"center",color:cH(roasComprometido,roasObj,roasObj*0.7),fontWeight:700}}>{fX(roasComprometido)}</td>
               </tr>
               <tr style={{borderTop:`1px solid ${BORDER2}`}}>
                 <td style={{padding:"9px 10px",color:TXT3,fontSize:9}}>ROAS objetivo</td>
-                <td colSpan={3} style={{padding:"9px 10px",textAlign:"center",color:TXT2,fontWeight:600}}>{roasObj}x</td>
+                <td colSpan={2} style={{padding:"9px 10px",textAlign:"center",color:TXT2,fontWeight:600}}>{roasObj}x</td>
               </tr>
             </tbody>
           </table>
@@ -964,6 +1374,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           ))}
         </div>
       </div>
+
+      <PaymentsDrawer drill={drill} onClose={()=>setDrill(null)}/>
 
     </div>
   );
@@ -1207,11 +1619,15 @@ const HistoricoView=({allKpi,allDaily})=>{
 };
 
 // ─── CLOSER ENTRY FORM ────────────────────────────────────────────────────────
-const CloserEntryForm=({year,month,allCloser,onSave})=>{
-  const [date,setDate]=useState(today());
+const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
+  const [date,setDate]=useState(selectedDate||today());
   const [form,setForm]=useState(blankCloser());
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    if(selectedDate&&selectedDate!==date)setDate(selectedDate);
+  },[selectedDate]);
 
   useEffect(()=>{
     const ex=allCloser[date];
@@ -1226,6 +1642,7 @@ const CloserEntryForm=({year,month,allCloser,onSave})=>{
   const totalValor=totalValorHT+totalValorLT;
   const totalVentasHT=(form.q_ventas_ht||0);
   const totalVentasLT=(form.q_ventas_lt||0);
+  const manualCashInput=(form.ventas_cash||0)+(form.valor_venta_lt||0)+(form.cash_reservas||0);
 
   const handleSave=async()=>{
     setSaving(true);
@@ -1237,7 +1654,7 @@ const CloserEntryForm=({year,month,allCloser,onSave})=>{
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <Card>
-        <STit icon="💼" title="Area Comercial" sub="Una entrada por día — ventas y clientes"/>
+        <STit icon="💼" title="Área Comercial" sub="Una entrada por día — ventas y clientes"/>
         <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             <Lbl>Fecha</Lbl>
@@ -1254,11 +1671,20 @@ const CloserEntryForm=({year,month,allCloser,onSave})=>{
         </div>
       </Card>
 
+      {manualCashInput>0&&(
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,background:C.amber+"12",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"11px 13px"}}>
+          <span style={{fontSize:18,lineHeight:1}}>📝</span>
+          <div>
+            <div style={{fontSize:12,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato manual: verificar contra pagos reales</div>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.45}}>Este dato lo está llenando Valentina manualmente para operación comercial. El Cash Collected oficial sale del ledger Hotmart/Stripe/Manual; antes de tomar decisiones, validar que no esté duplicado o desactualizado.</div>
+          </div>
+        </div>
+      )}
+
       {(totalValor>0||totalVentasHT>0||totalVentasLT>0)&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
           <Stat label="# Ventas HT" value={fN(totalVentasHT)} color={C.purple}/>
           <Stat label="$ Venta HT" value={fD(totalValorHT)} color={BRAND}/>
-          <Stat label="Upfront Cash HT" value={fD(form.upfront_cash_ht)} color={C.green}/>
           <Stat label="Cash Collected HT" value={fD(form.ventas_cash)} color={C.teal}/>
           <Stat label="# Ventas LT" value={fN(totalVentasLT)} color={C.blue}/>
           <Stat label="$ Venta LT" value={fD(totalValorLT)} color={C.blue}/>
@@ -1271,7 +1697,6 @@ const CloserEntryForm=({year,month,allCloser,onSave})=>{
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))",gap:11}}>
           <Inp label="# Ventas HT" value={form.q_ventas_ht} onChange={v=>sf("q_ventas_ht",v)}/>
           <Inp label="$ Venta HT" prefix="$" value={form.valor_venta_ht} onChange={v=>sf("valor_venta_ht",v)}/>
-          <Inp label="Upfront Cash HT" prefix="$" value={form.upfront_cash_ht} onChange={v=>sf("upfront_cash_ht",v)}/>
           <Inp label="Cash Collected HT" prefix="$" value={form.ventas_cash} onChange={v=>sf("ventas_cash",v)}/>
           <Inp label="Recurring Cash" prefix="$" value={form.recurring_cash} onChange={v=>sf("recurring_cash",v)}/>
         </div>
@@ -1343,11 +1768,11 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
 
   const totalAgendas=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`agendas_${c}`]||0),0);
-  const totalCal=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`cal_${c}`]||0),0);
-  const totalHoy=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`hoy_${c}`]||0),0);
-  const totalShow=AG_CANAL_KEYS.reduce((s,c)=>s+(form[`show_${c}`]||0),0);
+  const totalCal=form.agendas_calificadas||AG_CANAL_KEYS.reduce((s,c)=>s+(form[`cal_${c}`]||0),0);
+  const totalHoy=form.agendas_final||AG_CANAL_KEYS.reduce((s,c)=>s+(form[`hoy_${c}`]||0),0);
+  const totalShow=form.citas_asistidas||AG_CANAL_KEYS.reduce((s,c)=>s+(form[`show_${c}`]||0),0);
   const showRate=totalHoy>0?pv(totalShow,totalHoy):null;
-  const calRate=totalAgendas>0?pv(totalCal,totalAgendas):null;
+  const calRate=totalHoy>0?pv(totalCal,totalHoy):null;
 
   const handleSave=async()=>{
     setSaving(true);
@@ -1395,18 +1820,18 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
 
       {(totalAgendas>0||totalCal>0||totalShow>0)&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8}}>
-          <Stat label="Total Agendas" value={fN(totalAgendas)} color={C.blue}/>
+          <Stat label="Agendas Total" value={fN(totalAgendas)} color={C.blue}/>
+          <Stat label="Agendas Hoy" value={fN(totalHoy)} color={C.teal}/>
           <Stat label="Calificadas" value={fN(totalCal)} color={C.purple}/>
-          <Stat label="Hoy (en agenda)" value={fN(totalHoy)} color={C.teal}/>
+          <Stat label="% Calificadas" value={fP(calRate)} color={cH(calRate,50,30)}/>
           <Stat label="Show Ups" value={fN(totalShow)} color={C.green}/>
-          <Stat label="Show Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
-          <Stat label="% Calif." value={fP(calRate)} color={cH(calRate,50,30)}/>
+          <Stat label="% Show Up Rate" value={fP(showRate)} color={cH(showRate,60,40)}/>
         </div>
       )}
 
       <CanalGrid prefix="agendas" label="Agendas"/>
-      <CanalGrid prefix="cal" label="Calificadas"/>
       <CanalGrid prefix="hoy" label="Agendas Hoy"/>
+      <CanalGrid prefix="cal" label="Calificadas"/>
       <CanalGrid prefix="show" label="Show Ups"/>
 
       <div style={{display:"flex",gap:12,alignItems:"center"}}>
@@ -1426,6 +1851,7 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
 
 // ─── DETALLE DIARIO ────────────────────────────────────────────────────────────
 const DetalleView=({allDaily,allCloser,year,month})=>{
+  const [cash,setCash]=useState(null);
   const dm=MDAYS[month];
   const pad=n=>String(n).padStart(2,"0");
   const mp=`${year}-${pad(month+1)}`;
@@ -1433,23 +1859,50 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
   const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
 
+  useEffect(()=>{
+    let active=true;
+    setCash(null);
+    fetch(`/api/payments/summary?year=${year}&month=${month+1}`,{credentials:"same-origin"})
+      .then(r=>r.ok?r.json():null)
+      .then(j=>{if(active)setCash(j);})
+      .catch(()=>{if(active)setCash({available:false});});
+    return()=>{active=false;};
+  },[year,month]);
+
+  const cashGroups=(cash&&cash.available&&cash.groups)||{};
+  const localPayDate=iso=>{
+    if(!iso)return null;
+    try{return new Date(iso).toLocaleDateString("en-CA",{timeZone:"America/Bogota"});}
+    catch(e){return String(iso).slice(0,10);}
+  };
+  const ledgerByDay={};
+  const addLedger=(metric,rows)=>{(rows||[]).forEach(r=>{const d=localPayDate(r.paidAt);if(!d)return;ledgerByDay[d]=ledgerByDay[d]||{};ledgerByDay[d][metric]=(ledgerByDay[d][metric]||0)+(Number(r.amountUsd)||0);});};
+  addLedger("cashCollected",cashGroups.cashCollected);
+  addLedger("highTicket",cashGroups.highTicket);
+  addLedger("lowTicket",cashGroups.lowTicket);
+  addLedger("reservas",cashGroups.reservas);
+  addLedger("reviewRequired",cashGroups.reviewRequired);
+
   const dayData=Array.from({length:dm},(_,i)=>{
     const d=`${mp}-${pad(i+1)}`;
     const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(d+":")).map(([,v])=>v);
     // Marketing aggregates skip commercial collaborators so closer rows don't
     // inflate mensajes/follow-ups/ig in the Detalle Diario marketing section.
     const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member));
+    const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));
     // Jan-Mar historical ad spend was imported as month totals. Keep those
     // Marketing Histórico rows out of daily cells, but allow Auto Ads daily
     // rows to remain visible. Total / Mes prioritizes the historical monthly
     // total when present, so the daily trace does not alter the official total.
     const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e));
     const closer=allCloser[d]||{};
+    const ledger=ledgerByDay[d]||{};
     const sd=f=>sumF(entries,f);
     const sdAds=f=>sumF(dailyAdEntries,f);
     const sdMkt=f=>sumF(mktEntries,f);
+    const sdCommercial=f=>sumF(commercialEntries,f);
     const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,dailyAdEntries,closer,sd,sdAds,sdMkt,totalGastoDay};
+    return{day:i+1,d,entries,mktEntries,commercialEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -1498,7 +1951,13 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mShows=dayData.reduce((s,d)=>s+(d.closer.citas_asistidas||0),0);
   const mVentasHT=dayData.reduce((s,d)=>s+(d.closer.q_ventas_ht||0),0);
   const mValorHT=dayData.reduce((s,d)=>s+(d.closer.valor_venta_ht||0),0);
-  const mCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0);
+  const mLedgerCash=dayData.reduce((s,d)=>s+(d.ledger.cashCollected||0),0);
+  const mLedgerHT=dayData.reduce((s,d)=>s+(d.ledger.highTicket||0),0);
+  const mLedgerLT=dayData.reduce((s,d)=>s+(d.ledger.lowTicket||0),0);
+  const mLedgerReservas=dayData.reduce((s,d)=>s+(d.ledger.reservas||0),0);
+  const mReservasManual=dayData.reduce((s,d)=>s+(d.closer.cash_reservas||0),0);
+  const mReservasCash=mReservasManual||mLedgerReservas;
+  const mCashHT=mLedgerHT||dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);
   const mRecurring=dayData.reduce((s,d)=>s+(d.closer.recurring_cash||0),0);
 
   const GROUPS=[
@@ -1515,6 +1974,12 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Mensajes",fn:d=>d.sdMkt("mensajes")||null,fmt:"n"},
       {l:"# Follow Ups",fn:d=>d.sdMkt("followUps")||null,fmt:"n"},
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
+    ]},
+    {title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[
+      {l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.sdCommercial("showUps")||null,fmt:"n"},
+      {l:"# Follow Ups contactados",fn:d=>d.sdCommercial("followUps")||null,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"},
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||null;},fmt:"n"},
@@ -1553,22 +2018,21 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"CP Calif. Otros",fn:d=>d.closer.cal_otros>0?d.sd("gastoOtros")/d.closer.cal_otros:null,fmt:"$",sub:true,
         totFn:()=>mCalOtros>0?mGastoOtros/mCalOtros:null},
     ]},
-    {title:"Ventas — Area Comercial",bg:"#c2410c",rows:[
+    {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
       {l:"# Ventas HT",fn:d=>d.closer.q_ventas_ht||null,fmt:"n"},
       {l:"$ Venta HT",fn:d=>d.closer.valor_venta_ht||null,fmt:"$"},
-      {l:"Upfront Cash HT",fn:d=>d.closer.upfront_cash_ht||null,fmt:"$"},
-      {l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||null,fmt:"$"},
+      {l:"Cash Collected HT",fn:d=>d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")||null,fmt:"$",totFn:()=>mLedgerHT||mCashHT||null},
       {l:"Recurring Cash",fn:d=>d.closer.recurring_cash||null,fmt:"$"},
-      {l:"Cash + Recurring",fn:d=>{const t=(d.closer.ventas_cash||0)+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
+      {l:"Cash + Recurring",fn:d=>{const c=d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")||0;const t=c+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
         totFn:()=>mCashHT+mRecurring||null},
-      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
+      {l:"% Cash Collected",fn:d=>{const c=d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
         totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
       {l:"% Closing Rate",fn:d=>{const s=d.closer.citas_asistidas||0,v=d.closer.q_ventas_ht||0;return s>0?pv(v,s):null;},fmt:"%",
         totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
       {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
-      {l:"$ Venta LT",fn:d=>d.closer.valor_venta_lt||null,fmt:"$"},
+      {l:"$ Venta LT",fn:d=>d.ledger.lowTicket||d.closer.valor_venta_lt||null,fmt:"$",totFn:()=>mLedgerLT||null},
       {l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"},
-      {l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||null,fmt:"$"},
+      {l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null},
       {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
       {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
       {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
@@ -1589,6 +2053,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {MONTHS[month]} {year} · Scroll horizontal para ver todos los días
       </div>
+      {cash&&cash.available&&(
+        <div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
+Cash Collected/Low Ticket se llenan desde el ledger real de pagos. Reservas usa primero el dato manual de Área Comercial/Valentina y el ledger queda como fallback para verificación.
+        </div>
+      )}
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
         height:"calc(100vh - 160px)"}}>
         <table style={{borderCollapse:"separate",borderSpacing:0,minWidth:"100%"}}>
@@ -1670,10 +2139,12 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
 //   - Marketing role (Karen Anquiz, stored as "Karen"): IG / posts / mensajes /
 //     follow ups / booking offers. Ad spend is automatic (sync job) and shown
 //     read-only.
-//   - Closer role (Carlos Velez, Daryi Uribe, Juan Diego Afanador): agendas,
-//     calificadas, agendas hoy, show ups, ventas HT, $ venta HT, upfront/cash,
-//     recurring cash, follow ups, pendientes cierre día anterior, pendientes
-//     cierre acumulados, reservas.
+//   - Valentina Sanchez (stored as "Admin"): uses the same Area Comercial form
+//     so this tab can eventually replace the standalone Area Comercial tab.
+//   - Closer role (Carlos Velez, Daryi Perez, Juan Diego Afanador / Wiston
+//     Quintero legacy): agendas, calificadas, agendas hoy, show ups, ventas HT,
+//     $ venta HT, upfront/cash, recurring cash, follow ups, pendientes cierre
+//     día anterior, pendientes cierre acumulados, reservas.
 // Persists through onSave(`${date}:${memberId}`, entry) → daily_entries (the
 // closer fields reuse the schema columns mapped in rowToEntry/saveEntry).
 // Detalle Diario continues to aggregate daily_closer for commercial totals and
@@ -1686,7 +2157,7 @@ const closerCanonId=m=>{
   return cl?cl.id:m;
 };
 
-const DetalleColaborador=({allDaily,year,month,onSave})=>{
+const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>{
   const [view,setView]=useState("llenar"); // llenar | tabla | dia
   const dm=MDAYS[month];
   const pad=n=>String(n).padStart(2,"0");
@@ -1701,6 +2172,14 @@ const DetalleColaborador=({allDaily,year,month,onSave})=>{
       const cid=closerCanonId(v.member);
       if(entriesByCollab[cid])entriesByCollab[cid].push(v);
     });
+  const valentinaCloserEntries=Object.entries(allCloser)
+    .filter(([date])=>date.startsWith(mp+"-"))
+    .map(([date,row])=>closerToValentinaEntry(date,row));
+  if(valentinaCloserEntries.length){
+    const closerDates=new Set(valentinaCloserEntries.map(e=>e.date));
+    entriesByCollab.Admin=(entriesByCollab.Admin||[]).filter(e=>!closerDates.has(e.date));
+    entriesByCollab.Admin.push(...valentinaCloserEntries);
+  }
 
   const monthEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(mp+"-")).map(([,v])=>v);
   const mGastoMeta=sumF(monthEntries,"gastoMeta");
@@ -1722,7 +2201,13 @@ const DetalleColaborador=({allDaily,year,month,onSave})=>{
       ventasHT:s("ventasHT"),valorVentaHT:s("valorVentaHT"),
       upfrontCash:s("upfrontCash"),recurringCash:s("recurringCash"),
       pendDiaAnterior:s("pendDiaAnterior"),pendAcumulados:s("pendAcumulados"),
-      reservas:s("reservas"),
+      reservas:s("reservas"),cashReservas:s("cashReservas"),
+      callsScheduled:s("callsScheduled"),hotLeads:s("hotLeads"),
+      outboundContactados:s("outboundContactados"),
+      outboundAgendados:s("outboundAgendados"),
+      setterLeadsContacted:s("setterLeadsContacted"),setterConfirmedAgendas:s("setterConfirmedAgendas"),
+      setterCallsToLeads:s("setterCallsToLeads"),setterMessagesSent:s("setterMessagesSent"),
+      setterOrganicLeads:s("setterOrganicLeads"),setterAdsLeads:s("setterAdsLeads"),
     };
   };
 
@@ -1737,7 +2222,7 @@ const DetalleColaborador=({allDaily,year,month,onSave})=>{
           <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
         ))}
       </div>
-      {view==="llenar"&&<LlenarReporte allDaily={allDaily} onSave={onSave} monthAdSpend={monthAdSpend}/>}
+      {view==="llenar"&&<LlenarReporte allDaily={allDaily} allCloser={allCloser} year={year} month={month} onSave={onSave} onSaveCloser={onSaveCloser} monthAdSpend={monthAdSpend}/>}
       {view==="tabla"&&<TablaMensual collabAgg={collabAgg} monthAdSpend={monthAdSpend} year={year} month={month}/>}
       {view==="dia"&&<DetallePorDia entriesByCollab={entriesByCollab} year={year} month={month} dm={dm} mp={mp} pad={pad}/>}
     </div>
@@ -1745,22 +2230,26 @@ const DetalleColaborador=({allDaily,year,month,onSave})=>{
 };
 
 // ─── LLENAR REPORTE (manual collaborator daily form) ──────────────────────────
-const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
-  const [collabId,setCollabId]=useState(MANUAL_COLLABORATORS[0].id);
+const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdSpend})=>{
+  const [reportGroup,setReportGroup]=useState("admin");
+  const [collabId,setCollabId]=useState(REPORT_GROUPS.admin.collaborators[0].id);
   const [date,setDate]=useState(today());
   const [form,setForm]=useState(blankEntry());
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
 
   useEffect(()=>{
-    const existing=allDaily[`${date}:${collabId}`];
+    const existing=allDaily[`${date}:${collabId}`]||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);
     setForm(existing?{...blankEntry(),...existing}:blankEntry());
     setSaved(false);
-  },[collabId,date,allDaily]);
+  },[collabId,date,allDaily,allCloser]);
 
-  const collab=MANUAL_COLLABORATORS.find(c=>c.id===collabId)||MANUAL_COLLABORATORS[0];
+  const collab=MANUAL_COLLABORATORS.find(c=>c.id===collabId)||REPORT_GROUPS[reportGroup].collaborators[0]||MANUAL_COLLABORATORS[0];
   const role=collab.role;
+  const isValentina=collabId==="Admin";
+  const isSetter=role==="setter";
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+  const st=(k,v)=>setForm(p=>({...p,[k]:v}));
 
   const handleSave=async()=>{
     setSaving(true);
@@ -1780,9 +2269,21 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
         <STit icon="🧑‍💼" title="Reporte manual" sub="Una entrada por día por colaborador"/>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div>
+            <Lbl>Sección</Lbl>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:5}}>
+              {Object.entries(REPORT_GROUPS).map(([key,g])=>(
+                <button key={key} onClick={()=>{setReportGroup(key);setCollabId(g.collaborators[0].id);}} style={{
+                  background:reportGroup===key?BRAND+"18":SURFACE2,border:`1.5px solid ${reportGroup===key?BRAND:BORDER}`,
+                  borderRadius:999,padding:"7px 15px",cursor:"pointer",color:reportGroup===key?BRAND:TXT2,
+                  fontSize:12,fontFamily:"'Inter',sans-serif",fontWeight:reportGroup===key?800:600,
+                  transition:"all .15s"}}>{g.label}</button>
+              ))}
+            </div>
+          </div>
+          <div>
             <Lbl>Colaborador</Lbl>
             <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:5}}>
-              {MANUAL_COLLABORATORS.map(c=>{
+              {(REPORT_GROUPS[reportGroup]?.collaborators||[]).map(c=>{
                 const sel=collabId===c.id;
                 return(<button key={c.id} onClick={()=>setCollabId(c.id)} style={{
                   background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
@@ -1793,7 +2294,7 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
                   <span style={{width:7,height:7,borderRadius:100,background:c.color,display:"inline-block"}}/>
                   <span>{c.label}</span>
                   <span style={{fontSize:9,color:sel?c.color:TXT3,letterSpacing:"0.08em",textTransform:"uppercase",marginLeft:2}}>
-                    {c.role==="marketing"?"Marketing":"Closer"}
+                    {c.displayRole||c.role}
                   </span>
                 </button>);
               })}
@@ -1816,6 +2317,13 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
           </div>
         </div>
       </Card>
+
+      {isValentina&&(
+        <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.55,
+          background:C.red+"0F",border:`1px solid ${C.red}33`,borderRadius:10,padding:"10px 12px"}}>
+          Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>, pero ahora se guarda como una colaboradora comercial individual y suma al consolidado diario junto con los closers.
+        </div>
+      )}
 
       {role==="marketing"&&(
         <>
@@ -1846,25 +2354,56 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
         </>
       )}
 
+      {role==="setter"&&(
+        <>
+          <Card>
+            <STit icon="💬" title="Reporte de Setter" sub="Qué pasó con tus conversaciones"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="Leads contactados" value={form.setterLeadsContacted} onChange={v=>sf("setterLeadsContacted",v)}/>
+              <Inp label="Agendas confirmadas" value={form.setterConfirmedAgendas} onChange={v=>sf("setterConfirmedAgendas",v)}/>
+              <Inp label="Llamadas a leads" value={form.setterCallsToLeads} onChange={v=>sf("setterCallsToLeads",v)}/>
+              <Inp label="Mensajes enviados" value={form.setterMessagesSent} onChange={v=>sf("setterMessagesSent",v)}/>
+              <Inp label="Orgánicos" value={form.setterOrganicLeads} onChange={v=>sf("setterOrganicLeads",v)}/>
+              <Inp label="Ads" value={form.setterAdsLeads} onChange={v=>sf("setterAdsLeads",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+              <Txt label="Hallazgos importantes" value={form.setterFindings} onChange={v=>st("setterFindings",v)} placeholder="Ej: iniciales + hallazgo: presupuesto, objeción, urgencia, mala calidad, etc."/>
+              <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
+            </div>
+          </Card>
+        </>
+      )}
+
       {role==="closer"&&(
         <>
           <Card>
+            <STit icon="📞" title="Actividad de llamadas" sub="Campos traídos del reporte manual diario"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Llamadas / citas que tenías" value={form.callsScheduled} onChange={v=>sf("callsScheduled",v)}/>
+              <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
+              <Inp label="# Follow Ups contactados" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+              <Inp label="# Leads calientes" value={form.hotLeads} onChange={v=>sf("hotLeads",v)}/>
+            </div>
+          </Card>
+          <Card>
             <STit icon="📅" title="Agendas / Leads" sub={`Llenado por ${collab.label}`}/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-              <Inp label="# Agendas" value={form.agendas} onChange={v=>sf("agendas",v)}/>
-              <Inp label="# Calificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
               <Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>
-              <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
+              <Inp label="# Cualificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
+              <Inp label="# No Show" value={form.agendas} onChange={v=>sf("agendas",v)}/>
             </div>
           </Card>
           <Card>
             <STit icon="💰" title="Ventas — Área Comercial"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-              <Inp label="# Ventas HT" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
+              <Inp label="# Cierres" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
               <Inp label="$ Venta HT" prefix="$" value={form.valorVentaHT} onChange={v=>sf("valorVentaHT",v)}/>
-              <Inp label="Upfront / Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
+              <Inp label="Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
               <Inp label="Recurring Cash $" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>
-              <Inp label="# Reservas (opcional)" value={form.reservas} onChange={v=>sf("reservas",v)}/>
+              <Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>
+              <Inp label="$ Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>
             </div>
           </Card>
           <Card>
@@ -1875,6 +2414,23 @@ const LlenarReporte=({allDaily,onSave,monthAdSpend})=>{
               <Inp label="# Pendientes cierre (acumulados)" value={form.pendAcumulados} onChange={v=>sf("pendAcumulados",v)}/>
             </div>
           </Card>
+          {isValentina?(
+            <Card>
+              <STit icon="📝" title="Notas generales" sub="Contexto cualitativo administrativo"/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+                <Txt label="Notas generales" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: contexto general del día, seguimiento administrativo, pendientes o alertas..."/>
+              </div>
+            </Card>
+          ):(
+            <Card>
+              <STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+                <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
+                <Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>
+                <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
+              </div>
+            </Card>
+          )}
         </>
       )}
 
@@ -1913,37 +2469,47 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
 
   const aggByCollab={};
   MANUAL_COLLABORATORS.forEach(c=>{aggByCollab[c.id]=collabAgg(c.id);});
-  const marketingCols=MARKETING_COLLABORATORS;
+  const setterCols=SETTER_COLLABORATORS;
   const closerCols=COMMERCIAL_COLLABORATORS;
-  const allCols=[...marketingCols,...closerCols];
+  const allCols=[...setterCols,...closerCols];
 
   const sumCloser=k=>closerCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
-  const sumMarketing=k=>marketingCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
+  const sumSetter=k=>setterCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
 
   const SECTIONS=[
-    {title:"Actividad Marketing",bg:"#6d28d9",role:"marketing",rows:[
-      {l:"Días con registro",k:"days",fmt:"n"},
-      {l:"# IG Seguidores",k:"igFollowers",fmt:"n"},
-      {l:"# Posts + CTA",k:"posts",fmt:"n"},
-      {l:"# Mensajes",k:"mensajes",fmt:"n"},
-      {l:"# Follow Ups",k:"followUps",fmt:"n"},
-      {l:"# Booking Offers",k:"bkOffers",fmt:"n"},
+    {title:"Reporte de Setter",bg:"#7c3aed",role:"setter",rows:[
+      {l:"Leads contactados",k:"setterLeadsContacted",fmt:"n"},
+      {l:"Agendas confirmadas",k:"setterConfirmedAgendas",fmt:"n"},
+      {l:"Llamadas a leads",k:"setterCallsToLeads",fmt:"n"},
+      {l:"Mensajes enviados",k:"setterMessagesSent",fmt:"n"},
+      {l:"Orgánicos",k:"setterOrganicLeads",fmt:"n"},
+      {l:"Ads",k:"setterAdsLeads",fmt:"n"},
+    ]},
+    {title:"Actividad de llamadas",bg:"#0369a1",role:"closer",rows:[
+      {l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"},
+      {l:"# Show Ups",k:"showUps",fmt:"n"},
+      {l:"# Follow Ups contactados",k:"followUps",fmt:"n"},
+      {l:"# Leads calientes",k:"hotLeads",fmt:"n"},
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",role:"closer",rows:[
-      {l:"# Agendas",k:"agendas",fmt:"n"},
-      {l:"# Calificadas",k:"calificadas",fmt:"n"},
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
-      {l:"# Show Ups",k:"showUps",fmt:"n"},
+      {l:"# Cualificadas",k:"calificadas",fmt:"n"},
+      {l:"# No Show",k:"agendas",fmt:"n"},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",role:"closer",rows:[
       {l:"# Ventas HT",k:"ventasHT",fmt:"n"},
       {l:"$ Venta HT",k:"valorVentaHT",fmt:"$"},
-      {l:"Upfront / Cash Collected",k:"upfrontCash",fmt:"$"},
+      {l:"Cash Collected",k:"upfrontCash",fmt:"$"},
       {l:"Recurring Cash",k:"recurringCash",fmt:"$"},
       {l:"# Follow Ups",k:"followUps",fmt:"n"},
       {l:"Pendientes cierre día anterior",k:"pendDiaAnterior",fmt:"n"},
       {l:"Pendientes cierre acumulados",k:"pendAcumulados",fmt:"n"},
       {l:"# Reservas",k:"reservas",fmt:"n"},
+      {l:"$ Cash Reservas",k:"cashReservas",fmt:"$"},
+    ]},
+    {title:"Otros",bg:"#334155",role:"closer",rows:[
+      {l:"# Outbound contactados",k:"outboundContactados",fmt:"n"},
+      {l:"# Outbound agendados",k:"outboundAgendados",fmt:"n"},
     ]},
   ];
 
@@ -1984,7 +2550,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                       <span>{c.label}</span>
                     </div>
                     <div style={{opacity:0.55,fontSize:8,fontWeight:500,marginTop:2}}>
-                      {c.role==="marketing"?"Marketing":"Closer"} · {agg.days} días
+                      {c.displayRole||c.role} · {agg.days} días
                     </div>
                   </th>
                 );
@@ -2007,7 +2573,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                 </tr>
                 {g.rows.map(row=>{
                   const includeCol=c=>g.role===c.role;
-                  const tot=g.role==="marketing"?(sumMarketing(row.k)||null):(sumCloser(row.k)||null);
+                  const tot=g.role==="setter"?(sumSetter(row.k)||null):(sumCloser(row.k)||null);
                   return(
                     <tr key={row.l}>
                       <td style={{...tdBase,...stickyCol,textAlign:"left",
@@ -2146,21 +2712,31 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
     ]},
   ];
   const CLOSER_ROWS=[
-    {title:"Agendas / Leads",bg:"#0f766e",rows:[
-      {l:"# Agendas",fn:d=>d.e?d.e.agendas:0,fmt:"n"},
-      {l:"# Calificadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
-      {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
+    {title:"Actividad de llamadas",bg:"#0369a1",rows:[
+      {l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
+      {l:"# Follow Ups contactados",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.e?d.e.hotLeads:0,fmt:"n"},
+    ]},
+    {title:"Agendas / Leads",bg:"#0f766e",rows:[
+      {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
+      {l:"# Calificadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
+      {l:"# No Show",fn:d=>d.e?d.e.agendas:0,fmt:"n"},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
       {l:"# Ventas HT",fn:d=>d.e?d.e.ventasHT:0,fmt:"n"},
       {l:"$ Venta HT",fn:d=>d.e?d.e.valorVentaHT:0,fmt:"$"},
-      {l:"Upfront / Cash Collected",fn:d=>d.e?d.e.upfrontCash:0,fmt:"$"},
+      {l:"Cash Collected",fn:d=>d.e?d.e.upfrontCash:0,fmt:"$"},
       {l:"Recurring Cash",fn:d=>d.e?d.e.recurringCash:0,fmt:"$"},
       {l:"# Follow Ups",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
       {l:"Pend. cierre día anterior",fn:d=>d.e?d.e.pendDiaAnterior:0,fmt:"n"},
       {l:"Pend. cierre acumulados",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"},
       {l:"# Reservas",fn:d=>d.e?d.e.reservas:0,fmt:"n"},
+      {l:"$ Cash Reservas",fn:d=>d.e?d.e.cashReservas:0,fmt:"$"},
+    ]},
+    {title:"Otros",bg:"#334155",rows:[
+      {l:"# Outbound contactados",fn:d=>d.e?d.e.outboundContactados:0,fmt:"n"},
+      {l:"# Outbound agendados",fn:d=>d.e?d.e.outboundAgendados:0,fmt:"n"},
     ]},
   ];
   const ROWS=role==="marketing"?MARKETING_ROWS:CLOSER_ROWS;
@@ -2270,12 +2846,9 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
 };
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-const ADMIN_PIN = "1234"; // ← cambia este PIN cuando quieras
-
 const AdminView=({allDaily,onSave,onDelete})=>{
-  const [pin,setPin]=useState("");
   const [authed,setAuthed]=useState(false);
-  const [pinError,setPinError]=useState(false);
+  const [authState,setAuthState]=useState("checking");
   const [filterMember,setFilterMember]=useState("Todos");
   const [filterDate,setFilterDate]=useState("");
   const [editing,setEditing]=useState(null);
@@ -2283,10 +2856,20 @@ const AdminView=({allDaily,onSave,onDelete})=>{
   const [saving,setSaving]=useState(false);
   const [deleting,setDeleting]=useState(null);
 
-  const tryPin=()=>{
-    if(pin===ADMIN_PIN){setAuthed(true);setPinError(false);}
-    else{setPinError(true);setPin("");}
-  };
+  useEffect(()=>{
+    let alive=true;
+    fetch("/api/auth/me",{credentials:"same-origin"})
+      .then(async res=>{
+        if(!alive)return;
+        if(res.status===401){setAuthState("login");return;}
+        if(!res.ok){setAuthState("error");return;}
+        const data=await res.json().catch(()=>({}));
+        if(data?.user?.canManageUsers){setAuthed(true);setAuthState("ok");}
+        else{setAuthState("forbidden");}
+      })
+      .catch(()=>alive&&setAuthState("error"));
+    return()=>{alive=false;};
+  },[]);
 
   const entries=Object.entries(allDaily)
     .map(([k,v])=>({key:k,...v}))
@@ -2317,34 +2900,33 @@ const AdminView=({allDaily,onSave,onDelete})=>{
     setDeleting(null);
   };
 
-  if(!authed)return(
+  if(!authed){
+    const isChecking=authState==="checking";
+    const title=isChecking?"Validando acceso admin":authState==="forbidden"?"Tu usuario no tiene permisos de admin":"Inicia sesión como admin";
+    const subtitle=isChecking?"Revisando tu sesión segura…":authState==="forbidden"?"Pide a un admin que te active permisos de usuarios":"El PIN fue removido; el acceso depende de tu usuario y permisos";
+    return(
     <Card>
       <div style={{textAlign:"center",padding:"50px 20px"}}>
         <div style={{width:52,height:52,borderRadius:14,background:BORDER2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-          <Icon name="lock" size={22} color={TXT3}/>
+          <Icon name={isChecking?"users":"lock"} size={22} color={TXT3}/>
         </div>
-        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>Panel Admin</div>
+        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>{title}</div>
         <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace",marginBottom:24}}>
-          Solo el administrador puede acceder aquí
+          {subtitle}
         </div>
-        <input type="password" value={pin}
-          onChange={e=>{setPin(e.target.value);setPinError(false);}}
-          onKeyDown={e=>e.key==="Enter"&&tryPin()}
-          placeholder="PIN de administrador"
-          style={{background:SURFACE2,border:`1.5px solid ${pinError?C.red:BORDER}`,
-            borderRadius:9,color:TXT,padding:"11px 18px",fontSize:14,outline:"none",
-            fontFamily:"'DM Mono',monospace",textAlign:"center",width:220,display:"block",margin:"0 auto"}}/>
-        {pinError&&<div style={{fontSize:11,color:C.red,marginTop:7,fontFamily:"'DM Mono',monospace"}}>
-          PIN incorrecto — intenta de nuevo
-        </div>}
-        <button onClick={tryPin} style={{marginTop:14,background:C.gold,color:"#fff",border:"none",
-          borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`}}>
-          Entrar
-        </button>
+        {!isChecking&&authState!=="forbidden"&&<a href="/login" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
+          border:"none",borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
+          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`,textDecoration:"none"}}>
+          Iniciar sesión
+        </a>}
+        {!isChecking&&authState==="forbidden"&&<a href="/" style={{display:"inline-flex",alignItems:"center",gap:8,background:SURFACE2,color:TXT,
+          border:`1px solid ${BORDER}`,borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
+          fontFamily:"'Epilogue',sans-serif",textDecoration:"none"}}>
+          Volver al dashboard
+        </a>}
       </div>
     </Card>
-  );
+  );}
 
   const EDIT_FIELDS=[
     {k:"posts",l:"Posts + CTA"},{k:"mensajes",l:"Mensajes"},{k:"followUps",l:"Follow-ups"},{k:"bkOffers",l:"Bk Offers"},
@@ -2361,6 +2943,20 @@ const AdminView=({allDaily,onSave,onDelete})=>{
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="👥" title="Administración de usuarios" sub="Crea accesos, cambia roles y ajusta permisos por módulo"/>
+        <div style={{display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{fontSize:12,color:TXT3,lineHeight:1.55,maxWidth:620}}>
+            Gestiona quién puede entrar a Torre de Control. El panel usa login seguro y conserva auditoría: los usuarios se suspenden, no se eliminan.
+          </div>
+          <a href="/admin/users" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
+            border:"none",borderRadius:10,padding:"11px 18px",fontWeight:900,fontSize:12,cursor:"pointer",
+            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 10px ${C.gold}35`,textDecoration:"none"}}>
+            Abrir usuarios y permisos →
+          </a>
+        </div>
+      </Card>
+
       <Card>
         <STit icon="🔐" title="Panel Admin" sub="Visualiza, edita o elimina cualquier entrada del equipo"/>
         <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
@@ -3098,15 +3694,22 @@ const ControlComercial=()=>{
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
 const TABS=[
   {id:"torre",   l:"Torre CEO",          icon:"home"},
-  {id:"closer",  l:"Area Comercial",     icon:"dollar"},
+  {id:"colab",   l:"Area Comercial",sub:"Por Colaborador",icon:"dollar"},
   {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
   {id:"entrada", l:"Marketing",          icon:"rocket"},
   {id:"agendas", l:"Agendas / Leads",    icon:"calendar"},
   {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
   {id:"funnel",  l:"Funnel",             icon:"filter"},
   {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
-  {id:"colab",   l:"Por Colaborador",    icon:"users"},
   {id:"hist",    l:"Histórico",          icon:"trendUp"},
+  {id:"operaciones", l:"Operaciones", icon:"users", children:[
+    {id:"operaciones-estudiantes", l:"Estudiantes", href:"/operaciones/estudiantes"},
+    {id:"operaciones-cartera", l:"Cartera", href:"/operaciones/cartera"},
+    {id:"operaciones-mentores", l:"Mentores", href:"/operaciones/mentores"},
+    {id:"operaciones-catalogo", l:"Catálogo", href:"/operaciones/catalogo"},
+    {id:"operaciones-importar", l:"Importar Excel", href:"/operaciones/importar"},
+  ]},
+  {id:"comunidad-dropi", l:"Comunidad Dropi", icon:"users", href:"/comunidad-dropi"},
   {id:"admin",   l:"Admin",              icon:"settings"},
 ];
 
@@ -3121,6 +3724,8 @@ const MOBILE_TABS=[
   TABS.find(t=>t.id==="detalle"),
   TABS.find(t=>t.id==="colab"),
   TABS.find(t=>t.id==="hist"),
+  TABS.find(t=>t.id==="operaciones"),
+  TABS.find(t=>t.id==="comunidad-dropi"),
   TABS.find(t=>t.id==="admin"),
 ].filter(Boolean);
 
@@ -3128,7 +3733,27 @@ function App(){
   const [isDark,setIsDark]=useState(()=>localStorage.getItem("theme")==="dark");
   applyTheme(isDark);
   const toggleTheme=()=>{const n=!isDark;setIsDark(n);localStorage.setItem("theme",n?"dark":"light");};
-  const [tab,setTab]=useState("torre");
+  const [tab,setTab]=useState(()=>{
+    const requested=new URLSearchParams(window.location.search).get("tab");
+    return TABS.some(t=>t.id===requested&&!t.children)?requested:"torre";
+  });
+  const [openSubmenu,setOpenSubmenu]=useState(null);
+  const [embedUrl,setEmbedUrl]=useState(null);
+  const [mobileOpsMenuOpen,setMobileOpsMenuOpen]=useState(false);
+  // Cambia la pestaña legacy activa y refleja el cambio en la URL con History API
+  // para que un refresh restaure la misma vista. Operaciones usa rutas reales,
+  // así que las pestañas con hijos se omiten a propósito aquí.
+  const changeTab=(id)=>{
+    setTab(id);
+    setEmbedUrl(null);
+    if(!TABS.some(t=>t.id===id&&!t.children))return;
+    const url=new URL(window.location.href);
+    if(id==="torre")url.searchParams.delete("tab");
+    else url.searchParams.set("tab",id);
+    const next=url.pathname+url.search+url.hash;
+    const current=window.location.pathname+window.location.search+window.location.hash;
+    if(next!==current)window.history.replaceState({tab:id},"",next);
+  };
   const [year,setYear]=useState(new Date().getFullYear());
   const [month,setMonth]=useState(new Date().getMonth());
   const [kpiData,setKpiData]=useState({});
@@ -3136,17 +3761,46 @@ function App(){
   const [ready,setReady]=useState(false);
   const [closerData,setCloserData]=useState({});
   const [error,setError]=useState(null);
+  const [me,setMe]=useState(null);
+
+  // Identity + capabilities (drives the admin link and the scope banner). The
+  // server is the real authorization boundary; this only shapes the UI.
+  useEffect(()=>{
+    let alive=true;
+    fetch("/api/auth/me",{credentials:"same-origin"})
+      .then(r=>r.ok?r.json():null)
+      .then(d=>{if(alive&&d&&d.user)setMe(d.user);})
+      .catch(()=>{});
+    return()=>{alive=false;};
+  },[]);
+
+  const canManage=!!(me&&me.canManageUsers);
+  const caps=(me&&me.capabilities)||null;
+  const scopeLimited=!!(caps&&!caps.isGlobalData);
+  // Hide the Admin tab unless the user can manage users.
+  const visibleTabs=TABS.filter(t=>t.id!=="admin"||canManage);
+  const visibleMobileTabs=MOBILE_TABS.filter(t=>t&&(t.id!=="admin"||canManage));
+  // If the user landed on a now-hidden tab, fall back to the default view.
+  useEffect(()=>{
+    if(me&&!canManage&&tab==="admin")changeTab("torre");
+  },[me,canManage,tab]);
 
   useEffect(()=>{
     (async()=>{
       try{
+        await syncAutoAdSpend();
         const [{data:kpiRows,error:e1},{data:dailyRows,error:e2},{data:adsRows,error:e3},{data:closerRows,error:e4}]=await Promise.all([
           db.from("kpi_data").select("*"),
           db.from("daily_entries").select("*"),
           db.from("ads_entries").select("*"),
           db.from("daily_closer").select("*"),
         ]);
-        if(e1||e2||e3||e4)throw new Error("DB error");
+        const dataError=e1||e2||e3||e4;
+        if(dataError){
+          if(dataError.status===401){window.location.href="/login?next=/";return;}
+          if(dataError.status===403)throw new Error(dataError.message||"No tienes permiso para ver estos datos.");
+          throw new Error(dataError.message||"DB error");
+        }
         const kpiObj={};
         kpiRows?.forEach(row=>{
           const key=`kpi:${row.year}-${row.month}`;
@@ -3173,11 +3827,11 @@ function App(){
         dailyRows?.forEach(row=>{dailyObj[`${row.date}:${row.member}`]=rowToEntry(row);});
         const closerObj={};
         closerRows?.forEach(row=>{closerObj[row.date]=row;});
-        setCloserData(closerObj);
+        setCloserData(applyGhlCaptacionAgendasLeads(closerObj));
         setKpiData(kpiObj);
         setDaily(dailyObj);
       }catch(e){
-        setError("Error conectando a la base de datos. Verifica tu conexión a internet.");
+        setError(e?.message||"Error conectando a la base de datos. Verifica tu conexión a internet.");
         console.error(e);
       }
       setReady(true);
@@ -3213,24 +3867,35 @@ function App(){
     // when present (commercial collaborators) or default to 0 (marketing rows).
     const {error}=await db.from("daily_entries").upsert({
       date:entry.date,member:entry.member,
-      ig_followers:entry.igFollowers||0,
-      posts:entry.posts||0,mensajes:entry.mensajes||0,
-      follow_ups:entry.followUps||0,bk_offers:entry.bkOffers||0,
+      ig_followers:isCommercialMember(entry.member)?(entry.callsScheduled||0):(entry.igFollowers||0),
+      posts:isCommercialMember(entry.member)?(entry.outboundContactados||0):(entry.posts||0),
+      mensajes:isCommercialMember(entry.member)?(entry.outboundAgendados||0):(entry.mensajes||0),
+      follow_ups:entry.followUps||0,
+      bk_offers:isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
       gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
       gasto_tiktok:entry.gastoTikTok||0,gasto_otros:entry.gastoOtros||0,
-      new_bk_organic:entry.agendas||0,
-      qual_bk_organic:entry.calificadas||0,
-      today_bk_organic:entry.agendasHoy||0,
-      show_organic:entry.showUps||0,
-      sales_organic:entry.ventasHT||0,
+      new_bk_organic:isSetterMember(entry.member)?(entry.setterLeadsContacted||0):(entry.agendas||0),
+      qual_bk_organic:isSetterMember(entry.member)?(entry.setterConfirmedAgendas||0):(entry.calificadas||0),
+      today_bk_organic:isSetterMember(entry.member)?(entry.setterCallsToLeads||0):(entry.agendasHoy||0),
+      show_organic:isSetterMember(entry.member)?(entry.setterMessagesSent||0):(entry.showUps||0),
+      sales_organic:isSetterMember(entry.member)?(entry.setterOrganicLeads||0):(entry.ventasHT||0),
       revenue_organic:entry.valorVentaHT||0,
       cash_organic:entry.upfrontCash||0,
       recurring_organic:entry.recurringCash||0,
-      pitches_organic:entry.pendDiaAnterior||0,
+      pitches_organic:isSetterMember(entry.member)?(entry.setterAdsLeads||0):(entry.pendDiaAnterior||0),
       pitches_paid:entry.pendAcumulados||0,
       reservas_organic:entry.reservas||0,
+      showup_notes:entry.showupNotes||"",
+      hot_leads_evidence:entry.hotLeadsEvidence||"",
+      blockers:entry.blockers||"",
+      setter_findings:entry.setterFindings||"",
     },{onConflict:"date,member"});
     if(error){alert("Error guardando: "+error.message);return false;}
+    if(isCommercialMember(entry.member)){
+      const commercialRows=commercialEntriesForDate(nd,entry.date,key,entry);
+      const closerRow=aggregateCommercialEntriesForCloser(entry.date,commercialRows,closerData[entry.date]||{});
+      await saveCloserEntry(entry.date,closerRow);
+    }
     return true;
   };
 
@@ -3241,7 +3906,7 @@ function App(){
     const citas_asistidas=(data.show_organicas||0)+(data.show_meta||0)+(data.show_google||0)+(data.show_tiktok||0)+(data.show_otros||0);
     const merged={...data,agendas_calificadas,agendas_final,citas_asistidas};
     const nd={...closerData,[date]:merged};
-    setCloserData(nd);
+    setCloserData(applyGhlCaptacionAgendasLeads(nd));
     await db.from("daily_closer").upsert({
       date:data.date||date,
       q_ventas_ht:data.q_ventas_ht||0,valor_venta_ht:data.valor_venta_ht||0,
@@ -3378,9 +4043,12 @@ function App(){
         @media (max-width:767px){
           .sidebar{display:none!important}
           .main-content{margin-left:0!important}
-          .mobile-nav{display:flex!important}
+          .mobile-nav{display:none!important}
           .mobile-topbar-extra{display:none!important}
-          .page-content{padding:12px 12px 96px!important}
+          .mobile-menu-btn{display:inline-flex!important}
+          .mobile-ops-drawer{display:flex!important}
+          .mobile-ops-overlay{display:block!important}
+          .page-content{padding:12px 12px 24px!important}
           .cc-control{gap:10px!important}
           .cc-control > div{border-radius:14px!important;padding:14px!important}
           .cc-controls-bar{align-items:stretch!important;gap:12px!important}
@@ -3415,6 +4083,9 @@ function App(){
         @media (min-width:768px){
           .mobile-nav{display:none!important}
           .mobile-period-bar{display:none!important}
+          .mobile-menu-btn{display:none!important}
+          .mobile-ops-drawer{display:none!important}
+          .mobile-ops-overlay{display:none!important}
         }
       `}</style>
       <div style={{height:"100vh",background:BG,color:TXT,display:"flex",overflow:"hidden"}}>
@@ -3434,7 +4105,7 @@ function App(){
                 alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>U</div>
               <div>
                 <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED</div>
-                <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Command Center</div>
+                <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Centro de Operaciones</div>
               </div>
             </div>
           </div>
@@ -3461,11 +4132,61 @@ function App(){
           {/* Nav items */}
           <nav style={{padding:"10px 10px",flex:1}}>
             <Lbl style={{marginLeft:8,marginBottom:6}}>Navegación</Lbl>
-            {TABS.map(t=>{
+            {visibleTabs.map(t=>{
               const active=tab===t.id;
               const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
+              if(t.href){
+                return(
+                  <a key={t.id} href={t.href}
+                    className="sidebar-item"
+                    style={{width:"100%",textAlign:"left",background:"transparent",
+                      borderLeft:"2px solid transparent",borderRadius:"0 9px 9px 0",
+                      padding:"9px 12px",color:TXT2,fontSize:12,fontWeight:500,
+                      fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                      gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s"}}>
+                    <Icon name={t.icon} size={15} color={TXT3}/>
+                    <span>{t.l}</span>
+                  </a>
+                );
+              }
+              if(t.children&&t.children.length>0){
+                const expanded=openSubmenu===t.id;
+                return(
+                  <div key={t.id} style={{display:"flex",flexDirection:"column",marginBottom:2}}>
+                    <button type="button" onClick={()=>setOpenSubmenu(expanded?null:t.id)}
+                      aria-expanded={expanded} aria-controls={`submenu-${t.id}`}
+                      className={`sidebar-item${expanded?" active":""}`}
+                      style={{width:"100%",textAlign:"left",background:expanded?BRAND+"18":"transparent",
+                        border:"none",borderLeft:expanded?`2px solid ${BRAND}`:"2px solid transparent",
+                        borderRadius:"0 9px 9px 0",padding:"9px 12px",cursor:"pointer",
+                        color:expanded?BRAND:TXT2,fontSize:12,fontWeight:expanded?700:500,
+                        fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                        gap:9,transition:"all .15s"}}>
+                      <Icon name={t.icon} size={15} color={expanded?BRAND:TXT3}/>
+                      <span style={{flex:1}}>{t.l}</span>
+                      <span style={{fontSize:10,opacity:.6}}>{expanded?"▼":"▶"}</span>
+                    </button>
+                    {expanded&&<div id={`submenu-${t.id}`}>{t.children.map(c=>{
+                      const subActive=embedUrl===c.href;
+                      return(
+                        <a key={c.id} href={c.href}
+                          style={{padding:"7px 12px 7px 37px",fontSize:12,
+                            color:subActive?BRAND:TXT2,
+                            background:subActive?BRAND+"18":"transparent",
+                            fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,
+                            textDecoration:"none",textAlign:"left",width:"100%",
+                            display:"block",borderRadius:"0 9px 9px 0"}}
+                          onMouseEnter={e=>{if(!subActive)e.currentTarget.style.background=BRAND+"10";}}
+                          onMouseLeave={e=>{if(!subActive)e.currentTarget.style.background="transparent";}}>
+                          {c.l}
+                        </a>
+                      );
+                    })}</div>}
+                  </div>
+                );
+              }
               return(
-                <button key={t.id} onClick={()=>setTab(t.id)}
+                <button type="button" key={t.id} onClick={()=>changeTab(t.id)}
                   className={`sidebar-item${active?" active":""}`}
                   style={{width:"100%",textAlign:"left",background:active?BRAND+"18":"transparent",
                     border:"none",borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
@@ -3475,7 +4196,10 @@ function App(){
                     fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
                     gap:9,marginBottom:2,position:"relative",transition:"all .15s"}}>
                   <Icon name={t.icon} size={15} color={active?BRAND:TXT3}/>
-                  <span>{t.l}</span>
+                  <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
+                    <span>{t.l}</span>
+                    {t.sub&&<span style={{fontSize:9,lineHeight:1.1,opacity:.75}}>{t.sub}</span>}
+                  </span>
                   {hasAlert&&<span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
                     width:6,height:6,background:C.red,borderRadius:100}}/>}
                 </button>
@@ -3487,7 +4211,7 @@ function App(){
           <div style={{padding:"12px 16px",borderTop:`1px solid ${BORDER}`}}>
             <div style={{fontSize:9,color:TXT3,letterSpacing:"0.05em",lineHeight:1.6,marginBottom:10}}>
               <div style={{color:TXT2,fontWeight:600,marginBottom:2}}>{MONTHS[month]} {year}</div>
-              <div>Día {kpi.day} de {MDAYS[month]}</div>
+              <div>{periodState==="past"?"Mes cerrado · ":periodState==="future"?"Mes futuro · ":"Día "}{periodDayLabel}</div>
               {kpi.funnel.revenue&&<div style={{color:BRAND,fontWeight:600,marginTop:2}}>{fD(nv(kpi.funnel.revenue))} revenue</div>}
             </div>
             <button onClick={toggleTheme} style={{
@@ -3508,12 +4232,21 @@ function App(){
             padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",
             position:"sticky",top:0,zIndex:50}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <button className="mobile-menu-btn" onClick={()=>setMobileOpsMenuOpen(true)}
+                aria-label="Abrir menú" aria-expanded={mobileOpsMenuOpen}
+                style={{display:"none",alignItems:"center",gap:6,padding:"7px 11px",
+                  background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:8,
+                  color:TXT,fontSize:12,fontWeight:700,fontFamily:"'Inter',sans-serif",cursor:"pointer"}}>
+                <Icon name="menu" size={15} color={TXT}/>
+                <span>Menú</span>
+              </button>
               <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
               <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
                 {TABS.find(t=>t.id===tab)?.l}
+                {TABS.find(t=>t.id===tab)?.sub&&<div style={{fontSize:10,fontWeight:600,color:TXT3,lineHeight:1.2,marginTop:2}}>{TABS.find(t=>t.id===tab)?.sub}</div>}
               </div>
               <div className="mobile-topbar-extra" style={{fontSize:10,color:TXT3,marginTop:4,letterSpacing:"0.02em"}}>
-                {MONTHS[month].toUpperCase()} {year} · DÍA {kpi.day} DE {MDAYS[month]}
+                {MONTHS[month].toUpperCase()} {year} · {periodState==="past"?`MES CERRADO · ${MDAYS[month]} DÍAS`:periodState==="future"?`MES FUTURO · ${MDAYS[month]} DÍAS`:`DÍA ${Math.min(nv(kpi.day)||_topD,MDAYS[month])} DE ${MDAYS[month]}`}
                 {mQual>0&&<> · <span style={{color:cH(pv(mShows,mQual),60,40)}}>{fP(pv(mShows,mQual))} show-up</span></>}
               </div>
             </div>
@@ -3521,7 +4254,7 @@ function App(){
 
           {/* Mobile period bar */}
           <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
-            {tab!=="control"&&<button onClick={()=>setTab("control")} style={{
+            {tab!=="control"&&<button onClick={()=>changeTab("control")} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:9,padding:"8px 10px",
               fontSize:11,fontWeight:800,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
               Control Comercial
@@ -3542,45 +4275,133 @@ function App(){
 
           {/* Page content */}
           <div style={{padding:"20px 24px 60px",flex:1,overflowY:"auto",overflowX:"hidden"}} className="fade-in page-content">
-            {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
-            {tab==="closer"  &&<CloserEntryForm year={year} month={month} allCloser={closerData} onSave={saveCloserEntry}/>}
-            {tab==="control" &&<ControlComercial/>}
-            {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
-            {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
-            {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
-            {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
-            {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
-            {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
-            {tab==="colab"  &&<DetalleColaborador allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
-            {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+            {scopeLimited&&<div style={{marginBottom:16,background:C.amber+"14",border:`1px solid ${C.amber}55`,
+              borderRadius:10,padding:"11px 14px",display:"flex",alignItems:"center",gap:10}}>
+              <Icon name="lock" size={15} color={C.amber}/>
+              <div style={{fontSize:12,color:TXT,lineHeight:1.5}}>
+                <strong style={{fontWeight:800}}>Vista limitada.</strong>{" "}
+                {(caps&&caps.scopeSummary)||"Solo ves los datos asignados a tu alcance."} Si necesitas más acceso, pide a un admin que ajuste tu alcance.
+              </div>
+            </div>}
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                style={{
+                  width:"100%",
+                  height:"calc(100vh - 80px)",
+                  border:"none",
+                  background:"#F7F7F5",
+                  display:"block"
+                }}
+              />
+            ) : (
+              <>
+                {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
+                {tab==="control" &&<ControlComercial/>}
+                {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
+                {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
+                {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
+                {tab==="funnel" &&<FunnelView f={kpi.funnel} onUpdate={upKpi}/>}
+                {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
+                {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
+                {tab==="colab"  &&<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>}
+                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Mobile bottom nav */}
-        <div className="mobile-nav" style={{
-          position:"fixed",bottom:0,left:0,right:0,zIndex:200,
-          background:SURFACE,borderTop:`1px solid ${BORDER}`,
-          display:"none",overflowX:"auto",
-          boxShadow:"0 -4px 20px rgba(0,0,0,.2)"}}>
-          <div style={{display:"flex",minWidth:"max-content",padding:"6px 4px 8px"}}>
-            {MOBILE_TABS.map(t=>{
-              const active=tab===t.id;
+        {/* Mobile Operaciones drawer */}
+        {mobileOpsMenuOpen&&<div className="mobile-ops-overlay" onClick={()=>setMobileOpsMenuOpen(false)}
+          style={{position:"fixed",inset:0,background:"rgba(17,17,16,0.45)",zIndex:300,display:"none"}}/>}
+        <div className="mobile-ops-drawer" style={{
+          position:"fixed",top:0,bottom:0,left:0,width:280,maxWidth:"85vw",zIndex:310,
+          background:SURFACE,borderRight:`1px solid ${BORDER}`,
+          display:"none",flexDirection:"column",overflowY:"auto",
+          transform:mobileOpsMenuOpen?"translateX(0)":"translateX(-100%)",
+          transition:"transform 200ms ease-out",
+          visibility:mobileOpsMenuOpen?"visible":"hidden",
+          boxShadow:"4px 0 20px rgba(0,0,0,.18)"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+            padding:"14px 16px",borderBottom:`1px solid ${BORDER}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:9}}>
+              <Icon name="menu" size={16} color={BRAND}/>
+              <span style={{fontSize:13,fontWeight:800,color:TXT,letterSpacing:"-0.02em"}}>Navegación</span>
+            </div>
+            <button onClick={()=>setMobileOpsMenuOpen(false)} aria-label="Cerrar menú"
+              style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
+                width:34,height:34,border:"none",borderRadius:8,background:"transparent",
+                color:TXT2,cursor:"pointer"}}>
+              <Icon name="x" size={16} color={TXT2}/>
+            </button>
+          </div>
+          <nav style={{padding:"10px 0",flex:1}}>
+            {visibleTabs.map(t=>{
+              const hasChildren=t.children&&t.children.length>0;
+              if(hasChildren){
+                return(
+                  <div key={t.id} style={{marginTop:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:9,
+                      padding:"10px 18px 4px",fontSize:10,
+                      color:TXT3,fontFamily:"'Inter',sans-serif",fontWeight:700,
+                      letterSpacing:"0.1em",textTransform:"uppercase"}}>
+                      <Icon name={t.icon} size={13} color={TXT3}/>
+                      <span>{t.l}</span>
+                    </div>
+                    {t.children.map(c=>{
+                      const subActive=embedUrl===c.href;
+                      return(
+                        <button type="button" key={c.id}
+                          onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");setMobileOpsMenuOpen(false);}}
+                          style={{display:"block",width:"100%",textAlign:"left",
+                            padding:"9px 18px 9px 36px",fontSize:13,
+                            color:subActive?BRAND:TXT2,
+                            background:subActive?BRAND+"18":"transparent",
+                            borderLeft:subActive?`2px solid ${BRAND}`:"2px solid transparent",
+                            border:"none",fontFamily:"'Inter',sans-serif",
+                            fontWeight:subActive?700:500,cursor:"pointer"}}>
+                          {c.l}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              if(t.href){
+                return(
+                  <a key={t.id} href={t.href} onClick={()=>setMobileOpsMenuOpen(false)}
+                    style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
+                      padding:"11px 18px",fontSize:13,color:TXT2,
+                      background:"transparent",borderLeft:"2px solid transparent",
+                      fontFamily:"'Inter',sans-serif",fontWeight:500,textDecoration:"none"}}>
+                    <Icon name={t.icon} size={14} color={TXT3}/>
+                    <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
+                      <span>{t.l}</span>
+                      {t.sub&&<span style={{fontSize:10,lineHeight:1.15,opacity:.75}}>{t.sub}</span>}
+                    </span>
+                  </a>
+                );
+              }
+              const active=!embedUrl&&tab===t.id;
               return(
-                <button key={t.id} onClick={()=>setTab(t.id)} style={{
-                  display:"flex",flexDirection:"column",alignItems:"center",gap:3,
-                  background:"transparent",border:"none",cursor:"pointer",
-                  padding:"6px 12px",borderRadius:10,minWidth:t.id==="control"?104:72,
-                  color:active?BRAND:TXT3,
-                  transition:"all .15s",flexShrink:0}}>
-                  <Icon name={t.icon} size={20} color={active?BRAND:TXT3}/>
-                  <span style={{fontSize:9,fontWeight:active?700:500,
-                    fontFamily:"'Inter',sans-serif",letterSpacing:"0.01em",
-                    color:active?BRAND:TXT3,whiteSpace:"nowrap"}}>{t.l}</span>
-                  {active&&<div style={{width:16,height:2,background:BRAND,borderRadius:2}}/>}
+                <button type="button" key={t.id}
+                  onClick={()=>{changeTab(t.id);setMobileOpsMenuOpen(false);}}
+                  style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
+                    padding:"11px 18px",fontSize:13,
+                    color:active?BRAND:TXT2,
+                    background:active?BRAND+"18":"transparent",
+                    borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
+                    border:"none",fontFamily:"'Inter',sans-serif",
+                    fontWeight:active?700:500,cursor:"pointer"}}>
+                  <Icon name={t.icon} size={14} color={active?BRAND:TXT3}/>
+                  <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
+                    <span>{t.l}</span>
+                    {t.sub&&<span style={{fontSize:10,lineHeight:1.15,opacity:.75}}>{t.sub}</span>}
+                  </span>
                 </button>
               );
             })}
-          </div>
+          </nav>
         </div>
 
       </div>
