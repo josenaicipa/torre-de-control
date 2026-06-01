@@ -19,6 +19,7 @@ import {
   type RadarMemberInput,
   type RadarOrderTotals,
 } from "@/lib/comunidad-dropi-radar";
+import { buildAllMemberRows, type MemberPeriodRow } from "./rendimiento";
 
 export type Granularity = "weekly" | "monthly";
 
@@ -141,6 +142,10 @@ export interface Comparativo {
   comparisonSeries: ComparativoBucket[];
   topEntered: ComparativoMemberRow[];
   topDelivered: ComparativoMemberRow[];
+  // Todas las filas de miembros del período (no solo top), incluyendo a
+  // quienes solo aparecen en la comparación (current = 0). Alimenta las
+  // listas Top 20 / En caída / En aumento de la sección de Rendimiento.
+  memberRows: MemberPeriodRow[];
   available: PeriodRef[];
 }
 
@@ -480,6 +485,7 @@ export async function loadComparativo(
       comparisonRows,
       meta,
     );
+    const memberRows = buildAllMemberRows(currentRows, comparisonRows, meta);
 
     return buildComparativoFromTotals({
       granularity: "weekly",
@@ -491,6 +497,7 @@ export async function loadComparativo(
       comparisonSeries,
       topEntered,
       topDelivered,
+      memberRows,
       available: periods,
     });
   }
@@ -528,6 +535,7 @@ export async function loadComparativo(
     comparisonRows,
     meta,
   );
+  const memberRows = buildAllMemberRows(currentRows, comparisonRows, meta);
 
   return buildComparativoFromTotals({
     granularity: "monthly",
@@ -539,6 +547,7 @@ export async function loadComparativo(
     comparisonSeries,
     topEntered,
     topDelivered,
+    memberRows,
     available: periods,
   });
 }
@@ -553,6 +562,7 @@ function buildComparativoFromTotals(input: {
   comparisonSeries: ComparativoBucket[];
   topEntered: ComparativoMemberRow[];
   topDelivered: ComparativoMemberRow[];
+  memberRows: MemberPeriodRow[];
   available: PeriodRef[];
 }): Comparativo {
   const currentTotals = sumTotals(input.currentRows);
@@ -597,6 +607,7 @@ function buildComparativoFromTotals(input: {
     comparisonSeries: input.comparisonSeries,
     topEntered: input.topEntered,
     topDelivered: input.topDelivered,
+    memberRows: input.memberRows,
     available: input.available,
   };
 }

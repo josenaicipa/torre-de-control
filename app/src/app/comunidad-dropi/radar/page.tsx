@@ -67,8 +67,7 @@ import {
 import { pickHelp, pickLove } from "../_lib/radar-lists";
 import { SubNav } from "../_components/SubNav";
 import { PeriodSelector } from "../_components/PeriodSelector";
-import { ComparativoSection } from "../_components/Comparativo";
-import { CohortesSection } from "../_components/Cohortes";
+import { RendimientoComunidad } from "../_components/RendimientoComunidad";
 
 export const dynamic = "force-dynamic";
 
@@ -249,30 +248,13 @@ async function PulsoBody({
       <TodayActionsCard stats={followUpStats} />
 
       {comparativo ? (
-        <ComparativoSection
+        <RendimientoComunidad
           comparativo={comparativo}
           formAction="/comunidad-dropi/radar"
           extraHiddenInputs={periodHidden}
-          drillDownHref={
-            period
-              ? `/comunidad-dropi/crecimiento?period=${period}`
-              : "/comunidad-dropi/crecimiento"
-          }
-          drillDownLabel="Ver detalle en Crecimiento →"
         />
       ) : (
-        <ComparativoEmpty />
-      )}
-
-      {radar ? (
-        <CohortesSection
-          members={radar.members}
-          monthLabel={currentLabel ?? ""}
-          ctaHref="/comunidad-dropi/seguimientos?priority=P1"
-          ctaLabel="Ir a Seguimientos P1 →"
-        />
-      ) : (
-        <CohortesEmpty />
+        <RendimientoEmpty />
       )}
 
       {radar ? <DegradedPulse radar={radar} period={period ?? ""} /> : null}
@@ -709,7 +691,7 @@ function ImportAgeBanner({ importAge }: { importAge: ImportAgeInfo }) {
   );
 }
 
-function ComparativoEmpty() {
+function RendimientoEmpty() {
   return (
     <section
       style={{
@@ -720,7 +702,7 @@ function ComparativoEmpty() {
         marginBottom: 18,
       }}
     >
-      <p style={eyebrowStyle()}>Seguimiento de crecimiento</p>
+      <p style={eyebrowStyle()}>Rendimiento de la comunidad</p>
       <p
         style={{
           margin: "6px 0 0",
@@ -728,34 +710,9 @@ function ComparativoEmpty() {
           fontSize: 13,
         }}
       >
-        Aún no hay períodos cargados para comparar. Importá al menos un cierre
-        semanal o mensual para activar el comparativo.
-      </p>
-    </section>
-  );
-}
-
-function CohortesEmpty() {
-  return (
-    <section
-      style={{
-        backgroundColor: COLORS.surface,
-        border: `1px dashed ${COLORS.border}`,
-        borderRadius: 12,
-        padding: 18,
-        marginBottom: 18,
-      }}
-    >
-      <p style={eyebrowStyle()}>Cohortes sobre entregas</p>
-      <p
-        style={{
-          margin: "6px 0 0",
-          color: COLORS.textSoft,
-          fontSize: 13,
-        }}
-      >
-        Sin cierre mensual confirmado. Las cohortes (Top, en caída,
-        crecimiento) se activan al importar un reporte mensual de Dropi.
+        Aún no hay períodos cargados para medir el rendimiento. Importá al menos
+        un cierre semanal o mensual para activar las entregas, las cohortes y la
+        comparación entre períodos.
       </p>
     </section>
   );
