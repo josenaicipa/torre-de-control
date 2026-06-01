@@ -1023,9 +1023,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const cashTotal=dispLowT+dispCash+totalRecurring;
   // Header adds reservas visually without mixing them into the core Cash Total KPI.
   const cashHeaderTotal=cashTotal+(dispReservas||0);
-  // Ventas reales acumuladas = Valor Total Venta (comprometido) + Cash Low Ticket.
-  // Past months stay anchored to the realized cash so closed history is not retold.
-  const ventasRealesAcum=isPast?dispCash:totalValor+dispLowT;
+  // Ritmo del mes must use the same committed sales value shown in
+  // Realidad del mes → Valor Total Venta (comprometido).
+  const ventasRealesAcum=totalValor;
   const gapVsRitmo=ventasRealesAcum-metaEsperadaHoy;
   // Only the current month projects forward — past months are closed and
   // future months must not fabricate progress.
