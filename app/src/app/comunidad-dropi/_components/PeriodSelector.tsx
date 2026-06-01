@@ -2,7 +2,8 @@
 // Server-safe: usa `<form method="get">` para que cambiar el mes haga GET
 // hacia la propia ruta preservando los filtros que se pasen en `hiddenParams`.
 
-import { formatMonthRef, type AvailableMonth } from "../_lib/radar-data";
+import { formatMonthRef } from "../_lib/radar-cache";
+import type { AvailableMonth } from "../_lib/radar-data";
 import { periodKey } from "../_lib/period";
 import { COLORS } from "../_lib/tokens";
 
