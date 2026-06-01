@@ -2371,8 +2371,10 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
             </div>
           </Card>
           <Card>
+            <STit icon="📝" title="Notas del setter" sub="Contexto cualitativo del reporte manual"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
-              <Txt label="Hallazgos importantes" value={form.setterFindings} onChange={v=>st("setterFindings",v)} placeholder="Ej: iniciales + hallazgo: presupuesto, objeción, urgencia, mala calidad, etc."/>
+              <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
+              <Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>
               <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
             </div>
           </Card>
