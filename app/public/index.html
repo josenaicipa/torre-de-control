@@ -952,11 +952,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   // as Cash Low Ticket and must not inflate this HT committed KPI.
   const totalValor=totalValorHT;
   const totalVentas=sumF(closerEntries,"q_ventas_ht");
-  // Torre CEO funnel: historical/GHL imports store the upstream lead volume in
-  // `agendas_final` and the non-cancelled scheduled calls in `agendas_calificadas`.
-  // Keep the public labels aligned with the business funnel for every month.
-  const totalLeads=sumF(closerEntries,"agendas_final");
-  const totalAgendas=sumF(closerEntries,"agendas_calificadas");
+  const totalLeads=sumF(closerEntries,"agendas_calificadas");
+  const totalAgendas=sumF(closerEntries,"agendas_final");
   const totalAsistidas=sumF(closerEntries,"citas_asistidas");
   // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
   const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
