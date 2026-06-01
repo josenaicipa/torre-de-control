@@ -1030,7 +1030,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   // Only the current month projects forward — past months are closed and
   // future months must not fabricate progress.
   const proyeccion=isCurrent&&day>0&&ventasRealesAcum>0?(ventasRealesAcum/day)*dm:null;
-  const pctCumpl=pv(dispCash,metaMensual);
+  const pctCumpl=pv(ventasRealesAcum,metaMensual);
 
   // Salud del embudo formulas requested by Juan:
   // % Leads → Agendadas = Leads calificados reales / Citas agendadas reales
@@ -1218,9 +1218,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <SectionTitle>{isCurrent?"Proyección fin de mes (si seguimos así)":isPast?"Cierre del mes (real)":"Proyección fin de mes (sin datos aún)"}</SectionTitle>
           <div style={{padding:"18px 14px",display:"flex",flexDirection:"column",gap:0}}>
             {isPast?(<>
-              <Row2 label="Ventas reales al cierre ($)" value={fD(dispCash)} bold color={dispCash>=metaMensual?C.green:C.red}/>
+              <Row2 label="Ventas reales al cierre ($)" value={fD(ventasRealesAcum)} bold color={ventasRealesAcum>=metaMensual?C.green:C.red}/>
               <Row2 label="% cumplimiento real" value={fP(pctCumpl)} bold color={cH(pctCumpl,85,65)}/>
-              <Row2 label="Gap real vs meta ($)" value={fD(dispCash-metaMensual)} bold color={dispCash>=metaMensual?C.green:C.red} bg={dispCash>=metaMensual?"#f0fdf4":"#fef2f2"}/>
+              <Row2 label="Gap real vs meta ($)" value={fD(ventasRealesAcum-metaMensual)} bold color={ventasRealesAcum>=metaMensual?C.green:C.red} bg={ventasRealesAcum>=metaMensual?"#f0fdf4":"#fef2f2"}/>
             </>):isFuture?(<>
               <Row2 label="Ventas proyectadas fin de mes ($)" value="—"/>
               <Row2 label="% cumplimiento proyectado" value="—"/>

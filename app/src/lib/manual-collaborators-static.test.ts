@@ -32,9 +32,15 @@ describe("manual collaborator labels", () => {
     const ritmoBlock = html.slice(html.indexOf('{/* RITMO + PROYECCIÓN */}'), html.indexOf('{/* FUNNEL A HOY */}'));
 
     expect(torreBlock).toContain('const ventasRealesAcum=totalValor+dispLowT;');
+    expect(torreBlock).toContain('const pctCumpl=pv(ventasRealesAcum,metaMensual);');
     expect(torreBlock).not.toContain('const ventasRealesAcum=totalValor;');
     expect(torreBlock).not.toContain('const ventasRealesAcum=isPast?dispCash:totalValor+dispLowT;');
+    expect(torreBlock).not.toContain('const pctCumpl=pv(dispCash,metaMensual);');
     expect(ritmoBlock).toContain('<Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)}');
+    expect(ritmoBlock).toContain('<Row2 label="Ventas reales al cierre ($)" value={fD(ventasRealesAcum)}');
+    expect(ritmoBlock).toContain('<Row2 label="Gap real vs meta ($)" value={fD(ventasRealesAcum-metaMensual)}');
+    expect(ritmoBlock).not.toContain('<Row2 label="Ventas reales al cierre ($)" value={fD(dispCash)}');
+    expect(ritmoBlock).not.toContain('<Row2 label="Gap real vs meta ($)" value={fD(dispCash-metaMensual)}');
   });
 
   it("replaces the standalone Area Comercial tab with the Por Colaborador tab in second position", () => {
