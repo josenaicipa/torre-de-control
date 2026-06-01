@@ -30,7 +30,7 @@ function parseCriterion(value: string | undefined): RadarRankingCriterion {
   ) {
     return value as RadarRankingCriterion;
   }
-  return "STAR_SCORE";
+  return "DELIVERED";
 }
 
 function isSegment(value: string): value is RadarSegment {
@@ -105,9 +105,8 @@ function Header() {
           lineHeight: 1.5,
         }}
       >
-        Reordena la comunidad por score estrella, entregadas, crecimiento,
-        devoluciones y más. Entregadas siempre va primero, ingresadas como
-        secundaria.
+        Abre ordenado por entregadas de mayor a menor. Puedes cambiar a
+        ingresadas, devoluciones, score estrella, crecimiento y más con un clic.
       </p>
     </header>
   );

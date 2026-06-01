@@ -36,6 +36,23 @@ const CRITERION_PILL_LABELS: Record<RadarRankingCriterion, string> = {
   DECLINE: "Caída",
 };
 
+// Orden de los chips de criterio: entregadas (default), ingresadas y
+// devoluciones primero porque son las métricas operativas que el equipo
+// consulta a diario; el resto queda detrás. Filtramos contra
+// RADAR_RANKING_CRITERIA para no dejar fuera ningún criterio si la lista
+// fuente cambia.
+const CRITERION_PILL_ORDER: RadarRankingCriterion[] = (
+  [
+    "DELIVERED",
+    "ENTERED",
+    "RETURNS",
+    "STAR_SCORE",
+    "DELIVERY_RATE",
+    "GROWTH",
+    "DECLINE",
+  ] as RadarRankingCriterion[]
+).filter((c) => RADAR_RANKING_CRITERIA.includes(c));
+
 export function RankingsBody({
   members,
   available,
@@ -64,7 +81,7 @@ export function RankingsBody({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const search = buildSearchString({
-      sort: sort === "STAR_SCORE" ? null : sort,
+      sort: sort === "DELIVERED" ? null : sort,
       segment: segmentFilter,
       country: countryFilter,
       period,
@@ -105,7 +122,7 @@ export function RankingsBody({
   );
 
   const periodHidden = {
-    sort: sort === "STAR_SCORE" ? null : sort,
+    sort: sort === "DELIVERED" ? null : sort,
     segment: segmentFilter,
     country: countryFilter,
   };
@@ -146,7 +163,7 @@ export function RankingsBody({
           marginBottom: 10,
         }}
       >
-        {RADAR_RANKING_CRITERIA.map((c) => {
+        {CRITERION_PILL_ORDER.map((c) => {
           const active = c === sort;
           return (
             <button

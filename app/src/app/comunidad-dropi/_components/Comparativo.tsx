@@ -49,7 +49,9 @@ export function ComparativoSection({
 }: ComparativoSectionProps) {
   const granularityLabel =
     comparativo.granularity === "weekly" ? "Semanal" : "Mensual";
-  const compLabel = comparativo.comparison ? comparativo.comparison.label : "—";
+  const compLabel = comparativo.comparison
+    ? comparativo.comparison.label
+    : "Sin comparación";
 
   return (
     <section
@@ -99,7 +101,7 @@ export function ComparativoSection({
             {" · "}
             Granularidad: {granularityLabel}
             {comparativo.granularity === "weekly"
-              ? " (default semanal · cambiá a mensual si necesitás granularidad de cierre)."
+              ? " (default semanal: semana actual vs. semana anterior. Cambiá a mensual si necesitás granularidad de cierre)."
               : " (vista mensual)."}
           </p>
         </div>
@@ -162,15 +164,20 @@ function ComparativoControls({
   formAction: string;
   extraHiddenInputs?: ReadonlyArray<{ name: string; value: string }>;
 }) {
+  const isWeekly = comparativo.granularity === "weekly";
+  const comparisonModeLabel = isWeekly
+    ? "Comparación semanal"
+    : "Comparación mensual";
+  const principalLabel = isWeekly ? "Semana principal" : "Mes principal";
   return (
     <form
       method="get"
       action={formAction}
       style={{
         display: "flex",
-        flexWrap: "wrap",
+        flexDirection: "column",
         gap: 8,
-        alignItems: "center",
+        alignItems: "flex-start",
       }}
     >
       {extraHiddenInputs?.map((h, i) => (
@@ -181,38 +188,73 @@ function ComparativoControls({
           value={h.value}
         />
       ))}
-      <SelectField name="granularity" defaultValue={comparativo.granularity}>
-        <option value="weekly">Semanal</option>
-        <option value="monthly">Mensual</option>
-      </SelectField>
-      <SelectField
-        name="current"
-        defaultValue={comparativo.current.key}
-        ariaLabel="Período principal"
+      <p
+        style={{
+          margin: 0,
+          fontSize: 12,
+          fontWeight: 800,
+          color: COLORS.text,
+        }}
       >
-        {comparativo.available.map((p) => (
-          <option key={p.key} value={p.key}>
-            Actual: {p.label}
-          </option>
-        ))}
-      </SelectField>
-      <SelectField
-        name="comparison"
-        defaultValue={comparativo.comparison?.key ?? ""}
-        ariaLabel="Período de comparación"
+        {comparisonModeLabel}
+      </p>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          alignItems: "flex-end",
+        }}
       >
-        <option value="">Sin comparación</option>
-        {comparativo.available
-          .filter((p) => p.key !== comparativo.current.key)
-          .map((p) => (
+        <SelectField
+          name="granularity"
+          label="Ver"
+          defaultValue={comparativo.granularity}
+        >
+          <option value="weekly">Semanal</option>
+          <option value="monthly">Mensual</option>
+        </SelectField>
+        <SelectField
+          name="current"
+          label={principalLabel}
+          defaultValue={comparativo.current.key}
+        >
+          {comparativo.available.map((p) => (
             <option key={p.key} value={p.key}>
-              Comparar con: {p.label}
+              {p.label}
             </option>
           ))}
-      </SelectField>
-      <button type="submit" style={primaryButtonStyle()}>
-        Aplicar
-      </button>
+        </SelectField>
+        <SelectField
+          name="comparison"
+          label="Comparar con"
+          defaultValue={comparativo.comparison?.key ?? ""}
+        >
+          <option value="">Sin comparación</option>
+          {comparativo.available
+            .filter((p) => p.key !== comparativo.current.key)
+            .map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+        </SelectField>
+        <button type="submit" style={primaryButtonStyle()}>
+          Aplicar
+        </button>
+      </div>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 11,
+          color: COLORS.textMuted,
+          lineHeight: 1.45,
+          maxWidth: 320,
+        }}
+      >
+        Para comparar semanas: dejá Ver = Semanal, elegí Semana principal y
+        Comparar con, luego Aplicar.
+      </p>
     </form>
   );
 }
@@ -778,17 +820,19 @@ function SelectField({
   defaultValue,
   children,
   ariaLabel,
+  label,
 }: {
   name: string;
   defaultValue: string;
   children: React.ReactNode;
   ariaLabel?: string;
+  label?: string;
 }) {
-  return (
+  const select = (
     <select
       name={name}
       defaultValue={defaultValue}
-      aria-label={ariaLabel}
+      aria-label={label ? undefined : ariaLabel}
       style={{
         padding: "6px 10px",
         border: `1px solid ${COLORS.border}`,
@@ -801,6 +845,26 @@ function SelectField({
     >
       {children}
     </select>
+  );
+
+  if (!label) {
+    return select;
+  }
+
+  return (
+    <label
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        fontSize: 11,
+        color: COLORS.textMuted,
+        fontWeight: 600,
+      }}
+    >
+      {label}
+      {select}
+    </label>
   );
 }
 
