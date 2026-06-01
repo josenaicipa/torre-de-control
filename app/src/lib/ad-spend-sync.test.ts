@@ -6,6 +6,8 @@ describe("buildAutoAdsRows", () => {
     const rows = buildAutoAdsRows({
       ad_spend_daily: {
         daily_totals: [
+          { date: "2026-01-31", funnel: "high_ticket", channel: "meta", spend: 21036.18 },
+          { date: "2026-05-21", funnel: "high_ticket", channel: "meta", spend: 555.55 },
           { date: "2026-05-31", funnel: "high_ticket", channel: "meta", spend: 980.43 },
           { date: "2026-05-31", funnel: "high_ticket", channel: "google", spend: 150.43 },
           { date: "2026-05-31", funnel: "low_ticket", channel: "meta", spend: 230.3 },
@@ -32,6 +34,17 @@ describe("buildAutoAdsRows", () => {
         gasto_meta: 980.43,
         gasto_google: 150.43,
       }),
+    ]);
+  });
+
+  it("keeps pre-cutoff historical months out of Auto Ads sync", () => {
+    expect(buildAutoAdsRows({
+      daily_totals: [
+        { date: "2026-05-21", funnel: "high_ticket", channel: "meta", spend: 555.55 },
+        { date: "2026-05-22", funnel: "high_ticket", channel: "meta", spend: 740.89 },
+      ],
+    })).toEqual([
+      expect.objectContaining({ date: "2026-05-22", gasto_meta: 740.89, gasto_google: 0 }),
     ]);
   });
 

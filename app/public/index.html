@@ -234,7 +234,11 @@ const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
 const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
 const isSetterMember=m=>SETTER_MEMBER_IDS.has(m);
 const HISTORICAL_MARKETING_MEMBER="Marketing Histórico";
+const AUTO_ADS_MEMBER="Auto Ads";
+const HISTORICAL_AD_SPEND_DAILY_CUTOFF="2026-05-22";
 const isHistoricalMonthlyAdSpendEntry=e=>e?.member===HISTORICAL_MARKETING_MEMBER;
+const isAutoAdSpendBeforeDailyCutoff=e=>e?.member===AUTO_ADS_MEMBER&&String(e?.date||"")<HISTORICAL_AD_SPEND_DAILY_CUTOFF;
+const isMonthlyOnlyAdSpendEntry=e=>isHistoricalMonthlyAdSpendEntry(e)||isAutoAdSpendBeforeDailyCutoff(e);
 
 const nv=v=>{const x=Number(v);return(!v&&v!==0)||isNaN(x)?null:x};
 const dv=(a,b)=>{const x=nv(a),y=nv(b);return(!x||!y||y===0)?null:x/y};
@@ -1886,9 +1890,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     // inflate mensajes/follow-ups/ig in the Detalle Diario marketing section.
     const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member));
     const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));
-    // Jan-Mar historical ad spend was imported as one month-total row on the
-    // last day. Keep it in Total / Mes, but don't paint it as a daily spend.
-    const dailyAdEntries=entries.filter(e=>!isHistoricalMonthlyAdSpendEntry(e));
+    // Jan-Mar historical ad spend was imported as month totals, while Auto Ads
+    // can also exist before the daily source is considered authoritative.
+    // Keep those rows out of daily cells to avoid painting a monthly value on
+    // the last day or double-counting legacy historical totals.
+    const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e));
     const closer=allCloser[d]||{};
     const ledger=ledgerByDay[d]||{};
     const sd=f=>sumF(entries,f);
@@ -1918,10 +1924,19 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   };
 
   // Monthly aggregates for cost calculations
-  const mGastoMeta=dayData.reduce((s,d)=>s+d.sd("gastoMeta"),0);
-  const mGastoGoogle=dayData.reduce((s,d)=>s+d.sd("gastoGoogle"),0);
-  const mGastoTikTok=dayData.reduce((s,d)=>s+d.sd("gastoTikTok"),0);
-  const mGastoOtros=dayData.reduce((s,d)=>s+d.sd("gastoOtros"),0);
+  const mDailyGastoMeta=dayData.reduce((s,d)=>s+d.sdAds("gastoMeta"),0);
+  const mDailyGastoGoogle=dayData.reduce((s,d)=>s+d.sdAds("gastoGoogle"),0);
+  const mDailyGastoTikTok=dayData.reduce((s,d)=>s+d.sdAds("gastoTikTok"),0);
+  const mDailyGastoOtros=dayData.reduce((s,d)=>s+d.sdAds("gastoOtros"),0);
+  const mHistoricalGastoMeta=dayData.reduce((s,d)=>s+d.entries.filter(isHistoricalMonthlyAdSpendEntry).reduce((a,e)=>a+(nv(e.gastoMeta)||0),0),0);
+  const mHistoricalGastoGoogle=dayData.reduce((s,d)=>s+d.entries.filter(isHistoricalMonthlyAdSpendEntry).reduce((a,e)=>a+(nv(e.gastoGoogle)||0),0),0);
+  const mHistoricalGastoTikTok=dayData.reduce((s,d)=>s+d.entries.filter(isHistoricalMonthlyAdSpendEntry).reduce((a,e)=>a+(nv(e.gastoTikTok)||0),0),0);
+  const mHistoricalGastoOtros=dayData.reduce((s,d)=>s+d.entries.filter(isHistoricalMonthlyAdSpendEntry).reduce((a,e)=>a+(nv(e.gastoOtros)||0),0),0);
+  const hasHistoricalGasto=(mHistoricalGastoMeta+mHistoricalGastoGoogle+mHistoricalGastoTikTok+mHistoricalGastoOtros)>0;
+  const mGastoMeta=hasHistoricalGasto?mHistoricalGastoMeta:mDailyGastoMeta;
+  const mGastoGoogle=hasHistoricalGasto?mHistoricalGastoGoogle:mDailyGastoGoogle;
+  const mGastoTikTok=hasHistoricalGasto?mHistoricalGastoTikTok:mDailyGastoTikTok;
+  const mGastoOtros=hasHistoricalGasto?mHistoricalGastoOtros:mDailyGastoOtros;
   const mGastoTotal=mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros;
   const mAgTotal=dayData.reduce((s,d)=>{const ks=["organicas","meta","google","tiktok","otros"];return s+ks.reduce((a,c)=>a+(d.closer[`agendas_${c}`]||0),0);},0);
   const mAgMeta=dayData.reduce((s,d)=>s+(d.closer.agendas_meta||0),0);
