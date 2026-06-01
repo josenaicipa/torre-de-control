@@ -1000,13 +1000,15 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
   const totalRecurring=sumF(closerEntries,"recurring_cash");
 
-  // Cash Collected from the payment ledger is authoritative when present; otherwise
-  // we fall back to the legacy closer-entered totals so default behavior is unchanged.
+  // Cash Collected HT is owned by Valentina/Admin + closers in Área Comercial.
+  // The payment ledger stays available as a fallback/drill-down, but must not
+  // override the operational cash registered by the commercial team.
   const cashApi=cash&&cash.available&&cash.totals?cash.totals:null;
   const cashGroups=(cash&&cash.groups)||{};
-  const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;
+  const manualHighTicketCash=totalCash||totalCashFromCollaborators;
+  const dispCash=manualHighTicketCash||(cashApi?cashApi.highTicket:0);
   const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;
-  const dispHighT=cashApi?cashApi.highTicket:totalUpfront;
+  const dispHighT=manualHighTicketCash||(cashApi?cashApi.highTicket:0);
   const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);
   const reviewCount=cashApi&&cashApi.counts?cashApi.counts.reviewRequired:0;
   const reviewAmount=cashApi?cashApi.reviewRequired:0;
@@ -1108,15 +1110,15 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         </div>
       </div>
 
-      {/* DATO COMERCIAL MANUAL — keep auto cash as source of truth, but flag manual entries for validation */}
+      {/* DATO COMERCIAL MANUAL — Valentina/Admin + closers are the primary cash source; ledger remains a validation aid */}
       {cashApi&&hasManualCommercialCash&&(
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
           background:C.amber+"10",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"12px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:18}}>📝</span>
             <div>
-              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato comercial manual para verificar</div>
-              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>Valentina registró/actualizó datos manuales en Área Comercial. El cash oficial lo seguimos tomando del ledger de pagos; revisar que el dato manual no duplique ni contradiga la realidad.</div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato comercial principal</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>Valentina/Admin y closers registraron datos en Área Comercial. Este cash operativo tiene prioridad; el ledger queda como apoyo para verificación.</div>
             </div>
           </div>
           <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
@@ -1957,7 +1959,8 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mLedgerReservas=dayData.reduce((s,d)=>s+(d.ledger.reservas||0),0);
   const mReservasManual=dayData.reduce((s,d)=>s+(d.closer.cash_reservas||0),0);
   const mReservasCash=mReservasManual||mLedgerReservas;
-  const mCashHT=mLedgerHT||dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);
+  const mManualCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);
+  const mCashHT=mManualCashHT||mLedgerHT;
   const mRecurring=dayData.reduce((s,d)=>s+(d.closer.recurring_cash||0),0);
 
   const GROUPS=[
@@ -2021,11 +2024,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
       {l:"# Ventas HT",fn:d=>d.closer.q_ventas_ht||null,fmt:"n"},
       {l:"$ Venta HT",fn:d=>d.closer.valor_venta_ht||null,fmt:"$"},
-      {l:"Cash Collected HT",fn:d=>d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")||null,fmt:"$",totFn:()=>mLedgerHT||mCashHT||null},
+      {l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||null,fmt:"$",totFn:()=>mCashHT||null},
       {l:"Recurring Cash",fn:d=>d.closer.recurring_cash||null,fmt:"$"},
-      {l:"Cash + Recurring",fn:d=>{const c=d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")||0;const t=c+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
+      {l:"Cash + Recurring",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;const t=c+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
         totFn:()=>mCashHT+mRecurring||null},
-      {l:"% Cash Collected",fn:d=>{const c=d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
+      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
         totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
       {l:"% Closing Rate",fn:d=>{const s=d.closer.citas_asistidas||0,v=d.closer.q_ventas_ht||0;return s>0?pv(v,s):null;},fmt:"%",
         totFn:()=>mShows>0?pv(mVentasHT,mShows):null},

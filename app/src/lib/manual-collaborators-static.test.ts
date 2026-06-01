@@ -62,6 +62,19 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('await saveCloserEntry(entry.date,closerRow);');
   });
 
+  it("prioritizes Valentina and closer cash over the payment ledger in Detalle Diario and Torre CEO", () => {
+    expect(html).toContain('const manualHighTicketCash=totalCash||totalCashFromCollaborators;');
+    expect(html).toContain('const dispCash=manualHighTicketCash||(cashApi?cashApi.highTicket:0);');
+    expect(html).toContain('const dispHighT=manualHighTicketCash||(cashApi?cashApi.highTicket:0);');
+    expect(html).toContain('const mManualCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);');
+    expect(html).toContain('const mCashHT=mManualCashHT||mLedgerHT;');
+    expect(html).toContain('{l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||null,fmt:"$",totFn:()=>mCashHT||null}');
+    expect(html).toContain('{l:"Cash + Recurring",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;const t=c+(d.closer.recurring_cash||0);return t||null;},fmt:"$",');
+    expect(html).toContain('{l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",');
+    expect(html).not.toContain('d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")');
+    expect(html).not.toContain('const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;');
+  });
+
   it("integrates the useful numeric operator daily report fields into Area Comercial por colaborador", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
