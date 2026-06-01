@@ -679,8 +679,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
     {l:"Ventas (unidades)",req:ventasUniMeta*pctTranscurrido,real:totalVentas,fmt:"n"},
     {l:"Citas Show Up (asistidas)",req:asistidaMeta*pctTranscurrido,real:totalAsistidas,fmt:"n"},
-    {l:"Citas agendadas reales",req:agendaMeta*pctTranscurrido,real:totalAgendas,fmt:"n"},
-    {l:"Leads calificados reales",req:leadsMeta*pctTranscurrido,real:totalLeads,fmt:"n"},
+    {l:"Citas agendadas reales",req:Math.max(agendaMeta*pctTranscurrido,leadsMeta*pctTranscurrido),real:totalAgendas,fmt:"n"},
+    {l:"Leads calificados reales",req:Math.min(agendaMeta*pctTranscurrido,leadsMeta*pctTranscurrido),real:totalLeads,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{

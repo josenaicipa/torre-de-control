@@ -1033,6 +1033,10 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const asistidasReqHoy=closeRateMeta>0?ventasReqHoy/(closeRateMeta/100):0;
   const citasAgendadasReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;
   const leadsReqHoy=pctLeadsAg>0?citasAgendadasReqHoy/(pctLeadsAg/100):0;
+  // Same display rule as real-month values: larger upstream funnel number is
+  // shown as "Citas agendadas reales" and smaller one as "Leads calificados reales".
+  const citasAgendadasDisplayReqHoy=Math.max(citasAgendadasReqHoy,leadsReqHoy);
+  const leadsCalificadosDisplayReqHoy=Math.min(citasAgendadasReqHoy,leadsReqHoy);
 
   const roasCash=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const roasComprometido=totalGasto>0&&totalValor>0?totalValor/totalGasto:null;
@@ -1044,8 +1048,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     {l:"Ventas $ (comprometido)",req:metaMensual,real:totalValor,fmt:"$"},
     {l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"},
     {l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"},
-    {l:"Leads calificados reales",req:leadsReqHoy,real:totalLeads,fmt:"n"},
-    {l:"Citas agendadas reales",req:citasAgendadasReqHoy,real:totalAgendas,fmt:"n"},
+    {l:"Leads calificados reales",req:leadsCalificadosDisplayReqHoy,real:totalLeads,fmt:"n"},
+    {l:"Citas agendadas reales",req:citasAgendadasDisplayReqHoy,real:totalAgendas,fmt:"n"},
   ];
 
   const handleSaveCfg=async()=>{
