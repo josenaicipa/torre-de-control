@@ -73,19 +73,30 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"}');
   });
 
-  it("splits Area Comercial report entry into Admin, Setters, Closers, and Marketing sub-tabs", () => {
+  it("splits Area Comercial report entry into Admin, Setters, and Closers sub-tabs", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
 
     expect(html).toContain('const SETTER_COLLABORATORS=[');
     expect(html).toContain('{id:"Alejandro Gallo",label:"Alejandro Gallo",color:C.teal,role:"setter"}');
     expect(html).toContain('{id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"}');
+    expect(html).toContain('{id:"Luisa Vega",label:"Luisa Vega",color:C.pink,role:"setter"}');
     expect(html).toContain('{id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"}');
+    expect(html).toContain('{id:"Daniel Garcia Closer",label:"Daniel Garcia",color:C.blue,role:"closer",legacy:"Daniel Garcia"}');
+    expect(html).toContain('{id:"Daryi Perez",label:"Daryi Perez",color:C.gold,role:"closer",legacy:"Daryi"}');
     expect(html).toContain('const REPORT_GROUPS={');
     expect(html).toContain('admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS}');
     expect(html).toContain('setters:{label:"Setters",collaborators:SETTER_COLLABORATORS}');
     expect(html).toContain('closers:{label:"Closers",collaborators:CLOSER_COLLABORATORS}');
-    expect(html).toContain('marketing:{label:"Marketing",collaborators:MARKETING_COLLABORATORS}');
+    expect(html).not.toContain('marketing:{label:"Marketing",collaborators:MARKETING_COLLABORATORS}');
     expect(llenarBlock).toContain('{Object.entries(REPORT_GROUPS).map(([key,g])=>(');
+  });
+
+  it("uses Cualificadas wording only in the Area Comercial closer visual", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
+
+    expect(llenarBlock).toContain('<Inp label="# Cualificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>');
+    expect(tablaBlock).toContain('{l:"# Cualificadas",k:"calificadas",fmt:"n"}');
   });
 
   it("replicates the metrics setter form and adds closer notes fields in Area Comercial", () => {

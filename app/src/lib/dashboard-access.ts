@@ -26,14 +26,20 @@ interface Collaborator {
   readonly id: string;
   readonly label: string;
   readonly legacy?: string;
-  readonly role: "closer" | "marketing";
+  readonly role: "closer" | "setter" | "marketing";
 }
 
 const COLLABORATORS: readonly Collaborator[] = [
   { id: "Karen", label: "Karen Anquiz", role: "marketing" },
+  { id: "Admin", label: "Valentina Sanchez", role: "closer" },
+  { id: "Alejandro Gallo", label: "Alejandro Gallo", role: "setter" },
+  { id: "Daniel Garcia", label: "Daniel Garcia", role: "setter" },
+  { id: "Luisa Vega", label: "Luisa Vega", role: "setter" },
+  { id: "Karen Setter", label: "Karen Anquiz", legacy: "Karen", role: "setter" },
   { id: "Carlos Velez", label: "Carlos Velez", legacy: "Carlos", role: "closer" },
-  { id: "Daryi Uribe", label: "Daryi Uribe", legacy: "Daryi", role: "closer" },
-  { id: "Juan Diego Afanador", label: "Juan Diego Afanador", role: "closer" },
+  { id: "Daryi Perez", label: "Daryi Perez", legacy: "Daryi", role: "closer" },
+  { id: "Wiston Quintero", label: "Wiston Quintero", legacy: "Juan Diego Afanador", role: "closer" },
+  { id: "Daniel Garcia Closer", label: "Daniel Garcia", legacy: "Daniel Garcia", role: "closer" },
 ];
 
 function uniq(values: string[]): string[] {
@@ -81,16 +87,21 @@ function membersForIdentity(actor: DashboardActor, role: Collaborator["role"]): 
  * Resolve the member set for a DIRECTOR scoped to an area/team. Only acts when
  * the area/team name unambiguously identifies a function:
  *   Ventas / Comercial / Closers  => commercial collaborators
- *   Marketing / Setters           => marketing collaborators (Karen)
+ *   Setters                       => setter collaborators
+ *   Marketing                     => marketing collaborators (Karen)
  * Anything else => [] (no rows), by design.
  */
 function membersForGroup(areaName: string | null, teamName: string | null): string[] {
   const hay = `${areaName ?? ""} ${teamName ?? ""}`.toLowerCase();
   const isCommercial = /\b(vent|comerc|clos)/.test(hay);
-  const isMarketing = /\b(market|setter)/.test(hay);
+  const isSetter = /\bsetter/.test(hay);
+  const isMarketing = /\bmarket/.test(hay);
   // If a name somehow matches both keywords, refuse rather than guess.
-  if (isCommercial && !isMarketing) return membersForRole("closer");
-  if (isMarketing && !isCommercial) return membersForRole("marketing");
+  const matches = [isCommercial, isSetter, isMarketing].filter(Boolean).length;
+  if (matches !== 1) return [];
+  if (isCommercial) return membersForRole("closer");
+  if (isSetter) return membersForRole("setter");
+  if (isMarketing) return membersForRole("marketing");
   return [];
 }
 
@@ -139,7 +150,7 @@ export function deriveAllowedMembers(actor: DashboardActor): string[] {
     case "CLOSER":
       return actor.dataScope === "OWN" ? membersForIdentity(actor, "closer") : [];
     case "SETTER":
-      return actor.dataScope === "OWN" ? membersForIdentity(actor, "marketing") : [];
+      return actor.dataScope === "OWN" ? membersForIdentity(actor, "setter") : [];
     case "DIRECTOR":
       return actor.dataScope === "AREA" || actor.dataScope === "TEAM"
         ? membersForGroup(actor.areaName, actor.teamName)
@@ -197,8 +208,7 @@ export function isOwnDashboardEntryMember(
   for (const c of COLLABORATORS) {
     const aliases = aliasesOf(c);
     const identityMatches = aliases.some((a) => candidates.has(norm(a)));
-    if (!identityMatches) continue;
-    return aliases.includes(member);
+    if (identityMatches && aliases.includes(member)) return true;
   }
   return false;
 }

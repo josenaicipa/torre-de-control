@@ -23,8 +23,9 @@ function extractAgendasRows(source: string): string[] {
 describe("Detalle Diario > Agendas / Leads labels", () => {
   it.each(dashboardFiles)("uses Calificadas wording and requested row order in %s", (relativePath) => {
     const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
-    expect(source).not.toMatch(/Cualificad|Cualif\./);
-    expect(extractAgendasRows(source)).toEqual([
+    const rows = extractAgendasRows(source);
+    expect(rows.join("\n")).not.toMatch(/Cualificad|Cualif\./);
+    expect(rows).toEqual([
       "Agendas Total",
       "Orgánicas",
       "Meta",

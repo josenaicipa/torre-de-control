@@ -184,12 +184,12 @@ const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];B
 applyTheme(false);
 const C={gold:BRAND,green:"#22C55E",amber:"#F59E0B",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F97316",pink:"#EC4899"};
 const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Daryi:C.gold,Otro:"#64748b",
-  "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Uribe":C.gold,"Wiston Quintero":C.blue,"Juan Diego Afanador":C.blue,"Valentina Sanchez":C.red,Admin:C.red};
+  "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Perez":C.gold,"Luisa Vega":C.pink,"Daniel Garcia":C.blue,"Wiston Quintero":C.blue,"Juan Diego Afanador":C.blue,"Valentina Sanchez":C.red,Admin:C.red};
 
 // ─── Manual Collaborator Reports (Por Colaborador) ──────────────────────────────
 // Karen is the marketing/IG setter; Valentina Sanchez (stored as "Admin" for
 // backward compatibility) uses the Area Comercial form. Carlos Velez, Daryi
-// Uribe and Wiston Quintero use the closer fields. Karen's id is preserved as
+// Perez and Wiston Quintero use the closer fields. Karen's id is preserved as
 // "Karen" for backward compatibility; legacy ids "Carlos" / "Daryi" and
 // "Juan Diego Afanador" still resolve to the current collaborator names.
 const MARKETING_COLLABORATORS=[
@@ -201,21 +201,22 @@ const ADMIN_COLLABORATORS=[
 const SETTER_COLLABORATORS=[
   {id:"Alejandro Gallo",label:"Alejandro Gallo",color:C.teal,role:"setter"},
   {id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"},
+  {id:"Luisa Vega",label:"Luisa Vega",color:C.pink,role:"setter"},
   {id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"},
 ];
 const CLOSER_COLLABORATORS=[
   {id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"},
-  {id:"Daryi Uribe",label:"Daryi Uribe",color:C.gold,role:"closer",legacy:"Daryi"},
+  {id:"Daryi Perez",label:"Daryi Perez",color:C.gold,role:"closer",legacy:"Daryi"},
   {id:"Wiston Quintero",label:"Wiston Quintero",color:C.blue,role:"closer",legacy:"Juan Diego Afanador"},
+  {id:"Daniel Garcia Closer",label:"Daniel Garcia",color:C.blue,role:"closer",legacy:"Daniel Garcia"},
 ];
 const COMMERCIAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...CLOSER_COLLABORATORS];
 const REPORT_GROUPS={
   admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS},
   setters:{label:"Setters",collaborators:SETTER_COLLABORATORS},
   closers:{label:"Closers",collaborators:CLOSER_COLLABORATORS},
-  marketing:{label:"Marketing",collaborators:MARKETING_COLLABORATORS},
 };
-const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...SETTER_COLLABORATORS,...CLOSER_COLLABORATORS,...MARKETING_COLLABORATORS];
+const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...SETTER_COLLABORATORS,...CLOSER_COLLABORATORS];
 const MARKETING_MEMBER_IDS=new Set(MARKETING_COLLABORATORS.map(c=>c.id));
 const SETTER_MEMBER_IDS=new Set(SETTER_COLLABORATORS.map(c=>c.id));
 const COMMERCIAL_MEMBER_IDS=new Set([
@@ -225,7 +226,8 @@ const COMMERCIAL_MEMBER_IDS=new Set([
 const MEMBER_LABELS={
   "Karen":"Karen Anquiz",
   "Carlos":"Carlos Velez",
-  "Daryi":"Daryi Uribe",
+  "Daryi":"Daryi Perez",
+  "Daryi Uribe":"Daryi Perez",
   "Juan Diego Afanador":"Wiston Quintero",
 };
 MANUAL_COLLABORATORS.forEach(c=>{MEMBER_LABELS[c.id]=c.label;});
@@ -2139,7 +2141,7 @@ Cash Collected/Low Ticket se llenan desde el ledger real de pagos. Reservas usa 
 //     read-only.
 //   - Valentina Sanchez (stored as "Admin"): uses the same Area Comercial form
 //     so this tab can eventually replace the standalone Area Comercial tab.
-//   - Closer role (Carlos Velez, Daryi Uribe, Juan Diego Afanador / Wiston
+//   - Closer role (Carlos Velez, Daryi Perez, Juan Diego Afanador / Wiston
 //     Quintero legacy): agendas, calificadas, agendas hoy, show ups, ventas HT,
 //     $ venta HT, upfront/cash, recurring cash, follow ups, pendientes cierre
 //     día anterior, pendientes cierre acumulados, reservas.
@@ -2389,7 +2391,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
             <STit icon="📅" title="Agendas / Leads" sub={`Llenado por ${collab.label}`}/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
               <Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>
-              <Inp label="# Calificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
+              <Inp label="# Cualificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
               <Inp label="# No Show" value={form.agendas} onChange={v=>sf("agendas",v)}/>
             </div>
           </Card>
@@ -2466,24 +2468,14 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
 
   const aggByCollab={};
   MANUAL_COLLABORATORS.forEach(c=>{aggByCollab[c.id]=collabAgg(c.id);});
-  const marketingCols=MARKETING_COLLABORATORS;
   const setterCols=SETTER_COLLABORATORS;
   const closerCols=COMMERCIAL_COLLABORATORS;
-  const allCols=[...marketingCols,...setterCols,...closerCols];
+  const allCols=[...setterCols,...closerCols];
 
   const sumCloser=k=>closerCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
   const sumSetter=k=>setterCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
-  const sumMarketing=k=>marketingCols.reduce((s,c)=>s+(aggByCollab[c.id][k]||0),0);
 
   const SECTIONS=[
-    {title:"Actividad Marketing",bg:"#6d28d9",role:"marketing",rows:[
-      {l:"Días con registro",k:"days",fmt:"n"},
-      {l:"# IG Seguidores",k:"igFollowers",fmt:"n"},
-      {l:"# Posts + CTA",k:"posts",fmt:"n"},
-      {l:"# Mensajes",k:"mensajes",fmt:"n"},
-      {l:"# Follow Ups",k:"followUps",fmt:"n"},
-      {l:"# Booking Offers",k:"bkOffers",fmt:"n"},
-    ]},
     {title:"Reporte de Setter",bg:"#7c3aed",role:"setter",rows:[
       {l:"Leads contactados",k:"setterLeadsContacted",fmt:"n"},
       {l:"Agendas confirmadas",k:"setterConfirmedAgendas",fmt:"n"},
@@ -2500,7 +2492,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
-      {l:"# Calificadas",k:"calificadas",fmt:"n"},
+      {l:"# Cualificadas",k:"calificadas",fmt:"n"},
       {l:"# No Show",k:"agendas",fmt:"n"},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",role:"closer",rows:[
@@ -2557,7 +2549,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                       <span>{c.label}</span>
                     </div>
                     <div style={{opacity:0.55,fontSize:8,fontWeight:500,marginTop:2}}>
-                      {c.id==="Admin"?"Admin":c.role==="marketing"?"Marketing":"Closer"} · {agg.days} días
+                      {c.displayRole||c.role} · {agg.days} días
                     </div>
                   </th>
                 );
@@ -2580,7 +2572,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                 </tr>
                 {g.rows.map(row=>{
                   const includeCol=c=>g.role===c.role;
-                  const tot=g.role==="marketing"?(sumMarketing(row.k)||null):g.role==="setter"?(sumSetter(row.k)||null):(sumCloser(row.k)||null);
+                  const tot=g.role==="setter"?(sumSetter(row.k)||null):(sumCloser(row.k)||null);
                   return(
                     <tr key={row.l}>
                       <td style={{...tdBase,...stickyCol,textAlign:"left",

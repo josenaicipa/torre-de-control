@@ -108,11 +108,31 @@ describe("resolveDashboardAccess — CLOSER OWN", () => {
     expect(a.allowedMembers).toEqual(["Carlos Velez", "Carlos"]);
   });
 
-  it("matches by name for a closer without a legacy alias", () => {
+  it("matches by name for a closer with a legacy alias", () => {
     const a = resolveDashboardAccess(
-      actor({ position: "CLOSER", dataScope: "OWN", name: "Juan Diego Afanador" }),
+      actor({ position: "CLOSER", dataScope: "OWN", name: "Wiston Quintero" }),
     );
-    expect(a.allowedMembers).toEqual(["Juan Diego Afanador"]);
+    expect(a.allowedMembers).toEqual(["Wiston Quintero", "Juan Diego Afanador"]);
+  });
+
+  it("allows Daniel Garcia to own both setter and closer collaborator rows", () => {
+    const setter = resolveDashboardAccess(
+      actor({ position: "SETTER", dataScope: "OWN", ghlUserName: "Daniel Garcia" }),
+    );
+    const closer = resolveDashboardAccess(
+      actor({ position: "CLOSER", dataScope: "OWN", ghlUserName: "Daniel Garcia" }),
+    );
+
+    expect(setter.allowedMembers).toEqual(["Daniel Garcia"]);
+    expect(closer.allowedMembers).toEqual(["Daniel Garcia Closer", "Daniel Garcia"]);
+  });
+
+  it("renames Daryi Uribe to Daryi Perez while preserving the Daryi legacy alias", () => {
+    const a = resolveDashboardAccess(
+      actor({ position: "CLOSER", dataScope: "OWN", ghlUserName: "Daryi Perez" }),
+    );
+
+    expect(a.allowedMembers).toEqual(["Daryi Perez", "Daryi"]);
   });
 
   it("fails closed (no rows) when the identity matches no closer", () => {
@@ -143,14 +163,22 @@ describe("resolveDashboardAccess — SETTER OWN", () => {
     const a = resolveDashboardAccess(
       actor({ position: "SETTER", dataScope: "OWN", email: "karen@naicipa.com" }),
     );
-    expect(a.allowedMembers).toEqual(["Karen", "Karen Anquiz"]);
+    expect(a.allowedMembers).toEqual(["Karen Setter", "Karen Anquiz", "Karen"]);
   });
 
   it("matches Karen by display name", () => {
     const a = resolveDashboardAccess(
       actor({ position: "SETTER", dataScope: "OWN", name: "Karen Anquiz" }),
     );
-    expect(a.allowedMembers).toEqual(["Karen", "Karen Anquiz"]);
+    expect(a.allowedMembers).toEqual(["Karen Setter", "Karen Anquiz", "Karen"]);
+  });
+
+  it("matches Luisa Vega as a setter", () => {
+    const a = resolveDashboardAccess(
+      actor({ position: "SETTER", dataScope: "OWN", ghlUserName: "Luisa Vega" }),
+    );
+
+    expect(a.allowedMembers).toEqual(["Luisa Vega"]);
   });
 
   it("does not match a closer identity for a SETTER", () => {
@@ -167,11 +195,16 @@ describe("resolveDashboardAccess — DIRECTOR AREA/TEAM", () => {
       actor({ position: "DIRECTOR", dataScope: "AREA", areaName: "Ventas" }),
     );
     expect(a.allowedMembers).toEqual([
+      "Admin",
+      "Valentina Sanchez",
       "Carlos Velez",
       "Carlos",
-      "Daryi Uribe",
+      "Daryi Perez",
       "Daryi",
+      "Wiston Quintero",
       "Juan Diego Afanador",
+      "Daniel Garcia Closer",
+      "Daniel Garcia",
     ]);
   });
 
@@ -243,6 +276,7 @@ describe("isOwnDashboardEntryMember", () => {
   it("allows Karen to fill her own daily_entries member even without writer scope", () => {
     expect(isOwnDashboardEntryMember(actor({ name: "Karen Anquiz" }), "Karen")).toBe(true);
     expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Anquiz")).toBe(true);
+    expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Setter")).toBe(true);
   });
 
   it("allows closer legacy aliases only for the matched closer", () => {
