@@ -27,11 +27,12 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('<Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>');
   });
 
-  it("uses Valor Total Venta comprometido as Ritmo del mes real sales value", () => {
+  it("uses Valor Total Venta comprometido plus Cash Low Ticket as Ritmo del mes real sales value for every month", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
     const ritmoBlock = html.slice(html.indexOf('{/* RITMO + PROYECCIÓN */}'), html.indexOf('{/* FUNNEL A HOY */}'));
 
-    expect(torreBlock).toContain('const ventasRealesAcum=totalValor;');
+    expect(torreBlock).toContain('const ventasRealesAcum=totalValor+dispLowT;');
+    expect(torreBlock).not.toContain('const ventasRealesAcum=totalValor;');
     expect(torreBlock).not.toContain('const ventasRealesAcum=isPast?dispCash:totalValor+dispLowT;');
     expect(ritmoBlock).toContain('<Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)}');
   });
