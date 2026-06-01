@@ -880,7 +880,10 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const proyeccion=isCurrent&&day>0&&ventasRealesAcum>0?(ventasRealesAcum/day)*dm:null;
   const pctCumpl=pv(dispCash,metaMensual);
 
-  const pctLeadsAgReal=totalLeads>0?pv(totalAgendas,totalLeads):null;
+  // With Torre CEO's corrected labels, "Citas agendadas reales" is the larger
+  // upstream base and "Leads calificados reales" is the qualified subset.
+  // So this health ratio must be qualified / scheduled, never scheduled / qualified.
+  const pctLeadsAgReal=totalAgendas>0?pv(totalLeads,totalAgendas):null;
   const pctAgAsisReal=totalAgendas>0?pv(totalAsistidas,totalAgendas):null;
   const closeRateReal=totalAsistidas>0?pv(totalVentas,totalAsistidas):null;
 
@@ -1002,7 +1005,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             <Inp label="Inversión planeada $" prefix="$" value={cfg.inversionPlaneada} onChange={v=>setCfg(p=>({...p,inversionPlaneada:v}))}/>
             <Inp label="ROAS objetivo" value={cfg.roasObj} onChange={v=>setCfg(p=>({...p,roasObj:v}))}/>
             <Inp label="Día actual del mes" value={cfg.day} onChange={v=>setCfg(p=>({...p,day:v}))}/>
-            <Inp label="% Leads → Agendadas meta" value={cfg.pctLeadsAg} onChange={v=>setCfg(p=>({...p,pctLeadsAg:v}))} hint="%"/>
+            <Inp label="% Agendadas → Leads calificados meta" value={cfg.pctLeadsAg} onChange={v=>setCfg(p=>({...p,pctLeadsAg:v}))} hint="%"/>
             <Inp label="% Agendadas → Asistidas meta" value={cfg.pctAgAsis} onChange={v=>setCfg(p=>({...p,pctAgAsis:v}))} hint="%"/>
             <Inp label="Close Rate meta" value={cfg.closeRateMeta} onChange={v=>setCfg(p=>({...p,closeRateMeta:v}))} hint="%"/>
           </div>
@@ -1020,7 +1023,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <Row2 label="Días del mes" value={dm}/>
           <Row2 label="Meta mensual ventas ($)" value={fD(metaMensual)} bold color={BRAND}/>
           <Row2 label="ROAS objetivo" value={`${roasObj}x`}/>
-          <Row2 label="% Leads → Agendadas (meta)" value={fP(pctLeadsAg)}/>
+          <Row2 label="% Agendadas → Leads calificados (meta)" value={fP(pctLeadsAg)}/>
           <Row2 label="% Agendadas → Asistidas (meta)" value={fP(pctAgAsis)}/>
           <Row2 label="Close rate (meta)" value={fP(closeRateMeta)}/>
           <Row2 label="Leads necesarios por dólar" value={leadsPorDolar>0?leadsPorDolar.toFixed(5):"—"}/>
@@ -1141,7 +1144,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             </thead>
             <tbody>
               {[
-                {l:"% Leads → Agendadas",meta:pctLeadsAg,real:pctLeadsAgReal},
+                {l:"% Agendadas → Leads calificados",meta:pctLeadsAg,real:pctLeadsAgReal},
                 {l:"% Agendadas → Asistidas",meta:pctAgAsis,real:pctAgAsisReal},
                 {l:"Close Rate",meta:closeRateMeta,real:closeRateReal},
               ].map(r=>{
