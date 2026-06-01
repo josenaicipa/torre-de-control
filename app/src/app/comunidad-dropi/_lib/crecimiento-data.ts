@@ -446,6 +446,10 @@ export interface ComparativoLoadInput {
   granularity: Granularity;
   currentKey?: string | null;
   comparisonKey?: string | null;
+  // Mes al que caer si se pide granularidad semanal pero no hay semanas
+  // cargadas. Normalmente es el mes activo del Radar, para que la sección de
+  // Rendimiento nunca quede vacía cuando sí existe un cierre mensual.
+  fallbackMonthly?: { year: number; month: number } | null;
 }
 
 export async function loadComparativo(
@@ -453,7 +457,16 @@ export async function loadComparativo(
 ): Promise<Comparativo | null> {
   if (input.granularity === "weekly") {
     const periods = await listWeeklyPeriods();
-    if (periods.length === 0) return null;
+    if (periods.length === 0) {
+      // Sin semanas: caemos a mensual usando el mes del Radar (o el último
+      // mensual disponible) en vez de devolver `null` y dejar la sección
+      // vacía. Los keys semanales no aplican al mensual, así que arrancamos
+      // sin comparación explícita y dejamos el default del motor mensual.
+      const fallbackKey = input.fallbackMonthly
+        ? monthlyKey(input.fallbackMonthly.year, input.fallbackMonthly.month)
+        : null;
+      return loadMonthlyComparativo(fallbackKey, null);
+    }
     const current =
       findWeeklyByKey(periods, input.currentKey ?? null) ?? periods[0];
     const idx = periods.findIndex((p) => p.key === current.key);
@@ -502,14 +515,22 @@ export async function loadComparativo(
     });
   }
 
+  return loadMonthlyComparativo(
+    input.currentKey ?? null,
+    input.comparisonKey ?? null,
+  );
+}
+
+async function loadMonthlyComparativo(
+  currentKey: string | null,
+  comparisonKey: string | null,
+): Promise<Comparativo | null> {
   const periods = await listMonthlyPeriods();
   if (periods.length === 0) return null;
-  const current =
-    findMonthlyByKey(periods, input.currentKey ?? null) ?? periods[0];
+  const current = findMonthlyByKey(periods, currentKey) ?? periods[0];
   const idx = periods.findIndex((p) => p.key === current.key);
   const defaultComp = idx + 1 < periods.length ? periods[idx + 1] : null;
-  const comparison =
-    findMonthlyByKey(periods, input.comparisonKey ?? null) ?? defaultComp;
+  const comparison = findMonthlyByKey(periods, comparisonKey) ?? defaultComp;
 
   const [currentRows, comparisonRows, currentSeries, comparisonSeries] =
     await Promise.all([
