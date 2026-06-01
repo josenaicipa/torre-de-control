@@ -2,20 +2,27 @@
 //
 // Objetivo de UX: en máximo 5 segundos el operador entiende:
 //   1) qué hay que hacer hoy (P1 abiertos, vencidos, para hoy, sin asignar),
-//   2) si la comunidad va creciendo / estable / en alerta / a la baja,
-//   3) a quién darle amor, a quién ayudar, quiénes son las estrellas y
-//      quiénes están en riesgo por devoluciones.
+//   2) si la comunidad creció o decreció vs. la comparación (comparativo
+//      semanal por default, con cambio a mensual),
+//   3) las cohortes de entregas (top, en caída, crecimiento por bandas),
+//   4) a quién darle amor, a quién ayudar, quiénes son las estrellas y
+//      quiénes están en riesgo por devoluciones,
+//   5) los KPIs del mes y la calidad de datos como soporte.
 //
-// El bloque "Qué hacer hoy" vive arriba porque la decisión operativa es la
-// pregunta más urgente. El resto del Pulso (KPIs, segmentos, calidad) queda
-// debajo como diagnóstico complementario.
+// La lectura dominante son comparativo + cohortes de entregas. El "Pulso del
+// mes" queda como banner compacto debajo: si no aporta acción concreta, no
+// puede tomarse la pantalla.
 //
 // Notas:
 //   - La ruta sigue siendo /comunidad-dropi/radar para no romper enlaces.
-//   - Las listas de personas clave se cruzan con DropiFollowUp abierto/en
-//     curso real para no proponer trabajo duplicado.
-//   - "Decreciendo" se ordena por pérdida absoluta primero y porcentaje como
-//     desempate: una caída de 200 entregadas pesa más que un −90% sobre 5.
+//   - El selector mensual del Radar (`?period=YYYY-MM`) controla tanto los
+//     KPIs/segmentos como las cohortes mensuales — son el mismo motor.
+//   - El comparativo trae su propio par de selectores (granularidad +
+//     período principal + período de comparación). Default: semanal actual
+//     vs. semana anterior.
+//   - "Decreciendo" en las listas se ordena por pérdida absoluta primero y
+//     porcentaje como desempate: una caída de 200 entregadas pesa más que un
+//     −90% sobre 5.
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -34,10 +41,9 @@ import {
 import {
   formatMonthRef,
   loadRadar,
-  loadWeeklyPulse,
   type AvailableMonth,
 } from "../_lib/radar-data";
-import type { WeeklyPulseSummary } from "../_lib/weekly-pulse";
+import { loadComparativo, type Granularity } from "../_lib/crecimiento-data";
 import { COLORS } from "../_lib/tokens";
 import {
   parsePeriod,
@@ -61,6 +67,8 @@ import {
 import { pickHelp, pickLove } from "../_lib/radar-lists";
 import { SubNav } from "../_components/SubNav";
 import { PeriodSelector } from "../_components/PeriodSelector";
+import { ComparativoSection } from "../_components/Comparativo";
+import { CohortesSection } from "../_components/Cohortes";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +80,10 @@ function flatten(sp: RawSearchParams): Record<string, string | undefined> {
   return out;
 }
 
+function parseGranularity(value: string | undefined): Granularity {
+  return value === "monthly" ? "monthly" : "weekly";
+}
+
 export default async function PulsoPage({
   searchParams,
 }: {
@@ -81,25 +93,29 @@ export default async function PulsoPage({
   if (!actor) redirect("/login");
   const sp = flatten(await searchParams);
   const { year, month } = parsePeriod(sp.period);
-  const [{ radar, available, lastImportAt }, weeklyPulse] = await Promise.all([
+  const granularity = parseGranularity(sp.granularity);
+  const currentKey = sp.current ?? null;
+  const comparisonKey = sp.comparison ?? null;
+
+  const [{ radar, available, lastImportAt }, comparativo] = await Promise.all([
     loadRadar({ year, month }),
-    loadWeeklyPulse(),
+    loadComparativo({ granularity, currentKey, comparisonKey }),
   ]);
   const importAge = classifyImportAge(lastImportAt);
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
+    <div style={{ maxWidth: 1240, margin: "0 auto", color: COLORS.text }}>
       <Header />
       <SubNav />
-      {radar ? (
+      {radar || comparativo ? (
         <PulsoBody
           radar={radar}
           available={available}
           importAge={importAge}
-          weeklyPulse={weeklyPulse}
+          comparativo={comparativo}
         />
       ) : (
-        <EmptyState weeklyPulse={weeklyPulse} />
+        <EmptyState />
       )}
     </div>
   );
@@ -127,9 +143,9 @@ function Header() {
           lineHeight: 1.5,
         }}
       >
-        En 5 segundos: ¿qué hago hoy?, ¿vamos creciendo o a la baja?, ¿a quién
-        darle amor?, ¿a quién ayudar?, ¿quiénes son las estrellas? Entregadas
-        es la métrica reina.
+        En 5 segundos: ¿qué hago hoy?, ¿crecimos o caímos vs. la comparación?,
+        ¿quién está en cohorte de crecimiento, caída o top? Entregadas es la
+        métrica reina.
       </p>
     </header>
   );
@@ -139,34 +155,39 @@ async function PulsoBody({
   radar,
   available,
   importAge,
-  weeklyPulse,
+  comparativo,
 }: {
-  radar: Radar;
+  radar: Radar | null;
   available: AvailableMonth[];
   importAge: ImportAgeInfo;
-  weeklyPulse: WeeklyPulseSummary | null;
+  comparativo: Awaited<ReturnType<typeof loadComparativo>>;
 }) {
-  const currentLabel = formatMonthRef(radar.current);
-  const previousLabel = radar.previous ? formatMonthRef(radar.previous) : null;
-  const period = periodKey(radar.current);
+  const currentLabel = radar ? formatMonthRef(radar.current) : null;
+  const previousLabel =
+    radar && radar.previous ? formatMonthRef(radar.previous) : null;
+  const period = radar ? periodKey(radar.current) : null;
 
   // "Dar amor" amplía el bucket GROWING con RECOVERED y NEW para que la
   // pantalla muestre todo lo que merece reconocimiento explícito. "Ayudar"
   // junta DROPPING con INACTIVE para no esconder a los miembros que se
   // apagaron este mes. Los selectores viven en `_lib/radar-lists.ts` para
   // que la regla "pérdida absoluta manda sobre porcentaje" sea testeable.
-  const love = pickLove(radar.members, 5);
-  const help = pickHelp(radar.members, 5);
-  const stars = topBy(
-    radar.members.filter((m) => m.segment === "STAR"),
-    (a, b) => b.starScore - a.starScore,
-    5,
-  );
-  const highReturn = topBy(
-    radar.members.filter((m) => m.segment === "HIGH_RETURN"),
-    (a, b) => b.returnRate - a.returnRate,
-    5,
-  );
+  const love = radar ? pickLove(radar.members, 5) : [];
+  const help = radar ? pickHelp(radar.members, 5) : [];
+  const stars = radar
+    ? topBy(
+        radar.members.filter((m) => m.segment === "STAR"),
+        (a, b) => b.starScore - a.starScore,
+        5,
+      )
+    : [];
+  const highReturn = radar
+    ? topBy(
+        radar.members.filter((m) => m.segment === "HIGH_RETURN"),
+        (a, b) => b.returnRate - a.returnRate,
+        5,
+      )
+    : [];
 
   // Una sola query alimenta tanto el banner "Qué hacer hoy" como los chips
   // de seguimiento por miembro. Filtramos por status activo para que el
@@ -198,104 +219,150 @@ async function PulsoBody({
     now,
   );
 
+  // Inputs ocultos que el form del comparativo y el del cohort-month deben
+  // arrastrar para no perder el otro estado. El comparativo no usa
+  // `?period=`; el cohort-month no usa `granularity/current/comparison`.
+  // Acá vivimos en Radar, así que conservamos `?period=` mensual cuando el
+  // usuario cambia algo del comparativo.
+  const periodHidden = period
+    ? [{ name: "period", value: period }]
+    : undefined;
+
   return (
     <>
-      <PeriodNote
-        currentLabel={currentLabel}
-        previousLabel={previousLabel}
-        available={available}
-        active={{ year: radar.current.year, month: radar.current.month }}
-        importAge={importAge}
-      />
-
-      {weeklyPulse ? <WeeklyPulseCard summary={weeklyPulse} /> : null}
+      {currentLabel ? (
+        <PeriodNote
+          currentLabel={currentLabel}
+          previousLabel={previousLabel}
+          available={available}
+          active={
+            radar
+              ? { year: radar.current.year, month: radar.current.month }
+              : null
+          }
+          importAge={importAge}
+        />
+      ) : (
+        <ImportAgeBanner importAge={importAge} />
+      )}
 
       <TodayActionsCard stats={followUpStats} />
 
-      <PulseHero radar={radar} period={period} />
+      {comparativo ? (
+        <ComparativoSection
+          comparativo={comparativo}
+          formAction="/comunidad-dropi/radar"
+          extraHiddenInputs={periodHidden}
+          drillDownHref={
+            period
+              ? `/comunidad-dropi/crecimiento?period=${period}`
+              : "/comunidad-dropi/crecimiento"
+          }
+          drillDownLabel="Ver detalle en Crecimiento →"
+        />
+      ) : (
+        <ComparativoEmpty />
+      )}
 
-      <section style={twoColStyle()}>
-        <MembersCard
-          title="Dar amor"
-          subtitle="Creciendo, recuperados y nuevos con tracción"
-          tone="GROWING"
-          members={love}
-          empty="Ningún miembro creció, se recuperó o reactivó esta ventana."
-          metric="growth"
-          followUpStatus={memberFollowUpStatus}
+      {radar ? (
+        <CohortesSection
+          members={radar.members}
+          monthLabel={currentLabel ?? ""}
+          ctaHref="/comunidad-dropi/seguimientos?priority=P1"
+          ctaLabel="Ir a Seguimientos P1 →"
         />
-        <MembersCard
-          title="Ayudar"
-          subtitle="Decreciendo o sin actividad este mes"
-          tone="DROPPING"
-          members={help}
-          empty="Ningún miembro cayó >10% en entregadas vs. mes anterior."
-          metric="decline"
-          followUpStatus={memberFollowUpStatus}
-        />
-      </section>
+      ) : (
+        <CohortesEmpty />
+      )}
 
-      <section style={twoColStyle()}>
-        <MembersCard
-          title="Estrellas"
-          subtitle="Alto volumen, baja devolución y score sostenido"
-          tone="STAR"
-          members={stars}
-          empty="Aún no hay miembros con score estrella este mes."
-          metric="starScore"
-          followUpStatus={memberFollowUpStatus}
-        />
-        <MembersCard
-          title="Riesgo por devoluciones"
-          subtitle="Tasa de devolución ≥ 25% sobre ingresadas"
-          tone="HIGH_RETURN"
-          members={highReturn}
-          empty="Ningún miembro supera el umbral de 25% de devoluciones."
-          metric="returnRate"
-          followUpStatus={memberFollowUpStatus}
-        />
-      </section>
+      {radar ? <DegradedPulse radar={radar} period={period ?? ""} /> : null}
 
-      <section style={kpiGridStyle()} aria-label="KPIs del mes">
-        <KpiCard label="Entregadas" hero kpi={radar.kpis.delivered} />
-        <KpiCard label="Ingresadas" kpi={radar.kpis.entered} />
-        <KpiCard
-          label="Devoluciones"
-          kpi={radar.kpis.returned}
-          accent="inverse"
-        />
-        <RateCard
-          label="Conversión entrega/ingresadas"
-          current={radar.kpis.deliveryRate.current}
-          previous={radar.kpis.deliveryRate.previous}
-          hint="entregadas ÷ ingresadas"
-        />
-        <RateCard
-          label="Entrega operativa entregadas/movidas"
-          current={radar.kpis.deliveryRateOperational.current}
-          previous={radar.kpis.deliveryRateOperational.previous}
-          hint="entregadas ÷ movidas"
-        />
-        <RateCard
-          label="Tasa de devolución"
-          current={radar.kpis.returnRate.current}
-          previous={radar.kpis.returnRate.previous}
-          accent="inverse"
-          hint="devoluciones ÷ ingresadas"
-        />
-        <SimpleKpi
-          label="Miembros activos"
-          value={radar.kpis.activeMembers.current}
-          sublabel={`${radar.kpis.totalMembers} miembros en total`}
-        />
-        <SegmentMix radar={radar} period={period} />
-      </section>
+      {radar ? (
+        <>
+          <section style={twoColStyle()}>
+            <MembersCard
+              title="Dar amor"
+              subtitle="Creciendo, recuperados y nuevos con tracción"
+              tone="GROWING"
+              members={love}
+              empty="Ningún miembro creció, se recuperó o reactivó esta ventana."
+              metric="growth"
+              followUpStatus={memberFollowUpStatus}
+            />
+            <MembersCard
+              title="Ayudar"
+              subtitle="Decreciendo o sin actividad este mes"
+              tone="DROPPING"
+              members={help}
+              empty="Ningún miembro cayó >10% en entregadas vs. mes anterior."
+              metric="decline"
+              followUpStatus={memberFollowUpStatus}
+            />
+          </section>
 
-      <QualityBlock
-        quality={radar.quality}
-        importAge={importAge}
-        currentLabel={currentLabel}
-      />
+          <section style={twoColStyle()}>
+            <MembersCard
+              title="Estrellas"
+              subtitle="Alto volumen, baja devolución y score sostenido"
+              tone="STAR"
+              members={stars}
+              empty="Aún no hay miembros con score estrella este mes."
+              metric="starScore"
+              followUpStatus={memberFollowUpStatus}
+            />
+            <MembersCard
+              title="Riesgo por devoluciones"
+              subtitle="Tasa de devolución ≥ 25% sobre ingresadas"
+              tone="HIGH_RETURN"
+              members={highReturn}
+              empty="Ningún miembro supera el umbral de 25% de devoluciones."
+              metric="returnRate"
+              followUpStatus={memberFollowUpStatus}
+            />
+          </section>
+
+          <section style={kpiGridStyle()} aria-label="KPIs del mes">
+            <KpiCard label="Entregadas" hero kpi={radar.kpis.delivered} />
+            <KpiCard label="Ingresadas" kpi={radar.kpis.entered} />
+            <KpiCard
+              label="Devoluciones"
+              kpi={radar.kpis.returned}
+              accent="inverse"
+            />
+            <RateCard
+              label="Conversión entrega/ingresadas"
+              current={radar.kpis.deliveryRate.current}
+              previous={radar.kpis.deliveryRate.previous}
+              hint="entregadas ÷ ingresadas"
+            />
+            <RateCard
+              label="Entrega operativa entregadas/movidas"
+              current={radar.kpis.deliveryRateOperational.current}
+              previous={radar.kpis.deliveryRateOperational.previous}
+              hint="entregadas ÷ movidas"
+            />
+            <RateCard
+              label="Tasa de devolución"
+              current={radar.kpis.returnRate.current}
+              previous={radar.kpis.returnRate.previous}
+              accent="inverse"
+              hint="devoluciones ÷ ingresadas"
+            />
+            <SimpleKpi
+              label="Miembros activos"
+              value={radar.kpis.activeMembers.current}
+              sublabel={`${radar.kpis.totalMembers} miembros en total`}
+            />
+            <SegmentMix radar={radar} period={period ?? ""} />
+          </section>
+
+          <QualityBlock
+            quality={radar.quality}
+            importAge={importAge}
+            currentLabel={currentLabel ?? ""}
+          />
+        </>
+      ) : null}
     </>
   );
 }
@@ -460,126 +527,85 @@ function TodayActionsCard({ stats }: { stats: RadarFollowUpStats }) {
   );
 }
 
-function PulseHero({ radar, period }: { radar: Radar; period: string }) {
+// "Pulso del mes" reducido a banner compacto: una sola línea visible con dot
+// de color y headline corto. La señal principal ya vive arriba en comparativo
+// + cohortes; el pulso queda como confirmación contextual.
+function DegradedPulse({ radar, period }: { radar: Radar; period: string }) {
   const colors = RADAR_PULSE_COLORS[radar.pulse.state];
   return (
     <section
-      aria-label="Pulso general"
+      aria-label="Pulso del mes"
       style={{
         backgroundColor: colors.bg,
-        border: `1px solid ${colors.text}33`,
-        borderLeft: `6px solid ${colors.dot}`,
-        borderRadius: 14,
-        padding: 18,
+        border: `1px solid ${colors.text}22`,
+        borderLeft: `4px solid ${colors.dot}`,
+        borderRadius: 10,
+        padding: "10px 14px",
         marginBottom: 18,
         display: "flex",
-        flexDirection: "column",
-        gap: 10,
+        gap: 12,
+        alignItems: "center",
+        flexWrap: "wrap",
       }}
     >
-      <div
+      <span
+        aria-hidden
         style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          backgroundColor: colors.dot,
+          display: "inline-block",
+          flexShrink: 0,
+        }}
+      />
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 800,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: colors.text,
         }}
       >
-        <span
-          aria-hidden
-          style={{
-            width: 12,
-            height: 12,
-            borderRadius: 999,
-            backgroundColor: colors.dot,
-            display: "inline-block",
-          }}
-        />
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 800,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: colors.text,
-          }}
-        >
-          Pulso del mes
-        </span>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "4px 12px",
-            borderRadius: 999,
-            backgroundColor: colors.dot,
-            color: "#FFFFFF",
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.02em",
-          }}
-        >
-          {radar.pulse.label}
-        </span>
-      </div>
-      <p
+        Pulso del mes
+      </span>
+      <span
         style={{
-          margin: 0,
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "2px 10px",
+          borderRadius: 999,
+          backgroundColor: colors.dot,
+          color: "#FFFFFF",
+          fontSize: 11,
+          fontWeight: 800,
+        }}
+      >
+        {radar.pulse.label}
+      </span>
+      <span
+        style={{
           color: colors.text,
-          fontSize: 18,
-          fontWeight: 700,
-          lineHeight: 1.35,
+          fontSize: 13,
+          fontWeight: 600,
+          flex: 1,
+          minWidth: 240,
         }}
       >
         {radar.pulse.headline}
-      </p>
-      {radar.pulse.signals.length > 0 ? (
-        <ul
-          style={{
-            margin: 0,
-            padding: 0,
-            listStyle: "none",
-            display: "flex",
-            flexDirection: "column",
-            gap: 4,
-          }}
-        >
-          {radar.pulse.signals.map((s, i) => (
-            <li
-              key={i}
-              style={{
-                color: colors.text,
-                fontSize: 13,
-                fontWeight: 500,
-                lineHeight: 1.45,
-              }}
-            >
-              · {s}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <div
+      </span>
+      <Link
+        href={buildHref("/comunidad-dropi/segmentos", { period })}
         style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          marginTop: 2,
+          color: colors.text,
+          fontSize: 11,
+          fontWeight: 700,
+          textDecoration: "underline",
         }}
       >
-        <Link
-          href={buildHref("/comunidad-dropi/rankings", { period })}
-          style={heroLinkStyle(colors.text)}
-        >
-          Ver rankings del mes →
-        </Link>
-        <Link
-          href={buildHref("/comunidad-dropi/segmentos", { period })}
-          style={heroLinkStyle(colors.text)}
-        >
-          Ver segmentos →
-        </Link>
-      </div>
+        Ver segmentos →
+      </Link>
     </section>
   );
 }
@@ -594,7 +620,7 @@ function PeriodNote({
   currentLabel: string;
   previousLabel: string | null;
   available: AvailableMonth[];
-  active: { year: number; month: number };
+  active: { year: number; month: number } | null;
   importAge: ImportAgeInfo;
 }) {
   return (
@@ -624,12 +650,15 @@ function PeriodNote({
               · Comparado con <strong>{previousLabel}</strong>
             </>
           ) : null}
+          {" · Controla cohortes mensuales y KPIs"}
         </span>
-        <PeriodSelector
-          basePath="/comunidad-dropi/radar"
-          active={active}
-          available={available}
-        />
+        {active ? (
+          <PeriodSelector
+            basePath="/comunidad-dropi/radar"
+            active={active}
+            available={available}
+          />
+        ) : null}
       </div>
       <ImportAgeBanner importAge={importAge} />
     </div>
@@ -677,6 +706,58 @@ function ImportAgeBanner({ importAge }: { importAge: ImportAgeInfo }) {
       </span>
       <span>{importAge.message}</span>
     </div>
+  );
+}
+
+function ComparativoEmpty() {
+  return (
+    <section
+      style={{
+        backgroundColor: COLORS.surface,
+        border: `1px dashed ${COLORS.border}`,
+        borderRadius: 12,
+        padding: 18,
+        marginBottom: 18,
+      }}
+    >
+      <p style={eyebrowStyle()}>Seguimiento de crecimiento</p>
+      <p
+        style={{
+          margin: "6px 0 0",
+          color: COLORS.textSoft,
+          fontSize: 13,
+        }}
+      >
+        Aún no hay períodos cargados para comparar. Importá al menos un cierre
+        semanal o mensual para activar el comparativo.
+      </p>
+    </section>
+  );
+}
+
+function CohortesEmpty() {
+  return (
+    <section
+      style={{
+        backgroundColor: COLORS.surface,
+        border: `1px dashed ${COLORS.border}`,
+        borderRadius: 12,
+        padding: 18,
+        marginBottom: 18,
+      }}
+    >
+      <p style={eyebrowStyle()}>Cohortes sobre entregas</p>
+      <p
+        style={{
+          margin: "6px 0 0",
+          color: COLORS.textSoft,
+          fontSize: 13,
+        }}
+      >
+        Sin cierre mensual confirmado. Las cohortes (Top, en caída,
+        crecimiento) se activan al importar un reporte mensual de Dropi.
+      </p>
+    </section>
   );
 }
 
@@ -1151,7 +1232,7 @@ function QualityBlock({
     importAge.formattedDate ?? "Sin importación confirmada";
   const lastImportHint =
     importAge.status === "stale"
-      ? `Hace ${importAge.daysSince} días — el Pulso puede estar desactualizado.`
+      ? `Hace ${importAge.daysSince} días: el Pulso puede estar desactualizado.`
       : importAge.status === "missing"
         ? "No hay cierre confirmado registrado para este módulo."
         : "Fecha del último cierre confirmado para este módulo.";
@@ -1362,245 +1443,35 @@ function EmptyText({ text }: { text: string }) {
   );
 }
 
-function EmptyState({ weeklyPulse }: { weeklyPulse: WeeklyPulseSummary | null }) {
-  return (
-    <>
-      {weeklyPulse ? <WeeklyPulseCard summary={weeklyPulse} /> : null}
-      <section
-        style={{
-          backgroundColor: COLORS.surface,
-          border: `1px dashed ${COLORS.border}`,
-          borderRadius: 12,
-          padding: 24,
-          textAlign: "center",
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>
-          Aún no hay cierre mensual confirmado
-        </h2>
-        <p
-          style={{
-            margin: "8px auto 0",
-            color: COLORS.textSoft,
-            fontSize: 14,
-            maxWidth: 520,
-          }}
-        >
-          {weeklyPulse
-            ? "Tenemos datos semanales disponibles arriba como dato parcial. Importa el cierre mensual para activar KPIs comparativos, segmentación y rankings."
-            : "Importa al menos un cierre mensual para que el Pulso muestre estado general, KPIs y miembros accionables."}
-        </p>
-        <Link href="/comunidad-dropi/importaciones" style={primaryLinkStyle()}>
-          Ir a Importaciones
-        </Link>
-      </section>
-    </>
-  );
-}
-
-// Tarjeta "Pulso semanal disponible" — dato parcial honesto antes del cierre
-// mensual. Muestra el rango real de la última ventana cargada, totales
-// principales y delta vs. la semana inmediata anterior si existe. Nunca se
-// mezcla con el cierre mensual ni se hacen comparaciones cruzadas.
-function WeeklyPulseCard({ summary }: { summary: WeeklyPulseSummary }) {
-  const stale = summary.freshness === "stale";
-  const palette = stale
-    ? { bg: "#FEF3C7", border: "#FCD34D", text: "#92400E", soft: "#B45309" }
-    : { bg: "#E0F2FE", border: "#7DD3FC", text: "#075985", soft: "#0369A1" };
-  const ageLabel = (() => {
-    if (summary.daysSinceEnd === 0) return "cierre hoy";
-    if (summary.daysSinceEnd === 1) return "hace 1 día";
-    return `hace ${summary.daysSinceEnd} días`;
-  })();
-
+function EmptyState() {
   return (
     <section
-      aria-label="Pulso semanal disponible"
       style={{
-        backgroundColor: palette.bg,
-        border: `1px solid ${palette.border}`,
-        borderLeft: `6px solid ${palette.text}`,
-        borderRadius: 14,
-        padding: 16,
-        marginBottom: 18,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
+        backgroundColor: COLORS.surface,
+        border: `1px dashed ${COLORS.border}`,
+        borderRadius: 12,
+        padding: 24,
+        textAlign: "center",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 800,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: palette.text,
-          }}
-        >
-          Dato parcial · Pulso semanal disponible
-        </span>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "4px 10px",
-            borderRadius: 999,
-            backgroundColor: palette.text,
-            color: "#FFFFFF",
-            fontSize: 12,
-            fontWeight: 700,
-          }}
-        >
-          {summary.rangeLabel}
-        </span>
-        <span style={{ color: palette.soft, fontSize: 12, fontWeight: 600 }}>
-          {ageLabel}
-          {summary.memberCount > 0
-            ? ` · ${summary.memberCount} miembros reportados`
-            : ""}
-        </span>
-      </div>
+      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>
+        Aún no hay datos de Dropi cargados
+      </h2>
       <p
         style={{
-          margin: 0,
-          color: palette.text,
-          fontSize: 13,
-          lineHeight: 1.5,
+          margin: "8px auto 0",
+          color: COLORS.textSoft,
+          fontSize: 14,
+          maxWidth: 520,
         }}
       >
-        Dato semanal real ya cargado. El cierre mensual sigue siendo el dato
-        oficial — esto sirve para no esperar al cierre cuando ya hay tracción
-        visible esta semana.
+        Importá al menos un cierre semanal o mensual para activar el
+        comparativo, las cohortes y los KPIs del Radar.
       </p>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-          gap: 10,
-        }}
-      >
-        <WeeklyMiniKpi
-          label="Entregadas"
-          value={summary.totals.ordersDelivered}
-          deltaPct={summary.deliveredDeltaPct}
-          accent={palette.text}
-        />
-        <WeeklyMiniKpi
-          label="Ingresadas"
-          value={summary.totals.ordersEntered}
-          deltaPct={summary.enteredDeltaPct}
-          accent={palette.text}
-        />
-        <WeeklyMiniKpi
-          label="Movidas"
-          value={summary.totals.ordersMoved}
-          accent={palette.text}
-        />
-        <WeeklyMiniKpi
-          label="Devoluciones"
-          value={summary.totals.ordersReturned}
-          accent={palette.text}
-          inverse
-        />
-      </div>
-      <div>
-        <Link
-          href="/comunidad-dropi/inteligencia"
-          style={{
-            color: palette.text,
-            fontSize: 12,
-            fontWeight: 700,
-            textDecoration: "underline",
-          }}
-        >
-          Ver histórico semanal completo →
-        </Link>
-      </div>
+      <Link href="/comunidad-dropi/importaciones" style={primaryLinkStyle()}>
+        Ir a Importaciones
+      </Link>
     </section>
-  );
-}
-
-function WeeklyMiniKpi({
-  label,
-  value,
-  deltaPct,
-  accent,
-  inverse,
-}: {
-  label: string;
-  value: number;
-  deltaPct?: number | null;
-  accent: string;
-  inverse?: boolean;
-}) {
-  const showDelta = deltaPct != null && Number.isFinite(deltaPct);
-  const positive = (deltaPct ?? 0) >= 0;
-  const goodColor = inverse ? COLORS.danger : COLORS.success;
-  const badColor = inverse ? COLORS.success : COLORS.danger;
-  const deltaColor = positive ? goodColor : badColor;
-  return (
-    <div
-      style={{
-        backgroundColor: "rgba(255,255,255,0.65)",
-        borderRadius: 10,
-        padding: "10px 12px",
-      }}
-    >
-      <p
-        style={{
-          margin: 0,
-          fontSize: 11,
-          color: accent,
-          fontWeight: 700,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </p>
-      <p
-        style={{
-          margin: "4px 0 0",
-          fontSize: 20,
-          fontWeight: 800,
-          color: COLORS.text,
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {value.toLocaleString("es-CO")}
-      </p>
-      {showDelta ? (
-        <p
-          style={{
-            margin: "2px 0 0",
-            fontSize: 11,
-            fontWeight: 700,
-            color: deltaColor,
-          }}
-        >
-          {positive ? "▲" : "▼"} {Math.abs(deltaPct as number)}% vs. semana
-          anterior
-        </p>
-      ) : (
-        <p
-          style={{
-            margin: "2px 0 0",
-            fontSize: 11,
-            color: COLORS.textMuted,
-          }}
-        >
-          Sin semana previa
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -1663,15 +1534,6 @@ function metricChipStyle(color: string): React.CSSProperties {
     fontWeight: 700,
     color,
     whiteSpace: "nowrap",
-  };
-}
-
-function heroLinkStyle(color: string): React.CSSProperties {
-  return {
-    color,
-    fontSize: 12,
-    fontWeight: 700,
-    textDecoration: "underline",
   };
 }
 
