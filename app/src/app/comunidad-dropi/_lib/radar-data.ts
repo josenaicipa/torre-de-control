@@ -27,7 +27,9 @@ import {
 } from "./weekly-pulse";
 import {
   AVAILABLE_MONTHS_CACHE_KEY,
+  clearRadarCache,
   formatMonthRef,
+  memoRadar,
   radarCacheKey,
   WEEKLY_PULSE_CACHE_KEY,
 } from "./radar-cache";
@@ -40,45 +42,6 @@ const ZERO_TOTALS: RadarOrderTotals = {
   ordersDelivered: 0,
   ordersReturned: 0,
 };
-
-// TTL corto: 60s da margen para que múltiples navegaciones consecutivas
-// reutilicen el resultado sin desfasar de forma visible con el estado real.
-const CACHE_TTL_MS = 60_000;
-
-// Singleton del cache entre hot reloads / múltiples imports del módulo en
-// dev — análogo al patrón usado por `prisma.ts`.
-const globalForRadarCache = globalThis as unknown as {
-  __comunidadDropiRadarCache?: Map<string, CacheEntry<unknown>>;
-};
-
-interface CacheEntry<T> {
-  expiresAt: number;
-  value: Promise<T>;
-}
-
-function getCache(): Map<string, CacheEntry<unknown>> {
-  if (!globalForRadarCache.__comunidadDropiRadarCache) {
-    globalForRadarCache.__comunidadDropiRadarCache = new Map();
-  }
-  return globalForRadarCache.__comunidadDropiRadarCache;
-}
-
-async function memo<T>(key: string, build: () => Promise<T>): Promise<T> {
-  const cache = getCache();
-  const now = Date.now();
-  const existing = cache.get(key) as CacheEntry<T> | undefined;
-  if (existing && existing.expiresAt > now) {
-    return existing.value;
-  }
-  const value = build().catch((err) => {
-    // Si falla, no dejamos la promesa rota cacheada — la siguiente lectura
-    // reintenta desde Prisma.
-    cache.delete(key);
-    throw err;
-  });
-  cache.set(key, { expiresAt: now + CACHE_TTL_MS, value });
-  return value;
-}
 
 const COMMON_MEMBER_SELECT = {
   id: true,
@@ -126,14 +89,14 @@ async function listAvailableMonthsRaw(): Promise<AvailableMonth[]> {
 }
 
 export async function listAvailableMonths(): Promise<AvailableMonth[]> {
-  return memo(AVAILABLE_MONTHS_CACHE_KEY, listAvailableMonthsRaw);
+  return memoRadar(AVAILABLE_MONTHS_CACHE_KEY, listAvailableMonthsRaw);
 }
 
 async function loadRadarUncached(
   input: RadarLoadInput,
 ): Promise<RadarLoadResult> {
   const [available, lastImport] = await Promise.all([
-    memo(AVAILABLE_MONTHS_CACHE_KEY, listAvailableMonthsRaw),
+    memoRadar(AVAILABLE_MONTHS_CACHE_KEY, listAvailableMonthsRaw),
     prisma.dropiImportBatch.findFirst({
       where: { status: "COMPLETED" },
       orderBy: { updatedAt: "desc" },
@@ -266,7 +229,7 @@ async function loadRadarUncached(
 export async function loadRadar(
   input: RadarLoadInput = {},
 ): Promise<RadarLoadResult> {
-  return memo(radarCacheKey(input), () => loadRadarUncached(input));
+  return memoRadar(radarCacheKey(input), () => loadRadarUncached(input));
 }
 
 // ─── Pulso semanal disponible ──────────────────────────────────────────────
@@ -329,14 +292,14 @@ async function loadWeeklyPulseUncached(): Promise<WeeklyPulseSummary | null> {
 }
 
 export async function loadWeeklyPulse(): Promise<WeeklyPulseSummary | null> {
-  return memo(WEEKLY_PULSE_CACHE_KEY, loadWeeklyPulseUncached);
+  return memoRadar(WEEKLY_PULSE_CACHE_KEY, loadWeeklyPulseUncached);
 }
 
 // Vacía todo el estado memoizado por el Pulso e invalida los paths que lo
 // renderizan para que la siguiente navegación lea Prisma fresco sin
 // esperar al TTL del memo.
 export function bustRadarCache(): void {
-  getCache().clear();
+  clearRadarCache();
   revalidatePath("/comunidad-dropi/radar");
   revalidatePath("/comunidad-dropi/rankings");
   revalidatePath("/comunidad-dropi/segmentos");

@@ -20,6 +20,7 @@ import {
   type RadarOrderTotals,
 } from "@/lib/comunidad-dropi-radar";
 import { buildAllMemberRows, type MemberPeriodRow } from "./rendimiento";
+import { comparativoCacheKey, memoRadar } from "./radar-cache";
 
 export type Granularity = "weekly" | "monthly";
 
@@ -309,16 +310,13 @@ async function loadWeeklySeries(
   if (idx < 0) return [];
   const slice = pool.slice(idx, idx + bucketCount);
   const ordered = [...slice].sort((a, b) => a.start.getTime() - b.start.getTime());
-  const results: ComparativoBucket[] = [];
-  for (const p of ordered) {
-    const rows = await loadWeeklyRows(p.start, p.end);
-    results.push({
+  return Promise.all(
+    ordered.map(async (p) => ({
       key: p.key,
       label: weeklyShortLabel(p.start),
-      totals: sumTotals(rows),
-    });
-  }
-  return results;
+      totals: sumTotals(await loadWeeklyRows(p.start, p.end)),
+    })),
+  );
 }
 
 async function loadMonthlyRows(
@@ -348,16 +346,13 @@ async function loadMonthlySeries(
   const ordered = [...slice].sort((a, b) =>
     a.year !== b.year ? a.year - b.year : a.month - b.month,
   );
-  const results: ComparativoBucket[] = [];
-  for (const p of ordered) {
-    const rows = await loadMonthlyRows(p.year, p.month);
-    results.push({
+  return Promise.all(
+    ordered.map(async (p) => ({
       key: p.key,
       label: monthlyShortLabel(p.year, p.month),
-      totals: sumTotals(rows),
-    });
-  }
-  return results;
+      totals: sumTotals(await loadMonthlyRows(p.year, p.month)),
+    })),
+  );
 }
 
 // Top miembros por entregadas / ingresadas, con totales de comparación
@@ -453,6 +448,14 @@ export interface ComparativoLoadInput {
 }
 
 export async function loadComparativo(
+  input: ComparativoLoadInput,
+): Promise<Comparativo | null> {
+  return memoRadar(comparativoCacheKey(input), () =>
+    loadComparativoUncached(input),
+  );
+}
+
+async function loadComparativoUncached(
   input: ComparativoLoadInput,
 ): Promise<Comparativo | null> {
   if (input.granularity === "weekly") {
