@@ -84,6 +84,23 @@ function runDailyImport() {
   }
 }
 
+function runAutoAdSpendSync() {
+  console.log("[start-production] syncing Auto Ads spend from metrics");
+  const result = spawnSync("node", ["scripts/sync-auto-ad-spend.mjs"], {
+    stdio: "inherit",
+    env: process.env,
+    shell: isWindows,
+  });
+
+  if (result.error) {
+    console.error("[start-production] failed to spawn Auto Ads sync:", result.error.message);
+    return;
+  }
+  if ((result.status ?? 0) !== 0) {
+    console.error(`[start-production] Auto Ads sync exited with code ${result.status}; continuing startup`);
+  }
+}
+
 function runPaymentTransactionsImport() {
   if (process.env.IMPORT_PAYMENT_TRANSACTIONS_ON_START !== "1") {
     console.log("[start-production] payment transaction import not enabled — skipping");
@@ -138,6 +155,7 @@ function startNext() {
 if (databaseIsConfigured()) {
   runMigrations();
   runAdminBootstrap();
+  runAutoAdSpendSync();
   runDailyImport();
   runPaymentTransactionsImport();
 } else {
