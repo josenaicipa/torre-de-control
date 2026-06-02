@@ -128,9 +128,13 @@ describe("manual collaborator labels", () => {
     expect(llenarBlock).toContain('<Stat label="# Leads calientes" value={fN(form.pendAcumulados)} color={C.orange} size="sm"/>');
     expect(llenarBlock).not.toContain('<Inp label="# Llamadas / citas que tenías"');
     expect(llenarBlock).not.toContain('<Inp label="# Leads calientes" value={form.hotLeads}');
+    const detallePorDiaBlock = html.slice(html.indexOf('const DetallePorDia='), html.indexOf('// ─── DETALLE COLABORADOR'));
     expect(tablaBlock).toContain('{l:"# Agendas hoy",k:"agendasHoy",fmt:"n"}');
     expect(tablaBlock).toContain('{l:"# Leads calientes",k:"pendAcumulados",fmt:"n"}');
     expect(tablaBlock).not.toContain('{l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"}');
+    expect(detallePorDiaBlock).toContain('{l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"}');
+    expect(detallePorDiaBlock).toContain('{l:"# Leads calientes",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"}');
+    expect(detallePorDiaBlock).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"}');
     expect(html).toContain('{title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[');
     expect(html).toContain('{l:"# Agendas hoy",fn:d=>d.sdCommercial("agendasHoy")||null,fmt:"n"}');
     expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercial("pendAcumulados")||null,fmt:"n"}');

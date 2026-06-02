@@ -2737,14 +2737,15 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
   ];
   const CLOSER_ROWS=[
     {title:"Actividad de llamadas",bg:"#0369a1",rows:[
-      {l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"},
+      {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
-      {l:"# Leads calientes",fn:d=>d.e?d.e.hotLeads:0,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"},
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
-      {l:"# Calificadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
+      {l:"# Calificadas / Agendas Confirmadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
       {l:"# No Show",fn:d=>d.e?d.e.agendas:0,fmt:"n"},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
