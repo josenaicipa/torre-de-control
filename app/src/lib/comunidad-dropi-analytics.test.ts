@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBySegment,
   buildByCountry,
+  buildFunnel,
   buildMemberDiagnostic,
   buildMonthlyTrend,
   buildOverview,
@@ -103,6 +104,48 @@ describe("sumTotals + weightedRates + ratesFromTotals", () => {
       ordersReturned: 0,
     });
     expect(rates).toEqual({ movementRate: 0, deliveryRate: 0, returnRate: 0 });
+  });
+});
+
+describe("buildFunnel", () => {
+  it("builds the four stages with shares and step conversions", () => {
+    const stages = buildFunnel({
+      ordersEntered: 100,
+      ordersMoved: 80,
+      ordersDelivered: 60,
+      ordersReturned: 16,
+    });
+    expect(stages.map((s) => s.key)).toEqual([
+      "entered",
+      "moved",
+      "delivered",
+      "returned",
+    ]);
+    expect(stages[0]).toMatchObject({
+      value: 100,
+      shareOfEntered: 100,
+      conversionFromPrev: null,
+    });
+    // moved: 80/100
+    expect(stages[1].shareOfEntered).toBe(80);
+    expect(stages[1].conversionFromPrev).toBe(80);
+    // delivered: share 60/100, conversion 60/80
+    expect(stages[2].shareOfEntered).toBe(60);
+    expect(stages[2].conversionFromPrev).toBe(75);
+    // returned measured over moved: 16/80 = 20, share 16/100 = 16
+    expect(stages[3].shareOfEntered).toBe(16);
+    expect(stages[3].conversionFromPrev).toBe(20);
+  });
+
+  it("keeps shares at zero when there are no entered orders", () => {
+    const stages = buildFunnel({
+      ordersEntered: 0,
+      ordersMoved: 0,
+      ordersDelivered: 0,
+      ordersReturned: 0,
+    });
+    expect(stages.every((s) => s.shareOfEntered === 0)).toBe(true);
+    expect(stages[0].conversionFromPrev).toBeNull();
   });
 });
 

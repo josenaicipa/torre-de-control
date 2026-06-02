@@ -148,6 +148,71 @@ export function ratesFromTotals(totals: OrderTotals): OrderRates {
   };
 }
 
+// ─── Funnel ──────────────────────────────────────────────────────────────────
+
+export type FunnelStageKey = "entered" | "moved" | "delivered" | "returned";
+
+export interface FunnelStage {
+  key: FunnelStageKey;
+  label: string;
+  value: number;
+  // Participación sobre las ingresadas (cima del embudo), 0-100. Sirve para el
+  // ancho de las barras horizontales.
+  shareOfEntered: number;
+  // Conversión respecto de la etapa operativa previa, 0-100. null cuando no
+  // aplica (la primera etapa o sin denominador). "Devueltas" se mide sobre las
+  // movidas porque es una fuga, no una continuación del flujo.
+  conversionFromPrev: number | null;
+}
+
+const FUNNEL_LABELS: Record<FunnelStageKey, string> = {
+  entered: "Ingresadas",
+  moved: "Movidas",
+  delivered: "Entregadas",
+  returned: "Devueltas",
+};
+
+// Convierte unos totales en las cuatro etapas del embudo operativo con sus
+// tasas de conversión. Las conversiones reutilizan la misma definición que
+// `ratesFromTotals` (movidas/ingresadas, entregadas/movidas, devueltas/movidas)
+// para que el embudo y los KPIs nunca se contradigan.
+export function buildFunnel(totals: OrderTotals): FunnelStage[] {
+  const entered = Math.max(0, totals.ordersEntered);
+  const moved = Math.max(0, totals.ordersMoved);
+  const delivered = Math.max(0, totals.ordersDelivered);
+  const returned = Math.max(0, totals.ordersReturned);
+  return [
+    {
+      key: "entered",
+      label: FUNNEL_LABELS.entered,
+      value: entered,
+      shareOfEntered: entered > 0 ? 100 : 0,
+      conversionFromPrev: null,
+    },
+    {
+      key: "moved",
+      label: FUNNEL_LABELS.moved,
+      value: moved,
+      shareOfEntered: safePercent(moved, entered),
+      conversionFromPrev: safePercent(moved, entered),
+    },
+    {
+      key: "delivered",
+      label: FUNNEL_LABELS.delivered,
+      value: delivered,
+      shareOfEntered: safePercent(delivered, entered),
+      conversionFromPrev: safePercent(delivered, moved),
+    },
+    {
+      key: "returned",
+      label: FUNNEL_LABELS.returned,
+      value: returned,
+      shareOfEntered: safePercent(returned, entered),
+      conversionFromPrev: safePercent(returned, moved),
+    },
+  ];
+}
+
 // ─── Overview ────────────────────────────────────────────────────────────────
 
 export interface OverviewMemberSnapshot {
