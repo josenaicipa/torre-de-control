@@ -89,7 +89,7 @@ export function calculateSegment(input: DropiSegmentInput): DropiSegmentResult {
   return { segment, priority, deltaOrders, deltaPercent, trend };
 }
 
-function computeDelta(
+export function computeDelta(
   current: number,
   previous: number | null,
 ): { deltaOrders: number | null; deltaPercent: number | null } {

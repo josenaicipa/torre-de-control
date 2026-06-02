@@ -64,3 +64,25 @@ export async function writeBackupFile(
   await writeFile(file, serializeBackup(data), "utf8");
   return file;
 }
+
+/**
+ * Writes the per-batch revert backup and returns the absolute file path. Lands
+ * in the same directory as the full reset backup and shares backupReplacer so
+ * Prisma BigInt/Decimal/Date values serialize cleanly. The batch id is part of
+ * the filename for traceability; it is sanitized so a hostile id cannot escape
+ * the backup directory. Throws on any write failure so the caller can abort the
+ * revert before deleting anything.
+ */
+export async function writeRevertBackupFile(
+  batchId: string,
+  data: unknown,
+  env: BackupEnv = process.env,
+): Promise<string> {
+  const dir = resolveBackupDir(env);
+  await mkdir(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const safeId = batchId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "batch";
+  const file = path.join(dir, `comunidad-dropi-revert-${safeId}-${stamp}.json`);
+  await writeFile(file, JSON.stringify(data, backupReplacer, 2), "utf8");
+  return file;
+}

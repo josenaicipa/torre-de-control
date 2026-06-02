@@ -5,6 +5,7 @@ import { COLORS } from "../_lib/tokens";
 import { SubNav } from "../_components/SubNav";
 import { ImportUploader } from "./_components/ImportUploader";
 import { ResetPanel } from "./_components/ResetPanel";
+import { RevertImportButton } from "./_components/RevertImportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +100,7 @@ export default async function ImportacionesPage() {
                     <Th>Estado</Th>
                     <Th>Subido por</Th>
                     <Th>Fecha</Th>
+                    {canUpload && <Th>Acciones</Th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -148,6 +150,19 @@ export default async function ImportacionesPage() {
                       </Td>
                       <Td>{b.uploadedBy?.name ?? b.uploadedBy?.email ?? "—"}</Td>
                       <Td>{b.createdAt.toISOString().slice(0, 10)}</Td>
+                      {canUpload && (
+                        <Td>
+                          {isAdmin || b.status !== "COMPLETED" ? (
+                            <RevertImportButton
+                              batchId={b.id}
+                              fileName={b.fileName}
+                              status={b.status}
+                            />
+                          ) : (
+                            <span style={{ color: COLORS.textMuted }}>—</span>
+                          )}
+                        </Td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
