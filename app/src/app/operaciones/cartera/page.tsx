@@ -6,22 +6,25 @@ import { studentScopeFor } from "@/lib/access";
 import { deriveScheduleStatus } from "@/domain/payments";
 import {
   summarizeCartera,
+  summarizeStudents,
+  compareStudentSummary,
+  countStudentsByRisk,
   classifyInstallment,
   installmentPending,
   daysUntilDue,
-  compareCarteraBucket,
-  type CarteraBucket,
   type CarteraInstallment,
+  type CarteraRiskLevel,
 } from "@/lib/cartera";
 
 export const dynamic = "force-dynamic";
 
 type EstadoFilter = "todas" | "vencidas" | "proximas" | "pendientes";
 
-const ESTADO_TO_BUCKET: Record<Exclude<EstadoFilter, "todas">, CarteraBucket> = {
-  vencidas: "vencida",
-  proximas: "proxima",
-  pendientes: "pendiente",
+// Compatibilidad con el searchParams histórico (?estado=vencidas|proximas|pendientes).
+const ESTADO_TO_RISK: Record<Exclude<EstadoFilter, "todas">, CarteraRiskLevel> = {
+  vencidas: "en_mora",
+  proximas: "proximo",
+  pendientes: "pendiente_futuro",
 };
 
 function toNum(value: unknown): number {
@@ -47,6 +50,24 @@ function normalizeEstado(value: string | undefined): EstadoFilter {
     return value;
   }
   return "todas";
+}
+
+interface DetailInstallment {
+  id: string;
+  installmentNumber: number;
+  dueDate: Date;
+  days: number;
+  pendingUsd: number;
+  displayStatus: string;
+  productName: string;
+  paymentAccount: string | null;
+}
+
+interface StudentMeta {
+  studentName: string;
+  mentor: string;
+  closer: string;
+  installments: DetailInstallment[];
 }
 
 export default async function CarteraPage({
@@ -90,7 +111,17 @@ export default async function CarteraPage({
 
   const today = new Date();
 
-  const rows = schedules.map((s) => {
+  const installments: CarteraInstallment[] = schedules.map((s) => ({
+    studentId: s.studentId,
+    amountDue: toNum(s.amountDue),
+    amountPaid: toNum(s.amountPaid),
+    dueDate: s.dueDate,
+    status: s.status,
+  }));
+
+  // Metadatos y detalle de cuotas por estudiante para el render de cada card.
+  const metaByStudent = new Map<string, StudentMeta>();
+  for (const s of schedules) {
     const amountDue = toNum(s.amountDue);
     const amountPaid = toNum(s.amountPaid);
     const installment: CarteraInstallment = {
@@ -100,59 +131,51 @@ export default async function CarteraPage({
       dueDate: s.dueDate,
       status: s.status,
     };
-    const bucket = classifyInstallment(installment, today);
-    const days = daysUntilDue(s.dueDate, today);
-    return {
+    // Solo cuotas con saldo entran en cartera.
+    if (classifyInstallment(installment, today) === null) continue;
+
+    let meta = metaByStudent.get(s.studentId);
+    if (!meta) {
+      meta = {
+        studentName: s.student.fullName,
+        mentor: s.student.mentorUser?.name ?? s.student.mentorUser?.email ?? "—",
+        closer: s.student.closerUser?.name ?? s.student.closerUser?.email ?? "—",
+        installments: [],
+      };
+      metaByStudent.set(s.studentId, meta);
+    }
+    meta.installments.push({
       id: s.id,
-      studentId: s.studentId,
-      studentName: s.student.fullName,
-      productName: s.enrollment?.product?.name ?? "—",
       installmentNumber: s.installmentNumber,
       dueDate: s.dueDate,
-      days,
+      days: daysUntilDue(s.dueDate, today),
       pendingUsd: installmentPending(installment),
       displayStatus: deriveScheduleStatus(
         { amountDue, amountPaid, dueDate: s.dueDate },
         today,
       ),
-      mentor: s.student.mentorUser?.name ?? s.student.mentorUser?.email ?? "—",
-      closer: s.student.closerUser?.name ?? s.student.closerUser?.email ?? "—",
+      productName: s.enrollment?.product?.name ?? "—",
       paymentAccount: s.enrollment?.paymentAccount?.displayName ?? null,
-      bucket,
-    };
-  });
+    });
+  }
 
-  const kpis = summarizeCartera(
-    schedules.map((s) => ({
-      studentId: s.studentId,
-      amountDue: toNum(s.amountDue),
-      amountPaid: toNum(s.amountPaid),
-      dueDate: s.dueDate,
-      status: s.status,
-    })),
-    today,
-  );
+  const kpis = summarizeCartera(installments, today);
+  const summaries = summarizeStudents(installments, today);
+  const riskCounts = countStudentsByRisk(summaries);
 
-  const counts = {
-    todas: rows.length,
-    vencidas: rows.filter((r) => r.bucket === "vencida").length,
-    proximas: rows.filter((r) => r.bucket === "proxima").length,
-    pendientes: rows.filter((r) => r.bucket === "pendiente").length,
-  };
-
-  const visibleRows = (
+  const visibleSummaries = (
     estado === "todas"
-      ? rows
-      : rows.filter((r) => r.bucket === ESTADO_TO_BUCKET[estado])
+      ? summaries
+      : summaries.filter((s) => s.riskLevel === ESTADO_TO_RISK[estado])
   )
     .slice()
-    .sort((a, b) => compareCarteraBucket(a, b));
+    .sort(compareStudentSummary);
 
   const filters: { key: EstadoFilter; label: string; count: number }[] = [
-    { key: "todas", label: "Todas", count: counts.todas },
-    { key: "vencidas", label: "Vencidas", count: counts.vencidas },
-    { key: "proximas", label: "Próximas (7 días)", count: counts.proximas },
-    { key: "pendientes", label: "Pendientes", count: counts.pendientes },
+    { key: "todas", label: "Todos", count: riskCounts.total },
+    { key: "vencidas", label: "En mora", count: riskCounts.en_mora },
+    { key: "proximas", label: "Próximos 7 días", count: riskCounts.proximo },
+    { key: "pendientes", label: "Pendiente futuro", count: riskCounts.pendiente_futuro },
   ];
 
   return (
@@ -160,14 +183,14 @@ export default async function CarteraPage({
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Cartera</h1>
         <p className="text-sm text-slate-500">
-          Cuotas por cobrar a estudiantes. Prioriza las vencidas y las que vencen
-          en los próximos 7 días para gestionar el recaudo.
+          Estudiantes con saldo por cobrar. Prioriza a quienes están en mora y a
+          los que vencen en los próximos 7 días para gestionar el recaudo.
         </p>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <KpiCard
-          label="Total pendiente"
+          label="Total por cobrar"
           value={formatUsd(kpis.totalPendingUsd)}
           tone="slate"
         />
@@ -177,21 +200,44 @@ export default async function CarteraPage({
           tone="rose"
         />
         <KpiCard
-          label="Cuotas vencidas"
-          value={String(kpis.overdueCount)}
+          label="Estudiantes en mora"
+          value={String(riskCounts.en_mora)}
           tone="rose"
         />
         <KpiCard
-          label="Próximas 7 días"
-          value={String(kpis.dueSoonCount)}
+          label="Próximos 7 días"
+          value={String(riskCounts.proximo)}
           hint={formatUsd(kpis.dueSoonUsd)}
           tone="amber"
         />
         <KpiCard
-          label="Estudiantes con mora"
-          value={String(kpis.studentsInArrears)}
-          tone="rose"
+          label="Pendiente futuro"
+          value={String(riskCounts.pendiente_futuro)}
+          tone="slate"
         />
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Prioridad de hoy
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <PriorityChip
+            label="En mora"
+            count={riskCounts.en_mora}
+            tone="rose"
+          />
+          <PriorityChip
+            label="Próximos 7 días"
+            count={riskCounts.proximo}
+            tone="amber"
+          />
+          <PriorityChip
+            label="Pendiente futuro"
+            count={riskCounts.pendiente_futuro}
+            tone="slate"
+          />
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -214,84 +260,139 @@ export default async function CarteraPage({
         })}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
-            <tr>
-              <Th>Estudiante</Th>
-              <Th>Producto</Th>
-              <Th>Cuota</Th>
-              <Th>Vence</Th>
-              <Th>Atraso / faltan</Th>
-              <Th>Pendiente</Th>
-              <Th>Estado</Th>
-              <Th>Mentor</Th>
-              <Th>Closer</Th>
-              <Th>Cuenta receptora</Th>
-              <Th>Acción</Th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {visibleRows.length === 0 ? (
-              <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-sm text-slate-500">
-                  {counts.todas === 0
-                    ? "No hay cuotas pendientes de cobro. La cartera está al día."
-                    : "No hay cuotas en esta categoría."}
-                </td>
-              </tr>
-            ) : (
-              visibleRows.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2 text-sm">
-                    <Link
-                      href={`/operaciones/estudiantes/${r.studentId}`}
-                      className="font-medium text-slate-900 hover:underline"
-                    >
-                      {r.studentName}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{r.productName}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">#{r.installmentNumber}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{formatDate(r.dueDate)}</td>
-                  <td className="px-4 py-2 text-sm">
-                    <DaysCell days={r.days} />
-                  </td>
-                  <td className="px-4 py-2 text-sm font-medium text-slate-900">
-                    {formatUsd(r.pendingUsd)}
-                  </td>
-                  <td className="px-4 py-2 text-sm">
-                    <StatusBadge status={r.displayStatus} />
-                  </td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{r.mentor}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{r.closer}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">
-                    {r.paymentAccount ?? "—"}
-                  </td>
-                  <td className="px-4 py-2 text-sm">
-                    <Link
-                      href={`/operaciones/estudiantes/${r.studentId}?tab=pagos`}
-                      className="font-medium text-slate-700 hover:underline"
-                    >
-                      Ver pagos
-                    </Link>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {visibleSummaries.length === 0 ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+          {riskCounts.total === 0
+            ? "No hay estudiantes con saldo por cobrar. La cartera está al día."
+            : "No hay estudiantes en esta categoría."}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visibleSummaries.map((s) => {
+            const meta = metaByStudent.get(s.studentId);
+            if (!meta) return null;
+            return (
+              <StudentCard key={s.studentId} summary={s} meta={meta} />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
-}
 
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th className="whitespace-nowrap px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-      {children}
-    </th>
-  );
+  function StudentCard({
+    summary,
+    meta,
+  }: {
+    summary: (typeof summaries)[number];
+    meta: StudentMeta;
+  }) {
+    const detail = meta.installments
+      .slice()
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white">
+        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/operaciones/estudiantes/${summary.studentId}`}
+                className="text-base font-semibold text-slate-900 hover:underline"
+              >
+                {meta.studentName}
+              </Link>
+              <RiskBadge level={summary.riskLevel} />
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Mentor: {meta.mentor} · Closer: {meta.closer}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <Metric
+                label="Vencido"
+                value={formatUsd(summary.totalOverdueUsd)}
+                tone={summary.totalOverdueUsd > 0 ? "rose" : "slate"}
+              />
+              <Metric
+                label="Por cobrar"
+                value={formatUsd(summary.totalPendingUsd)}
+                tone="slate"
+              />
+              <Metric
+                label="Cuotas vencidas"
+                value={String(summary.overdueCount)}
+                tone={summary.overdueCount > 0 ? "rose" : "slate"}
+              />
+              <Metric
+                label="Cuotas pendientes"
+                value={String(summary.outstandingCount)}
+                tone="slate"
+              />
+              <Metric
+                label="Próxima cuota"
+                value={
+                  summary.nextDueDate
+                    ? `${formatDate(summary.nextDueDate)} · ${formatUsd(summary.nextDueAmount)}`
+                    : "Sin cuotas futuras"
+                }
+                tone="slate"
+              />
+            </div>
+          </div>
+          <div className="shrink-0">
+            <Link
+              href={`/operaciones/estudiantes/${summary.studentId}?tab=pagos`}
+              className="inline-flex items-center rounded-md border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+            >
+              {summary.overdueCount > 0 ? "Registrar pago" : "Ver pagos"}
+            </Link>
+          </div>
+        </div>
+
+        <details className="border-t border-slate-100 px-4 py-2">
+          <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-900">
+            Ver cuotas ({detail.length})
+          </summary>
+          <div className="mt-2 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="py-1 pr-4">Cuota</th>
+                  <th className="py-1 pr-4">Vence</th>
+                  <th className="py-1 pr-4">Pendiente</th>
+                  <th className="py-1 pr-4">Estado</th>
+                  <th className="py-1 pr-4">Atraso / faltan</th>
+                  <th className="py-1 pr-4">Producto</th>
+                  <th className="py-1 pr-4">Cuenta receptora</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {detail.map((c) => (
+                  <tr key={c.id}>
+                    <td className="py-1.5 pr-4 text-slate-600">#{c.installmentNumber}</td>
+                    <td className="py-1.5 pr-4 text-slate-600">{formatDate(c.dueDate)}</td>
+                    <td className="py-1.5 pr-4 font-medium text-slate-900">
+                      {formatUsd(c.pendingUsd)}
+                    </td>
+                    <td className="py-1.5 pr-4">
+                      <StatusBadge status={c.displayStatus} />
+                    </td>
+                    <td className="py-1.5 pr-4">
+                      <DaysCell days={c.days} />
+                    </td>
+                    <td className="py-1.5 pr-4 text-slate-600">{c.productName}</td>
+                    <td className="py-1.5 pr-4 text-slate-600">
+                      {c.paymentAccount ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+    );
+  }
 }
 
 function KpiCard({
@@ -316,6 +417,63 @@ function KpiCard({
       <p className={`mt-1 text-xl font-bold ${valueTone[tone]}`}>{value}</p>
       {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
     </div>
+  );
+}
+
+function PriorityChip({
+  label,
+  count,
+  tone,
+}: {
+  label: string;
+  count: number;
+  tone: "rose" | "amber" | "slate";
+}) {
+  const tones: Record<string, string> = {
+    rose: "text-rose-700",
+    amber: "text-amber-700",
+    slate: "text-slate-700",
+  };
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className={`text-2xl font-bold ${tones[tone]}`}>{count}</span>
+      <span className="text-sm text-slate-500">{label}</span>
+    </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "rose" | "slate";
+}) {
+  const valueTone: Record<string, string> = {
+    rose: "text-rose-700",
+    slate: "text-slate-900",
+  };
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`font-semibold ${valueTone[tone]}`}>{value}</p>
+    </div>
+  );
+}
+
+function RiskBadge({ level }: { level: CarteraRiskLevel }) {
+  const map: Record<CarteraRiskLevel, [string, string]> = {
+    en_mora: ["En mora", "bg-rose-100 text-rose-700"],
+    proximo: ["Próximo", "bg-amber-100 text-amber-700"],
+    pendiente_futuro: ["Pendiente futuro", "bg-slate-100 text-slate-700"],
+  };
+  const [label, className] = map[level];
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>
+      {label}
+    </span>
   );
 }
 
