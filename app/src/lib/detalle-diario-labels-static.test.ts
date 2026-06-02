@@ -10,13 +10,17 @@ const dashboardFiles = [
   "app/public/Plataforma/index.html",
 ];
 
-function extractAgendasRows(source: string): string[] {
+function extractAgendasBlock(source: string): string {
   const marker = '{title:"Agendas / Leads",bg:"#0f766e",rows:[';
   const start = source.indexOf(marker);
   expect(start, "Detalle Diario Agendas / Leads group missing").toBeGreaterThanOrEqual(0);
   const end = source.indexOf(']},\n    {title:"Costos por Lead"', start);
   expect(end, "Detalle Diario Agendas / Leads group end missing").toBeGreaterThan(start);
-  const block = source.slice(start, end);
+  return source.slice(start, end);
+}
+
+function extractAgendasRows(source: string): string[] {
+  const block = extractAgendasBlock(source);
   return [...block.matchAll(/\{l:"([^"]+)"/g)].map((match) => match[1]);
 }
 
@@ -38,5 +42,16 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
       "Show Ups",
       "% Show Up Rate",
     ]);
+  });
+
+  it.each(dashboardFiles)("does not use collaborator fallback for GHL leads in %s", (relativePath) => {
+    const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
+    const block = extractAgendasBlock(source);
+    expect(block).not.toContain('sdCommercial("agendasHoy")');
+    expect(block).not.toContain('sdCommercial("calificadas")');
+    expect(block).not.toContain('sdCommercial("showUps")');
+    expect(block).not.toContain('cv(d,"agendas_final","agendasHoy")');
+    expect(block).not.toContain('cv(d,"agendas_calificadas","calificadas")');
+    expect(block).not.toContain('cv(d,"citas_asistidas","showUps")');
   });
 });
