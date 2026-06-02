@@ -65,9 +65,7 @@ export function ImportUploader() {
   const [fileSize, setFileSize] = useState<number>(0);
   const [csvContent, setCsvContent] = useState<string>("");
   const [xlsxBase64, setXlsxBase64] = useState<string>("");
-  const [reportType, setReportType] = useState<"AUTO" | "WEEKLY" | "MONTHLY">(
-    "AUTO",
-  );
+  const [reportType, setReportType] = useState<"" | "WEEKLY" | "MONTHLY">("");
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [year, setYear] = useState("");
@@ -81,7 +79,7 @@ export function ImportUploader() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  function changeReportType(next: "AUTO" | "WEEKLY" | "MONTHLY") {
+  function changeReportType(next: "" | "WEEKLY" | "MONTHLY") {
     setReportType(next);
     // Clear fields that don't apply to the new type so the stale state from a
     // previous attempt can't leak into the next preview body. We also drop the
@@ -137,6 +135,25 @@ export function ImportUploader() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  // Wipe every field the operator could have pre-filled so a confirmed import
+  // can't leak stale file content, period overrides or country into the next
+  // one. We reset reportType back to the placeholder to force an explicit pick.
+  function resetForm() {
+    setFileName("");
+    setFileSize(0);
+    setCsvContent("");
+    setXlsxBase64("");
+    setReportType("");
+    setCountry("");
+    setPeriodStart("");
+    setPeriodEnd("");
+    setYear("");
+    setMonth("");
+    setPreview(null);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     setIsDragging(false);
@@ -151,12 +168,18 @@ export function ImportUploader() {
       setError("Selecciona un archivo CSV o XLSX antes de continuar.");
       return;
     }
+    if (reportType !== "WEEKLY" && reportType !== "MONTHLY") {
+      setError(
+        "Selecciona el tipo de reporte (Semanal o Mensual) antes de generar la vista previa.",
+      );
+      return;
+    }
     setLoading(true);
     try {
       const body: Record<string, unknown> = { fileName };
       if (xlsxBase64) body.xlsxBase64 = xlsxBase64;
       else body.csvContent = csvContent;
-      if (reportType !== "AUTO") body.reportType = reportType;
+      body.reportType = reportType;
       if (periodStart) body.periodStart = periodStart;
       if (periodEnd) body.periodEnd = periodEnd;
       if (year) body.year = Number(year);
@@ -204,12 +227,7 @@ export function ImportUploader() {
         setSuccessMessage(
           `Importación confirmada: ${payload.data.rowsProcessed} filas procesadas, ${payload.data.followUpsOpened} seguimientos abiertos.`,
         );
-        setPreview(null);
-        setFileName("");
-        setFileSize(0);
-        setCsvContent("");
-        setXlsxBase64("");
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        resetForm();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -396,11 +414,13 @@ export function ImportUploader() {
           <select
             value={reportType}
             onChange={(e) =>
-              changeReportType(e.target.value as "AUTO" | "WEEKLY" | "MONTHLY")
+              changeReportType(e.target.value as "" | "WEEKLY" | "MONTHLY")
             }
             style={inputStyle()}
           >
-            <option value="AUTO">Detectar automáticamente</option>
+            <option value="" disabled>
+              Selecciona una opción
+            </option>
             <option value="WEEKLY">Semanal</option>
             <option value="MONTHLY">Mensual</option>
           </select>
@@ -417,7 +437,7 @@ export function ImportUploader() {
         </label>
       </div>
 
-      {reportType !== "MONTHLY" && (
+      {reportType === "WEEKLY" && (
         <div
           style={{
             marginTop: 10,
@@ -447,7 +467,7 @@ export function ImportUploader() {
         </div>
       )}
 
-      {reportType !== "WEEKLY" && (
+      {reportType === "MONTHLY" && (
         <div
           style={{
             marginTop: 10,
