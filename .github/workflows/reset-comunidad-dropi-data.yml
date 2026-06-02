@@ -1,0 +1,319 @@
+name: Reset Comunidad Dropi data (DESTRUCTIVE, manual)
+
+# Manual, safety-gated reset of ONLY the Comunidad Dropi tables in production.
+#
+# What it does:
+#   * Runs a one-off ECS/Fargate task using the SAME task definition, subnets
+#     and security groups as the live service (so it reuses the in-container
+#     DATABASE_URL — no secret is ever printed).
+#   * Overrides ONLY the main container command to run a Node/Prisma script.
+#   * The script counts rows, dumps a base64 JSON backup of the six Dropi
+#     tables to the logs, and — only when dry_run=false AND the confirm phrase
+#     matches exactly — TRUNCATEs exactly those six tables (RESTART IDENTITY
+#     CASCADE), then verifies they are empty.
+#
+# It NEVER touches application code and NEVER deletes any table outside the
+# fixed, immutable allowlist below.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stack_name:
+        description: CloudFormation stack name (infra/aws/ecs-fargate-torre.yml)
+        required: true
+        default: torre-de-control-v2-ecs
+      aws_region:
+        description: AWS region of the stack
+        required: true
+        default: us-east-1
+      dry_run:
+        description: When true, only count + backup; never delete.
+        type: boolean
+        required: true
+        default: true
+      confirm_phrase:
+        description: "To delete (dry_run=false) type exactly: BORRAR SOLO COMUNIDAD DROPI"
+        required: true
+        default: ""
+
+concurrency:
+  group: reset-comunidad-dropi-data
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    name: Run gated Comunidad Dropi reset task
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Validate confirmation gate
+        id: gate
+        shell: bash
+        env:
+          DRY_RUN_RAW: ${{ github.event.inputs.dry_run }}
+          CONFIRM_PHRASE: ${{ github.event.inputs.confirm_phrase }}
+        run: |
+          set -euo pipefail
+          EXPECTED='BORRAR SOLO COMUNIDAD DROPI'
+          if [[ "${DRY_RUN_RAW}" == "false" ]]; then
+            if [[ "${CONFIRM_PHRASE}" != "${EXPECTED}" ]]; then
+              echo "::error::confirm_phrase incorrecta. Para ejecutar con dry_run=false debe ser EXACTAMENTE: ${EXPECTED}"
+              exit 1
+            fi
+            echo "Gate OK: modo EJECUCION (TRUNCATE habilitado)."
+            echo "dry_run_norm=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Gate OK: modo DRY-RUN (no se borra nada)."
+            echo "dry_run_norm=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.aws_region }}
+
+      - name: Run reset task and collect logs
+        id: run
+        shell: bash
+        env:
+          AWS_REGION: ${{ github.event.inputs.aws_region }}
+          STACK_NAME: ${{ github.event.inputs.stack_name }}
+          DRY_RUN_NORM: ${{ steps.gate.outputs.dry_run_norm }}
+        run: |
+          set -euo pipefail
+
+          # Pre-create artifact targets so the upload step always has files.
+          : > task-logs.txt
+          : > comunidad-dropi-backup.json
+
+          get_output() {
+            aws cloudformation describe-stacks \
+              --region "$AWS_REGION" --stack-name "$STACK_NAME" \
+              --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue | [0]" \
+              --output text
+          }
+
+          CLUSTER="$(get_output ClusterName)"
+          SERVICE="$(get_output ServiceName)"
+          TASK_DEF="$(get_output TaskDefinitionArn)"
+          for pair in "ClusterName=$CLUSTER" "ServiceName=$SERVICE" "TaskDefinitionArn=$TASK_DEF"; do
+            value="${pair#*=}"
+            if [[ -z "$value" || "$value" == "None" ]]; then
+              echo "::error::Missing stack output: ${pair%%=*}"
+              exit 1
+            fi
+          done
+
+          # Reuse the live service network configuration verbatim.
+          SERVICE_JSON="$(aws ecs describe-services --region "$AWS_REGION" --cluster "$CLUSTER" --services "$SERVICE" --query 'services[0]')"
+          SUBNETS="$(jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")' <<<"$SERVICE_JSON")"
+          SECURITY_GROUPS="$(jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")' <<<"$SERVICE_JSON")"
+          ASSIGN_PUBLIC_IP="$(jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp // "ENABLED"' <<<"$SERVICE_JSON")"
+          if [[ -z "$SUBNETS" || "$SUBNETS" == "null" ]]; then
+            echo "::error::Could not resolve service subnets"
+            exit 1
+          fi
+
+          # Main container name + its CloudWatch log config (no env is read,
+          # so DATABASE_URL is never fetched or printed).
+          CONTAINER="$(aws ecs describe-task-definition --region "$AWS_REGION" --task-definition "$TASK_DEF" --query 'taskDefinition.containerDefinitions[0].name' --output text)"
+          LOG_OPTS="$(aws ecs describe-task-definition --region "$AWS_REGION" --task-definition "$TASK_DEF" --query 'taskDefinition.containerDefinitions[0].logConfiguration.options' --output json)"
+          LOG_GROUP="$(jq -r '."awslogs-group" // empty' <<<"$LOG_OPTS")"
+          LOG_PREFIX="$(jq -r '."awslogs-stream-prefix" // empty' <<<"$LOG_OPTS")"
+          if [[ -z "$LOG_GROUP" || -z "$LOG_PREFIX" ]]; then
+            echo "::error::Could not resolve awslogs group/prefix from task definition"
+            exit 1
+          fi
+
+          # The reset script. The table allowlist is FIXED and IMMUTABLE; the
+          # TRUNCATE statement uses only those exact quoted identifiers.
+          cat > reset.cjs <<'NODE'
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient();
+
+          // Fixed, immutable allowlist. Never derived from input, never extended.
+          const TABLES = [
+            'DropiStudentLinkAudit',
+            'DropiFollowUp',
+            'DropiWeeklyMetric',
+            'DropiMonthlyMetric',
+            'DropiImportBatch',
+            'DropiCommunityMember',
+          ];
+
+          // Default-safe: anything other than the literal 'false' stays a dry run.
+          const DRY_RUN = process.env.RESET_DRY_RUN !== 'false';
+
+          const replacer = (_, v) => (typeof v === 'bigint' ? v.toString() : v);
+
+          async function countRows(table) {
+            const rows = await prisma.$queryRawUnsafe('SELECT count(*)::bigint AS n FROM "' + table + '"');
+            return Number(rows[0].n);
+          }
+
+          function emitBackup(payload) {
+            const json = JSON.stringify(payload, replacer);
+            const b64 = Buffer.from(json, 'utf8').toString('base64');
+            const CHUNK = 1024; // small chunks: one CloudWatch event per line
+            const total = Math.ceil(b64.length / CHUNK);
+            console.log('RESET_BACKUP_BEGIN ' + JSON.stringify({ chunks: total, b64Length: b64.length, jsonBytes: json.length }));
+            let idx = 0;
+            for (let i = 0; i < b64.length; i += CHUNK) {
+              console.log('RESET_BACKUP_CHUNK ' + idx + ' ' + b64.slice(i, i + CHUNK));
+              idx += 1;
+            }
+            console.log('RESET_BACKUP_END');
+          }
+
+          async function main() {
+            console.log('RESET_MODE=' + (DRY_RUN ? 'DRY_RUN' : 'EXECUTE'));
+
+            const before = {};
+            const data = {};
+            for (const t of TABLES) {
+              before[t] = await countRows(t);
+              data[t] = await prisma.$queryRawUnsafe('SELECT * FROM "' + t + '"');
+            }
+            console.log('RESET_COUNTS_BEFORE=' + JSON.stringify(before, replacer));
+            emitBackup({ generatedAt: new Date().toISOString(), dryRun: DRY_RUN, tables: TABLES, counts: before, data });
+
+            if (DRY_RUN) {
+              console.log('RESET_RESULT=DRY_RUN_NO_CHANGES');
+              return;
+            }
+
+            // Single statement, fixed identifiers only. No DELETE, no loop over
+            // arbitrary tables, nothing outside this exact list.
+            await prisma.$executeRawUnsafe(
+              'TRUNCATE TABLE "DropiStudentLinkAudit", "DropiFollowUp", "DropiWeeklyMetric", "DropiMonthlyMetric", "DropiImportBatch", "DropiCommunityMember" RESTART IDENTITY CASCADE'
+            );
+
+            const after = {};
+            let bad = false;
+            for (const t of TABLES) {
+              after[t] = await countRows(t);
+              if (after[t] !== 0) bad = true;
+            }
+            console.log('RESET_COUNTS_AFTER=' + JSON.stringify(after, replacer));
+            if (bad) {
+              console.error('RESET_VALIDATION_FAILED: una o más tablas no quedaron en cero tras el TRUNCATE');
+              process.exit(1);
+            }
+            console.log('RESET_RESULT=TRUNCATED_OK');
+          }
+
+          main()
+            .catch((e) => { console.error('RESET_ERROR', (e && e.message) ? e.message : e); process.exitCode = 1; })
+            .finally(() => prisma.$disconnect());
+          NODE
+
+          # Encode the script as single-line base64 so the JS source is never
+          # exposed to shell expansion in the container. base64 output is only
+          # [A-Za-z0-9+/=], so it carries no shell-special characters; the
+          # container decodes it and pipes it straight to node via stdin
+          # (no `node -e`, so `$queryRawUnsafe`, `$executeRawUnsafe`, backticks,
+          # etc. can never be expanded or mangled by `sh`).
+          SCRIPT_B64="$(base64 -w0 reset.cjs)"
+          OVERRIDES="$(jq -n \
+            --arg c "$CONTAINER" \
+            --arg b64 "$SCRIPT_B64" \
+            --arg dry "$DRY_RUN_NORM" \
+            '{containerOverrides:[{name:$c,command:["sh","-lc",("echo " + $b64 + " | base64 -d | node")],environment:[{name:"RESET_DRY_RUN",value:$dry}]}]}')"
+
+          echo "Cluster=$CLUSTER Service=$SERVICE Container=$CONTAINER DryRun=$DRY_RUN_NORM"
+
+          TASK_ARN="$(aws ecs run-task \
+            --region "$AWS_REGION" \
+            --cluster "$CLUSTER" \
+            --launch-type FARGATE \
+            --task-definition "$TASK_DEF" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=$ASSIGN_PUBLIC_IP}" \
+            --overrides "$OVERRIDES" \
+            --query 'tasks[0].taskArn' --output text)"
+          if [[ -z "$TASK_ARN" || "$TASK_ARN" == "None" ]]; then
+            echo "::error::run-task did not return a task ARN"
+            exit 1
+          fi
+          echo "Task: $TASK_ARN"
+
+          aws ecs wait tasks-stopped --region "$AWS_REGION" --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_STREAM="${LOG_PREFIX}/${CONTAINER}/${TASK_ID}"
+          echo "LogGroup=$LOG_GROUP LogStream=$LOG_STREAM"
+
+          # Pull the full log stream with pagination (backup chunks can be many).
+          PREV=""
+          for _ in $(seq 1 200); do
+            if [[ -z "$PREV" ]]; then
+              OUT="$(aws logs get-log-events --region "$AWS_REGION" --log-group-name "$LOG_GROUP" --log-stream-name "$LOG_STREAM" --start-from-head --output json 2>/dev/null || echo '{}')"
+            else
+              OUT="$(aws logs get-log-events --region "$AWS_REGION" --log-group-name "$LOG_GROUP" --log-stream-name "$LOG_STREAM" --start-from-head --next-token "$PREV" --output json 2>/dev/null || echo '{}')"
+            fi
+            jq -r '.events[]?.message' <<<"$OUT" >> task-logs.txt
+            TOK="$(jq -r '.nextForwardToken // empty' <<<"$OUT")"
+            if [[ -z "$TOK" || "$TOK" == "$PREV" ]]; then
+              break
+            fi
+            PREV="$TOK"
+          done
+
+          echo "--- task logs (sin chunks de backup) ---"
+          grep -v '^RESET_BACKUP_CHUNK ' task-logs.txt || true
+          echo "-------------------------------------"
+
+          # Reconstruct the backup JSON from the chunk markers.
+          if grep -q '^RESET_BACKUP_CHUNK ' task-logs.txt; then
+            grep '^RESET_BACKUP_CHUNK ' task-logs.txt \
+              | sort -n -k2,2 \
+              | awk '{ print $3 }' \
+              | tr -d '\n' \
+              | base64 -d > comunidad-dropi-backup.json || true
+          fi
+          if [[ -s comunidad-dropi-backup.json ]] && jq -e . comunidad-dropi-backup.json >/dev/null 2>&1; then
+            echo "Backup reconstruido OK ($(wc -c < comunidad-dropi-backup.json) bytes)."
+          else
+            echo "::warning::No se pudo reconstruir/validar el backup JSON desde los logs."
+          fi
+
+          EXIT_CODE="$(aws ecs describe-tasks --region "$AWS_REGION" --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].containers[0].exitCode' --output text)"
+          echo "Container exitCode=$EXIT_CODE"
+          if [[ "$EXIT_CODE" != "0" ]]; then
+            echo "::error::La tarea de reset terminó con exitCode=$EXIT_CODE"
+            exit 1
+          fi
+
+      - name: Upload logs and reconstructed backup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comunidad-dropi-reset
+          path: |
+            task-logs.txt
+            comunidad-dropi-backup.json
+          if-no-files-found: warn
+
+      - name: Summary
+        if: always()
+        shell: bash
+        env:
+          DRY_RUN_NORM: ${{ steps.gate.outputs.dry_run_norm }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Reset Comunidad Dropi"
+            echo ""
+            echo "- Modo: \`${DRY_RUN_NORM:-unknown}\` (dry_run)"
+            echo "- Tablas (fijas): DropiStudentLinkAudit, DropiFollowUp, DropiWeeklyMetric, DropiMonthlyMetric, DropiImportBatch, DropiCommunityMember"
+            echo "- Backup y logs disponibles en el artifact \`comunidad-dropi-reset\`."
+            if [[ "${DRY_RUN_NORM:-}" == "false" ]]; then
+              echo "- Acción: TRUNCATE ... RESTART IDENTITY CASCADE ejecutado y verificado en cero."
+            else
+              echo "- Acción: ninguna escritura (solo conteo + backup)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
