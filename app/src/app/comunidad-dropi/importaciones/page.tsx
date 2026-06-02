@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { COLORS } from "../_lib/tokens";
 import { SubNav } from "../_components/SubNav";
 import { ImportUploader } from "./_components/ImportUploader";
+import { ResetPanel } from "./_components/ResetPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function ImportacionesPage() {
   });
 
   const canUpload = actor.role === "ADMIN" || actor.role === "OPERATOR";
+  const isAdmin = actor.role === "ADMIN";
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", color: COLORS.text }}>
@@ -154,6 +156,8 @@ export default async function ImportacionesPage() {
           </div>
         )}
       </section>
+
+      {isAdmin && <ResetPanel />}
     </div>
   );
 }
