@@ -52,6 +52,18 @@ function normalizeEstado(value: string | undefined): EstadoFilter {
   return "todas";
 }
 
+// Clases del filtro activo por estado: tintes suaves con buen contraste, sin
+// negros. El inactivo queda claro y neutro.
+const FILTER_ACTIVE_CLASSES: Record<EstadoFilter, string> = {
+  todas: "border-blue-400 bg-blue-50 text-blue-700",
+  vencidas: "border-rose-300 bg-rose-50 text-rose-700",
+  proximas: "border-amber-300 bg-amber-50 text-amber-800",
+  pendientes: "border-slate-400 bg-slate-100 text-slate-700",
+};
+
+const FILTER_INACTIVE_CLASSES =
+  "border-slate-300 bg-white text-slate-600 hover:bg-slate-50";
+
 interface DetailInstallment {
   id: string;
   installmentNumber: number;
@@ -249,9 +261,7 @@ export default async function CarteraPage({
               key={f.key}
               href={href}
               className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-                active
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                active ? FILTER_ACTIVE_CLASSES[f.key] : FILTER_INACTIVE_CLASSES
               }`}
             >
               {f.label} ({f.count})
@@ -342,7 +352,11 @@ export default async function CarteraPage({
           <div className="shrink-0">
             <Link
               href={`/operaciones/estudiantes/${summary.studentId}?tab=pagos`}
-              className="inline-flex items-center rounded-md border border-slate-900 bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700"
+              className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium ${
+                summary.overdueCount > 0
+                  ? "border border-blue-600 bg-blue-600 text-white hover:bg-blue-700"
+                  : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
             >
               {summary.overdueCount > 0 ? "Registrar pago" : "Ver pagos"}
             </Link>
