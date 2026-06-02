@@ -319,7 +319,7 @@ const GHL_CAPTACION_MAY_2026_APPOINTMENTS={
   "2026-05-28":{scheduled:25,showed:5,cancelled:15},
   "2026-05-29":{scheduled:21,showed:5,cancelled:11},
   "2026-05-30":{scheduled:16,showed:2,cancelled:12},
-  "2026-05-31":{scheduled:0,showed:0,cancelled:0},
+  "2026-05-31":{scheduled:1,qualified:10,showed:17,cancelled:0},
 };
 const applyGhlCaptacionAgendasLeads=(closerObj)=>{
   const next={...closerObj};
@@ -329,7 +329,7 @@ const applyGhlCaptacionAgendasLeads=(closerObj)=>{
       ...blankCloser(),
       ...(next[date]||{}),
       date,
-      agendas_calificadas:Math.max(0,(r.scheduled||0)-(r.cancelled||0)),
+      agendas_calificadas:r.qualified??Math.max(0,(r.scheduled||0)-(r.cancelled||0)),
       agendas_final:r.scheduled||0,
       citas_asistidas:r.showed||0,
     };

@@ -61,4 +61,12 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
     expect(block).not.toContain('mAgTotal>0?pv(mCalTotal,mAgTotal):null');
     expect(block).not.toContain('mHoyTotal>0?pv(mShows,mHoyTotal):null');
   });
+
+  it.each(dashboardFiles)("pins May 31 closing adjustment for final May 2026 Torre totals in %s", (relativePath) => {
+    const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
+    expect(source).toContain('"2026-05-31":{scheduled:1,qualified:10,showed:17,cancelled:0}');
+    expect(source).toContain('agendas_calificadas:r.qualified??Math.max(0,(r.scheduled||0)-(r.cancelled||0))');
+    expect(source).toContain('agendas_final:r.scheduled||0');
+    expect(source).toContain('citas_asistidas:r.showed||0');
+  });
 });

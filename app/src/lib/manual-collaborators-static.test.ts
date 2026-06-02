@@ -219,8 +219,8 @@ describe("manual collaborator labels", () => {
     expect(html).toContain("// Regla aprobada: Calificadas = citas programadas - canceladas");
     expect(html).toContain('"2026-05-20":{scheduled:24,showed:5,cancelled:15}');
     expect(html).toContain('"2026-05-30":{scheduled:16,showed:2,cancelled:12}');
-    expect(html).toContain('"2026-05-31":{scheduled:0,showed:0,cancelled:0}');
-    expect(html).toContain("agendas_calificadas:Math.max(0,(r.scheduled||0)-(r.cancelled||0))");
+    expect(html).toContain('"2026-05-31":{scheduled:1,qualified:10,showed:17,cancelled:0}');
+    expect(html).toContain("agendas_calificadas:r.qualified??Math.max(0,(r.scheduled||0)-(r.cancelled||0))");
     expect(html).toContain("agendas_final:r.scheduled||0");
     expect(html).toContain("citas_asistidas:r.showed||0");
   });

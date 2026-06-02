@@ -304,12 +304,12 @@
       {
         "date": "2026-05-31",
         "agendas_otros": 6,
-        "cal_otros": 0,
-        "hoy_otros": 0,
-        "show_otros": 0,
-        "agendas_calificadas": 0,
-        "agendas_final": 0,
-        "citas_asistidas": 0
+        "cal_otros": 10,
+        "hoy_otros": 1,
+        "show_otros": 17,
+        "agendas_calificadas": 10,
+        "agendas_final": 1,
+        "citas_asistidas": 17
       }
     ]
   }
