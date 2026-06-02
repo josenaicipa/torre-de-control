@@ -17,9 +17,49 @@ const SPANISH_MONTHS = [
   "Diciembre",
 ];
 
+const SPANISH_MONTHS_SHORT_LOWER = [
+  "ene",
+  "feb",
+  "mar",
+  "abr",
+  "may",
+  "jun",
+  "jul",
+  "ago",
+  "sep",
+  "oct",
+  "nov",
+  "dic",
+];
+
 export function formatMonthRef(ref: { year: number; month: number }): string {
   const idx = Math.max(0, Math.min(11, ref.month - 1));
   return `${SPANISH_MONTHS[idx]} ${ref.year}`;
+}
+
+// Rango de una semana en formato legible para el encabezado del Rendimiento,
+// p. ej. "01 may – 07 may". Usa UTC para coincidir con `periodStart/End`, que
+// se guardan a medianoche UTC.
+function formatDayMonth(d: Date): string {
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const mon = SPANISH_MONTHS_SHORT_LOWER[d.getUTCMonth()] ?? "";
+  return `${day} ${mon}`.trim();
+}
+
+export function formatWeekRange(start: Date, end: Date): string {
+  return `${formatDayMonth(start)} – ${formatDayMonth(end)}`;
+}
+
+// True cuando el operador pidió ver por semana pero, al no haber semanas
+// cargadas, el loader cayó a la vista mensual. Conduce el aviso honesto de la
+// sección de Rendimiento.
+export function isWeeklyFallback(input: {
+  requestedGranularity: "weekly" | "monthly";
+  granularity: "weekly" | "monthly";
+}): boolean {
+  return (
+    input.requestedGranularity === "weekly" && input.granularity === "monthly"
+  );
 }
 
 // Llave estable para el memo cross-request del Pulso mensual. Año/mes

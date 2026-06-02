@@ -14,7 +14,8 @@
 // y los datos en `_lib/crecimiento-data.ts`.
 
 import { COLORS } from "../_lib/tokens";
-import type { Comparativo } from "../_lib/crecimiento-data";
+import type { Comparativo, PeriodRef } from "../_lib/crecimiento-data";
+import { formatWeekRange, isWeeklyFallback } from "../_lib/radar-cache";
 import {
   decliningRows,
   risingRows,
@@ -33,14 +34,24 @@ export interface RendimientoComunidadProps {
 
 const fmt = (n: number) => n.toLocaleString("es-CO");
 
+// Título legible de un período: rango "01 may – 07 may" para semanas,
+// "Mayo 2026" para meses (que ya viene formateado en `label`).
+function periodoTitulo(p: PeriodRef): string {
+  return p.granularity === "weekly"
+    ? formatWeekRange(p.start, p.end)
+    : p.label;
+}
+
 export function RendimientoComunidad({
   comparativo,
   formAction,
   extraHiddenInputs,
 }: RendimientoComunidadProps) {
   const isWeekly = comparativo.granularity === "weekly";
+  const weeklyFallback = isWeeklyFallback(comparativo);
+  const currentTitulo = periodoTitulo(comparativo.current);
   const compLabel = comparativo.comparison
-    ? comparativo.comparison.label
+    ? periodoTitulo(comparativo.comparison)
     : "Sin comparación";
 
   const top = topDeliveredRows(comparativo.memberRows, 20);
@@ -88,7 +99,9 @@ export function RendimientoComunidad({
               lineHeight: 1.45,
             }}
           >
-            {comparativo.current.label}{" "}
+            <strong style={{ color: COLORS.text }}>
+              {isWeekly ? "Semana" : "Mes"}: {currentTitulo}
+            </strong>{" "}
             <span style={{ color: COLORS.textMuted, fontWeight: 500 }}>
               vs. {compLabel}
             </span>
@@ -102,6 +115,10 @@ export function RendimientoComunidad({
           extraHiddenInputs={extraHiddenInputs}
         />
       </header>
+
+      {weeklyFallback ? (
+        <AvisoFallbackSemanal mes={comparativo.current.label} />
+      ) : null}
 
       <KpiRow comparativo={comparativo} />
 
@@ -236,6 +253,36 @@ function KpiCard({
   );
 }
 
+function AvisoFallbackSemanal({ mes }: { mes: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 12px",
+        borderRadius: 8,
+        backgroundColor: "#FEF3C7",
+        border: "1px solid #FCD34D",
+        color: "#92400E",
+        fontSize: 12.5,
+        fontWeight: 600,
+        marginBottom: 14,
+      }}
+    >
+      <span aria-hidden style={{ fontSize: 13 }}>
+        ⚠
+      </span>
+      <span>
+        No hay semanas cargadas; mostrando el mes <strong>{mes}</strong>. Importá
+        un cierre semanal para activar la vista por semana.
+      </span>
+    </div>
+  );
+}
+
 function FiltroPeriodo({
   comparativo,
   formAction,
@@ -247,6 +294,7 @@ function FiltroPeriodo({
 }) {
   const isWeekly = comparativo.granularity === "weekly";
   const principalLabel = isWeekly ? "Semana" : "Mes";
+  const weeklyAvailable = comparativo.weeklyAvailable;
   return (
     <form
       method="get"
@@ -263,13 +311,15 @@ function FiltroPeriodo({
         <input key={`${h.name}-${i}`} type="hidden" name={h.name} value={h.value} />
       ))}
       <SelectField name="granularity" label="Ver por" defaultValue={comparativo.granularity}>
-        <option value="weekly">Semana</option>
+        <option value="weekly" disabled={!weeklyAvailable}>
+          {weeklyAvailable ? "Semana" : "Semana (sin datos)"}
+        </option>
         <option value="monthly">Mes</option>
       </SelectField>
       <SelectField name="current" label={principalLabel} defaultValue={comparativo.current.key}>
         {comparativo.available.map((p) => (
           <option key={p.key} value={p.key}>
-            {p.label}
+            {periodoTitulo(p)}
           </option>
         ))}
       </SelectField>
@@ -283,7 +333,7 @@ function FiltroPeriodo({
           .filter((p) => p.key !== comparativo.current.key)
           .map((p) => (
             <option key={p.key} value={p.key}>
-              {p.label}
+              {periodoTitulo(p)}
             </option>
           ))}
       </SelectField>

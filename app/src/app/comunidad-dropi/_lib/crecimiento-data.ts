@@ -136,6 +136,12 @@ export interface ComparativoMemberRow {
 
 export interface Comparativo {
   granularity: Granularity;
+  // Granularidad que pidió el operador. Difiere de `granularity` cuando se
+  // pidió `weekly` pero no había semanas cargadas y se cayó a `monthly`.
+  requestedGranularity: Granularity;
+  // Hay al menos una semana cargada (`DropiWeeklyMetric`). Cuando es false, la
+  // vista semanal no está disponible y el selector debe decirlo honestamente.
+  weeklyAvailable: boolean;
   current: PeriodRef;
   comparison: PeriodRef | null;
   kpis: ComparativoKpis;
@@ -468,7 +474,10 @@ async function loadComparativoUncached(
       const fallbackKey = input.fallbackMonthly
         ? monthlyKey(input.fallbackMonthly.year, input.fallbackMonthly.month)
         : null;
-      return loadMonthlyComparativo(fallbackKey, null);
+      return loadMonthlyComparativo(fallbackKey, null, {
+        requestedGranularity: "weekly",
+        weeklyAvailable: false,
+      });
     }
     const current =
       findWeeklyByKey(periods, input.currentKey ?? null) ?? periods[0];
@@ -505,6 +514,8 @@ async function loadComparativoUncached(
 
     return buildComparativoFromTotals({
       granularity: "weekly",
+      requestedGranularity: "weekly",
+      weeklyAvailable: true,
       current,
       comparison,
       currentRows,
@@ -518,15 +529,27 @@ async function loadComparativoUncached(
     });
   }
 
+  // Vista mensual pedida explícitamente: averiguamos si existen semanas para
+  // que el selector pueda ofrecer (u ocultar) la opción semanal con honestidad.
+  const weeklyAvailable = await weeklyMetricsExist();
   return loadMonthlyComparativo(
     input.currentKey ?? null,
     input.comparisonKey ?? null,
+    { requestedGranularity: "monthly", weeklyAvailable },
   );
+}
+
+async function weeklyMetricsExist(): Promise<boolean> {
+  const first = await prisma.dropiWeeklyMetric.findFirst({
+    select: { memberId: true },
+  });
+  return first != null;
 }
 
 async function loadMonthlyComparativo(
   currentKey: string | null,
   comparisonKey: string | null,
+  comparativoMeta: { requestedGranularity: Granularity; weeklyAvailable: boolean },
 ): Promise<Comparativo | null> {
   const periods = await listMonthlyPeriods();
   if (periods.length === 0) return null;
@@ -563,6 +586,8 @@ async function loadMonthlyComparativo(
 
   return buildComparativoFromTotals({
     granularity: "monthly",
+    requestedGranularity: comparativoMeta.requestedGranularity,
+    weeklyAvailable: comparativoMeta.weeklyAvailable,
     current,
     comparison,
     currentRows,
@@ -578,6 +603,8 @@ async function loadMonthlyComparativo(
 
 function buildComparativoFromTotals(input: {
   granularity: Granularity;
+  requestedGranularity: Granularity;
+  weeklyAvailable: boolean;
   current: PeriodRef;
   comparison: PeriodRef | null;
   currentRows: WeeklyMetricRow[];
@@ -615,6 +642,8 @@ function buildComparativoFromTotals(input: {
 
   return {
     granularity: input.granularity,
+    requestedGranularity: input.requestedGranularity,
+    weeklyAvailable: input.weeklyAvailable,
     current: input.current,
     comparison: input.comparison,
     kpis: {
