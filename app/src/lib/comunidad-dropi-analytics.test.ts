@@ -9,10 +9,13 @@ import {
   buildWeeklyTrend,
   rankOpportunities,
   ratesFromTotals,
+  resolveWeeklyPeriod,
   safeDelta,
   safePercent,
   scoreOpportunity,
   sumTotals,
+  weeklyBucketKey,
+  weeklyPeriodToken,
   weightedRates,
 } from "./comunidad-dropi-analytics";
 
@@ -499,5 +502,71 @@ describe("buildMemberDiagnostic", () => {
         h.toLowerCase().includes("crecimiento") || h.toLowerCase().includes("mejor"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("weeklyPeriodToken + weeklyBucketKey", () => {
+  const ref = {
+    periodStart: new Date("2026-05-04T00:00:00.000Z"),
+    periodEnd: new Date("2026-05-10T00:00:00.000Z"),
+  };
+
+  it("builds a URL token with a double underscore separator", () => {
+    expect(weeklyPeriodToken(ref)).toBe("2026-05-04__2026-05-10");
+  });
+
+  it("builds a bucket key with a single underscore separator", () => {
+    expect(weeklyBucketKey(ref)).toBe("2026-05-04_2026-05-10");
+  });
+});
+
+describe("resolveWeeklyPeriod", () => {
+  // Ordenados de más reciente a más antiguo, como groupBy desc.
+  const periods = [
+    {
+      periodStart: new Date("2026-05-18T00:00:00.000Z"),
+      periodEnd: new Date("2026-05-24T00:00:00.000Z"),
+    },
+    {
+      periodStart: new Date("2026-05-11T00:00:00.000Z"),
+      periodEnd: new Date("2026-05-17T00:00:00.000Z"),
+    },
+    {
+      periodStart: new Date("2026-05-04T00:00:00.000Z"),
+      periodEnd: new Date("2026-05-10T00:00:00.000Z"),
+    },
+  ];
+
+  it("returns nulls when there are no periods", () => {
+    expect(resolveWeeklyPeriod([], "anything")).toEqual({
+      selected: null,
+      comparison: null,
+      selectedToken: null,
+    });
+  });
+
+  it("defaults to the latest period and compares with the previous one", () => {
+    const r = resolveWeeklyPeriod(periods, null);
+    expect(weeklyPeriodToken(r.selected!)).toBe("2026-05-18__2026-05-24");
+    expect(weeklyPeriodToken(r.comparison!)).toBe("2026-05-11__2026-05-17");
+    expect(r.selectedToken).toBe("2026-05-18__2026-05-24");
+  });
+
+  it("selects an intermediate period and compares with the next older one", () => {
+    const r = resolveWeeklyPeriod(periods, "2026-05-11__2026-05-17");
+    expect(weeklyPeriodToken(r.selected!)).toBe("2026-05-11__2026-05-17");
+    expect(weeklyPeriodToken(r.comparison!)).toBe("2026-05-04__2026-05-10");
+  });
+
+  it("returns null comparison when the oldest period is selected", () => {
+    const r = resolveWeeklyPeriod(periods, "2026-05-04__2026-05-10");
+    expect(weeklyPeriodToken(r.selected!)).toBe("2026-05-04__2026-05-10");
+    expect(r.comparison).toBeNull();
+  });
+
+  it("falls back to the latest period when the token does not match", () => {
+    const r = resolveWeeklyPeriod(periods, "1999-01-01__1999-01-07");
+    expect(weeklyPeriodToken(r.selected!)).toBe("2026-05-18__2026-05-24");
+    expect(weeklyPeriodToken(r.comparison!)).toBe("2026-05-11__2026-05-17");
   });
 });

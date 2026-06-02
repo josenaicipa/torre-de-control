@@ -11,10 +11,13 @@ import {
   buildWeeklyTrend,
   rankOpportunities,
   ratesFromTotals,
+  resolveWeeklyPeriod,
+  weeklyPeriodToken,
   type FunnelStage,
   type MemberOpportunityInput,
   type OverviewMemberSnapshot,
   type TrendBucket,
+  type WeeklyPeriodRef,
 } from "@/lib/comunidad-dropi-analytics";
 import {
   COLORS,
@@ -30,12 +33,25 @@ export const dynamic = "force-dynamic";
 const WEEKLY_LIMIT = 8;
 const MONTHLY_LIMIT = 6;
 const OPPORTUNITIES_LIMIT = 10;
+const INTELLIGENCE_PATH = "/comunidad-dropi/inteligencia";
 
-export default async function InteligenciaPage() {
+type RawSearchParams = Record<string, string | string[] | undefined>;
+
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function InteligenciaPage({
+  searchParams,
+}: {
+  searchParams: Promise<RawSearchParams>;
+}) {
   const actor = await getActor();
   if (!actor) redirect("/login");
 
-  const data = await loadIntelligenceData();
+  const sp = await searchParams;
+  const periodToken = firstParam(sp.period);
+  const data = await loadIntelligenceData(periodToken);
 
   if (data.isEmpty) {
     return (
@@ -54,8 +70,10 @@ export default async function InteligenciaPage() {
     countryBuckets,
     segmentBuckets,
     opportunities,
-    latestPeriod,
-    previousPeriod,
+    availablePeriods,
+    selectedPeriod,
+    comparisonPeriod,
+    selectedToken,
   } = data;
 
   const funnel = buildFunnel(overview.current.totals);
@@ -73,8 +91,9 @@ export default async function InteligenciaPage() {
       <SubNav />
 
       <PeriodToolbar
-        latestPeriod={latestPeriod}
-        previousPeriod={previousPeriod}
+        availablePeriods={availablePeriods}
+        selectedToken={selectedToken}
+        comparisonPeriod={comparisonPeriod}
       />
 
       <section style={kpiGridStyle()} aria-label="Indicadores principales">
@@ -242,11 +261,15 @@ interface IntelligenceData {
   countryBuckets: ReturnType<typeof buildByCountry>;
   segmentBuckets: ReturnType<typeof buildBySegment>;
   opportunities: ReturnType<typeof rankOpportunities>;
-  latestPeriod: { periodStart: Date; periodEnd: Date } | null;
-  previousPeriod: { periodStart: Date; periodEnd: Date } | null;
+  availablePeriods: WeeklyPeriodRef[];
+  selectedPeriod: WeeklyPeriodRef | null;
+  comparisonPeriod: WeeklyPeriodRef | null;
+  selectedToken: string | null;
 }
 
-async function loadIntelligenceData(): Promise<IntelligenceData> {
+async function loadIntelligenceData(
+  periodToken: string | undefined,
+): Promise<IntelligenceData> {
   const totalMembers = await prisma.dropiCommunityMember.count();
   if (totalMembers === 0) {
     return emptyData();
@@ -264,20 +287,18 @@ async function loadIntelligenceData(): Promise<IntelligenceData> {
     take: MONTHLY_LIMIT,
   });
 
-  const latestPeriod = weeklyPeriods[0]
-    ? {
-        periodStart: weeklyPeriods[0].periodStart,
-        periodEnd: weeklyPeriods[0].periodEnd,
-      }
-    : null;
-  const previousPeriod = weeklyPeriods[1]
-    ? {
-        periodStart: weeklyPeriods[1].periodStart,
-        periodEnd: weeklyPeriods[1].periodEnd,
-      }
-    : null;
+  const availablePeriods: WeeklyPeriodRef[] = weeklyPeriods.map((p) => ({
+    periodStart: p.periodStart,
+    periodEnd: p.periodEnd,
+  }));
 
-  const weeklyPeriodKeys = weeklyPeriods.map((p) => ({
+  const {
+    selected: selectedPeriod,
+    comparison: comparisonPeriod,
+    selectedToken,
+  } = resolveWeeklyPeriod(availablePeriods, periodToken ?? null);
+
+  const weeklyPeriodKeys = availablePeriods.map((p) => ({
     periodStart: p.periodStart,
     periodEnd: p.periodEnd,
   }));
@@ -307,11 +328,11 @@ async function loadIntelligenceData(): Promise<IntelligenceData> {
         linkedStudentId: true,
       },
     }),
-    latestPeriod
+    selectedPeriod
       ? prisma.dropiWeeklyMetric.findMany({
           where: {
-            periodStart: latestPeriod.periodStart,
-            periodEnd: latestPeriod.periodEnd,
+            periodStart: selectedPeriod.periodStart,
+            periodEnd: selectedPeriod.periodEnd,
           },
           select: {
             memberId: true,
@@ -323,11 +344,11 @@ async function loadIntelligenceData(): Promise<IntelligenceData> {
           },
         })
       : Promise.resolve([]),
-    previousPeriod
+    comparisonPeriod
       ? prisma.dropiWeeklyMetric.findMany({
           where: {
-            periodStart: previousPeriod.periodStart,
-            periodEnd: previousPeriod.periodEnd,
+            periodStart: comparisonPeriod.periodStart,
+            periodEnd: comparisonPeriod.periodEnd,
           },
           select: {
             memberId: true,
@@ -366,11 +387,11 @@ async function loadIntelligenceData(): Promise<IntelligenceData> {
           },
         })
       : Promise.resolve([]),
-    latestPeriod
+    selectedPeriod
       ? prisma.dropiWeeklyMetric.findMany({
           where: {
-            periodStart: latestPeriod.periodStart,
-            periodEnd: latestPeriod.periodEnd,
+            periodStart: selectedPeriod.periodStart,
+            periodEnd: selectedPeriod.periodEnd,
           },
           select: {
             country: true,
@@ -485,8 +506,10 @@ async function loadIntelligenceData(): Promise<IntelligenceData> {
     countryBuckets,
     segmentBuckets,
     opportunities,
-    latestPeriod,
-    previousPeriod,
+    availablePeriods,
+    selectedPeriod,
+    comparisonPeriod,
+    selectedToken,
   };
 }
 
@@ -499,8 +522,10 @@ function emptyData(): IntelligenceData {
     countryBuckets: [],
     segmentBuckets: [],
     opportunities: [],
-    latestPeriod: null,
-    previousPeriod: null,
+    availablePeriods: [],
+    selectedPeriod: null,
+    comparisonPeriod: null,
+    selectedToken: null,
   };
 }
 
@@ -547,13 +572,15 @@ function Header() {
 }
 
 function PeriodToolbar({
-  latestPeriod,
-  previousPeriod,
+  availablePeriods,
+  selectedToken,
+  comparisonPeriod,
 }: {
-  latestPeriod: { periodStart: Date; periodEnd: Date } | null;
-  previousPeriod: { periodStart: Date; periodEnd: Date } | null;
+  availablePeriods: WeeklyPeriodRef[];
+  selectedToken: string | null;
+  comparisonPeriod: WeeklyPeriodRef | null;
 }) {
-  if (!latestPeriod) {
+  if (availablePeriods.length === 0) {
     return (
       <p
         style={{
@@ -566,14 +593,14 @@ function PeriodToolbar({
       </p>
     );
   }
-  const current = formatRange(latestPeriod);
-  const previous = previousPeriod ? formatRange(previousPeriod) : null;
+  const comparisonLabel = comparisonPeriod ? formatRange(comparisonPeriod) : null;
   return (
-    <div
+    <form
+      method="get"
       style={{
         display: "flex",
         flexWrap: "wrap",
-        alignItems: "center",
+        alignItems: "flex-end",
         gap: 10,
         padding: "10px 14px",
         marginBottom: 18,
@@ -582,23 +609,61 @@ function PeriodToolbar({
         borderRadius: 10,
       }}
     >
-      <span
+      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: COLORS.textMuted,
+          }}
+        >
+          Semana analizada
+        </span>
+        <select
+          name="period"
+          defaultValue={selectedToken ?? undefined}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: `1px solid ${COLORS.border}`,
+            backgroundColor: COLORS.surface,
+            color: COLORS.text,
+            fontSize: 13,
+            fontWeight: 600,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {availablePeriods.map((p) => {
+            const token = weeklyPeriodToken(p);
+            return (
+              <option key={token} value={token}>
+                {formatRange(p)}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      <button
+        type="submit"
         style={{
-          fontSize: 11,
+          padding: "7px 14px",
+          borderRadius: 8,
+          border: `1px solid ${COLORS.brand}`,
+          backgroundColor: COLORS.brand,
+          color: COLORS.surface,
+          fontSize: 13,
           fontWeight: 700,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          color: COLORS.textMuted,
+          cursor: "pointer",
         }}
       >
-        Período
-      </span>
-      <span style={periodPillStyle(true)}>{current}</span>
-      {previous ? (
-        <>
-          <span style={{ fontSize: 12, color: COLORS.textMuted }}>vs.</span>
-          <span style={periodPillStyle(false)}>{previous}</span>
-        </>
+        Aplicar
+      </button>
+      {comparisonLabel ? (
+        <span style={{ fontSize: 12, color: COLORS.textMuted }}>
+          Comparada con {comparisonLabel}
+        </span>
       ) : (
         <span style={{ fontSize: 12, color: COLORS.textMuted }}>
           Sin período previo para comparar
@@ -611,25 +676,10 @@ function PeriodToolbar({
           color: COLORS.textMuted,
         }}
       >
-        Automático sobre los últimos cierres cargados
+        Períodos cargados desde reportes semanales Dropi
       </span>
-    </div>
+    </form>
   );
-}
-
-function periodPillStyle(active: boolean): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "4px 10px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 700,
-    fontVariantNumeric: "tabular-nums",
-    color: active ? COLORS.surface : COLORS.textSoft,
-    backgroundColor: active ? COLORS.brand : COLORS.surface,
-    border: `1px solid ${active ? COLORS.brand : COLORS.border}`,
-  };
 }
 
 function formatRange(p: { periodStart: Date; periodEnd: Date }): string {

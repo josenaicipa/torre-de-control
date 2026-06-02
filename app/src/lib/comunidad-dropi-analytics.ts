@@ -397,6 +397,57 @@ export function buildWeeklyTrend(
   });
 }
 
+// ─── Weekly period selection ─────────────────────────────────────────────────
+
+export interface WeeklyPeriodRef {
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+// Token estable para la URL: "YYYY-MM-DD__YYYY-MM-DD". Usa doble guion bajo
+// para no chocar con el separador simple que usan las llaves de bucket.
+export function weeklyPeriodToken(p: WeeklyPeriodRef): string {
+  return `${toISODate(p.periodStart)}__${toISODate(p.periodEnd)}`;
+}
+
+// Llave equivalente a la que produce buildWeeklyTrend (separador simple), para
+// poder marcar en la gráfica cuál bucket corresponde al período seleccionado.
+export function weeklyBucketKey(p: WeeklyPeriodRef): string {
+  return `${toISODate(p.periodStart)}_${toISODate(p.periodEnd)}`;
+}
+
+export interface WeeklyPeriodSelection {
+  selected: WeeklyPeriodRef | null;
+  comparison: WeeklyPeriodRef | null;
+  selectedToken: string | null;
+}
+
+// Resuelve el período seleccionado y su comparación a partir de los períodos
+// disponibles. `periods` debe venir ordenada de más reciente a más antiguo
+// (como la devuelve groupBy con orderBy desc). Si el token no coincide con
+// ningún período disponible, cae al más reciente. La comparación es siempre el
+// período inmediatamente más antiguo que el seleccionado, o null si no existe.
+export function resolveWeeklyPeriod(
+  periods: readonly WeeklyPeriodRef[],
+  token: string | null | undefined,
+): WeeklyPeriodSelection {
+  if (periods.length === 0) {
+    return { selected: null, comparison: null, selectedToken: null };
+  }
+  let index = 0;
+  if (token) {
+    const found = periods.findIndex((p) => weeklyPeriodToken(p) === token);
+    if (found >= 0) index = found;
+  }
+  const selected = periods[index];
+  const comparison = periods[index + 1] ?? null;
+  return {
+    selected,
+    comparison,
+    selectedToken: weeklyPeriodToken(selected),
+  };
+}
+
 const SPANISH_MONTH_NAMES = [
   "Ene",
   "Feb",
