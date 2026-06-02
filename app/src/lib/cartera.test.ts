@@ -8,6 +8,9 @@ import {
   compareCarteraPriority,
   compareCarteraBucket,
   summarizeCartera,
+  summarizeStudents,
+  compareStudentSummary,
+  countStudentsByRisk,
   type CarteraInstallment,
 } from "./cartera";
 
@@ -171,6 +174,92 @@ describe("summarizeCartera", () => {
       dueSoonCount: 0,
       dueSoonUsd: 0,
       studentsInArrears: 0,
+    });
+  });
+});
+
+describe("summarizeStudents", () => {
+  it("groups installments per student and aggregates totals", () => {
+    const items = [
+      inst({ studentId: "a", amountDue: 100, amountPaid: 0, dueDate: new Date(Date.UTC(2026, 4, 1)) }), // vencida 100, atraso 32
+      inst({ studentId: "a", amountDue: 50, amountPaid: 10, dueDate: new Date(Date.UTC(2026, 5, 5)) }), // proxima 40
+      inst({ studentId: "a", amountDue: 200, amountPaid: 0, dueDate: new Date(Date.UTC(2026, 7, 1)) }), // futura 200
+      inst({ studentId: "b", amountDue: 80, amountPaid: 0, dueDate: new Date(Date.UTC(2026, 5, 4)) }), // proxima 80
+      inst({ studentId: "c", amountDue: 300, amountPaid: 0, dueDate: new Date(Date.UTC(2026, 8, 1)) }), // futura 300
+      inst({ studentId: "d", amountDue: 100, amountPaid: 100, status: "PAID", dueDate: new Date(Date.UTC(2026, 4, 1)) }), // saldada
+    ];
+    const summaries = summarizeStudents(items, TODAY);
+    const byId = Object.fromEntries(summaries.map((s) => [s.studentId, s]));
+
+    expect(summaries).toHaveLength(3); // d (saldada) no aparece
+
+    expect(byId.a.riskLevel).toBe("en_mora");
+    expect(byId.a.totalPendingUsd).toBe(340);
+    expect(byId.a.totalOverdueUsd).toBe(100);
+    expect(byId.a.overdueCount).toBe(1);
+    expect(byId.a.upcomingCount).toBe(1);
+    expect(byId.a.futureCount).toBe(1);
+    expect(byId.a.outstandingCount).toBe(3);
+    expect(byId.a.maxDaysOverdue).toBe(32);
+    // próxima cuota = la más cercana en el futuro (2026-06-05), no la vencida
+    expect(byId.a.nextDueDate?.toISOString().slice(0, 10)).toBe("2026-06-05");
+    expect(byId.a.nextDueAmount).toBe(40);
+
+    expect(byId.b.riskLevel).toBe("proximo");
+    expect(byId.c.riskLevel).toBe("pendiente_futuro");
+  });
+
+  it("leaves nextDueDate null when all installments are overdue", () => {
+    const items = [
+      inst({ studentId: "a", dueDate: new Date(Date.UTC(2026, 4, 1)) }),
+      inst({ studentId: "a", dueDate: new Date(Date.UTC(2026, 4, 20)) }),
+    ];
+    const [s] = summarizeStudents(items, TODAY);
+    expect(s.nextDueDate).toBeNull();
+    expect(s.nextDueAmount).toBe(0);
+    expect(s.riskLevel).toBe("en_mora");
+  });
+
+  it("returns empty array for no outstanding installments", () => {
+    expect(summarizeStudents([], TODAY)).toEqual([]);
+  });
+});
+
+describe("compareStudentSummary", () => {
+  it("orders en_mora before proximo before pendiente_futuro", () => {
+    const items = [
+      inst({ studentId: "future", amountDue: 200, dueDate: new Date(Date.UTC(2026, 7, 1)) }),
+      inst({ studentId: "soon", amountDue: 80, dueDate: new Date(Date.UTC(2026, 5, 4)) }),
+      inst({ studentId: "mora", amountDue: 100, dueDate: new Date(Date.UTC(2026, 4, 1)) }),
+    ];
+    const sorted = summarizeStudents(items, TODAY).sort(compareStudentSummary);
+    expect(sorted.map((s) => s.studentId)).toEqual(["mora", "soon", "future"]);
+  });
+
+  it("within en_mora orders by overdue amount desc", () => {
+    const items = [
+      inst({ studentId: "small", amountDue: 50, dueDate: new Date(Date.UTC(2026, 4, 20)) }),
+      inst({ studentId: "big", amountDue: 500, dueDate: new Date(Date.UTC(2026, 4, 25)) }),
+    ];
+    const sorted = summarizeStudents(items, TODAY).sort(compareStudentSummary);
+    expect(sorted.map((s) => s.studentId)).toEqual(["big", "small"]);
+  });
+});
+
+describe("countStudentsByRisk", () => {
+  it("counts students per risk level", () => {
+    const items = [
+      inst({ studentId: "a", dueDate: new Date(Date.UTC(2026, 4, 1)) }), // mora
+      inst({ studentId: "b", dueDate: new Date(Date.UTC(2026, 4, 1)) }), // mora
+      inst({ studentId: "c", dueDate: new Date(Date.UTC(2026, 5, 4)) }), // proximo
+      inst({ studentId: "d", dueDate: new Date(Date.UTC(2026, 8, 1)) }), // futuro
+    ];
+    const counts = countStudentsByRisk(summarizeStudents(items, TODAY));
+    expect(counts).toEqual({
+      total: 4,
+      en_mora: 2,
+      proximo: 1,
+      pendiente_futuro: 1,
     });
   });
 });

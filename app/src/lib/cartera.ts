@@ -119,6 +119,158 @@ export function compareCarteraPriority<T extends CarteraInstallment>(
   );
 }
 
+// Nivel de riesgo de un estudiante, derivado de sus cuotas pendientes.
+//   en_mora          => tiene al menos una cuota vencida
+//   proximo          => sin vencidas, pero con cuota dentro de los próximos 7 días
+//   pendiente_futuro => solo cuotas futuras más allá de 7 días
+export type CarteraRiskLevel = "en_mora" | "proximo" | "pendiente_futuro";
+
+// Mapea la cubeta de la cuota más urgente del estudiante a su nivel de riesgo.
+const RISK_BY_BUCKET: Record<CarteraBucket, CarteraRiskLevel> = {
+  vencida: "en_mora",
+  proxima: "proximo",
+  pendiente: "pendiente_futuro",
+};
+
+export interface StudentCarteraSummary {
+  studentId: string;
+  totalPendingUsd: number;
+  totalOverdueUsd: number;
+  overdueCount: number;
+  upcomingCount: number;
+  futureCount: number;
+  outstandingCount: number;
+  nextDueDate: Date | null;
+  nextDueAmount: number;
+  maxDaysOverdue: number;
+  riskLevel: CarteraRiskLevel;
+}
+
+// Agrupa cuotas pendientes por estudiante y resume su situación de cobro.
+// Ignora cuotas saldadas/condonadas. Solo aparecen estudiantes con saldo > 0.
+export function summarizeStudents(
+  items: CarteraInstallment[],
+  today: Date,
+): StudentCarteraSummary[] {
+  const byStudent = new Map<string, CarteraInstallment[]>();
+  for (const item of items) {
+    if (!isOutstanding(item)) continue;
+    const list = byStudent.get(item.studentId);
+    if (list) list.push(item);
+    else byStudent.set(item.studentId, [item]);
+  }
+
+  const summaries: StudentCarteraSummary[] = [];
+  for (const [studentId, list] of byStudent) {
+    let totalPendingUsd = 0;
+    let totalOverdueUsd = 0;
+    let overdueCount = 0;
+    let upcomingCount = 0;
+    let futureCount = 0;
+    let maxDaysOverdue = 0;
+    let nextDueDate: Date | null = null;
+    let nextDueAmount = 0;
+
+    for (const item of list) {
+      const pending = installmentPending(item);
+      totalPendingUsd += pending;
+      const days = daysUntilDue(item.dueDate, today);
+      if (days < 0) {
+        totalOverdueUsd += pending;
+        overdueCount += 1;
+        if (-days > maxDaysOverdue) maxDaysOverdue = -days;
+      } else if (days <= DUE_SOON_DAYS) {
+        upcomingCount += 1;
+      } else {
+        futureCount += 1;
+      }
+      // Próxima cuota = la cuota pendiente con vencimiento más cercano que aún no
+      // ha pasado (hoy o futuro). Para estudiantes 100% en mora queda null.
+      if (days >= 0) {
+        if (nextDueDate === null || startOfUtcDay(item.dueDate) < startOfUtcDay(nextDueDate)) {
+          nextDueDate = item.dueDate;
+          nextDueAmount = pending;
+        }
+      }
+    }
+
+    const riskLevel: CarteraRiskLevel =
+      overdueCount > 0
+        ? "en_mora"
+        : upcomingCount > 0
+          ? "proximo"
+          : "pendiente_futuro";
+
+    summaries.push({
+      studentId,
+      totalPendingUsd: round2(totalPendingUsd),
+      totalOverdueUsd: round2(totalOverdueUsd),
+      overdueCount,
+      upcomingCount,
+      futureCount,
+      outstandingCount: list.length,
+      nextDueDate,
+      nextDueAmount: round2(nextDueAmount),
+      maxDaysOverdue,
+      riskLevel,
+    });
+  }
+
+  return summaries;
+}
+
+// Orden para listar estudiantes: en mora primero (mayor monto vencido, luego
+// mayor atraso), después próximos y por último pendientes futuros; dentro de
+// cada grupo, por la fecha de la próxima cuota.
+const RISK_ORDER: Record<CarteraRiskLevel, number> = {
+  en_mora: 0,
+  proximo: 1,
+  pendiente_futuro: 2,
+};
+
+export function compareStudentSummary(
+  a: StudentCarteraSummary,
+  b: StudentCarteraSummary,
+): number {
+  const orderA = RISK_ORDER[a.riskLevel];
+  const orderB = RISK_ORDER[b.riskLevel];
+  if (orderA !== orderB) return orderA - orderB;
+
+  if (a.riskLevel === "en_mora") {
+    if (a.totalOverdueUsd !== b.totalOverdueUsd) {
+      return b.totalOverdueUsd - a.totalOverdueUsd;
+    }
+    if (a.maxDaysOverdue !== b.maxDaysOverdue) {
+      return b.maxDaysOverdue - a.maxDaysOverdue;
+    }
+  }
+
+  const dateA = a.nextDueDate ? startOfUtcDay(a.nextDueDate) : Number.POSITIVE_INFINITY;
+  const dateB = b.nextDueDate ? startOfUtcDay(b.nextDueDate) : Number.POSITIVE_INFINITY;
+  return dateA - dateB;
+}
+
+export interface StudentRiskCounts {
+  total: number;
+  en_mora: number;
+  proximo: number;
+  pendiente_futuro: number;
+}
+
+// Conteo de estudiantes por nivel de riesgo (para KPIs y filtros).
+export function countStudentsByRisk(
+  summaries: StudentCarteraSummary[],
+): StudentRiskCounts {
+  const counts: StudentRiskCounts = {
+    total: summaries.length,
+    en_mora: 0,
+    proximo: 0,
+    pendiente_futuro: 0,
+  };
+  for (const s of summaries) counts[s.riskLevel] += 1;
+  return counts;
+}
+
 export function summarizeCartera(
   items: CarteraInstallment[],
   today: Date,
