@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getActor, requireActor, requireAdmin } from "@/lib/actor";
@@ -15,6 +13,7 @@ import {
   isConfirmPhraseValid,
   type BackupSummary,
 } from "@/lib/comunidad-dropi-reset";
+import { writeBackupFile } from "@/lib/comunidad-dropi-reset-backup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,17 +23,6 @@ const bodySchema = z.object({
   confirmPhrase: z.string().optional(),
   backup: z.boolean().default(true),
 });
-
-async function writeBackupFile(
-  data: Record<string, unknown[]>,
-): Promise<string> {
-  const dir = path.join(process.cwd(), "backups");
-  await mkdir(dir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const file = path.join(dir, `comunidad-dropi-reset-${stamp}.json`);
-  await writeFile(file, JSON.stringify(data, null, 2), "utf8");
-  return file;
-}
 
 export async function POST(req: Request) {
   try {
@@ -85,9 +73,17 @@ export async function POST(req: Request) {
     };
 
     if (backup) {
-      const { data, summary } = await backupResetTables(prisma);
-      const file = await writeBackupFile(data);
-      backupSummary = { ...summary, file };
+      try {
+        const { data, summary } = await backupResetTables(prisma);
+        const file = await writeBackupFile(data);
+        backupSummary = { ...summary, file };
+      } catch (backupErr) {
+        console.error("comunidad-dropi reset backup failed:", backupErr);
+        return jsonError(
+          500,
+          "No se pudo generar el respaldo previo; no se borró ningún dato.",
+        );
+      }
     }
 
     const deleted = await prisma.$transaction((tx) => deleteResetTables(tx));

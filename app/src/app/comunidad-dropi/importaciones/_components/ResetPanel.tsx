@@ -56,9 +56,11 @@ export function ResetPanel() {
       });
       const payload = await res.json();
       if (!res.ok) {
+        setResult(null);
         setError(payload.error ?? "No se pudo ejecutar la operación.");
         return;
       }
+      setError(null);
       setResult(payload.data as ResetResult);
       if (!dryRun) {
         setPhrase("");
@@ -172,7 +174,10 @@ export function ResetPanel() {
           <input
             type="text"
             value={phrase}
-            onChange={(e) => setPhrase(e.target.value)}
+            onChange={(e) => {
+              setPhrase(e.target.value);
+              setError(null);
+            }}
             placeholder={RESET_CONFIRM_PHRASE}
             autoComplete="off"
             spellCheck={false}
@@ -193,7 +198,10 @@ export function ResetPanel() {
           <input
             type="checkbox"
             checked={acknowledged}
-            onChange={(e) => setAcknowledged(e.target.checked)}
+            onChange={(e) => {
+              setAcknowledged(e.target.checked);
+              setError(null);
+            }}
           />
           Entiendo que esta acción es irreversible.
         </label>
