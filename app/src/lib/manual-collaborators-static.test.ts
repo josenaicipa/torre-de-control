@@ -166,7 +166,9 @@ describe("manual collaborator labels", () => {
     expect(llenarBlock).toContain('<Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>');
     expect(llenarBlock).toContain('<Inp label="# Calificadas / Agendas Confirmadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>');
     expect(llenarBlock).toContain('<Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>');
-    expect(llenarBlock).toContain('<Stat label="# No Show" value={fN(noShowCalc)} color={C.red} size="sm"/>');
+    expect(html).toContain('const CalcBox=({label,value,color=C.red,hint="Automático"})=>(');
+    expect(llenarBlock).toContain('<CalcBox label="# No Show" value={fN(noShowCalc)} color={C.red}/>');
+    expect(llenarBlock).not.toContain('<Stat label="# No Show" value={fN(noShowCalc)} color={C.red} size="sm"/>');
     expect(llenarBlock).not.toContain('<Inp label="# No Show" value={form.agendas}');
     expect(llenarBlock).not.toContain('<Inp label="# Cualificadas"');
     expect(tablaBlock).toContain('{l:"# Calificadas / Agendas Confirmadas",k:"calificadas",fmt:"n"}');

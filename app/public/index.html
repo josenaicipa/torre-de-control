@@ -504,6 +504,17 @@ const Inp=({label,value,onChange,prefix,hint,type="number"})=>(
     {hint&&<div style={{fontSize:10,color:TXT3}}>{hint}</div>}
   </div>
 );
+const CalcBox=({label,value,color=C.red,hint="Automático"})=>(
+  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+    <Lbl>{label}</Lbl>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+      background:SURFACE2,border:`1px solid ${color}55`,borderRadius:9,
+      overflow:"hidden",height:38,padding:"0 11px",boxShadow:`inset 3px 0 0 ${color}`}}>
+      <span style={{color,fontSize:13,fontFamily:"'Inter',sans-serif",fontWeight:800}}>{value}</span>
+      <span style={{fontSize:9,color:TXT3,textTransform:"uppercase",letterSpacing:"0.09em",fontWeight:700}}>{hint}</span>
+    </div>
+  </div>
+);
 const Txt=({label,value,onChange,placeholder})=>(
   <div style={{display:"flex",flexDirection:"column",gap:5}}>
     <Lbl>{label}</Lbl>
@@ -2415,7 +2426,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>
               <Inp label="# Calificadas / Agendas Confirmadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
               <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
-              <Stat label="# No Show" value={fN(noShowCalc)} color={C.red} size="sm"/>
+              <CalcBox label="# No Show" value={fN(noShowCalc)} color={C.red}/>
             </div>
           </Card>
           <Card>
