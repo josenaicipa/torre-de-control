@@ -23,7 +23,7 @@ describe("Detalle Diario > Gasto Publicitario historical monthly rows", () => {
       expect(source).toContain('const AUTO_ADS_MEMBER="Auto Ads";');
       expect(source).not.toContain('const HISTORICAL_AD_SPEND_DAILY_CUTOFF="2026-05-22";');
       expect(source).toContain(
-        "const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e));",
+        "const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e)&&!isCommercialMember(e.member));",
       );
       expect(source).toContain(
         'const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");',

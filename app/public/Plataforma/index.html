@@ -370,7 +370,7 @@ const rowToEntry=row=>{
     pendDiaAnterior:row.pitches_organic||0,
     pendAcumulados:row.pitches_paid||0,
     reservas:row.reservas_organic||0,
-    cashReservas:0,
+    cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,
     setterLeadsContacted:row.new_bk_organic||0,
     setterConfirmedAgendas:row.qual_bk_organic||0,
     setterCallsToLeads:row.today_bk_organic||0,
@@ -953,31 +953,38 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const prefix=`${year}-${String(month+1).padStart(2,"0")}`;
   const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
   const dailyEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
+  const adDailyEntries=dailyEntries.filter(e=>e&&!isCommercialMember(e.member));
 
   const collabCommercialEntries=dailyEntries.filter(e=>e&&isCommercialMember(e.member));
   const totalCashFromCollaborators=sumF(collabCommercialEntries,"upfrontCash");
   const totalCashBase=sumF(closerEntries,"ventas_cash");
   const totalCash=totalCashBase||totalCashFromCollaborators;
-  const totalValorHT=sumF(closerEntries,"valor_venta_ht");
+  const totalValorHTFromCollaborators=sumF(collabCommercialEntries,"valorVentaHT");
+  const totalValorHT=totalValorHTFromCollaborators||sumF(closerEntries,"valor_venta_ht");
   const totalValorLT=sumF(closerEntries,"valor_venta_lt");
-  const totalReservasManual=sumF(closerEntries,"cash_reservas");
+  const totalReservasFromCollaborators=sumF(collabCommercialEntries,"cashReservas");
+  const totalReservasManual=sumF(closerEntries,"cash_reservas")||totalReservasFromCollaborators;
   // Keep Torre CEO's committed sales total aligned with Detalle Diario →
   // Ventas — Área Comercial → $ Venta HT. Low Ticket remains shown separately
   // as Cash Low Ticket and must not inflate this HT committed KPI.
   const totalValor=totalValorHT;
-  const totalVentas=sumF(closerEntries,"q_ventas_ht");
+  const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");
+  const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");
   // Torre CEO must show the larger upstream count as "Citas agendadas reales"
   // consistently across historical imports (Jan-May) and future GHL/manual rows.
-  const totalAgendasCampo=sumF(closerEntries,"agendas_final");
-  const totalLeadsCampo=sumF(closerEntries,"agendas_calificadas");
+  const totalAgendasFromCollaborators=sumF(collabCommercialEntries,"agendasHoy");
+  const totalLeadsFromCollaborators=sumF(collabCommercialEntries,"calificadas");
+  const totalShowsFromCollaborators=sumF(collabCommercialEntries,"showUps");
+  const totalAgendasCampo=totalAgendasFromCollaborators||sumF(closerEntries,"agendas_final");
+  const totalLeadsCampo=totalLeadsFromCollaborators||sumF(closerEntries,"agendas_calificadas");
   const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);
   const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);
-  const totalAsistidas=sumF(closerEntries,"citas_asistidas");
+  const totalAsistidas=totalShowsFromCollaborators||sumF(closerEntries,"citas_asistidas");
   // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
-  const totalGastoMeta=sumF(dailyEntries,"gastoMeta");
-  const totalGastoGoogle=sumF(dailyEntries,"gastoGoogle");
-  const totalGastoTiktok=sumF(dailyEntries,"gastoTikTok");
-  const totalGastoOtros=sumF(dailyEntries,"gastoOtros");
+  const totalGastoMeta=sumF(adDailyEntries,"gastoMeta");
+  const totalGastoGoogle=sumF(adDailyEntries,"gastoGoogle");
+  const totalGastoTiktok=sumF(adDailyEntries,"gastoTikTok");
+  const totalGastoOtros=sumF(adDailyEntries,"gastoOtros");
   const totalGasto=totalGastoMeta+totalGastoGoogle+totalGastoTiktok+totalGastoOtros;
 
   const metaMensual=nv(cfg.metaMensual)||150000;
@@ -1896,7 +1903,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     // Marketing Histórico rows out of daily cells, but allow Auto Ads daily
     // rows to remain visible. Total / Mes prioritizes the historical monthly
     // total when present, so the daily trace does not alter the official total.
-    const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e));
+    const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e)&&!isCommercialMember(e.member));
     const closer=allCloser[d]||{};
     const ledger=ledgerByDay[d]||{};
     const sd=f=>sumF(entries,f);
@@ -1940,28 +1947,30 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mGastoTikTok=hasHistoricalGasto?mHistoricalGastoTikTok:mDailyGastoTikTok;
   const mGastoOtros=hasHistoricalGasto?mHistoricalGastoOtros:mDailyGastoOtros;
   const mGastoTotal=mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros;
-  const mAgTotal=dayData.reduce((s,d)=>{const ks=["organicas","meta","google","tiktok","otros"];return s+ks.reduce((a,c)=>a+(d.closer[`agendas_${c}`]||0),0);},0);
+  const cv=(d,closerField,entryField)=>d.sdCommercial(entryField)||d.closer[closerField]||0;
+  const agTotal=d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||d.sdCommercial("agendasHoy");};
+  const mAgTotal=dayData.reduce((s,d)=>s+agTotal(d),0);
   const mAgMeta=dayData.reduce((s,d)=>s+(d.closer.agendas_meta||0),0);
   const mAgGoogle=dayData.reduce((s,d)=>s+(d.closer.agendas_google||0),0);
   const mAgTikTok=dayData.reduce((s,d)=>s+(d.closer.agendas_tiktok||0),0);
   const mAgOtros=dayData.reduce((s,d)=>s+(d.closer.agendas_otros||0),0);
-  const mCalTotal=dayData.reduce((s,d)=>s+(d.closer.agendas_calificadas||0),0);
+  const mCalTotal=dayData.reduce((s,d)=>s+cv(d,"agendas_calificadas","calificadas"),0);
   const mCalMeta=dayData.reduce((s,d)=>s+(d.closer.cal_meta||0),0);
   const mCalGoogle=dayData.reduce((s,d)=>s+(d.closer.cal_google||0),0);
   const mCalTikTok=dayData.reduce((s,d)=>s+(d.closer.cal_tiktok||0),0);
   const mCalOtros=dayData.reduce((s,d)=>s+(d.closer.cal_otros||0),0);
-  const mShows=dayData.reduce((s,d)=>s+(d.closer.citas_asistidas||0),0);
-  const mVentasHT=dayData.reduce((s,d)=>s+(d.closer.q_ventas_ht||0),0);
-  const mValorHT=dayData.reduce((s,d)=>s+(d.closer.valor_venta_ht||0),0);
+  const mShows=dayData.reduce((s,d)=>s+cv(d,"citas_asistidas","showUps"),0);
+  const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);
+  const mValorHT=dayData.reduce((s,d)=>s+cv(d,"valor_venta_ht","valorVentaHT"),0);
   const mLedgerCash=dayData.reduce((s,d)=>s+(d.ledger.cashCollected||0),0);
   const mLedgerHT=dayData.reduce((s,d)=>s+(d.ledger.highTicket||0),0);
   const mLedgerLT=dayData.reduce((s,d)=>s+(d.ledger.lowTicket||0),0);
   const mLedgerReservas=dayData.reduce((s,d)=>s+(d.ledger.reservas||0),0);
-  const mReservasManual=dayData.reduce((s,d)=>s+(d.closer.cash_reservas||0),0);
+  const mReservasManual=dayData.reduce((s,d)=>s+(d.sdCommercial("cashReservas")||d.closer.cash_reservas||0),0);
   const mReservasCash=mReservasManual||mLedgerReservas;
   const mManualCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);
   const mCashHT=mManualCashHT||mLedgerHT;
-  const mRecurring=dayData.reduce((s,d)=>s+(d.closer.recurring_cash||0),0);
+  const mRecurring=dayData.reduce((s,d)=>s+cv(d,"recurring_cash","recurringCash"),0);
 
   const GROUPS=[
     {title:"Gasto Publicitario",bg:"#1e40af",rows:[
@@ -1985,19 +1994,19 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"},
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
-      {l:"Agendas Total",fn:d=>{const ks=["organicas","meta","google","tiktok","otros"];return ks.reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0)||null;},fmt:"n"},
-      {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true},
+      {l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"},
+      {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||d.sdCommercial("agendasHoy")||null,fmt:"n",sub:true},
       {l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true},
       {l:"Google",fn:d=>d.closer.agendas_google||null,fmt:"n",sub:true},
       {l:"TikTok",fn:d=>d.closer.agendas_tiktok||null,fmt:"n",sub:true},
       {l:"Otros",fn:d=>d.closer.agendas_otros||null,fmt:"n",sub:true},
-      {l:"Hoy (en agenda)",fn:d=>d.closer.agendas_final||null,fmt:"n"},
-      {l:"Calificadas Total",fn:d=>d.closer.agendas_calificadas||null,fmt:"n"},
-      {l:"% Calificadas",fn:d=>{const t=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return t>0?pv(d.closer.agendas_calificadas||0,t):null;},fmt:"%",
+      {l:"Hoy (en agenda)",fn:d=>cv(d,"agendas_final","agendasHoy")||null,fmt:"n"},
+      {l:"Calificadas Total",fn:d=>cv(d,"agendas_calificadas","calificadas")||null,fmt:"n"},
+      {l:"% Calificadas",fn:d=>{const t=agTotal(d);return t>0?pv(cv(d,"agendas_calificadas","calificadas"),t):null;},fmt:"%",
         totFn:()=>mAgTotal>0?pv(mCalTotal,mAgTotal):null},
-      {l:"Show Ups",fn:d=>d.closer.citas_asistidas||null,fmt:"n"},
-      {l:"% Show Up Rate",fn:d=>{const h=d.closer.agendas_final||0,s=d.closer.citas_asistidas||0;return h>0?pv(s,h):null;},fmt:"%",
-        totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+(d.closer.agendas_final||0),0);return mHoy>0?pv(mShows,mHoy):null;}},
+      {l:"Show Ups",fn:d=>cv(d,"citas_asistidas","showUps")||null,fmt:"n"},
+      {l:"% Show Up Rate",fn:d=>{const h=cv(d,"agendas_final","agendasHoy"),s=cv(d,"citas_asistidas","showUps");return h>0?pv(s,h):null;},fmt:"%",
+        totFn:()=>{const mHoy=dayData.reduce((s,d)=>s+cv(d,"agendas_final","agendasHoy"),0);return mHoy>0?pv(mShows,mHoy):null;}},
     ]},
     {title:"Costos por Lead",bg:"#92400e",rows:[
       {l:"CPL (Costo/Agenda)",fn:d=>{const ag=["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);return ag>0?d.totalGastoDay/ag:null;},fmt:"$",
@@ -2022,20 +2031,20 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
         totFn:()=>mCalOtros>0?mGastoOtros/mCalOtros:null},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
-      {l:"# Ventas HT",fn:d=>d.closer.q_ventas_ht||null,fmt:"n"},
-      {l:"$ Venta HT",fn:d=>d.closer.valor_venta_ht||null,fmt:"$"},
+      {l:"# Ventas HT",fn:d=>cv(d,"q_ventas_ht","ventasHT")||null,fmt:"n"},
+      {l:"$ Venta HT",fn:d=>cv(d,"valor_venta_ht","valorVentaHT")||null,fmt:"$"},
       {l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||null,fmt:"$",totFn:()=>mCashHT||null},
-      {l:"Recurring Cash",fn:d=>d.closer.recurring_cash||null,fmt:"$"},
-      {l:"Cash + Recurring",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;const t=c+(d.closer.recurring_cash||0);return t||null;},fmt:"$",
+      {l:"Recurring Cash",fn:d=>cv(d,"recurring_cash","recurringCash")||null,fmt:"$"},
+      {l:"Cash + Recurring",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;const t=c+cv(d,"recurring_cash","recurringCash");return t||null;},fmt:"$",
         totFn:()=>mCashHT+mRecurring||null},
-      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",
+      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0,v=cv(d,"valor_venta_ht","valorVentaHT");return v>0?pv(c,v):null;},fmt:"%",
         totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
-      {l:"% Closing Rate",fn:d=>{const s=d.closer.citas_asistidas||0,v=d.closer.q_ventas_ht||0;return s>0?pv(v,s):null;},fmt:"%",
+      {l:"% Closing Rate",fn:d=>{const s=cv(d,"citas_asistidas","showUps"),v=cv(d,"q_ventas_ht","ventasHT");return s>0?pv(v,s):null;},fmt:"%",
         totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
       {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
       {l:"$ Venta LT",fn:d=>d.ledger.lowTicket||d.closer.valor_venta_lt||null,fmt:"$",totFn:()=>mLedgerLT||null},
-      {l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"},
-      {l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null},
+      {l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"},
+      {l:"$ Cash Reservas",fn:d=>d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null},
       {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
       {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
       {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
@@ -3878,7 +3887,8 @@ function App(){
       follow_ups:entry.followUps||0,
       bk_offers:isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
       gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
-      gasto_tiktok:entry.gastoTikTok||0,gasto_otros:entry.gastoOtros||0,
+      gasto_tiktok:entry.gastoTikTok||0,
+      gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),
       new_bk_organic:isSetterMember(entry.member)?(entry.setterLeadsContacted||0):(entry.agendas||0),
       qual_bk_organic:isSetterMember(entry.member)?(entry.setterConfirmedAgendas||0):(entry.calificadas||0),
       today_bk_organic:isSetterMember(entry.member)?(entry.setterCallsToLeads||0):(entry.agendasHoy||0),

@@ -23,7 +23,7 @@ describe("manual collaborator labels", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
     expect(torreBlock).toContain('const totalValor=totalValorHT;');
     expect(torreBlock).not.toContain('const totalValor=totalValorHT+totalValorLT;');
-    expect(html).toContain('{l:"$ Venta HT",fn:d=>d.closer.valor_venta_ht||null,fmt:"$"}');
+    expect(html).toContain('{l:"$ Venta HT",fn:d=>cv(d,"valor_venta_ht","valorVentaHT")||null,fmt:"$"}');
     expect(html).toContain('<Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>');
   });
 
@@ -62,8 +62,8 @@ describe("manual collaborator labels", () => {
     expect(llenarBlock).toContain('<Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>');
     expect(llenarBlock).toContain('<Inp label="$ Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>');
     expect(llenarBlock).toMatch(/<Inp label="# Reservas" value=\{form\.reservas\}[\s\S]*<Inp label="\$ Reservas" prefix="\$" value=\{form\.cashReservas\}/);
-    expect(detalleBlock).toContain('{l:"# Reservas",fn:d=>d.closer.q_reservas||null,fmt:"n"}');
-    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
+    expect(detalleBlock).toContain('{l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"}');
+    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
     expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
   });
 
@@ -78,6 +78,26 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('await saveCloserEntry(entry.date,closerRow);');
   });
 
+  it("shows Area Comercial por colaborador entries in Detalle Diario and Torre even when the daily_closer aggregate write is unavailable", () => {
+    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+
+    expect(html).toContain('gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),');
+    expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
+    expect(torreBlock).toContain('const totalValorHTFromCollaborators=sumF(collabCommercialEntries,"valorVentaHT");');
+    expect(torreBlock).toContain('const totalValorHT=totalValorHTFromCollaborators||sumF(closerEntries,"valor_venta_ht");');
+    expect(torreBlock).toContain('const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");');
+    expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
+    expect(detalleBlock).toContain('const cv=(d,closerField,entryField)=>d.sdCommercial(entryField)||d.closer[closerField]||0;');
+    expect(detalleBlock).toContain('const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);');
+    expect(detalleBlock).toContain('const mValorHT=dayData.reduce((s,d)=>s+cv(d,"valor_venta_ht","valorVentaHT"),0);');
+    expect(detalleBlock).toContain('{l:"# Ventas HT",fn:d=>cv(d,"q_ventas_ht","ventasHT")||null,fmt:"n"}');
+    expect(detalleBlock).toContain('{l:"$ Venta HT",fn:d=>cv(d,"valor_venta_ht","valorVentaHT")||null,fmt:"$"}');
+    expect(detalleBlock).toContain('{l:"Recurring Cash",fn:d=>cv(d,"recurring_cash","recurringCash")||null,fmt:"$"}');
+    expect(detalleBlock).toContain('{l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"}');
+    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
+  });
+
   it("prioritizes Valentina and closer cash over the payment ledger in Detalle Diario and Torre CEO", () => {
     expect(html).toContain('const manualHighTicketCash=totalCash||totalCashFromCollaborators;');
     expect(html).toContain('const dispCash=manualHighTicketCash||(cashApi?cashApi.highTicket:0);');
@@ -85,8 +105,8 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('const mManualCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);');
     expect(html).toContain('const mCashHT=mManualCashHT||mLedgerHT;');
     expect(html).toContain('{l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||null,fmt:"$",totFn:()=>mCashHT||null}');
-    expect(html).toContain('{l:"Cash + Recurring",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;const t=c+(d.closer.recurring_cash||0);return t||null;},fmt:"$",');
-    expect(html).toContain('{l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0,v=d.closer.valor_venta_ht||0;return v>0?pv(c,v):null;},fmt:"%",');
+    expect(html).toContain('{l:"Cash + Recurring",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;const t=c+cv(d,"recurring_cash","recurringCash");return t||null;},fmt:"$",');
+    expect(html).toContain('{l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0,v=cv(d,"valor_venta_ht","valorVentaHT");return v>0?pv(c,v):null;},fmt:"%",');
     expect(html).not.toContain('d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")');
     expect(html).not.toContain('const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;');
   });
@@ -262,12 +282,12 @@ describe("manual collaborator labels", () => {
     expect(saveCloserBlock).toContain('{onConflict:"date"}');
     expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
     expect(torreBlock).toContain('const totalValor=totalValorHT;');
-    expect(torreBlock).toContain('const totalVentas=sumF(closerEntries,"q_ventas_ht");');
-    expect(torreBlock).toContain('const totalAgendasCampo=sumF(closerEntries,"agendas_final");');
-    expect(torreBlock).toContain('const totalLeadsCampo=sumF(closerEntries,"agendas_calificadas");');
+    expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
+    expect(torreBlock).toContain('const totalAgendasCampo=totalAgendasFromCollaborators||sumF(closerEntries,"agendas_final");');
+    expect(torreBlock).toContain('const totalLeadsCampo=totalLeadsFromCollaborators||sumF(closerEntries,"agendas_calificadas");');
     expect(torreBlock).toContain('const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);');
     expect(torreBlock).toContain('const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);');
-    expect(torreBlock).toContain('const totalAsistidas=sumF(closerEntries,"citas_asistidas");');
+    expect(torreBlock).toContain('const totalAsistidas=totalShowsFromCollaborators||sumF(closerEntries,"citas_asistidas");');
   });
 
   it("calculates Salud del embudo ratios from the corrected Torre CEO denominators", () => {
