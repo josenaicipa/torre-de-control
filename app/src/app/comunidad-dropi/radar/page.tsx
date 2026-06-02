@@ -63,7 +63,8 @@ export default async function PulsoPage({
   const { year, month } = parsePeriod(sp.period);
   const granularity = parseGranularity(sp.granularity);
   const currentKey = sp.current ?? null;
-  const comparisonKey = sp.comparison ?? null;
+  // El Radar siempre compara contra el período anterior: ignoramos cualquier
+  // `?comparison=` viejo en la URL para no forzar una comparación manual.
   const fallbackMonthly =
     year != null && month != null ? { year, month } : null;
 
@@ -72,7 +73,7 @@ export default async function PulsoPage({
     loadComparativo({
       granularity,
       currentKey,
-      comparisonKey,
+      comparisonKey: null,
       fallbackMonthly,
     }),
   ]);

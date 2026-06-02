@@ -16,6 +16,7 @@
 import { COLORS } from "../_lib/tokens";
 import type { Comparativo, PeriodRef } from "../_lib/crecimiento-data";
 import { formatWeekRange, isWeeklyFallback } from "../_lib/radar-cache";
+import { GranularidadAutoSelect } from "./GranularidadAutoSelect";
 import {
   decliningRows,
   risingRows,
@@ -52,7 +53,7 @@ export function RendimientoComunidad({
   const currentTitulo = periodoTitulo(comparativo.current);
   const compLabel = comparativo.comparison
     ? periodoTitulo(comparativo.comparison)
-    : "Sin comparación";
+    : null;
 
   const top = topDeliveredRows(comparativo.memberRows, 20);
   const declining = decliningRows(comparativo.memberRows);
@@ -103,7 +104,9 @@ export function RendimientoComunidad({
               {isWeekly ? "Semana" : "Mes"}: {currentTitulo}
             </strong>{" "}
             <span style={{ color: COLORS.textMuted, fontWeight: 500 }}>
-              vs. {compLabel}
+              {compLabel
+                ? `vs. ${isWeekly ? "semana" : "mes"} anterior (${compLabel})`
+                : `Sin ${isWeekly ? "semana" : "mes"} anterior para comparar`}
             </span>
             {" · "}
             {isWeekly ? "Vista semanal" : "Vista mensual"}
@@ -231,7 +234,7 @@ function KpiCard({
             color: deltaColor,
           }}
         >
-          {positive ? "▲" : "▼"} {Math.abs(deltaPct as number)}% vs. comparación
+          {positive ? "▲" : "▼"} {Math.abs(deltaPct as number)}% vs. período anterior
         </p>
       ) : hint ? (
         <p
@@ -246,7 +249,7 @@ function KpiCard({
         </p>
       ) : (
         <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.textMuted }}>
-          Sin comparación
+          Sin período anterior
         </p>
       )}
     </div>
@@ -310,12 +313,10 @@ function FiltroPeriodo({
       {extraHiddenInputs?.map((h, i) => (
         <input key={`${h.name}-${i}`} type="hidden" name={h.name} value={h.value} />
       ))}
-      <SelectField name="granularity" label="Ver por" defaultValue={comparativo.granularity}>
-        <option value="weekly" disabled={!weeklyAvailable}>
-          {weeklyAvailable ? "Semana" : "Semana (sin datos)"}
-        </option>
-        <option value="monthly">Mes</option>
-      </SelectField>
+      <GranularidadAutoSelect
+        defaultValue={comparativo.granularity}
+        weeklyAvailable={weeklyAvailable}
+      />
       <SelectField name="current" label={principalLabel} defaultValue={comparativo.current.key}>
         {comparativo.available.map((p) => (
           <option key={p.key} value={p.key}>
@@ -323,23 +324,22 @@ function FiltroPeriodo({
           </option>
         ))}
       </SelectField>
-      <SelectField
-        name="comparison"
-        label="Comparar con"
-        defaultValue={comparativo.comparison?.key ?? ""}
-      >
-        <option value="">Sin comparación</option>
-        {comparativo.available
-          .filter((p) => p.key !== comparativo.current.key)
-          .map((p) => (
-            <option key={p.key} value={p.key}>
-              {periodoTitulo(p)}
-            </option>
-          ))}
-      </SelectField>
       <button type="submit" style={primaryButtonStyle()}>
         Aplicar
       </button>
+      <p
+        style={{
+          flexBasis: "100%",
+          margin: "2px 0 0",
+          textAlign: "right",
+          fontSize: 11,
+          color: COLORS.textMuted,
+          fontWeight: 500,
+        }}
+      >
+        La comparación es automática contra {isWeekly ? "la semana" : "el mes"}{" "}
+        anterior.
+      </p>
     </form>
   );
 }
