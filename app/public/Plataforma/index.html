@@ -1055,7 +1055,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const agendaMeta=pctLeadsAg>0?leadsMeta*(pctLeadsAg/100):0;
   const asistidaMeta=pctAgAsis>0?agendaMeta*(pctAgAsis/100):0;
   const ventasUniMeta=closeRateMeta>0?asistidaMeta*(closeRateMeta/100):0;
-  const ventasReqHoy=ticketProm>0?metaMensual/ticketProm:0;
+  const ventasReqHoy=ticketProm>0?metaEsperadaHoy/ticketProm:0;
   const asistidasReqHoy=closeRateMeta>0?ventasReqHoy/(closeRateMeta/100):0;
   const citasAgendadasReqHoy=pctAgAsis>0?asistidasReqHoy/(pctAgAsis/100):0;
   const leadsReqHoy=pctLeadsAg>0?citasAgendadasReqHoy/(pctLeadsAg/100):0;
@@ -1071,7 +1071,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const gapProy=proyeccion?proyeccion-metaMensual:null;
 
   const funnelRows=[
-    {l:"Ventas $ (comprometido)",req:metaMensual,real:totalValor,fmt:"$"},
+    {l:"Ventas $ (comprometido)",req:metaEsperadaHoy,real:totalValor,fmt:"$"},
     {l:"Ventas (unidades)",req:ventasReqHoy,real:totalVentas,fmt:"n"},
     {l:"Citas Show Up (asistidas)",req:asistidasReqHoy,real:totalAsistidas,fmt:"n"},
     {l:"Leads calificados reales",req:leadsCalificadosDisplayReqHoy,real:totalLeads,fmt:"n"},
