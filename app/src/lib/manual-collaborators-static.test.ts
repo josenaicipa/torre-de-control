@@ -78,16 +78,20 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('await saveCloserEntry(entry.date,closerRow);');
   });
 
-  it("shows Area Comercial por colaborador entries in Detalle Diario and Torre even when the daily_closer aggregate write is unavailable", () => {
+  it("shows Area Comercial por colaborador entries in Detalle Diario and Torre for June onward without rewriting closed May", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
     const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
 
     expect(html).toContain('gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),');
     expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
+    expect(torreBlock).toContain('const allowCommercialFallback=year>2026||(year===2026&&month>=5);');
+    expect(torreBlock).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialMember(e.member)):[];');
     expect(torreBlock).toContain('const totalValorHTFromCollaborators=sumF(collabCommercialEntries,"valorVentaHT");');
     expect(torreBlock).toContain('const totalValorHT=totalValorHTFromCollaborators||sumF(closerEntries,"valor_venta_ht");');
     expect(torreBlock).toContain('const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");');
     expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
+    expect(detalleBlock).toContain('const allowCommercialFallback=d>="2026-06-01";');
+    expect(detalleBlock).toContain('const sdCommercial=f=>allowCommercialFallback?sumF(commercialEntries,f):0;');
     expect(detalleBlock).toContain('const cv=(d,closerField,entryField)=>d.sdCommercial(entryField)||d.closer[closerField]||0;');
     expect(detalleBlock).toContain('const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);');
     expect(detalleBlock).toContain('const mValorHT=dayData.reduce((s,d)=>s+cv(d,"valor_venta_ht","valorVentaHT"),0);');

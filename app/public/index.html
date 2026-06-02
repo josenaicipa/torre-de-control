@@ -954,8 +954,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
   const dailyEntries=Object.entries(allDaily).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);
   const adDailyEntries=dailyEntries.filter(e=>e&&!isCommercialMember(e.member));
-
-  const collabCommercialEntries=dailyEntries.filter(e=>e&&isCommercialMember(e.member));
+  // Preserve approved historical months through May 2026. The collaborator
+  // fallback exists for the new June-onward Area Comercial por colaborador flow
+  // (e.g. Daniel's June 1 report) and must not rewrite closed May metrics.
+  const allowCommercialFallback=year>2026||(year===2026&&month>=5);
+  const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialMember(e.member)):[];
   const totalCashFromCollaborators=sumF(collabCommercialEntries,"upfrontCash");
   const totalCashBase=sumF(closerEntries,"ventas_cash");
   const totalCash=totalCashBase||totalCashFromCollaborators;
@@ -1906,10 +1909,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const dailyAdEntries=entries.filter(e=>!isMonthlyOnlyAdSpendEntry(e)&&!isCommercialMember(e.member));
     const closer=allCloser[d]||{};
     const ledger=ledgerByDay[d]||{};
+    const allowCommercialFallback=d>="2026-06-01";
     const sd=f=>sumF(entries,f);
     const sdAds=f=>sumF(dailyAdEntries,f);
     const sdMkt=f=>sumF(mktEntries,f);
-    const sdCommercial=f=>sumF(commercialEntries,f);
+    const sdCommercial=f=>allowCommercialFallback?sumF(commercialEntries,f):0;
     const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
     return{day:i+1,d,entries,mktEntries,commercialEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,totalGastoDay};
   });
