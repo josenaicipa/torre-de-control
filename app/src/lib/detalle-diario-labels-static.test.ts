@@ -44,14 +44,21 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
     ]);
   });
 
-  it.each(dashboardFiles)("does not use collaborator fallback for GHL leads in %s", (relativePath) => {
+  it.each(dashboardFiles)("uses manual Área Comercial fields for June-onward operational rows in %s", (relativePath) => {
     const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
     const block = extractAgendasBlock(source);
-    expect(block).not.toContain('sdCommercial("agendasHoy")');
-    expect(block).not.toContain('sdCommercial("calificadas")');
-    expect(block).not.toContain('sdCommercial("showUps")');
-    expect(block).not.toContain('cv(d,"agendas_final","agendasHoy")');
-    expect(block).not.toContain('cv(d,"agendas_calificadas","calificadas")');
-    expect(block).not.toContain('cv(d,"citas_asistidas","showUps")');
+    expect(source).toContain('const manualAgendasHoy=d=>d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);');
+    expect(source).toContain('const manualCalificadas=d=>d.d>="2026-06-01"?d.sdCommercial("calificadas"):(d.closer.agendas_calificadas||0);');
+    expect(source).toContain('const manualShowUps=d=>d.d>="2026-06-01"?d.sdCommercial("showUps"):(d.closer.citas_asistidas||0);');
+    expect(block).toContain('{l:"Hoy (en agenda)",fn:d=>manualAgendasHoy(d)||null,fmt:"n"}');
+    expect(block).toContain('{l:"Calificadas Total",fn:d=>manualCalificadas(d)||null,fmt:"n"}');
+    expect(block).toContain('{l:"% Calificadas",fn:d=>{const h=manualAgendasHoy(d),c=manualCalificadas(d);return h>0?pv(c,h):null;},fmt:"%"');
+    expect(block).toContain('{l:"Show Ups",fn:d=>manualShowUps(d)||null,fmt:"n"}');
+    expect(block).toContain('{l:"% Show Up Rate",fn:d=>{const c=manualCalificadas(d),s=manualShowUps(d);return c>0?pv(s,c):null;},fmt:"%"');
+    expect(block).not.toContain('d.closer.agendas_final||null');
+    expect(block).not.toContain('d.closer.agendas_calificadas||null');
+    expect(block).not.toContain('d.closer.citas_asistidas||null');
+    expect(block).not.toContain('mAgTotal>0?pv(mCalTotal,mAgTotal):null');
+    expect(block).not.toContain('mHoyTotal>0?pv(mShows,mHoyTotal):null');
   });
 });
