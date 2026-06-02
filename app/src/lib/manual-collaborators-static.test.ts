@@ -67,15 +67,15 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
   });
 
-  it("consolidates all commercial collaborator daily entries into the daily_closer row used by Detalle Diario", () => {
-    expect(html).toContain('const commercialEntriesForDate=(allDaily,date,overrideKey,overrideEntry)=>{');
-    expect(html).toContain('const aggregateCommercialEntriesForCloser=(date,entries,existingCloser={})=>{');
-    expect(html).toContain('q_ventas_ht:s("ventasHT"),valor_venta_ht:s("valorVentaHT"),');
-    expect(html).toContain('ventas_cash:s("upfrontCash"),upfront_cash_ht:s("upfrontCash"),recurring_cash:s("recurringCash"),');
-    expect(html).toContain('q_reservas:s("reservas"),cash_reservas:s("cashReservas"),');
-    expect(html).toContain('const commercialRows=commercialEntriesForDate(nd,entry.date,key,entry);');
-    expect(html).toContain('const closerRow=aggregateCommercialEntriesForCloser(entry.date,commercialRows,closerData[entry.date]||{});');
-    expect(html).toContain('await saveCloserEntry(entry.date,closerRow);');
+  it("keeps commercial collaborator daily entries in daily_entries instead of rewriting manual Agendas / Leads", () => {
+    const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
+
+    expect(html).not.toContain('const commercialEntriesForDate=(allDaily,date,overrideKey,overrideEntry)=>{');
+    expect(html).not.toContain('const aggregateCommercialEntriesForCloser=(date,entries,existingCloser={})=>{');
+    expect(saveEntryBlock).toContain('await db.from("daily_entries").upsert({');
+    expect(saveEntryBlock).not.toContain('const commercialRows=commercialEntriesForDate(nd,entry.date,key,entry);');
+    expect(saveEntryBlock).not.toContain('const closerRow=aggregateCommercialEntriesForCloser(entry.date,commercialRows,closerData[entry.date]||{});');
+    expect(saveEntryBlock).not.toContain('await saveCloserEntry(entry.date,closerRow);');
   });
 
   it("shows Area Comercial por colaborador entries in Detalle Diario and Torre for June onward without rewriting closed May", () => {
@@ -289,17 +289,22 @@ describe("manual collaborator labels", () => {
     expect(funnelBlock).not.toContain('l:"Leads calificados"');
   });
 
-  it("documents the data flow: operational screens and GHL feed daily_closer before Torre CEO totals", () => {
+  it("keeps Agendas / Leads as a manual-only daily_closer entry screen", () => {
     const loadBlock = html.slice(html.indexOf('const [{data:kpiRows'), html.indexOf('const kk=`kpi:${year}-${month}`'));
+    const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
     const saveCloserBlock = html.slice(html.indexOf('const saveCloserEntry=async'), html.indexOf('const saveKpiConfig=async'));
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
 
-    expect(html).toContain("// GHL → daily_closer / Detalle Diario → Torre CEO.");
-    expect(html).toContain("Agendas / Leads and Área Comercial are operational entry screens");
+    expect(html).toContain("// Agendas / Leads is manual-only daily_closer; Detalle Diario commercial totals come from Área Comercial.");
     expect(loadBlock).toContain('db.from("daily_closer").select("*")');
-    expect(loadBlock).toContain('setCloserData(applyGhlCaptacionAgendasLeads(closerObj));');
+    expect(loadBlock).toContain('setCloserData(closerObj);');
+    expect(loadBlock).not.toContain('setCloserData(applyGhlCaptacionAgendasLeads(closerObj));');
+    expect(saveCloserBlock).toContain('setCloserData(nd);');
+    expect(saveCloserBlock).not.toContain('setCloserData(applyGhlCaptacionAgendasLeads(nd));');
     expect(saveCloserBlock).toContain('await db.from("daily_closer").upsert({');
     expect(saveCloserBlock).toContain('{onConflict:"date"}');
+    expect(saveEntryBlock).not.toContain('aggregateCommercialEntriesForCloser');
+    expect(saveEntryBlock).not.toContain('saveCloserEntry(entry.date');
     expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
     expect(torreBlock).toContain('const totalValor=totalValorHT;');
     expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');

@@ -283,9 +283,9 @@ const blankCloser=()=>({
   show_organicas:0,show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
 });
 
-// GHL → daily_closer / Detalle Diario → Torre CEO.
-// Agendas / Leads and Área Comercial are operational entry screens; Torre CEO
-// must consume the consolidated daily_closer rows so daily traceability remains
+// Agendas / Leads is manual-only daily_closer; Detalle Diario commercial totals come from Área Comercial.
+// The left-menu Agendas / Leads screen must show only values typed there. Área
+// Comercial stays in daily_entries and is read directly by Detalle Diario/Torre.
 // visible in Detalle Diario before monthly totals are shown in Torre.
 // Source: GHL pipeline CAPTACIÓN Y VENTAS appointments, May 2026.
 const GHL_CAPTACION_MAY_2026_APPOINTMENTS={
@@ -398,29 +398,6 @@ const closerToValentinaEntry=(date,row)=>({
   reservas:row.q_reservas||0,
   cashReservas:row.cash_reservas||0,
 });
-
-const commercialEntriesForDate=(allDaily,date,overrideKey,overrideEntry)=>{
-  const merged={...allDaily};
-  if(overrideKey&&overrideEntry)merged[overrideKey]=overrideEntry;
-  return Object.entries(merged)
-    .filter(([k,e])=>k.startsWith(date+":")&&e&&isCommercialMember(e.member))
-    .map(([,e])=>e);
-};
-
-const aggregateCommercialEntriesForCloser=(date,entries,existingCloser={})=>{
-  const s=k=>sumF(entries,k);
-  return{
-    ...existingCloser,date,
-    q_ventas_ht:s("ventasHT"),valor_venta_ht:s("valorVentaHT"),
-    ventas_cash:s("upfrontCash"),upfront_cash_ht:s("upfrontCash"),recurring_cash:s("recurringCash"),
-    q_reservas:s("reservas"),cash_reservas:s("cashReservas"),
-    agendas_final:s("agendasHoy"),agendas_calificadas:s("calificadas"),citas_asistidas:s("showUps"),
-    agendas_organicas:s("agendasHoy"),agendas_meta:0,agendas_google:0,agendas_tiktok:0,agendas_otros:0,
-    cal_organicas:s("calificadas"),cal_meta:0,cal_google:0,cal_tiktok:0,cal_otros:0,
-    hoy_organicas:s("agendasHoy"),hoy_meta:0,hoy_google:0,hoy_tiktok:0,hoy_otros:0,
-    show_organicas:s("showUps"),show_meta:0,show_google:0,show_tiktok:0,show_otros:0,
-  };
-};
 
 // ─── SVG ICONS ────────────────────────────────────────────────────────────────
 const ICON_PATHS={
@@ -3866,7 +3843,7 @@ function App(){
         dailyRows?.forEach(row=>{dailyObj[`${row.date}:${row.member}`]=rowToEntry(row);});
         const closerObj={};
         closerRows?.forEach(row=>{closerObj[row.date]=row;});
-        setCloserData(applyGhlCaptacionAgendasLeads(closerObj));
+        setCloserData(closerObj);
         setKpiData(kpiObj);
         setDaily(dailyObj);
       }catch(e){
@@ -3931,11 +3908,6 @@ function App(){
       setter_findings:entry.setterFindings||"",
     },{onConflict:"date,member"});
     if(error){alert("Error guardando: "+error.message);return false;}
-    if(isCommercialMember(entry.member)){
-      const commercialRows=commercialEntriesForDate(nd,entry.date,key,entry);
-      const closerRow=aggregateCommercialEntriesForCloser(entry.date,commercialRows,closerData[entry.date]||{});
-      await saveCloserEntry(entry.date,closerRow);
-    }
     return true;
   };
 
@@ -3946,7 +3918,7 @@ function App(){
     const citas_asistidas=(data.show_organicas||0)+(data.show_meta||0)+(data.show_google||0)+(data.show_tiktok||0)+(data.show_otros||0);
     const merged={...data,agendas_calificadas,agendas_final,citas_asistidas};
     const nd={...closerData,[date]:merged};
-    setCloserData(applyGhlCaptacionAgendasLeads(nd));
+    setCloserData(nd);
     await db.from("daily_closer").upsert({
       date:data.date||date,
       q_ventas_ht:data.q_ventas_ht||0,valor_venta_ht:data.valor_venta_ht||0,
