@@ -115,22 +115,26 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;');
   });
 
-  it("integrates the useful numeric operator daily report fields into Area Comercial por colaborador", () => {
+  it("turns Actividad de llamadas in Admin/Closers into a computed summary from Agendas and Follow Ups", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
 
-    expect(html).toContain('callsScheduled:0,hotLeads:0,');
-    expect(html).toContain('callsScheduled:row.ig_followers||0,');
-    expect(html).toContain('hotLeads:row.bk_offers||0,');
-    expect(llenarBlock).toContain('<STit icon="📞" title="Actividad de llamadas" sub="Campos traídos del reporte manual diario"/>');
-    expect(llenarBlock).toContain('<Inp label="# Llamadas / citas que tenías" value={form.callsScheduled} onChange={v=>sf("callsScheduled",v)}/>');
-    expect(llenarBlock).toContain('<Inp label="# Leads calientes" value={form.hotLeads} onChange={v=>sf("hotLeads",v)}/>');
-    expect(llenarBlock).toContain('<Inp label="# Cierres" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>');
-    expect(tablaBlock).toContain('{l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"}');
-    expect(tablaBlock).toContain('{l:"# Leads calientes",k:"hotLeads",fmt:"n"}');
+    expect(llenarBlock).toContain('const noShowCalc=Math.max(0,(form.calificadas||0)-(form.showUps||0));');
+    expect(llenarBlock).toContain('const normalizedCommercialForm=role==="closer"?{...form,agendas:noShowCalc}:form;');
+    expect(llenarBlock).toContain('<STit icon="📞" title="Actividad de llamadas" sub="Resumen automático del reporte diario"/>');
+    expect(llenarBlock).toContain('<Stat label="# Agendas hoy" value={fN(form.agendasHoy)} color={C.blue} size="sm"/>');
+    expect(llenarBlock).toContain('<Stat label="# Show Ups" value={fN(form.showUps)} color={C.green} size="sm"/>');
+    expect(llenarBlock).toContain('<Stat label="# Follow Ups contactados" value={fN(form.followUps)} color={C.amber} size="sm"/>');
+    expect(llenarBlock).toContain('<Stat label="# Leads calientes" value={fN(form.pendAcumulados)} color={C.orange} size="sm"/>');
+    expect(llenarBlock).not.toContain('<Inp label="# Llamadas / citas que tenías"');
+    expect(llenarBlock).not.toContain('<Inp label="# Leads calientes" value={form.hotLeads}');
+    expect(tablaBlock).toContain('{l:"# Agendas hoy",k:"agendasHoy",fmt:"n"}');
+    expect(tablaBlock).toContain('{l:"# Leads calientes",k:"pendAcumulados",fmt:"n"}');
+    expect(tablaBlock).not.toContain('{l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"}');
     expect(html).toContain('{title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[');
-    expect(html).toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"}');
-    expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"}');
+    expect(html).toContain('{l:"# Agendas hoy",fn:d=>d.sdCommercial("agendasHoy")||null,fmt:"n"}');
+    expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercial("pendAcumulados")||null,fmt:"n"}');
+    expect(html).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"}');
   });
 
   it("splits Area Comercial report entry into Admin, Setters, and Closers sub-tabs", () => {
@@ -151,12 +155,18 @@ describe("manual collaborator labels", () => {
     expect(llenarBlock).toContain('{Object.entries(REPORT_GROUPS).map(([key,g])=>(');
   });
 
-  it("uses Cualificadas wording only in the Area Comercial closer visual", () => {
+  it("renames closer Agendas / Leads fields and calculates No Show from confirmed minus show ups", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
 
-    expect(llenarBlock).toContain('<Inp label="# Cualificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>');
-    expect(tablaBlock).toContain('{l:"# Cualificadas",k:"calificadas",fmt:"n"}');
+    expect(llenarBlock).toContain('<Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="# Calificadas / Agendas Confirmadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>');
+    expect(llenarBlock).toContain('<Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>');
+    expect(llenarBlock).toContain('<Stat label="# No Show" value={fN(noShowCalc)} color={C.red} size="sm"/>');
+    expect(llenarBlock).not.toContain('<Inp label="# No Show" value={form.agendas}');
+    expect(llenarBlock).not.toContain('<Inp label="# Cualificadas"');
+    expect(tablaBlock).toContain('{l:"# Calificadas / Agendas Confirmadas",k:"calificadas",fmt:"n"}');
+    expect(tablaBlock).toContain('{l:"# No Show",k:"agendas",fmt:"n"}');
   });
 
   it("replicates the metrics setter form and adds closer notes fields in Area Comercial", () => {

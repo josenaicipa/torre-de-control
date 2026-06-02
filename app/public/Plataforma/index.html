@@ -1993,10 +1993,10 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
     ]},
     {title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[
-      {l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"},
+      {l:"# Agendas hoy",fn:d=>d.sdCommercial("agendasHoy")||null,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.sdCommercial("showUps")||null,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.sdCommercial("followUps")||null,fmt:"n"},
-      {l:"# Leads calientes",fn:d=>d.sdCommercial("hotLeads")||null,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.sdCommercial("pendAcumulados")||null,fmt:"n"},
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"},
@@ -2268,9 +2268,12 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
   const st=(k,v)=>setForm(p=>({...p,[k]:v}));
 
+  const noShowCalc=Math.max(0,(form.calificadas||0)-(form.showUps||0));
+  const normalizedCommercialForm=role==="closer"?{...form,agendas:noShowCalc}:form;
+
   const handleSave=async()=>{
     setSaving(true);
-    const ok=await onSave(`${date}:${collabId}`,{...form,member:collabId,date});
+    const ok=await onSave(`${date}:${collabId}`,{...normalizedCommercialForm,member:collabId,date});
     setSaving(false);
     if(ok!==false){setSaved(true);setTimeout(()=>setSaved(false),2500);}
   };
@@ -2398,20 +2401,21 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
       {role==="closer"&&(
         <>
           <Card>
-            <STit icon="📞" title="Actividad de llamadas" sub="Campos traídos del reporte manual diario"/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-              <Inp label="# Llamadas / citas que tenías" value={form.callsScheduled} onChange={v=>sf("callsScheduled",v)}/>
-              <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
-              <Inp label="# Follow Ups contactados" value={form.followUps} onChange={v=>sf("followUps",v)}/>
-              <Inp label="# Leads calientes" value={form.hotLeads} onChange={v=>sf("hotLeads",v)}/>
+            <STit icon="📞" title="Actividad de llamadas" sub="Resumen automático del reporte diario"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:9}}>
+              <Stat label="# Agendas hoy" value={fN(form.agendasHoy)} color={C.blue} size="sm"/>
+              <Stat label="# Show Ups" value={fN(form.showUps)} color={C.green} size="sm"/>
+              <Stat label="# Follow Ups contactados" value={fN(form.followUps)} color={C.amber} size="sm"/>
+              <Stat label="# Leads calientes" value={fN(form.pendAcumulados)} color={C.orange} size="sm"/>
             </div>
           </Card>
           <Card>
             <STit icon="📅" title="Agendas / Leads" sub={`Llenado por ${collab.label}`}/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
               <Inp label="# Agendas hoy" value={form.agendasHoy} onChange={v=>sf("agendasHoy",v)}/>
-              <Inp label="# Cualificadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
-              <Inp label="# No Show" value={form.agendas} onChange={v=>sf("agendas",v)}/>
+              <Inp label="# Calificadas / Agendas Confirmadas" value={form.calificadas} onChange={v=>sf("calificadas",v)}/>
+              <Inp label="# Show Ups" value={form.showUps} onChange={v=>sf("showUps",v)}/>
+              <Stat label="# No Show" value={fN(noShowCalc)} color={C.red} size="sm"/>
             </div>
           </Card>
           <Card>
@@ -2505,14 +2509,15 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"Ads",k:"setterAdsLeads",fmt:"n"},
     ]},
     {title:"Actividad de llamadas",bg:"#0369a1",role:"closer",rows:[
-      {l:"# Llamadas / citas que tenías",k:"callsScheduled",fmt:"n"},
+      {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
       {l:"# Show Ups",k:"showUps",fmt:"n"},
       {l:"# Follow Ups contactados",k:"followUps",fmt:"n"},
-      {l:"# Leads calientes",k:"hotLeads",fmt:"n"},
+      {l:"# Leads calientes",k:"pendAcumulados",fmt:"n"},
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
-      {l:"# Cualificadas",k:"calificadas",fmt:"n"},
+      {l:"# Calificadas / Agendas Confirmadas",k:"calificadas",fmt:"n"},
+      {l:"# Show Ups",k:"showUps",fmt:"n"},
       {l:"# No Show",k:"agendas",fmt:"n"},
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",role:"closer",rows:[
