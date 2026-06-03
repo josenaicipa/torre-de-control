@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import {
   installmentPending,
@@ -243,6 +245,27 @@ describe("compareStudentSummary", () => {
     ];
     const sorted = summarizeStudents(items, TODAY).sort(compareStudentSummary);
     expect(sorted.map((s) => s.studentId)).toEqual(["big", "small"]);
+  });
+});
+
+describe("botón Registrar pago / Ver pagos (contraste)", () => {
+  // Guarda contra el pitfall conocido: estilos globales de a/visited pueden
+  // sobrescribir text-white de Tailwind y dejar el texto azul sobre azul. Por
+  // eso forzamos el color con `!` y desactivamos el subrayado de enlaces.
+  const pageSource = readFileSync(
+    fileURLToPath(new URL("../app/operaciones/cartera/page.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  it("fuerza texto blanco e ignora estilos de enlace en el botón primario azul", () => {
+    expect(pageSource).toContain("bg-blue-600 !text-white");
+    expect(pageSource).toContain("hover:!text-white");
+    expect(pageSource).toContain("no-underline");
+  });
+
+  it("fuerza texto oscuro legible en el botón secundario blanco", () => {
+    expect(pageSource).toContain("bg-white !text-slate-700");
+    expect(pageSource).toContain("hover:!text-slate-900");
   });
 });
 

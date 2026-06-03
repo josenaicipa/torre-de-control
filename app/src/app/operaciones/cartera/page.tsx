@@ -352,10 +352,10 @@ export default async function CarteraPage({
           <div className="shrink-0">
             <Link
               href={`/operaciones/estudiantes/${summary.studentId}?tab=pagos`}
-              className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium ${
+              className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium no-underline ${
                 summary.overdueCount > 0
-                  ? "border border-blue-600 bg-blue-600 text-white hover:bg-blue-700"
-                  : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  ? "border border-blue-600 bg-blue-600 !text-white hover:border-blue-700 hover:bg-blue-700 hover:!text-white"
+                  : "border border-slate-300 bg-white !text-slate-700 hover:bg-slate-50 hover:!text-slate-900"
               }`}
             >
               {summary.overdueCount > 0 ? "Registrar pago" : "Ver pagos"}
