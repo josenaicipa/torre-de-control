@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getActor } from "@/lib/actor";
 import { mergeStudentScope } from "@/lib/access";
 import { redirect } from "next/navigation";
+import { DeleteStudentButton } from "./delete-student-button";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ export default async function EstudiantesPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const isAdmin = actor.role === "ADMIN";
 
   return (
     <div>
@@ -147,12 +149,15 @@ export default async function EstudiantesPage({
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Inicio</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Fin</th>
               <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Estado</th>
+              {isAdmin && (
+                <th className="px-4 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Acciones</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sm text-slate-500">
+                <td colSpan={isAdmin ? 8 : 7} className="px-4 py-8 text-center text-sm text-slate-500">
                   No hay estudiantes para mostrar.
                 </td>
               </tr>
@@ -172,6 +177,11 @@ export default async function EstudiantesPage({
                   <td className="px-4 py-2 text-sm">
                     <StatusBadge status={s.status} />
                   </td>
+                  {isAdmin && (
+                    <td className="px-4 py-2 text-right text-sm">
+                      <DeleteStudentButton studentId={s.id} studentName={s.fullName} />
+                    </td>
+                  )}
                 </tr>
               ))
             )}

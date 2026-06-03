@@ -8,6 +8,7 @@ import { AvancesTab } from "./avances-tab";
 import { PagosTab } from "./pagos-tab";
 import { MetricasTab } from "./metricas-tab";
 import { ProductosTab } from "./productos-tab";
+import { DeleteStudentButton } from "../delete-student-button";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,16 @@ export default async function StudentDetailPage({
             </>
           )}
           <p className="mt-1">Mentor: {student.mentorUser?.name ?? student.mentorUser?.email ?? "—"}</p>
+          {actor.role === "ADMIN" && (
+            <div className="mt-3 flex justify-end">
+              <DeleteStudentButton
+                studentId={student.id}
+                studentName={student.fullName}
+                variant="full"
+                redirectTo="/operaciones/estudiantes"
+              />
+            </div>
+          )}
         </div>
       </div>
 

@@ -18,7 +18,29 @@ import {
   updateStudentTagSchema,
   createEnrollmentBaseSchema,
   referralSplitListSchema,
+  isHardDeleteConfirmed,
+  HARD_DELETE_CONFIRMATION,
 } from "./operaciones-validations";
+
+describe("isHardDeleteConfirmed", () => {
+  it("accepts the exact confirmation word", () => {
+    expect(isHardDeleteConfirmed(HARD_DELETE_CONFIRMATION)).toBe(true);
+    expect(isHardDeleteConfirmed("ELIMINAR")).toBe(true);
+  });
+
+  it("rejects mismatched, partial or wrongly-cased values", () => {
+    expect(isHardDeleteConfirmed("eliminar")).toBe(false);
+    expect(isHardDeleteConfirmed("ELIMINAR ")).toBe(false);
+    expect(isHardDeleteConfirmed("BORRAR")).toBe(false);
+    expect(isHardDeleteConfirmed("")).toBe(false);
+  });
+
+  it("rejects non-string values", () => {
+    expect(isHardDeleteConfirmed(undefined)).toBe(false);
+    expect(isHardDeleteConfirmed(null)).toBe(false);
+    expect(isHardDeleteConfirmed(123)).toBe(false);
+  });
+});
 
 describe("createStudentSchema", () => {
   it("accepts valid input", () => {

@@ -10,7 +10,10 @@ import {
 import { canAccessStudent } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
-import { updateStudentSchema } from "@/lib/operaciones-validations";
+import {
+  updateStudentSchema,
+  isHardDeleteConfirmed,
+} from "@/lib/operaciones-validations";
 import { calculateEndDate } from "@/domain/students";
 
 export const runtime = "nodejs";
@@ -113,25 +116,89 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: Request, { params }: Params) {
   try {
     const actor = await getActor();
     requireActor(actor);
     requireAdmin(actor);
     const { id } = await params;
 
-    const student = await prisma.student.update({
+    const url = new URL(req.url);
+    const isHardDelete = url.searchParams.get("hard") === "true";
+
+    if (!isHardDelete) {
+      const existing = await prisma.student.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!existing) return jsonError(404, "Estudiante no encontrado");
+
+      const student = await prisma.student.update({
+        where: { id },
+        data: { status: "DROPPED" },
+      });
+
+      await writeAudit({
+        actorId: actor.userId,
+        action: "student.soft_delete",
+        target: id,
+      });
+
+      return NextResponse.json({ student });
+    }
+
+    // Hard delete: eliminación definitiva del estudiante de prueba y toda su
+    // data operativa asociada (cascadas Prisma). Requiere confirmación exacta.
+    let confirmation: unknown;
+    try {
+      const body = await req.json();
+      confirmation = (body as { confirmation?: unknown })?.confirmation;
+    } catch {
+      confirmation = undefined;
+    }
+
+    if (!isHardDeleteConfirmed(confirmation)) {
+      return jsonError(
+        400,
+        'Para eliminar definitivamente debes confirmar escribiendo exactamente "ELIMINAR".',
+      );
+    }
+
+    const existing = await prisma.student.findUnique({
       where: { id },
-      data: { status: "DROPPED" },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        _count: {
+          select: {
+            paymentSchedules: true,
+            payments: true,
+            progressUpdates: true,
+            monthlyMetrics: true,
+            sales: true,
+            enrollments: true,
+            members: true,
+          },
+        },
+      },
     });
+    if (!existing) return jsonError(404, "Estudiante no encontrado");
+
+    await prisma.student.delete({ where: { id } });
 
     await writeAudit({
       actorId: actor.userId,
-      action: "student.soft_delete",
+      action: "student.hard_delete",
       target: id,
+      metadata: {
+        fullName: existing.fullName,
+        email: existing.email,
+        counts: existing._count,
+      },
     });
 
-    return NextResponse.json({ student });
+    return NextResponse.json({ ok: true, deleted: id });
   } catch (err) {
     return handleApiError(err);
   }

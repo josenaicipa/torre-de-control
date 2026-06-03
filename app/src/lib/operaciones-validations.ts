@@ -38,6 +38,16 @@ export const updateStudentSchema = createStudentSchema.partial().extend({
   currentBottleneck: z.string().max(500).optional().nullable(),
 });
 
+/**
+ * Palabra exacta que el ADMIN debe escribir para confirmar la eliminación
+ * definitiva (hard delete) de un estudiante de prueba y toda su data operativa.
+ */
+export const HARD_DELETE_CONFIRMATION = "ELIMINAR";
+
+export function isHardDeleteConfirmed(confirmation: unknown): boolean {
+  return confirmation === HARD_DELETE_CONFIRMATION;
+}
+
 export const listStudentsQuerySchema = z.object({
   search: z.string().max(200).optional(),
   mentorUserId: z.string().cuid().optional(),
