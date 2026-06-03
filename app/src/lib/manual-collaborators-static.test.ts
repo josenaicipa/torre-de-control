@@ -21,9 +21,9 @@ describe("manual collaborator labels", () => {
 
   it("uses Detalle Diario $ Venta HT as Torre CEO Valor Total Venta comprometido", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
-    expect(torreBlock).toContain('const totalValor=totalValorHT;');
+    expect(torreBlock).toContain('const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);');
     expect(torreBlock).not.toContain('const totalValor=totalValorHT+totalValorLT;');
-    expect(html).toContain('{l:"$ Venta HT",fn:d=>cv(d,"valor_venta_ht","valorVentaHT")||null,fmt:"$"}');
+    expect(html).toContain('{l:"$ Venta HT",fn:d=>valorHTDay(d)||null,fmt:"$"}');
     expect(html).toContain('<Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>');
   });
 
@@ -58,12 +58,12 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('member:"Admin",date,');
     expect(html).toContain('cashReservas:row.cash_reservas||0');
     expect(html).toContain('entriesByCollab.Admin.push(...valentinaCloserEntries);');
-    expect(html).toContain('const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);');
+    expect(html).toContain('const dispReservas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).reservas,0)||(cashApi?cashApi.reservas:0);');
     expect(llenarBlock).toContain('<Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>');
     expect(llenarBlock).toContain('<Inp label="$ Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>');
     expect(llenarBlock).toMatch(/<Inp label="# Reservas" value=\{form\.reservas\}[\s\S]*<Inp label="\$ Reservas" prefix="\$" value=\{form\.cashReservas\}/);
     expect(detalleBlock).toContain('{l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"}');
-    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
+    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>cashReservasDay(d)||null,fmt:"$"}');
     expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
   });
 
@@ -86,37 +86,53 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
     expect(torreBlock).toContain('const allowCommercialFallback=year>2026||(year===2026&&month>=5);');
     expect(torreBlock).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialMember(e.member)):[];');
-    expect(torreBlock).toContain('const totalValorHTFromCollaborators=sumF(collabCommercialEntries,"valorVentaHT");');
-    expect(torreBlock).toContain('const totalValorHT=totalValorHTFromCollaborators||sumF(closerEntries,"valor_venta_ht");');
+    expect(torreBlock).toContain('addByDay(commercialValorHTByDay,e.date,e.valorVentaHT);');
+    expect(torreBlock).toContain('valorHT:(closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0,');
     expect(torreBlock).toContain('const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");');
     expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
     expect(detalleBlock).toContain('const allowCommercialFallback=d>="2026-06-01";');
     expect(detalleBlock).toContain('const sdCommercial=f=>allowCommercialFallback?sumF(commercialEntries,f):0;');
     expect(detalleBlock).toContain('const cv=(d,closerField,entryField)=>d.sdCommercial(entryField)||d.closer[closerField]||0;');
     expect(detalleBlock).toContain('const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);');
-    expect(detalleBlock).toContain('const mValorHT=dayData.reduce((s,d)=>s+cv(d,"valor_venta_ht","valorVentaHT"),0);');
+    expect(detalleBlock).toContain('const mValorHT=dayData.reduce((s,d)=>s+valorHTDay(d),0);');
     expect(detalleBlock).toContain('{l:"# Ventas HT",fn:d=>cv(d,"q_ventas_ht","ventasHT")||null,fmt:"n"}');
-    expect(detalleBlock).toContain('{l:"$ Venta HT",fn:d=>cv(d,"valor_venta_ht","valorVentaHT")||null,fmt:"$"}');
-    expect(detalleBlock).toContain('{l:"Recurring Cash",fn:d=>cv(d,"recurring_cash","recurringCash")||null,fmt:"$"}');
+    expect(detalleBlock).toContain('{l:"$ Venta HT",fn:d=>valorHTDay(d)||null,fmt:"$"}');
+    expect(detalleBlock).toContain('{l:"Recurring Cash",fn:d=>recurringDay(d)||null,fmt:"$"}');
     expect(detalleBlock).toContain('{l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"}');
-    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null}');
+    expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>cashReservasDay(d)||null,fmt:"$"}');
   });
 
-  it("sums High Ticket cash day-by-day in Detalle Diario and Torre CEO instead of choosing one monthly source", () => {
-    expect(html).toContain('const monthlyCashDates=[...new Set([');
-    expect(html).toContain('...Object.keys(allCloser).filter(k=>k.startsWith(prefix)),');
-    expect(html).toContain('...Object.keys(commercialCashByDay).filter(k=>k.startsWith(prefix)),');
-    expect(html).toContain('...Object.keys(ledgerHTByDay).filter(k=>k.startsWith(prefix)),');
-    expect(html).toContain('const monthlyHighTicketCashDay=(date,closerRow)=>{');
-    expect(html).toContain('return (closerRow&&closerRow.ventas_cash)||commercial||ledger||0;');
-    expect(html).toContain('const manualHighTicketCash=monthlyCashDates.reduce((s,date)=>s+monthlyHighTicketCashDay(date,allCloser[date]),0);');
-    expect(html).toContain('const dispCash=manualHighTicketCash||(cashApi?cashApi.highTicket:0);');
-    expect(html).toContain('const dispHighT=manualHighTicketCash||(cashApi?cashApi.highTicket:0);');
+  it("sums commercial money metrics day-by-day in Detalle Diario and Torre CEO instead of choosing one monthly source", () => {
+    expect(html).toContain('const monthlyCommercialMoneyDates=[...new Set([');
+    expect(html).toContain('...Object.keys(commercialValorHTByDay).filter(k=>k.startsWith(prefix)),');
+    expect(html).toContain('...Object.keys(commercialRecurringByDay).filter(k=>k.startsWith(prefix)),');
+    expect(html).toContain('...Object.keys(commercialReservasByDay).filter(k=>k.startsWith(prefix)),');
+    expect(html).toContain('...Object.keys(ledgerLTByDay).filter(k=>k.startsWith(prefix)),');
+    expect(html).toContain('...Object.keys(ledgerReservasByDay).filter(k=>k.startsWith(prefix)),');
+    expect(html).toContain('const monthlyCommercialMoneyDay=(date,closerRow)=>{');
+    expect(html).toContain('valorHT:(closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0,');
+    expect(html).toContain('cashHT:(closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0,');
+    expect(html).toContain('recurring:(closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0,');
+    expect(html).toContain('lowTicket:(closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0,');
+    expect(html).toContain('reservas:(closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0,');
+    expect(html).toContain('const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);');
+    expect(html).toContain('const dispCash=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).cashHT,0)||(cashApi?cashApi.highTicket:0);');
+    expect(html).toContain('const totalRecurring=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).recurring,0);');
+    expect(html).toContain('const dispLowT=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).lowTicket,0)||(cashApi?cashApi.lowTicket:0);');
+    expect(html).toContain('const dispReservas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).reservas,0)||(cashApi?cashApi.reservas:0);');
+    expect(html).toContain('const valorHTDay=d=>d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;');
     expect(html).toContain('const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;');
-    expect(html).toContain('{l:"Cash Collected HT",fn:d=>cashHTDay(d)||null,fmt:"$"}');
-    expect(html).toContain('{l:"Cash + Recurring",fn:d=>{const c=cashHTDay(d);const t=c+cv(d,"recurring_cash","recurringCash");return t||null;},fmt:"$"}');
-    expect(html).toContain('{l:"% Cash Collected",fn:d=>{const c=cashHTDay(d),v=cv(d,"valor_venta_ht","valorVentaHT");return v>0?pv(c,v):null;},fmt:"%",');
-    expect(html).not.toContain('const manualHighTicketCash=totalCash||totalCashFromCollaborators;');
+    expect(html).toContain('const recurringDay=d=>d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;');
+    expect(html).toContain('const cashLowTicketDay=d=>d.closer.valor_venta_lt||d.ledger.lowTicket||0;');
+    expect(html).toContain('const cashReservasDay=d=>d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;');
+    expect(html).toContain('{l:"$ Venta HT",fn:d=>valorHTDay(d)||null,fmt:"$"}');
+    expect(html).toContain('{l:"Recurring Cash",fn:d=>recurringDay(d)||null,fmt:"$"}');
+    expect(html).toContain('{l:"$ Venta LT",fn:d=>cashLowTicketDay(d)||null,fmt:"$"}');
+    expect(html).toContain('{l:"$ Cash Reservas",fn:d=>cashReservasDay(d)||null,fmt:"$"}');
+    expect(html).not.toContain('const totalValorHT=totalValorHTFromCollaborators||sumF(closerEntries,"valor_venta_ht");');
+    expect(html).not.toContain('const totalReservasManual=sumF(closerEntries,"cash_reservas")||totalReservasFromCollaborators;');
+    expect(html).not.toContain('const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;');
+    expect(html).not.toContain('const totalRecurring=sumF(closerEntries,"recurring_cash");');
     expect(html).not.toContain('const mManualCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);');
     expect(html).not.toContain('d.ledger.highTicket||d.closer.ventas_cash||d.sdCommercial("upfrontCash")');
     expect(html).not.toContain('const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;');
@@ -313,7 +329,7 @@ describe("manual collaborator labels", () => {
     expect(saveEntryBlock).not.toContain('aggregateCommercialEntriesForCloser');
     expect(saveEntryBlock).not.toContain('saveCloserEntry(entry.date');
     expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
-    expect(torreBlock).toContain('const totalValor=totalValorHT;');
+    expect(torreBlock).toContain('const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);');
     expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
     expect(torreBlock).toContain('const totalAgendasCampo=totalAgendasFromCollaborators||sumF(closerEntries,"agendas_final");');
     expect(torreBlock).toContain('const totalLeadsCampo=totalLeadsFromCollaborators||sumF(closerEntries,"agendas_calificadas");');

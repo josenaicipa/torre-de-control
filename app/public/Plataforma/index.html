@@ -951,18 +951,9 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   // (e.g. Daniel's June 1 report) and must not rewrite closed May metrics.
   const allowCommercialFallback=year>2026||(year===2026&&month>=5);
   const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialMember(e.member)):[];
-  const totalCashFromCollaborators=sumF(collabCommercialEntries,"upfrontCash");
-  const totalCashBase=sumF(closerEntries,"ventas_cash");
-  const totalCash=totalCashBase||totalCashFromCollaborators;
-  const totalValorHTFromCollaborators=sumF(collabCommercialEntries,"valorVentaHT");
-  const totalValorHT=totalValorHTFromCollaborators||sumF(closerEntries,"valor_venta_ht");
-  const totalValorLT=sumF(closerEntries,"valor_venta_lt");
-  const totalReservasFromCollaborators=sumF(collabCommercialEntries,"cashReservas");
-  const totalReservasManual=sumF(closerEntries,"cash_reservas")||totalReservasFromCollaborators;
   // Keep Torre CEO's committed sales total aligned with Detalle Diario →
   // Ventas — Área Comercial → $ Venta HT. Low Ticket remains shown separately
   // as Cash Low Ticket and must not inflate this HT committed KPI.
-  const totalValor=totalValorHT;
   const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");
   const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");
   // Torre CEO must show the larger upstream count as "Citas agendadas reales"
@@ -999,36 +990,57 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   // legacy/manual snapshot and can go stale (e.g. May 30 still showing day 28).
   const day=isPast?dm:isFuture?0:Math.min(_curD,dm);
 
-  const totalUpfront=sumF(closerEntries,"upfront_cash_ht");
-  const totalRecurring=sumF(closerEntries,"recurring_cash");
-
-  // Cash Collected HT is owned by Valentina/Admin + closers in Área Comercial.
-  // The payment ledger stays available as a fallback/drill-down, but must not
-  // override the operational cash registered by the commercial team.
+  // Cash/ventas money metrics are owned by Valentina/Admin + closers in Área Comercial.
+  // The payment ledger stays available as fallback/drill-down, but must not
+  // override the operational values registered by the commercial team.
   const cashApi=cash&&cash.available&&cash.totals?cash.totals:null;
   const cashGroups=(cash&&cash.groups)||{};
   const ledgerHTByDay={};
-  (cashGroups.highTicket||[]).forEach(r=>{const d=localPayDate(r.paidAt);if(d)ledgerHTByDay[d]=(ledgerHTByDay[d]||0)+(Number(r.amountUsd)||0);});
+  const ledgerLTByDay={};
+  const ledgerReservasByDay={};
+  const addByDay=(map,date,value)=>{if(date)map[date]=(map[date]||0)+(Number(value)||0);};
+  (cashGroups.highTicket||[]).forEach(r=>addByDay(ledgerHTByDay,localPayDate(r.paidAt),r.amountUsd));
+  (cashGroups.lowTicket||[]).forEach(r=>addByDay(ledgerLTByDay,localPayDate(r.paidAt),r.amountUsd));
+  (cashGroups.reservas||[]).forEach(r=>addByDay(ledgerReservasByDay,localPayDate(r.paidAt),r.amountUsd));
+  const commercialValorHTByDay={};
   const commercialCashByDay={};
-  collabCommercialEntries.forEach(e=>{if(e&&e.date)commercialCashByDay[e.date]=(commercialCashByDay[e.date]||0)+(Number(e.upfrontCash)||0);});
-  const monthlyCashDates=[...new Set([
+  const commercialRecurringByDay={};
+  const commercialReservasByDay={};
+  collabCommercialEntries.forEach(e=>{
+    if(!e||!e.date)return;
+    addByDay(commercialValorHTByDay,e.date,e.valorVentaHT);
+    addByDay(commercialCashByDay,e.date,e.upfrontCash);
+    addByDay(commercialRecurringByDay,e.date,e.recurringCash);
+    addByDay(commercialReservasByDay,e.date,e.cashReservas);
+  });
+  const monthlyCommercialMoneyDates=[...new Set([
     ...Object.keys(allCloser).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(commercialValorHTByDay).filter(k=>k.startsWith(prefix)),
     ...Object.keys(commercialCashByDay).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(commercialRecurringByDay).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(commercialReservasByDay).filter(k=>k.startsWith(prefix)),
     ...Object.keys(ledgerHTByDay).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(ledgerLTByDay).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(ledgerReservasByDay).filter(k=>k.startsWith(prefix)),
   ])];
-  const monthlyHighTicketCashDay=(date,closerRow)=>{
-    const commercial=commercialCashByDay[date]||0;
-    const ledger=ledgerHTByDay[date]||0;
-    return (closerRow&&closerRow.ventas_cash)||commercial||ledger||0;
+  const monthlyCommercialMoneyDay=(date,closerRow)=>{
+    return {
+      valorHT:(closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0,
+      cashHT:(closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0,
+      recurring:(closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0,
+      lowTicket:(closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0,
+      reservas:(closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0,
+    };
   };
-  const manualHighTicketCash=monthlyCashDates.reduce((s,date)=>s+monthlyHighTicketCashDay(date,allCloser[date]),0);
-  const dispCash=manualHighTicketCash||(cashApi?cashApi.highTicket:0);
-  const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;
-  const dispHighT=manualHighTicketCash||(cashApi?cashApi.highTicket:0);
-  const dispReservas=totalReservasManual||(cashApi?cashApi.reservas:0);
+  const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);
+  const dispCash=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).cashHT,0)||(cashApi?cashApi.highTicket:0);
+  const totalRecurring=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).recurring,0);
+  const dispLowT=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).lowTicket,0)||(cashApi?cashApi.lowTicket:0);
+  const dispHighT=dispCash;
+  const dispReservas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).reservas,0)||(cashApi?cashApi.reservas:0);
   const reviewCount=cashApi&&cashApi.counts?cashApi.counts.reviewRequired:0;
   const reviewAmount=cashApi?cashApi.reviewRequired:0;
-  const manualCommercialCash=totalCash+totalValorLT+totalReservasManual;
+  const manualCommercialCash=dispCash+dispLowT+dispReservas;
   const hasManualCommercialCash=manualCommercialCash>0;
   const openDrill=(title,key)=>{if(!cashApi)return;setDrill({title,rows:cashGroups[key]||[]});};
 
@@ -1971,16 +1983,19 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mHoyTotal=dayData.reduce((s,d)=>s+manualAgendasHoy(d),0);
   const mShows=dayData.reduce((s,d)=>s+manualShowUps(d),0);
   const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);
-  const mValorHT=dayData.reduce((s,d)=>s+cv(d,"valor_venta_ht","valorVentaHT"),0);
+  const valorHTDay=d=>d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;
+  const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
+  const recurringDay=d=>d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;
+  const cashLowTicketDay=d=>d.closer.valor_venta_lt||d.ledger.lowTicket||0;
+  const cashReservasDay=d=>d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;
+  const mValorHT=dayData.reduce((s,d)=>s+valorHTDay(d),0);
   const mLedgerCash=dayData.reduce((s,d)=>s+(d.ledger.cashCollected||0),0);
   const mLedgerHT=dayData.reduce((s,d)=>s+(d.ledger.highTicket||0),0);
   const mLedgerLT=dayData.reduce((s,d)=>s+(d.ledger.lowTicket||0),0);
   const mLedgerReservas=dayData.reduce((s,d)=>s+(d.ledger.reservas||0),0);
-  const mReservasManual=dayData.reduce((s,d)=>s+(d.sdCommercial("cashReservas")||d.closer.cash_reservas||0),0);
-  const mReservasCash=mReservasManual||mLedgerReservas;
-  const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
+  const mReservasCash=dayData.reduce((s,d)=>s+cashReservasDay(d),0);
   const mCashHT=dayData.reduce((s,d)=>s+cashHTDay(d),0);
-  const mRecurring=dayData.reduce((s,d)=>s+cv(d,"recurring_cash","recurringCash"),0);
+  const mRecurring=dayData.reduce((s,d)=>s+recurringDay(d),0);
 
   const GROUPS=[
     {title:"Gasto Publicitario",bg:"#1e40af",rows:[
@@ -2042,18 +2057,18 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     ]},
     {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
       {l:"# Ventas HT",fn:d=>cv(d,"q_ventas_ht","ventasHT")||null,fmt:"n"},
-      {l:"$ Venta HT",fn:d=>cv(d,"valor_venta_ht","valorVentaHT")||null,fmt:"$"},
+      {l:"$ Venta HT",fn:d=>valorHTDay(d)||null,fmt:"$"},
       {l:"Cash Collected HT",fn:d=>cashHTDay(d)||null,fmt:"$"},
-      {l:"Recurring Cash",fn:d=>cv(d,"recurring_cash","recurringCash")||null,fmt:"$"},
-      {l:"Cash + Recurring",fn:d=>{const c=cashHTDay(d);const t=c+cv(d,"recurring_cash","recurringCash");return t||null;},fmt:"$"},
-      {l:"% Cash Collected",fn:d=>{const c=cashHTDay(d),v=cv(d,"valor_venta_ht","valorVentaHT");return v>0?pv(c,v):null;},fmt:"%",
+      {l:"Recurring Cash",fn:d=>recurringDay(d)||null,fmt:"$"},
+      {l:"Cash + Recurring",fn:d=>{const c=cashHTDay(d);const t=c+recurringDay(d);return t||null;},fmt:"$"},
+      {l:"% Cash Collected",fn:d=>{const c=cashHTDay(d),v=valorHTDay(d);return v>0?pv(c,v):null;},fmt:"%",
         totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
       {l:"% Closing Rate",fn:d=>{const s=cv(d,"citas_asistidas","showUps"),v=cv(d,"q_ventas_ht","ventasHT");return s>0?pv(v,s):null;},fmt:"%",
         totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
       {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
-      {l:"$ Venta LT",fn:d=>d.ledger.lowTicket||d.closer.valor_venta_lt||null,fmt:"$",totFn:()=>mLedgerLT||null},
+      {l:"$ Venta LT",fn:d=>cashLowTicketDay(d)||null,fmt:"$"},
       {l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"},
-      {l:"$ Cash Reservas",fn:d=>d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||null,fmt:"$",totFn:()=>mReservasCash||null},
+      {l:"$ Cash Reservas",fn:d=>cashReservasDay(d)||null,fmt:"$"},
       {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
       {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
       {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
@@ -2076,7 +2091,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       </div>
       {cash&&cash.available&&(
         <div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
-Cash Collected/Low Ticket se llenan desde el ledger real de pagos. Reservas usa primero el dato manual de Área Comercial/Valentina y el ledger queda como fallback para verificación.
+Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Área Comercial/Valentina; el ledger real de pagos queda como fallback para verificación.
         </div>
       )}
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
