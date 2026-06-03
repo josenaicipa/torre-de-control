@@ -214,7 +214,7 @@ export function PagosTab({
               <button
                 type="button"
                 onClick={() => setShowScheduleForm(true)}
-                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+                className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800"
               >
                 + Configurar cronograma
               </button>
@@ -1354,7 +1354,7 @@ function DialogActions({
       <button type="button" onClick={onClose} className="rounded-md border border-slate-300 px-3 py-2 text-sm">
         Cancelar
       </button>
-      <button type="submit" disabled={loading} className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+      <button type="submit" disabled={loading} className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium !text-white disabled:opacity-50">
         {loading ? "Guardando..." : submitLabel}
       </button>
     </div>

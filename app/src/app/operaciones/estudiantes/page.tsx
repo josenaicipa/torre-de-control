@@ -82,7 +82,7 @@ export default async function EstudiantesPage({
         {(actor.role === "ADMIN" || actor.role === "OPERATOR") && (
           <Link
             href="/operaciones/estudiantes/nuevo"
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium !text-white no-underline hover:bg-slate-800 hover:!text-white"
           >
             + Nuevo estudiante
           </Link>

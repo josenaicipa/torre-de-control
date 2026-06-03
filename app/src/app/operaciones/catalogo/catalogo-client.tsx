@@ -341,7 +341,7 @@ function ProductosSection({
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800"
           >
             + Nuevo producto
           </button>
@@ -886,7 +886,7 @@ function ProductForm({
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium !text-white disabled:opacity-50"
         >
           {submitting ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear producto"}
         </button>
@@ -974,7 +974,7 @@ function CuentasSection({
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800"
           >
             + Nueva cuenta
           </button>
@@ -1333,7 +1333,7 @@ function PaymentAccountForm({
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium !text-white disabled:opacity-50"
         >
           {submitting ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear cuenta"}
         </button>
@@ -1415,7 +1415,7 @@ function ProveedoresSection({
           <button
             type="button"
             onClick={() => setEditing("new")}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800"
           >
             + Nuevo proveedor
           </button>
@@ -1640,7 +1640,7 @@ function PaymentProviderForm({
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium !text-white disabled:opacity-50"
         >
           {submitting ? "Guardando..." : isEdit ? "Guardar cambios" : "Crear proveedor"}
         </button>
