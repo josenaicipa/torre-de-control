@@ -1913,9 +1913,10 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     return fN(v);
   };
 
-  // For ratio rows (cost/rate), total uses monthly aggregates instead of day average
+  // Total / Mes must sum the visible daily cells for every non-% row. Only
+  // percentage rows may use a monthly denominator formula via totFn.
   const rowTotalVal=(row)=>{
-    if(row.totFn) return row.totFn();
+    if(row.fmt==="%"&&row.totFn) return row.totFn();
     if(row.fmt==="%"){
       const vals=dayData.map(d=>row.fn(d)).filter(v=>v!==null&&v!==undefined);
       return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;

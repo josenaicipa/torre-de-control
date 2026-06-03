@@ -44,6 +44,16 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
     ]);
   });
 
+  it.each(dashboardFiles)("sums visible daily cells for Total / Mes except percentage rows in %s", (relativePath) => {
+    const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
+    const rowTotalBlock = source.slice(source.indexOf('const rowTotalVal=(row)=>{'), source.indexOf('// Monthly aggregates for cost calculations'));
+
+    expect(rowTotalBlock).toContain('if(row.fmt==="%"&&row.totFn) return row.totFn();');
+    expect(rowTotalBlock).toContain('if(row.fmt==="%")');
+    expect(rowTotalBlock).toContain('const t=dayData.reduce((s,d)=>{const v=row.fn(d);return s+(v||0);},0);');
+    expect(rowTotalBlock).not.toContain('if(row.totFn) return row.totFn();');
+  });
+
   it.each(dashboardFiles)("uses manual Área Comercial fields for June-onward operational rows in %s", (relativePath) => {
     const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
     const block = extractAgendasBlock(source);
