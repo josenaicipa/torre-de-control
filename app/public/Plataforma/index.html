@@ -841,6 +841,10 @@ const SectionTitle=({children})=>(
 
 // Spanish labels for the ticket classification returned by /api/payments/summary.
 const CLASS_ES={LOW_TICKET:"Low Ticket",HIGH_TICKET:"High Ticket",RESERVA:"Reserva",UNKNOWN:"—"};
+const localPayDate=iso=>{
+  if(!iso)return null;const d=new Date(iso);if(isNaN(d.getTime()))return null;
+  return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+};
 const fDateShort=iso=>{if(!iso)return"—";const d=new Date(iso);if(isNaN(d.getTime()))return"—";
   return d.toLocaleDateString("es-CO",{day:"2-digit",month:"short",year:"numeric"});};
 
@@ -1003,7 +1007,21 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   // override the operational cash registered by the commercial team.
   const cashApi=cash&&cash.available&&cash.totals?cash.totals:null;
   const cashGroups=(cash&&cash.groups)||{};
-  const manualHighTicketCash=totalCash||totalCashFromCollaborators;
+  const ledgerHTByDay={};
+  (cashGroups.highTicket||[]).forEach(r=>{const d=localPayDate(r.paidAt);if(d)ledgerHTByDay[d]=(ledgerHTByDay[d]||0)+(Number(r.amountUsd)||0);});
+  const commercialCashByDay={};
+  collabCommercialEntries.forEach(e=>{if(e&&e.date)commercialCashByDay[e.date]=(commercialCashByDay[e.date]||0)+(Number(e.upfrontCash)||0);});
+  const monthlyCashDates=[...new Set([
+    ...Object.keys(allCloser).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(commercialCashByDay).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(ledgerHTByDay).filter(k=>k.startsWith(prefix)),
+  ])];
+  const monthlyHighTicketCashDay=(date,closerRow)=>{
+    const commercial=commercialCashByDay[date]||0;
+    const ledger=ledgerHTByDay[date]||0;
+    return (closerRow&&closerRow.ventas_cash)||commercial||ledger||0;
+  };
+  const manualHighTicketCash=monthlyCashDates.reduce((s,date)=>s+monthlyHighTicketCashDay(date,allCloser[date]),0);
   const dispCash=manualHighTicketCash||(cashApi?cashApi.highTicket:0);
   const dispLowT=cashApi?cashApi.lowTicket:totalValorLT;
   const dispHighT=manualHighTicketCash||(cashApi?cashApi.highTicket:0);
@@ -1870,11 +1888,6 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   },[year,month]);
 
   const cashGroups=(cash&&cash.available&&cash.groups)||{};
-  const localPayDate=iso=>{
-    if(!iso)return null;
-    try{return new Date(iso).toLocaleDateString("en-CA",{timeZone:"America/Bogota"});}
-    catch(e){return String(iso).slice(0,10);}
-  };
   const ledgerByDay={};
   const addLedger=(metric,rows)=>{(rows||[]).forEach(r=>{const d=localPayDate(r.paidAt);if(!d)return;ledgerByDay[d]=ledgerByDay[d]||{};ledgerByDay[d][metric]=(ledgerByDay[d][metric]||0)+(Number(r.amountUsd)||0);});};
   addLedger("cashCollected",cashGroups.cashCollected);
@@ -1965,8 +1978,8 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mLedgerReservas=dayData.reduce((s,d)=>s+(d.ledger.reservas||0),0);
   const mReservasManual=dayData.reduce((s,d)=>s+(d.sdCommercial("cashReservas")||d.closer.cash_reservas||0),0);
   const mReservasCash=mReservasManual||mLedgerReservas;
-  const mManualCashHT=dayData.reduce((s,d)=>s+(d.closer.ventas_cash||0),0)||dayData.reduce((s,d)=>s+d.sdCommercial("upfrontCash"),0);
-  const mCashHT=mManualCashHT||mLedgerHT;
+  const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
+  const mCashHT=dayData.reduce((s,d)=>s+cashHTDay(d),0);
   const mRecurring=dayData.reduce((s,d)=>s+cv(d,"recurring_cash","recurringCash"),0);
 
   const GROUPS=[
@@ -2030,11 +2043,10 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     {title:"Ventas — Área Comercial",bg:"#c2410c",rows:[
       {l:"# Ventas HT",fn:d=>cv(d,"q_ventas_ht","ventasHT")||null,fmt:"n"},
       {l:"$ Venta HT",fn:d=>cv(d,"valor_venta_ht","valorVentaHT")||null,fmt:"$"},
-      {l:"Cash Collected HT",fn:d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||null,fmt:"$",totFn:()=>mCashHT||null},
+      {l:"Cash Collected HT",fn:d=>cashHTDay(d)||null,fmt:"$"},
       {l:"Recurring Cash",fn:d=>cv(d,"recurring_cash","recurringCash")||null,fmt:"$"},
-      {l:"Cash + Recurring",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;const t=c+cv(d,"recurring_cash","recurringCash");return t||null;},fmt:"$",
-        totFn:()=>mCashHT+mRecurring||null},
-      {l:"% Cash Collected",fn:d=>{const c=d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0,v=cv(d,"valor_venta_ht","valorVentaHT");return v>0?pv(c,v):null;},fmt:"%",
+      {l:"Cash + Recurring",fn:d=>{const c=cashHTDay(d);const t=c+cv(d,"recurring_cash","recurringCash");return t||null;},fmt:"$"},
+      {l:"% Cash Collected",fn:d=>{const c=cashHTDay(d),v=cv(d,"valor_venta_ht","valorVentaHT");return v>0?pv(c,v):null;},fmt:"%",
         totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
       {l:"% Closing Rate",fn:d=>{const s=cv(d,"citas_asistidas","showUps"),v=cv(d,"q_ventas_ht","ventasHT");return s>0?pv(v,s):null;},fmt:"%",
         totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
