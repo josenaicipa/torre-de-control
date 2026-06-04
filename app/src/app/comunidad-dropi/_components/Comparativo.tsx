@@ -3,10 +3,9 @@
 // período actual vs. período de comparación con KPIs, serie temporal con
 // superposición y desglose top por miembro (entregadas e ingresadas).
 //
-// `formAction` permite que la sección viva en cualquier ruta sin perder los
-// otros query params: el host pasa los nombres del granularity/current/comparison
-// que usa y los inputs ocultos necesarios para preservar su propio estado
-// (por ejemplo el `?period=` mensual del Radar).
+// La selección de período/granularidad vive en el filtro único superior
+// (RadarPeriodFiltro); la comparación es automática contra el período anterior,
+// así que esta sección no monta controles propios.
 //
 // Mantenemos la capa de datos en `_lib/crecimiento-data.ts`; este archivo es
 // puramente presentacional.
@@ -22,13 +21,6 @@ import type {
 
 export interface ComparativoSectionProps {
   comparativo: Comparativo;
-  // URL a la que apuntan los formularios de selección de granularidad y
-  // período (típicamente la misma ruta donde vive la sección).
-  formAction: string;
-  // Inputs ocultos extra que se agregan al form: sirven para preservar otros
-  // query params del host (p. ej. `?period=` del Radar mensual) cuando se
-  // cambia la granularidad o el período comparativo.
-  extraHiddenInputs?: ReadonlyArray<{ name: string; value: string }>;
   // Título de la cabecera. Default: "Seguimiento de crecimiento".
   title?: string;
   // Sub-eyebrow corto. Default: "Crecimiento vs. comparación".
@@ -36,22 +28,14 @@ export interface ComparativoSectionProps {
   // Si true, agrega un link de drill-down al final de la sección.
   drillDownHref?: string;
   drillDownLabel?: string;
-  // Si true, oculta los controles manuales (granularidad / período /
-  // comparación). Se usa cuando el host ya monta un filtro único arriba
-  // (RadarPeriodFiltro) y la comparación es automática contra el período
-  // anterior.
-  hideControls?: boolean;
 }
 
 export function ComparativoSection({
   comparativo,
-  formAction,
-  extraHiddenInputs,
   title = "Seguimiento de crecimiento",
   eyebrow = "Crecimiento vs. comparación",
   drillDownHref,
   drillDownLabel,
-  hideControls = false,
 }: ComparativoSectionProps) {
   const granularityLabel =
     comparativo.granularity === "weekly" ? "Semanal" : "Mensual";
@@ -111,13 +95,6 @@ export function ComparativoSection({
               : " (vista mensual)."}
           </p>
         </div>
-        {hideControls ? null : (
-          <ComparativoControls
-            comparativo={comparativo}
-            formAction={formAction}
-            extraHiddenInputs={extraHiddenInputs}
-          />
-        )}
       </header>
 
       <KpiRow kpis={comparativo.kpis} comparativo={comparativo} />
@@ -160,110 +137,6 @@ export function ComparativoSection({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function ComparativoControls({
-  comparativo,
-  formAction,
-  extraHiddenInputs,
-}: {
-  comparativo: Comparativo;
-  formAction: string;
-  extraHiddenInputs?: ReadonlyArray<{ name: string; value: string }>;
-}) {
-  const isWeekly = comparativo.granularity === "weekly";
-  const comparisonModeLabel = isWeekly
-    ? "Comparación semanal"
-    : "Comparación mensual";
-  const principalLabel = isWeekly ? "Semana principal" : "Mes principal";
-  return (
-    <form
-      method="get"
-      action={formAction}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        alignItems: "flex-start",
-      }}
-    >
-      {extraHiddenInputs?.map((h, i) => (
-        <input
-          key={`${h.name}-${i}`}
-          type="hidden"
-          name={h.name}
-          value={h.value}
-        />
-      ))}
-      <p
-        style={{
-          margin: 0,
-          fontSize: 12,
-          fontWeight: 800,
-          color: COLORS.text,
-        }}
-      >
-        {comparisonModeLabel}
-      </p>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          alignItems: "flex-end",
-        }}
-      >
-        <SelectField
-          name="granularity"
-          label="Ver"
-          defaultValue={comparativo.granularity}
-        >
-          <option value="weekly">Semanal</option>
-          <option value="monthly">Mensual</option>
-        </SelectField>
-        <SelectField
-          name="current"
-          label={principalLabel}
-          defaultValue={comparativo.current.key}
-        >
-          {comparativo.available.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.label}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField
-          name="comparison"
-          label="Comparar con"
-          defaultValue={comparativo.comparison?.key ?? ""}
-        >
-          <option value="">Sin comparación</option>
-          {comparativo.available
-            .filter((p) => p.key !== comparativo.current.key)
-            .map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.label}
-              </option>
-            ))}
-        </SelectField>
-        <button type="submit" style={primaryButtonStyle()}>
-          Aplicar
-        </button>
-      </div>
-      <p
-        style={{
-          margin: 0,
-          fontSize: 11,
-          color: COLORS.textMuted,
-          lineHeight: 1.45,
-          maxWidth: 320,
-        }}
-      >
-        Para comparar semanas: dejá Ver = Semanal, elegí Semana principal y
-        Comparar con, luego Aplicar.
-      </p>
-    </form>
   );
 }
 
@@ -823,59 +696,6 @@ function MemberBreakdownCard({
   );
 }
 
-function SelectField({
-  name,
-  defaultValue,
-  children,
-  ariaLabel,
-  label,
-}: {
-  name: string;
-  defaultValue: string;
-  children: React.ReactNode;
-  ariaLabel?: string;
-  label?: string;
-}) {
-  const select = (
-    <select
-      name={name}
-      defaultValue={defaultValue}
-      aria-label={label ? undefined : ariaLabel}
-      style={{
-        padding: "6px 10px",
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 6,
-        fontSize: 12,
-        backgroundColor: COLORS.surface,
-        color: COLORS.text,
-        fontFamily: "inherit",
-      }}
-    >
-      {children}
-    </select>
-  );
-
-  if (!label) {
-    return select;
-  }
-
-  return (
-    <label
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        fontSize: 11,
-        color: COLORS.textMuted,
-        fontWeight: 600,
-      }}
-    >
-      {label}
-      {select}
-    </label>
-  );
-}
-
 function eyebrowStyle(): React.CSSProperties {
   return {
     margin: 0,
@@ -884,20 +704,6 @@ function eyebrowStyle(): React.CSSProperties {
     fontWeight: 700,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-  };
-}
-
-function primaryButtonStyle(): React.CSSProperties {
-  return {
-    padding: "6px 12px",
-    border: `1px solid ${COLORS.brand}`,
-    borderRadius: 6,
-    backgroundColor: COLORS.brand,
-    color: COLORS.surface,
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-    fontFamily: "inherit",
   };
 }
 

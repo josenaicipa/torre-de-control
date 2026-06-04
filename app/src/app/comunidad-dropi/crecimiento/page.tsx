@@ -91,8 +91,6 @@ export default async function CrecimientoPage({
               </div>
               <ComparativoSection
                 comparativo={comparativo}
-                formAction="/comunidad-dropi/crecimiento"
-                hideControls
                 eyebrow="Crecimiento vs. comparación"
                 title="Seguimiento de crecimiento"
               />

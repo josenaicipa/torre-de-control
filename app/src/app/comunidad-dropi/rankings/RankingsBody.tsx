@@ -19,8 +19,11 @@ import {
   type RadarSegment,
 } from "@/lib/comunidad-dropi-radar";
 import { COLORS } from "../_lib/tokens";
-import { buildSearchString } from "../_lib/period";
-import { PeriodSelector } from "../_components/PeriodSelector";
+import { buildSearchString, monthlyCurrentKey } from "../_lib/period";
+import {
+  PeriodGranularityFiltro,
+  type PeriodOption,
+} from "../_components/PeriodGranularityFiltro";
 import { formatMonthRef } from "../_lib/radar-cache";
 import type { AvailableMonth } from "../_lib/radar-data";
 
@@ -57,7 +60,7 @@ export function RankingsBody({
   members,
   available,
   current,
-  period,
+  currentKey,
   initialSort,
   initialSegment,
   initialCountry,
@@ -65,7 +68,7 @@ export function RankingsBody({
   members: RadarMember[];
   available: AvailableMonth[];
   current: { year: number; month: number };
-  period: string | null;
+  currentKey: string | null;
   initialSort: RadarRankingCriterion;
   initialSegment: RadarSegment | null;
   initialCountry: string | null;
@@ -81,18 +84,19 @@ export function RankingsBody({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const search = buildSearchString({
+      granularity: "monthly",
+      current: currentKey,
       sort: sort === "DELIVERED" ? null : sort,
       segment: segmentFilter,
       country: countryFilter,
-      period,
     });
     const next = window.location.pathname + search + window.location.hash;
-    const current =
+    const currentUrl =
       window.location.pathname + window.location.search + window.location.hash;
-    if (next !== current) {
+    if (next !== currentUrl) {
       window.history.replaceState(null, "", next);
     }
-  }, [sort, segmentFilter, countryFilter, period]);
+  }, [sort, segmentFilter, countryFilter, currentKey]);
 
   const ranked = useMemo(() => {
     let pool = members;
@@ -121,6 +125,14 @@ export function RankingsBody({
     [members],
   );
 
+  // Motor mensual: el filtro unificado muestra "Ver por" con Semana
+  // deshabilitada (Rankings solo soporta cierres mensuales) y la lista de
+  // meses disponibles como período principal. Los filtros cliente
+  // (sort/segment/country) viajan como hidden inputs del submit GET.
+  const periodOptions: PeriodOption[] = available.map((a) => ({
+    key: monthlyCurrentKey(a),
+    label: formatMonthRef(a),
+  }));
   const periodHidden = {
     sort: sort === "DELIVERED" ? null : sort,
     segment: segmentFilter,
@@ -145,10 +157,12 @@ export function RankingsBody({
           Mes: <strong>{formatMonthRef(current)}</strong> · {ranked.length}{" "}
           miembros mostrados de {members.length}.
         </span>
-        <PeriodSelector
-          basePath="/comunidad-dropi/rankings"
-          active={current}
-          available={available}
+        <PeriodGranularityFiltro
+          granularity="monthly"
+          weeklyAvailable={false}
+          options={periodOptions}
+          currentKey={monthlyCurrentKey(current)}
+          formAction="/comunidad-dropi/rankings"
           hiddenParams={periodHidden}
         />
       </div>

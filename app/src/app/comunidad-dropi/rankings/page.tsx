@@ -9,7 +9,7 @@ import {
 } from "@/lib/comunidad-dropi-radar";
 import { loadRadar } from "../_lib/radar-data";
 import { COLORS } from "../_lib/tokens";
-import { parsePeriod, periodKey } from "../_lib/period";
+import { parseMonthlyCurrent, monthlyCurrentKey } from "../_lib/period";
 import { SubNav } from "../_components/SubNav";
 import { RankingsBody } from "./RankingsBody";
 
@@ -49,12 +49,13 @@ export default async function RankingsPage({
   const segmentFilter =
     sp.segment && isSegment(sp.segment) ? (sp.segment as RadarSegment) : null;
   const countryFilter = sp.country?.trim() || null;
-  const { year, month } = parsePeriod(sp.period);
+  // Filtro unificado `?current=m:YYYY-M`; acepta el viejo `?period=YYYY-M`.
+  const { year, month } = parseMonthlyCurrent(sp.current, sp.period);
 
   const { radar, available } = await loadRadar({ year, month });
   // El periodo efectivo viene del loader: si lo pedido no existe, cae al más
   // reciente. Eso evita que los links/forms preserven un periodo inválido.
-  const period = radar ? periodKey(radar.current) : null;
+  const currentKey = radar ? monthlyCurrentKey(radar.current) : null;
 
   return (
     <div
@@ -73,7 +74,7 @@ export default async function RankingsPage({
           members={radar.members}
           available={available}
           current={radar.current}
-          period={period}
+          currentKey={currentKey}
           initialSort={sort}
           initialSegment={segmentFilter}
           initialCountry={countryFilter}

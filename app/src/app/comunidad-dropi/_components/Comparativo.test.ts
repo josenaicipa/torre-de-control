@@ -43,43 +43,31 @@ function makeComparativo(overrides?: Partial<Comparativo>): Comparativo {
   };
 }
 
-function renderSection(comparativo: Comparativo, hideControls: boolean): string {
+function renderSection(comparativo: Comparativo): string {
   return renderToStaticMarkup(
     createElement(ComparativoSection, {
       comparativo,
-      formAction: "/comunidad-dropi/crecimiento",
-      hideControls,
     }),
   );
 }
 
-describe("ComparativoSection — controles manuales", () => {
-  it("por defecto muestra el selector manual 'Comparar con' y el helper", () => {
-    const html = renderSection(makeComparativo(), false);
-    expect(html).toContain("Comparar con");
-    expect(html).toContain("Sin comparación");
-    expect(html).toContain("Para comparar semanas");
-  });
-
-  it("con hideControls no renderiza 'Comparar con' ni 'Sin comparación' ni el helper", () => {
-    const html = renderSection(makeComparativo(), true);
+describe("ComparativoSection — sin controles manuales", () => {
+  it("no renderiza el selector manual 'Comparar con' ni el helper", () => {
+    const html = renderSection(makeComparativo());
     expect(html).not.toContain("Comparar con");
     expect(html).not.toContain("Sin comparación");
     expect(html).not.toContain("Para comparar semanas");
   });
 
-  it("con hideControls no muestra 'Sin comparación' aunque no haya período previo", () => {
-    const html = renderSection(
-      makeComparativo({ comparison: null }),
-      true,
-    );
+  it("no muestra 'Sin comparación' aunque no haya período previo", () => {
+    const html = renderSection(makeComparativo({ comparison: null }));
     expect(html).not.toContain("Sin comparación");
   });
 });
 
 describe("Crecimiento — filtro único como en Radar", () => {
   // Reproduce lo que monta la página: RadarPeriodFiltro arriba +
-  // ComparativoSection con los controles ocultos.
+  // ComparativoSection sin controles propios.
   function renderPantalla(comparativo: Comparativo): string {
     return (
       renderToStaticMarkup(
@@ -87,7 +75,7 @@ describe("Crecimiento — filtro único como en Radar", () => {
           comparativo,
           formAction: "/comunidad-dropi/crecimiento",
         }),
-      ) + renderSection(comparativo, true)
+      ) + renderSection(comparativo)
     );
   }
 

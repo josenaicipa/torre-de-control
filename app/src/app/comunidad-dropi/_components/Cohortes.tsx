@@ -8,7 +8,7 @@
 //     con `current.ordersDelivered >= deliveredCohortMin`.
 //
 // El selector de mes es opcional: el host puede ocultarlo si ya controla el
-// mes desde otro selector (p. ej. el PeriodSelector mensual del Radar).
+// mes desde otro selector (p. ej. el filtro superior / PeriodGranularityFiltro).
 
 import Link from "next/link";
 import {

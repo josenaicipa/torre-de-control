@@ -12,9 +12,16 @@ import {
   type AvailableMonth,
 } from "../_lib/radar-data";
 import { COLORS } from "../_lib/tokens";
-import { parsePeriod, periodKey, buildHref } from "../_lib/period";
+import {
+  parseMonthlyCurrent,
+  monthlyCurrentKey,
+  buildHref,
+} from "../_lib/period";
 import { SubNav } from "../_components/SubNav";
-import { PeriodSelector } from "../_components/PeriodSelector";
+import {
+  PeriodGranularityFiltro,
+  type PeriodOption,
+} from "../_components/PeriodGranularityFiltro";
 
 export const dynamic = "force-dynamic";
 
@@ -52,11 +59,12 @@ export default async function SegmentosPage({
   const actor = await getActor();
   if (!actor) redirect("/login");
   const sp = flatten(await searchParams);
-  const { year, month } = parsePeriod(sp.period);
+  // Filtro unificado `?current=m:YYYY-M`; acepta el viejo `?period=YYYY-M`.
+  const { year, month } = parseMonthlyCurrent(sp.current, sp.period);
   const { radar, available } = await loadRadar({ year, month });
   // El periodo efectivo viene del loader: si lo pedido no existe, cae al más
   // reciente, así los links/chips muestran un mes coherente con el calculado.
-  const period = radar ? periodKey(radar.current) : null;
+  const currentKey = radar ? monthlyCurrentKey(radar.current) : null;
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -69,7 +77,7 @@ export default async function SegmentosPage({
           buckets={radar.segmentBuckets}
           totalMembers={radar.kpis.totalMembers}
           monthLabel={formatMonthRef(radar.current)}
-          period={period}
+          currentKey={currentKey}
           available={available}
           active={{ year: radar.current.year, month: radar.current.month }}
         />
@@ -113,20 +121,27 @@ function Body({
   buckets,
   totalMembers,
   monthLabel,
-  period,
+  currentKey,
   available,
   active,
 }: {
   buckets: RadarSegmentBucket[];
   totalMembers: number;
   monthLabel: string;
-  period: string | null;
+  currentKey: string | null;
   available: AvailableMonth[];
   active: { year: number; month: number };
 }) {
   if (buckets.length === 0) {
     return <EmptyText text="Aún no se calculan segmentos para este mes." />;
   }
+  // Motor mensual: el filtro unificado muestra "Ver por" con Semana
+  // deshabilitada (Segmentos solo soporta cierres mensuales) y la lista de
+  // meses disponibles como período principal.
+  const periodOptions: PeriodOption[] = available.map((a) => ({
+    key: monthlyCurrentKey(a),
+    label: formatMonthRef(a),
+  }));
   return (
     <>
       <div
@@ -134,7 +149,8 @@ function Body({
           display: "flex",
           flexWrap: "wrap",
           gap: 10,
-          alignItems: "center",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
           margin: "0 0 14px",
           fontSize: 12,
           color: COLORS.textSoft,
@@ -143,10 +159,12 @@ function Body({
         <span>
           Mes: <strong>{monthLabel}</strong> · {totalMembers} miembros en total.
         </span>
-        <PeriodSelector
-          basePath="/comunidad-dropi/segmentos"
-          active={active}
-          available={available}
+        <PeriodGranularityFiltro
+          granularity="monthly"
+          weeklyAvailable={false}
+          options={periodOptions}
+          currentKey={monthlyCurrentKey(active)}
+          formAction="/comunidad-dropi/segmentos"
         />
       </div>
 
@@ -182,7 +200,7 @@ function Body({
         }}
       >
         {buckets.map((b) => (
-          <SegmentCard key={b.segment} bucket={b} period={period} />
+          <SegmentCard key={b.segment} bucket={b} currentKey={currentKey} />
         ))}
       </div>
     </>
@@ -191,14 +209,14 @@ function Body({
 
 function SegmentCard({
   bucket,
-  period,
+  currentKey,
 }: {
   bucket: RadarSegmentBucket;
-  period: string | null;
+  currentKey: string | null;
 }) {
   const rankingsHref = buildHref("/comunidad-dropi/rankings", {
     segment: bucket.segment,
-    period,
+    current: currentKey,
   });
   const colors = RADAR_SEGMENT_COLORS[bucket.segment];
   const description =

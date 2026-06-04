@@ -29,6 +29,27 @@ export function periodKey(ref: PeriodRef): string {
   return `${ref.year}-${ref.month}`;
 }
 
+// Key mensual del filtro unificado (`m:YYYY-M`), idéntico al que usan
+// Comparativo/Inteligencia. Permite que Rankings y Segmentos usen el mismo
+// `?current=` que el resto del módulo en lugar del viejo `?period=`.
+export function monthlyCurrentKey(ref: PeriodRef): string {
+  return `m:${ref.year}-${ref.month}`;
+}
+
+// Resuelve el mes activo a partir del filtro unificado (`?current=m:YYYY-M`),
+// cayendo al viejo `?period=YYYY-M` por retrocompatibilidad. Devuelve `{}` si
+// ninguno es válido para que el loader caiga al mes más reciente.
+export function parseMonthlyCurrent(
+  current: string | string[] | undefined,
+  period: string | string[] | undefined,
+): ParsedPeriod {
+  const c = Array.isArray(current) ? current[0] : current;
+  if (c && c.startsWith("m:")) {
+    return parsePeriod(c.slice(2));
+  }
+  return parsePeriod(period);
+}
+
 // Construye un querystring estable a partir de pares clave/valor. Omite los
 // valores nulos o vacíos para no ensuciar la URL.
 export function buildSearchString(

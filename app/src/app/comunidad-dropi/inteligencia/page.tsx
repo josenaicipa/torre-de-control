@@ -11,13 +11,10 @@ import {
   buildWeeklyTrend,
   rankOpportunities,
   ratesFromTotals,
-  resolveWeeklyPeriod,
-  weeklyPeriodToken,
   type FunnelStage,
   type MemberOpportunityInput,
   type OverviewMemberSnapshot,
   type TrendBucket,
-  type WeeklyPeriodRef,
 } from "@/lib/comunidad-dropi-analytics";
 import {
   COLORS,
@@ -27,6 +24,11 @@ import {
   SEGMENT_LABELS,
 } from "../_lib/tokens";
 import { SubNav } from "../_components/SubNav";
+import {
+  PeriodGranularityFiltro,
+  type PeriodOption,
+} from "../_components/PeriodGranularityFiltro";
+import type { Granularity } from "../_lib/crecimiento-data";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +37,73 @@ const MONTHLY_LIMIT = 6;
 const OPPORTUNITIES_LIMIT = 10;
 const INTELLIGENCE_PATH = "/comunidad-dropi/inteligencia";
 
+const SPANISH_MONTHS = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
 type RawSearchParams = Record<string, string | string[] | undefined>;
 
-function firstParam(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
+function flatten(sp: RawSearchParams): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(sp)) out[k] = Array.isArray(v) ? v[0] : v;
+  return out;
 }
+
+function parseGranularity(value: string | undefined): Granularity {
+  return value === "monthly" ? "monthly" : "weekly";
+}
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function weeklyKey(start: Date, end: Date): string {
+  return `w:${isoDate(start)}_${isoDate(end)}`;
+}
+
+function monthlyKey(year: number, month: number): string {
+  return `m:${year}-${month}`;
+}
+
+function weeklyRangeLabel(start: Date, end: Date): string {
+  return `${isoDate(start)} → ${isoDate(end)}`;
+}
+
+function monthlyLabel(year: number, month: number): string {
+  const idx = Math.max(0, Math.min(11, month - 1));
+  return `${SPANISH_MONTHS[idx]} ${year}`;
+}
+
+// Período resuelto del filtro (semanal o mensual), agnóstico de la fuente: se
+// usa tanto para resolver la selección como para alimentar el selector.
+interface WeeklyPeriod {
+  granularity: "weekly";
+  key: string;
+  label: string;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+interface MonthlyPeriod {
+  granularity: "monthly";
+  key: string;
+  label: string;
+  year: number;
+  month: number;
+}
+
+type IntelligencePeriod = WeeklyPeriod | MonthlyPeriod;
 
 export default async function InteligenciaPage({
   searchParams,
@@ -49,9 +113,10 @@ export default async function InteligenciaPage({
   const actor = await getActor();
   if (!actor) redirect("/login");
 
-  const sp = await searchParams;
-  const periodToken = firstParam(sp.period);
-  const data = await loadIntelligenceData(periodToken);
+  const sp = flatten(await searchParams);
+  const granularity = parseGranularity(sp.granularity);
+  const currentKey = sp.current ?? null;
+  const data = await loadIntelligenceData(granularity, currentKey);
 
   if (data.isEmpty) {
     return (
@@ -70,20 +135,20 @@ export default async function InteligenciaPage({
     countryBuckets,
     segmentBuckets,
     opportunities,
-    availablePeriods,
-    selectedPeriod,
-    comparisonPeriod,
-    selectedToken,
   } = data;
 
   const funnel = buildFunnel(overview.current.totals);
-  const enteredSeries = weeklyBuckets.map((b) => b.totals.ordersEntered);
-  const movedSeries = weeklyBuckets.map((b) => b.totals.ordersMoved);
-  const deliveredSeries = weeklyBuckets.map((b) => b.totals.ordersDelivered);
-  const returnedSeries = weeklyBuckets.map((b) => b.totals.ordersReturned);
-  const movementRateSeries = weeklyBuckets.map((b) => b.rates.movementRate);
-  const deliveryRateSeries = weeklyBuckets.map((b) => b.rates.deliveryRate);
-  const returnRateSeries = weeklyBuckets.map((b) => b.rates.returnRate);
+  // Las chispas de los KPIs siguen la granularidad activa: semanal usa las
+  // últimas 8 semanas, mensual los últimos 6 meses.
+  const sparkBuckets =
+    data.granularity === "weekly" ? weeklyBuckets : monthlyBuckets;
+  const enteredSeries = sparkBuckets.map((b) => b.totals.ordersEntered);
+  const movedSeries = sparkBuckets.map((b) => b.totals.ordersMoved);
+  const deliveredSeries = sparkBuckets.map((b) => b.totals.ordersDelivered);
+  const returnedSeries = sparkBuckets.map((b) => b.totals.ordersReturned);
+  const movementRateSeries = sparkBuckets.map((b) => b.rates.movementRate);
+  const deliveryRateSeries = sparkBuckets.map((b) => b.rates.deliveryRate);
+  const returnRateSeries = sparkBuckets.map((b) => b.rates.returnRate);
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", color: COLORS.text }}>
@@ -91,9 +156,12 @@ export default async function InteligenciaPage({
       <SubNav />
 
       <PeriodToolbar
-        availablePeriods={availablePeriods}
-        selectedToken={selectedToken}
-        comparisonPeriod={comparisonPeriod}
+        granularity={data.granularity}
+        weeklyAvailable={data.weeklyAvailable}
+        periodOptions={data.periodOptions}
+        currentKey={data.currentKey}
+        currentLabel={data.currentLabel}
+        comparisonLabel={data.comparisonLabel}
       />
 
       <section style={kpiGridStyle()} aria-label="Indicadores principales">
@@ -261,148 +329,199 @@ interface IntelligenceData {
   countryBuckets: ReturnType<typeof buildByCountry>;
   segmentBuckets: ReturnType<typeof buildBySegment>;
   opportunities: ReturnType<typeof rankOpportunities>;
-  availablePeriods: WeeklyPeriodRef[];
-  selectedPeriod: WeeklyPeriodRef | null;
-  comparisonPeriod: WeeklyPeriodRef | null;
-  selectedToken: string | null;
+  // Granularidad efectiva (puede diferir de la pedida si se pidió semanal sin
+  // semanas cargadas y se cayó a mensual).
+  granularity: Granularity;
+  // Hay al menos una semana cargada: controla si el selector ofrece "Semana".
+  weeklyAvailable: boolean;
+  periodOptions: PeriodOption[];
+  currentKey: string;
+  currentLabel: string;
+  // Etiqueta del período anterior con el que se compara automáticamente, o null
+  // cuando el seleccionado es el más antiguo disponible.
+  comparisonLabel: string | null;
+}
+
+// Fila normalizada de métricas por miembro, agnóstica de semanal/mensual: el
+// delta se toma de `deltaOrdersPercent` (semanal) o `monthOverMonthDelta`
+// (mensual), ambos ya normalizados a number plano.
+interface MemberMetricRow {
+  memberId: string;
+  ordersEntered: number;
+  ordersMoved: number;
+  ordersDelivered: number;
+  ordersReturned: number;
+  deltaOrdersPercent: number | null;
+  country: string | null;
+}
+
+async function loadPeriodRows(
+  period: IntelligencePeriod,
+): Promise<MemberMetricRow[]> {
+  if (period.granularity === "weekly") {
+    const rows = await prisma.dropiWeeklyMetric.findMany({
+      where: { periodStart: period.periodStart, periodEnd: period.periodEnd },
+      select: {
+        memberId: true,
+        ordersEntered: true,
+        ordersMoved: true,
+        ordersDelivered: true,
+        ordersReturned: true,
+        deltaOrdersPercent: true,
+        country: true,
+      },
+    });
+    return rows.map((r) => ({
+      memberId: r.memberId,
+      ordersEntered: r.ordersEntered,
+      ordersMoved: r.ordersMoved,
+      ordersDelivered: r.ordersDelivered,
+      ordersReturned: r.ordersReturned,
+      deltaOrdersPercent:
+        r.deltaOrdersPercent == null ? null : Number(r.deltaOrdersPercent),
+      country: r.country,
+    }));
+  }
+  const rows = await prisma.dropiMonthlyMetric.findMany({
+    where: { year: period.year, month: period.month },
+    select: {
+      memberId: true,
+      ordersEntered: true,
+      ordersMoved: true,
+      ordersDelivered: true,
+      ordersReturned: true,
+      monthOverMonthDelta: true,
+      country: true,
+    },
+  });
+  return rows.map((r) => ({
+    memberId: r.memberId,
+    ordersEntered: r.ordersEntered,
+    ordersMoved: r.ordersMoved,
+    ordersDelivered: r.ordersDelivered,
+    ordersReturned: r.ordersReturned,
+    deltaOrdersPercent:
+      r.monthOverMonthDelta == null ? null : Number(r.monthOverMonthDelta),
+    country: r.country,
+  }));
 }
 
 async function loadIntelligenceData(
-  periodToken: string | undefined,
+  requestedGranularity: Granularity,
+  currentKey: string | null,
 ): Promise<IntelligenceData> {
   const totalMembers = await prisma.dropiCommunityMember.count();
   if (totalMembers === 0) {
     return emptyData();
   }
 
-  const weeklyPeriods = await prisma.dropiWeeklyMetric.groupBy({
-    by: ["periodStart", "periodEnd"],
-    orderBy: [{ periodEnd: "desc" }, { periodStart: "desc" }],
-    take: WEEKLY_LIMIT,
-  });
-
-  const monthlyPeriods = await prisma.dropiMonthlyMetric.groupBy({
-    by: ["year", "month"],
-    orderBy: [{ year: "desc" }, { month: "desc" }],
-    take: MONTHLY_LIMIT,
-  });
-
-  const availablePeriods: WeeklyPeriodRef[] = weeklyPeriods.map((p) => ({
-    periodStart: p.periodStart,
-    periodEnd: p.periodEnd,
-  }));
-
-  const {
-    selected: selectedPeriod,
-    comparison: comparisonPeriod,
-    selectedToken,
-  } = resolveWeeklyPeriod(availablePeriods, periodToken ?? null);
-
-  const weeklyPeriodKeys = availablePeriods.map((p) => ({
-    periodStart: p.periodStart,
-    periodEnd: p.periodEnd,
-  }));
-  const monthlyPeriodKeys = monthlyPeriods.map((p) => ({
-    year: p.year,
-    month: p.month,
-  }));
-
-  const [
-    members,
-    currentRows,
-    previousRows,
-    weeklyRows,
-    monthlyRows,
-    countryLatestRows,
-  ] = await Promise.all([
-    prisma.dropiCommunityMember.findMany({
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phone: true,
-        country: true,
-        currentSegment: true,
-        currentPriority: true,
-        currentStatus: true,
-        linkedStudentId: true,
-      },
+  const [weeklyGroups, monthlyGroups] = await Promise.all([
+    prisma.dropiWeeklyMetric.groupBy({
+      by: ["periodStart", "periodEnd"],
+      orderBy: [{ periodEnd: "desc" }, { periodStart: "desc" }],
     }),
-    selectedPeriod
-      ? prisma.dropiWeeklyMetric.findMany({
-          where: {
-            periodStart: selectedPeriod.periodStart,
-            periodEnd: selectedPeriod.periodEnd,
-          },
-          select: {
-            memberId: true,
-            ordersEntered: true,
-            ordersMoved: true,
-            ordersDelivered: true,
-            ordersReturned: true,
-            deltaOrdersPercent: true,
-          },
-        })
-      : Promise.resolve([]),
-    comparisonPeriod
-      ? prisma.dropiWeeklyMetric.findMany({
-          where: {
-            periodStart: comparisonPeriod.periodStart,
-            periodEnd: comparisonPeriod.periodEnd,
-          },
-          select: {
-            memberId: true,
-            ordersEntered: true,
-            ordersMoved: true,
-            ordersDelivered: true,
-            ordersReturned: true,
-          },
-        })
-      : Promise.resolve([]),
-    weeklyPeriodKeys.length > 0
-      ? prisma.dropiWeeklyMetric.findMany({
-          where: { OR: weeklyPeriodKeys },
-          select: {
-            memberId: true,
-            periodStart: true,
-            periodEnd: true,
-            ordersEntered: true,
-            ordersMoved: true,
-            ordersDelivered: true,
-            ordersReturned: true,
-          },
-        })
-      : Promise.resolve([]),
-    monthlyPeriodKeys.length > 0
-      ? prisma.dropiMonthlyMetric.findMany({
-          where: { OR: monthlyPeriodKeys },
-          select: {
-            memberId: true,
-            year: true,
-            month: true,
-            ordersEntered: true,
-            ordersMoved: true,
-            ordersDelivered: true,
-            ordersReturned: true,
-          },
-        })
-      : Promise.resolve([]),
-    selectedPeriod
-      ? prisma.dropiWeeklyMetric.findMany({
-          where: {
-            periodStart: selectedPeriod.periodStart,
-            periodEnd: selectedPeriod.periodEnd,
-          },
-          select: {
-            country: true,
-            ordersEntered: true,
-            ordersMoved: true,
-            ordersDelivered: true,
-            ordersReturned: true,
-          },
-        })
-      : Promise.resolve([]),
+    prisma.dropiMonthlyMetric.groupBy({
+      by: ["year", "month"],
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+    }),
   ]);
+
+  const weeklyAvailable = weeklyGroups.length > 0;
+
+  // Listas de períodos disponibles (más reciente primero) para cada motor.
+  const weeklyPeriods: WeeklyPeriod[] = weeklyGroups.map((g) => ({
+    granularity: "weekly",
+    key: weeklyKey(g.periodStart, g.periodEnd),
+    label: weeklyRangeLabel(g.periodStart, g.periodEnd),
+    periodStart: g.periodStart,
+    periodEnd: g.periodEnd,
+  }));
+  const monthlyPeriods: MonthlyPeriod[] = monthlyGroups.map((g) => ({
+    granularity: "monthly",
+    key: monthlyKey(g.year, g.month),
+    label: monthlyLabel(g.year, g.month),
+    year: g.year,
+    month: g.month,
+  }));
+
+  // Granularidad efectiva: si pidió semanal pero no hay semanas, cae a mensual.
+  let granularity: Granularity = requestedGranularity;
+  if (granularity === "weekly" && !weeklyAvailable) granularity = "monthly";
+
+  const periods: IntelligencePeriod[] =
+    granularity === "weekly" ? weeklyPeriods : monthlyPeriods;
+
+  if (periods.length === 0) {
+    return emptyData();
+  }
+
+  // Resuelve el período seleccionado por key (cae al más reciente si no
+  // coincide) y la comparación automática contra el inmediatamente anterior.
+  let index = 0;
+  if (currentKey) {
+    const found = periods.findIndex((p) => p.key === currentKey);
+    if (found >= 0) index = found;
+  }
+  const selected = periods[index];
+  const comparison = periods[index + 1] ?? null;
+
+  // Las tendencias históricas son independientes de la selección: últimas 8
+  // semanas y últimos 6 meses cargados.
+  const weeklyTrendKeys = weeklyPeriods
+    .slice(0, WEEKLY_LIMIT)
+    .map((p) => ({ periodStart: p.periodStart, periodEnd: p.periodEnd }));
+  const monthlyTrendKeys = monthlyPeriods
+    .slice(0, MONTHLY_LIMIT)
+    .map((p) => ({ year: p.year, month: p.month }));
+
+  const [members, currentRows, previousRows, weeklyRows, monthlyRows] =
+    await Promise.all([
+      prisma.dropiCommunityMember.findMany({
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          country: true,
+          currentSegment: true,
+          currentPriority: true,
+          currentStatus: true,
+          linkedStudentId: true,
+        },
+      }),
+      loadPeriodRows(selected),
+      comparison
+        ? loadPeriodRows(comparison)
+        : Promise.resolve([] as MemberMetricRow[]),
+      weeklyTrendKeys.length > 0
+        ? prisma.dropiWeeklyMetric.findMany({
+            where: { OR: weeklyTrendKeys },
+            select: {
+              memberId: true,
+              periodStart: true,
+              periodEnd: true,
+              ordersEntered: true,
+              ordersMoved: true,
+              ordersDelivered: true,
+              ordersReturned: true,
+            },
+          })
+        : Promise.resolve([]),
+      monthlyTrendKeys.length > 0
+        ? prisma.dropiMonthlyMetric.findMany({
+            where: { OR: monthlyTrendKeys },
+            select: {
+              memberId: true,
+              year: true,
+              month: true,
+              ordersEntered: true,
+              ordersMoved: true,
+              ordersDelivered: true,
+              ordersReturned: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
 
   const memberSnapshots: OverviewMemberSnapshot[] = members.map((m) => ({
     currentSegment: m.currentSegment,
@@ -438,7 +557,13 @@ async function loadIntelligenceData(
 
   const countryBuckets = buildByCountry({
     members,
-    rows: countryLatestRows,
+    rows: currentRows.map((r) => ({
+      country: r.country,
+      ordersEntered: r.ordersEntered,
+      ordersMoved: r.ordersMoved,
+      ordersDelivered: r.ordersDelivered,
+      ordersReturned: r.ordersReturned,
+    })),
   });
 
   const segmentBuckets = buildBySegment(members);
@@ -459,8 +584,7 @@ async function loadIntelligenceData(
       ordersMoved: r.ordersMoved,
       ordersDelivered: r.ordersDelivered,
       ordersReturned: r.ordersReturned,
-      deltaOrdersPercent:
-        r.deltaOrdersPercent == null ? null : Number(r.deltaOrdersPercent),
+      deltaOrdersPercent: r.deltaOrdersPercent,
     });
   }
 
@@ -506,10 +630,12 @@ async function loadIntelligenceData(
     countryBuckets,
     segmentBuckets,
     opportunities,
-    availablePeriods,
-    selectedPeriod,
-    comparisonPeriod,
-    selectedToken,
+    granularity,
+    weeklyAvailable,
+    periodOptions: periods.map((p) => ({ key: p.key, label: p.label })),
+    currentKey: selected.key,
+    currentLabel: selected.label,
+    comparisonLabel: comparison?.label ?? null,
   };
 }
 
@@ -522,10 +648,12 @@ function emptyData(): IntelligenceData {
     countryBuckets: [],
     segmentBuckets: [],
     opportunities: [],
-    availablePeriods: [],
-    selectedPeriod: null,
-    comparisonPeriod: null,
-    selectedToken: null,
+    granularity: "weekly",
+    weeklyAvailable: false,
+    periodOptions: [],
+    currentKey: "",
+    currentLabel: "",
+    comparisonLabel: null,
   };
 }
 
@@ -572,15 +700,21 @@ function Header() {
 }
 
 function PeriodToolbar({
-  availablePeriods,
-  selectedToken,
-  comparisonPeriod,
+  granularity,
+  weeklyAvailable,
+  periodOptions,
+  currentKey,
+  currentLabel,
+  comparisonLabel,
 }: {
-  availablePeriods: WeeklyPeriodRef[];
-  selectedToken: string | null;
-  comparisonPeriod: WeeklyPeriodRef | null;
+  granularity: Granularity;
+  weeklyAvailable: boolean;
+  periodOptions: PeriodOption[];
+  currentKey: string;
+  currentLabel: string;
+  comparisonLabel: string | null;
 }) {
-  if (availablePeriods.length === 0) {
+  if (periodOptions.length === 0) {
     return (
       <p
         style={{
@@ -589,101 +723,42 @@ function PeriodToolbar({
           color: COLORS.textMuted,
         }}
       >
-        Aún no hay reportes semanales cargados.
+        Aún no hay reportes cargados.
       </p>
     );
   }
-  const comparisonLabel = comparisonPeriod ? formatRange(comparisonPeriod) : null;
+  const principal = granularity === "weekly" ? "Semana" : "Mes";
   return (
-    <form
-      method="get"
+    <div
       style={{
         display: "flex",
         flexWrap: "wrap",
-        alignItems: "flex-end",
-        gap: 10,
-        padding: "10px 14px",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
         marginBottom: 18,
-        backgroundColor: COLORS.background,
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 10,
       }}
     >
-      <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            color: COLORS.textMuted,
-          }}
-        >
-          Semana analizada
-        </span>
-        <select
-          name="period"
-          defaultValue={selectedToken ?? undefined}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: `1px solid ${COLORS.border}`,
-            backgroundColor: COLORS.surface,
-            color: COLORS.text,
-            fontSize: 13,
-            fontWeight: 600,
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {availablePeriods.map((p) => {
-            const token = weeklyPeriodToken(p);
-            return (
-              <option key={token} value={token}>
-                {formatRange(p)}
-              </option>
-            );
-          })}
-        </select>
-      </label>
-      <button
-        type="submit"
-        style={{
-          padding: "7px 14px",
-          borderRadius: 8,
-          border: `1px solid ${COLORS.brand}`,
-          backgroundColor: COLORS.brand,
-          color: COLORS.surface,
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: "pointer",
-        }}
-      >
-        Aplicar
-      </button>
-      {comparisonLabel ? (
-        <span style={{ fontSize: 12, color: COLORS.textMuted }}>
-          Comparada con {comparisonLabel}
-        </span>
-      ) : (
-        <span style={{ fontSize: 12, color: COLORS.textMuted }}>
-          Sin período previo para comparar
-        </span>
-      )}
-      <span
-        style={{
-          marginLeft: "auto",
-          fontSize: 11,
-          color: COLORS.textMuted,
-        }}
-      >
-        Períodos cargados desde reportes semanales Dropi
-      </span>
-    </form>
+      <p style={{ margin: 0, fontSize: 12, color: COLORS.textSoft }}>
+        {principal} analizado: <strong>{currentLabel}</strong>
+        {comparisonLabel ? (
+          <>
+            {" "}
+            · Comparado con <strong>{comparisonLabel}</strong>
+          </>
+        ) : (
+          <> · Sin período previo para comparar</>
+        )}
+      </p>
+      <PeriodGranularityFiltro
+        granularity={granularity}
+        weeklyAvailable={weeklyAvailable}
+        options={periodOptions}
+        currentKey={currentKey}
+        formAction={INTELLIGENCE_PATH}
+      />
+    </div>
   );
-}
-
-function formatRange(p: { periodStart: Date; periodEnd: Date }): string {
-  return `${p.periodStart.toISOString().slice(0, 10)} → ${p.periodEnd.toISOString().slice(0, 10)}`;
 }
 
 function kpiGridStyle(): React.CSSProperties {
