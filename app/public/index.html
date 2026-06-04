@@ -233,6 +233,7 @@ const MEMBER_LABELS={
 MANUAL_COLLABORATORS.forEach(c=>{MEMBER_LABELS[c.id]=c.label;});
 const memberLabel=m=>MEMBER_LABELS[m]||m;
 const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
+const isAdminMember=m=>m==="Admin";
 const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
 const isSetterMember=m=>SETTER_MEMBER_IDS.has(m);
 const HISTORICAL_MARKETING_MEMBER="Marketing Histórico";
@@ -263,8 +264,10 @@ const blankEntry=()=>({
   // Closer manual fields (only used by commercial collaborators). Persisted
   // through repurposed daily_entries columns — see rowToEntry/saveEntry.
   agendas:0,calificadas:0,agendasHoy:0,showUps:0,
-  ventasHT:0,valorVentaHT:0,upfrontCash:0,recurringCash:0,
-  pendDiaAnterior:0,pendAcumulados:0,reservas:0,cashReservas:0,
+  ventasHT:0,valorVentaHT:0,upfrontCash:0,cashCollected:0,recurringCash:0,
+  ventasLT:0,valorVentaLT:0,reservas:0,cashReservas:0,
+  refunds:0,refundValue:0,activeClients:0,
+  pendDiaAnterior:0,pendAcumulados:0,
   callsScheduled:0,hotLeads:0,
   outboundContactados:0,outboundAgendados:0,
   setterLeadsContacted:0,setterConfirmedAgendas:0,setterCallsToLeads:0,setterMessagesSent:0,
@@ -355,10 +358,18 @@ const rowToEntry=row=>{
     //   cashCollected → cash_organic, recurringCash → recurring_organic,
     //   pendDiaAnterior → pitches_organic, pendAcumulados → pitches_paid,
     //   reservas → reservas_organic.
+    // Admin-only legacy Area Comercial fields additionally reuse commercial-only
+    // columns: ventasLT → ig_followers, valorVentaLT → posts,
+    // refunds → mensajes, refundValue → bk_offers, activeClients → pitches_organic.
     // For commercial/Admin rows, otherwise-marketing columns are safely reused
     // for Otros because Detalle Diario filters commercial members out of marketing
     // aggregates: callsScheduled → ig_followers, outboundContactados → posts,
     // outboundAgendados → mensajes, hotLeads → bk_offers.
+    ventasLT:isAdminMember(row.member)?(row.ig_followers||0):0,
+    valorVentaLT:isAdminMember(row.member)?(row.posts||0):0,
+    refunds:isAdminMember(row.member)?(row.mensajes||0):0,
+    refundValue:isAdminMember(row.member)?(row.bk_offers||0):0,
+    activeClients:isAdminMember(row.member)?(row.pitches_organic||0):0,
     agendas:row.new_bk_organic||0,
     calificadas:row.qual_bk_organic||0,
     agendasHoy:row.today_bk_organic||0,
@@ -366,6 +377,7 @@ const rowToEntry=row=>{
     ventasHT:row.sales_organic||0,
     valorVentaHT:row.revenue_organic||0,
     upfrontCash:row.cash_organic||0,
+    cashCollected:row.cash_organic||0,
     recurringCash:row.recurring_organic||0,
     pendDiaAnterior:row.pitches_organic||0,
     pendAcumulados:row.pitches_paid||0,
@@ -393,10 +405,16 @@ const closerToValentinaEntry=(date,row)=>({
   showUps:row.citas_asistidas||((row.show_organicas||0)+(row.show_meta||0)+(row.show_google||0)+(row.show_tiktok||0)+(row.show_otros||0)),
   ventasHT:row.q_ventas_ht||0,
   valorVentaHT:row.valor_venta_ht||0,
-  upfrontCash:row.ventas_cash||row.upfront_cash_ht||0,
+  upfrontCash:row.upfront_cash_ht||0,
+  cashCollected:row.ventas_cash||row.upfront_cash_ht||0,
   recurringCash:row.recurring_cash||0,
+  ventasLT:row.q_ventas_lt||0,
+  valorVentaLT:row.valor_venta_lt||0,
   reservas:row.q_reservas||0,
   cashReservas:row.cash_reservas||0,
+  refunds:row.q_reembolsos||0,
+  refundValue:row.valor_reembolsos||0,
+  activeClients:row.total_clientes_activos||0,
 });
 
 // ─── SVG ICONS ────────────────────────────────────────────────────────────────
@@ -1004,12 +1022,14 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   (cashGroups.reservas||[]).forEach(r=>addByDay(ledgerReservasByDay,localPayDate(r.paidAt),r.amountUsd));
   const commercialValorHTByDay={};
   const commercialCashByDay={};
+  const commercialLowTicketByDay={};
   const commercialRecurringByDay={};
   const commercialReservasByDay={};
   collabCommercialEntries.forEach(e=>{
     if(!e||!e.date)return;
     addByDay(commercialValorHTByDay,e.date,e.valorVentaHT);
-    addByDay(commercialCashByDay,e.date,e.upfrontCash);
+    addByDay(commercialCashByDay,e.date,e.cashCollected||e.upfrontCash);
+    addByDay(commercialLowTicketByDay,e.date,e.valorVentaLT);
     addByDay(commercialRecurringByDay,e.date,e.recurringCash);
     addByDay(commercialReservasByDay,e.date,e.cashReservas);
   });
@@ -1018,6 +1038,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     ...Object.keys(commercialValorHTByDay).filter(k=>k.startsWith(prefix)),
     ...Object.keys(commercialCashByDay).filter(k=>k.startsWith(prefix)),
     ...Object.keys(commercialRecurringByDay).filter(k=>k.startsWith(prefix)),
+    ...Object.keys(commercialLowTicketByDay).filter(k=>k.startsWith(prefix)),
     ...Object.keys(commercialReservasByDay).filter(k=>k.startsWith(prefix)),
     ...Object.keys(ledgerHTByDay).filter(k=>k.startsWith(prefix)),
     ...Object.keys(ledgerLTByDay).filter(k=>k.startsWith(prefix)),
@@ -1028,7 +1049,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
       valorHT:(closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0,
       cashHT:(closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0,
       recurring:(closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0,
-      lowTicket:(closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0,
+      lowTicket:(closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0,
       reservas:(closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0,
     };
   };
@@ -1984,9 +2005,9 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mShows=dayData.reduce((s,d)=>s+manualShowUps(d),0);
   const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);
   const valorHTDay=d=>d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;
-  const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
+  const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
   const recurringDay=d=>d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;
-  const cashLowTicketDay=d=>d.closer.valor_venta_lt||d.ledger.lowTicket||0;
+  const cashLowTicketDay=d=>d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;
   const cashReservasDay=d=>d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;
   const mValorHT=dayData.reduce((s,d)=>s+valorHTDay(d),0);
   const mLedgerCash=dayData.reduce((s,d)=>s+(d.ledger.cashCollected||0),0);
@@ -2065,13 +2086,13 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
         totFn:()=>mValorHT>0?pv(mCashHT,mValorHT):null},
       {l:"% Closing Rate",fn:d=>{const s=cv(d,"citas_asistidas","showUps"),v=cv(d,"q_ventas_ht","ventasHT");return s>0?pv(v,s):null;},fmt:"%",
         totFn:()=>mShows>0?pv(mVentasHT,mShows):null},
-      {l:"# Ventas LT",fn:d=>d.closer.q_ventas_lt||null,fmt:"n"},
+      {l:"# Ventas LT",fn:d=>cv(d,"q_ventas_lt","ventasLT")||null,fmt:"n"},
       {l:"$ Venta LT",fn:d=>cashLowTicketDay(d)||null,fmt:"$"},
       {l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"},
       {l:"$ Cash Reservas",fn:d=>cashReservasDay(d)||null,fmt:"$"},
-      {l:"# Reembolsos",fn:d=>d.closer.q_reembolsos||null,fmt:"n"},
-      {l:"$ Valor Reembolsos",fn:d=>d.closer.valor_reembolsos||null,fmt:"$"},
-      {l:"# Clientes Activos",fn:d=>d.closer.total_clientes_activos||null,fmt:"n"},
+      {l:"# Reembolsos",fn:d=>cv(d,"q_reembolsos","refunds")||null,fmt:"n"},
+      {l:"$ Valor Reembolsos",fn:d=>cv(d,"valor_reembolsos","refundValue")||null,fmt:"$"},
+      {l:"# Clientes Activos",fn:d=>cv(d,"total_clientes_activos","activeClients")||null,fmt:"n"},
     ]},
   ];
 
@@ -2417,7 +2438,55 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         </>
       )}
 
-      {role==="closer"&&(
+      {isValentina&&(
+        <>
+          <Card>
+            <STit icon="💰" title="High Ticket"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Ventas HT" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
+              <Inp label="$ Venta HT" prefix="$" value={form.valorVentaHT} onChange={v=>sf("valorVentaHT",v)}/>
+              <Inp label="Upfront Cash HT" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
+              <Inp label="Cash Collected HT" prefix="$" value={form.cashCollected} onChange={v=>sf("cashCollected",v)}/>
+              <Inp label="Recurring Cash" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="🎯" title="Low Ticket"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Ventas LT" value={form.ventasLT} onChange={v=>sf("ventasLT",v)}/>
+              <Inp label="$ Venta LT" prefix="$" value={form.valorVentaLT} onChange={v=>sf("valorVentaLT",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="🔖" title="Reservas"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>
+              <Inp label="$ Cash Collected Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="↩️" title="Reembolsos"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Reembolsos" value={form.refunds} onChange={v=>sf("refunds",v)}/>
+              <Inp label="$ Valor Reembolsos" prefix="$" value={form.refundValue} onChange={v=>sf("refundValue",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="👥" title="Clientes"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Total de Clientes Activos" value={form.activeClients} onChange={v=>sf("activeClients",v)}/>
+            </div>
+          </Card>
+          <Card>
+            <STit icon="📝" title="Notas generales" sub="Contexto cualitativo administrativo"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+              <Txt label="Notas generales" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: contexto general del día, seguimiento administrativo, pendientes o alertas..."/>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {!isValentina&&role==="closer"&&(
         <>
           <Card>
             <STit icon="📞" title="Actividad de llamadas" sub="Resumen automático del reporte diario"/>
@@ -2456,23 +2525,14 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Inp label="# Pendientes cierre (acumulados)" value={form.pendAcumulados} onChange={v=>sf("pendAcumulados",v)}/>
             </div>
           </Card>
-          {isValentina?(
-            <Card>
-              <STit icon="📝" title="Notas generales" sub="Contexto cualitativo administrativo"/>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
-                <Txt label="Notas generales" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: contexto general del día, seguimiento administrativo, pendientes o alertas..."/>
-              </div>
-            </Card>
-          ):(
-            <Card>
-              <STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
-                <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
-                <Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>
-                <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
-              </div>
-            </Card>
-          )}
+          <Card>
+            <STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+              <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
+              <Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>
+              <Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>
+            </div>
+          </Card>
         </>
       )}
 
@@ -3911,11 +3971,11 @@ function App(){
     // when present (commercial collaborators) or default to 0 (marketing rows).
     const {error}=await db.from("daily_entries").upsert({
       date:entry.date,member:entry.member,
-      ig_followers:isCommercialMember(entry.member)?(entry.callsScheduled||0):(entry.igFollowers||0),
-      posts:isCommercialMember(entry.member)?(entry.outboundContactados||0):(entry.posts||0),
-      mensajes:isCommercialMember(entry.member)?(entry.outboundAgendados||0):(entry.mensajes||0),
+      ig_followers:isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):(entry.igFollowers||0),
+      posts:isAdminMember(entry.member)?(entry.valorVentaLT||0):isCommercialMember(entry.member)?(entry.outboundContactados||0):(entry.posts||0),
+      mensajes:isAdminMember(entry.member)?(entry.refunds||0):isCommercialMember(entry.member)?(entry.outboundAgendados||0):(entry.mensajes||0),
       follow_ups:entry.followUps||0,
-      bk_offers:isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
+      bk_offers:isAdminMember(entry.member)?(entry.refundValue||0):isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
       gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
       gasto_tiktok:entry.gastoTikTok||0,
       gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),
@@ -3925,9 +3985,9 @@ function App(){
       show_organic:isSetterMember(entry.member)?(entry.setterMessagesSent||0):(entry.showUps||0),
       sales_organic:isSetterMember(entry.member)?(entry.setterOrganicLeads||0):(entry.ventasHT||0),
       revenue_organic:entry.valorVentaHT||0,
-      cash_organic:entry.upfrontCash||0,
+      cash_organic:entry.cashCollected||entry.upfrontCash||0,
       recurring_organic:entry.recurringCash||0,
-      pitches_organic:isSetterMember(entry.member)?(entry.setterAdsLeads||0):(entry.pendDiaAnterior||0),
+      pitches_organic:isAdminMember(entry.member)?(entry.activeClients||0):isSetterMember(entry.member)?(entry.setterAdsLeads||0):(entry.pendDiaAnterior||0),
       pitches_paid:entry.pendAcumulados||0,
       reservas_organic:entry.reservas||0,
       showup_notes:entry.showupNotes||"",

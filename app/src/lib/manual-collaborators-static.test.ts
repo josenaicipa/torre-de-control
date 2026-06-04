@@ -10,13 +10,34 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('{id:"Admin",label:"Admin",color:C.red,role:"closer",displayRole:"Admin"}');
   });
 
-  it("renders Valentina as an individual commercial collaborator instead of writing the daily total directly", () => {
+  it("renders Valentina as an individual commercial collaborator with her legacy Area Comercial fields plus notes", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const valentinaBlock = llenarBlock.slice(llenarBlock.indexOf('{isValentina&&('), llenarBlock.indexOf('{!isValentina&&role==="closer"&&('));
+
     expect(html).toContain('const isValentina=collabId==="Admin";');
     expect(html).toContain('Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>');
     expect(html).toContain('const existing=allDaily[`${date}:${collabId}`]||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);');
-    expect(html).toContain('{role==="closer"&&(');
     expect(html).toContain('<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>');
     expect(html).not.toContain('<CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser} selectedDate={date}/>');
+
+    expect(valentinaBlock).toContain('<STit icon="💰" title="High Ticket"/>');
+    expect(valentinaBlock).toContain('<Inp label="# Ventas HT" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>');
+    expect(valentinaBlock).toContain('<Inp label="$ Venta HT" prefix="$" value={form.valorVentaHT} onChange={v=>sf("valorVentaHT",v)}/>');
+    expect(valentinaBlock).toContain('<Inp label="Upfront Cash HT" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>');
+    expect(valentinaBlock).toContain('<Inp label="Cash Collected HT" prefix="$" value={form.cashCollected} onChange={v=>sf("cashCollected",v)}/>');
+    expect(valentinaBlock).toContain('<Inp label="Recurring Cash" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>');
+    expect(valentinaBlock).toContain('<STit icon="🎯" title="Low Ticket"/>');
+    expect(valentinaBlock).toContain('<Inp label="# Ventas LT" value={form.ventasLT} onChange={v=>sf("ventasLT",v)}/>');
+    expect(valentinaBlock).toContain('<Inp label="$ Venta LT" prefix="$" value={form.valorVentaLT} onChange={v=>sf("valorVentaLT",v)}/>');
+    expect(valentinaBlock).toContain('<STit icon="🔖" title="Reservas"/>');
+    expect(valentinaBlock).toContain('<Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>');
+    expect(valentinaBlock).toContain('<Inp label="$ Cash Collected Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>');
+    expect(valentinaBlock).toContain('<STit icon="↩️" title="Reembolsos"/>');
+    expect(valentinaBlock).toContain('<Inp label="# Reembolsos" value={form.refunds} onChange={v=>sf("refunds",v)}/>');
+    expect(valentinaBlock).toContain('<Inp label="$ Valor Reembolsos" prefix="$" value={form.refundValue} onChange={v=>sf("refundValue",v)}/>');
+    expect(valentinaBlock).toContain('<STit icon="👥" title="Clientes"/>');
+    expect(valentinaBlock).toContain('<Inp label="# Total de Clientes Activos" value={form.activeClients} onChange={v=>sf("activeClients",v)}/>');
+    expect(valentinaBlock).toContain('<Txt label="Notas generales" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: contexto general del día, seguimiento administrativo, pendientes o alertas..."/>');
   });
 
   it("uses Detalle Diario $ Venta HT as Torre CEO Valor Total Venta comprometido", () => {
@@ -106,6 +127,7 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('const monthlyCommercialMoneyDates=[...new Set([');
     expect(html).toContain('...Object.keys(commercialValorHTByDay).filter(k=>k.startsWith(prefix)),');
     expect(html).toContain('...Object.keys(commercialRecurringByDay).filter(k=>k.startsWith(prefix)),');
+    expect(html).toContain('...Object.keys(commercialLowTicketByDay).filter(k=>k.startsWith(prefix)),');
     expect(html).toContain('...Object.keys(commercialReservasByDay).filter(k=>k.startsWith(prefix)),');
     expect(html).toContain('...Object.keys(ledgerLTByDay).filter(k=>k.startsWith(prefix)),');
     expect(html).toContain('...Object.keys(ledgerReservasByDay).filter(k=>k.startsWith(prefix)),');
@@ -113,7 +135,7 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('valorHT:(closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0,');
     expect(html).toContain('cashHT:(closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0,');
     expect(html).toContain('recurring:(closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0,');
-    expect(html).toContain('lowTicket:(closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0,');
+    expect(html).toContain('lowTicket:(closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0,');
     expect(html).toContain('reservas:(closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0,');
     expect(html).toContain('const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);');
     expect(html).toContain('const dispCash=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).cashHT,0)||(cashApi?cashApi.highTicket:0);');
@@ -121,9 +143,9 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('const dispLowT=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).lowTicket,0)||(cashApi?cashApi.lowTicket:0);');
     expect(html).toContain('const dispReservas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).reservas,0)||(cashApi?cashApi.reservas:0);');
     expect(html).toContain('const valorHTDay=d=>d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;');
-    expect(html).toContain('const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;');
+    expect(html).toContain('const cashHTDay=d=>d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;');
     expect(html).toContain('const recurringDay=d=>d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;');
-    expect(html).toContain('const cashLowTicketDay=d=>d.closer.valor_venta_lt||d.ledger.lowTicket||0;');
+    expect(html).toContain('const cashLowTicketDay=d=>d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;');
     expect(html).toContain('const cashReservasDay=d=>d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;');
     expect(html).toContain('{l:"$ Venta HT",fn:d=>valorHTDay(d)||null,fmt:"$"}');
     expect(html).toContain('{l:"Recurring Cash",fn:d=>recurringDay(d)||null,fmt:"$"}');
@@ -211,13 +233,15 @@ describe("manual collaborator labels", () => {
     expect(llenarBlock).toContain('<Inp label="Mensajes enviados" value={form.setterMessagesSent} onChange={v=>sf("setterMessagesSent",v)}/>');
     expect(llenarBlock).toContain('<Inp label="Orgánicos" value={form.setterOrganicLeads} onChange={v=>sf("setterOrganicLeads",v)}/>');
     expect(llenarBlock).toContain('<Inp label="Ads" value={form.setterAdsLeads} onChange={v=>sf("setterAdsLeads",v)}/>');
-    const setterBlock = llenarBlock.slice(llenarBlock.indexOf('{role==="setter"&&('), llenarBlock.indexOf('{role==="closer"&&('));
+    const setterStart = llenarBlock.indexOf('{role==="setter"&&(');
+    const setterBlock = llenarBlock.slice(setterStart, llenarBlock.indexOf('{isValentina&&(', setterStart));
     expect(setterBlock).toContain('<STit icon="📝" title="Notas del setter" sub="Contexto cualitativo del reporte manual"/>');
     expect(setterBlock).toContain('<Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>');
     expect(setterBlock).toContain('<Txt label="Evidencia manual de leads calientes" value={form.hotLeadsEvidence} onChange={v=>st("hotLeadsEvidence",v)} placeholder="Ej: Iniciales + razón: showup + Fathom HOT/WARM, pipeline seguimiento, reserva pendiente..."/>');
     expect(setterBlock).toContain('<Txt label="Bloqueos o contexto que Jose debe saber" value={form.blockers} onChange={v=>st("blockers",v)}/>');
     expect(setterBlock).not.toContain('<Txt label="Hallazgos importantes" value={form.setterFindings}');
-    expect(llenarBlock).toContain('{isValentina?(');
+    expect(llenarBlock).toContain('{isValentina&&(');
+    expect(llenarBlock).toContain('{!isValentina&&role==="closer"&&(');
     expect(llenarBlock).toContain('<STit icon="📝" title="Notas generales" sub="Contexto cualitativo administrativo"/>');
     expect(llenarBlock).toContain('<Txt label="Notas generales" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: contexto general del día, seguimiento administrativo, pendientes o alertas..."/>');
     expect(llenarBlock).toContain('<STit icon="📝" title="Notas del closer" sub="Contexto cualitativo del reporte manual"/>');
