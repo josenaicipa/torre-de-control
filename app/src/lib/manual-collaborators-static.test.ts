@@ -195,6 +195,7 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('{id:"Luisa Vega",label:"Luisa Vega",color:C.pink,role:"setter"}');
     expect(html).toContain('{id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"}');
     expect(html).toContain('{id:"Daniel Garcia Closer",label:"Daniel Garcia",color:C.blue,role:"closer",legacy:"Daniel Garcia"}');
+    expect(html).toContain('{id:"Alejandro Gallo Closer",label:"Alejandro Gallo",color:C.teal,role:"closer",legacy:"Alejandro Gallo"}');
     expect(html).toContain('{id:"Daryi Perez",label:"Daryi Perez",color:C.gold,role:"closer",legacy:"Daryi"}');
     expect(html).toContain('const REPORT_GROUPS={');
     expect(html).toContain('admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS}');
