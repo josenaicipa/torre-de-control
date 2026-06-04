@@ -2,13 +2,14 @@
 //
 // Reemplaza al comparativo + cohortes en el Radar para no fragmentar la
 // pantalla. Muestra:
-//   1) filtro Semana / Mes con período actual y de comparación (reusa los
-//      query params granularity / current / comparison),
-//   2) los 3 KPIs obligatorios del período: pedidos entregados, pedidos
+//   1) los 3 KPIs obligatorios del período: pedidos entregados, pedidos
 //      ingresados y total entregados de la comunidad (devolución como dato
 //      secundario),
-//   3) tres listas en acordeón (<details>/<summary>): Top 20 por entregas,
+//   2) tres listas en acordeón (<details>/<summary>): Top 20 por entregas,
 //      En caída y En aumento, calculadas sobre el período filtrado.
+//
+// El filtro Semana / Mes vive arriba (RadarPeriodFiltro) y controla todo el
+// Radar; esta sección solo refleja el período activo, no lo elige.
 //
 // Puramente presentacional: la lógica de listas vive en `_lib/rendimiento.ts`
 // y los datos en `_lib/crecimiento-data.ts`.
@@ -16,7 +17,6 @@
 import { COLORS } from "../_lib/tokens";
 import type { Comparativo, PeriodRef } from "../_lib/crecimiento-data";
 import { formatWeekRange, isWeeklyFallback } from "../_lib/radar-cache";
-import { GranularidadAutoSelect } from "./GranularidadAutoSelect";
 import {
   decliningRows,
   risingRows,
@@ -26,11 +26,6 @@ import {
 
 export interface RendimientoComunidadProps {
   comparativo: Comparativo;
-  // Ruta de los formularios de filtro (normalmente la misma del host).
-  formAction: string;
-  // Inputs ocultos extra para preservar otros query params del host
-  // (p. ej. el `?period=` mensual del Radar).
-  extraHiddenInputs?: ReadonlyArray<{ name: string; value: string }>;
 }
 
 const fmt = (n: number) => n.toLocaleString("es-CO");
@@ -45,8 +40,6 @@ function periodoTitulo(p: PeriodRef): string {
 
 export function RendimientoComunidad({
   comparativo,
-  formAction,
-  extraHiddenInputs,
 }: RendimientoComunidadProps) {
   const isWeekly = comparativo.granularity === "weekly";
   const weeklyFallback = isWeeklyFallback(comparativo);
@@ -112,11 +105,6 @@ export function RendimientoComunidad({
             {isWeekly ? "Vista semanal" : "Vista mensual"}
           </p>
         </div>
-        <FiltroPeriodo
-          comparativo={comparativo}
-          formAction={formAction}
-          extraHiddenInputs={extraHiddenInputs}
-        />
       </header>
 
       {weeklyFallback ? (
@@ -283,64 +271,6 @@ function AvisoFallbackSemanal({ mes }: { mes: string }) {
         un cierre semanal para activar la vista por semana.
       </span>
     </div>
-  );
-}
-
-function FiltroPeriodo({
-  comparativo,
-  formAction,
-  extraHiddenInputs,
-}: {
-  comparativo: Comparativo;
-  formAction: string;
-  extraHiddenInputs?: ReadonlyArray<{ name: string; value: string }>;
-}) {
-  const isWeekly = comparativo.granularity === "weekly";
-  const principalLabel = isWeekly ? "Semana" : "Mes";
-  const weeklyAvailable = comparativo.weeklyAvailable;
-  return (
-    <form
-      method="get"
-      action={formAction}
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 8,
-        alignItems: "flex-end",
-        justifyContent: "flex-end",
-      }}
-    >
-      {extraHiddenInputs?.map((h, i) => (
-        <input key={`${h.name}-${i}`} type="hidden" name={h.name} value={h.value} />
-      ))}
-      <GranularidadAutoSelect
-        defaultValue={comparativo.granularity}
-        weeklyAvailable={weeklyAvailable}
-      />
-      <SelectField name="current" label={principalLabel} defaultValue={comparativo.current.key}>
-        {comparativo.available.map((p) => (
-          <option key={p.key} value={p.key}>
-            {periodoTitulo(p)}
-          </option>
-        ))}
-      </SelectField>
-      <button type="submit" style={primaryButtonStyle()}>
-        Aplicar
-      </button>
-      <p
-        style={{
-          flexBasis: "100%",
-          margin: "2px 0 0",
-          textAlign: "right",
-          fontSize: 11,
-          color: COLORS.textMuted,
-          fontWeight: 500,
-        }}
-      >
-        La comparación es automática contra {isWeekly ? "la semana" : "el mes"}{" "}
-        anterior.
-      </p>
-    </form>
   );
 }
 
@@ -513,48 +443,6 @@ function MiembroCelda({
   );
 }
 
-function SelectField({
-  name,
-  label,
-  defaultValue,
-  children,
-}: {
-  name: string;
-  label: string;
-  defaultValue: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-        fontSize: 11,
-        color: COLORS.textMuted,
-        fontWeight: 600,
-      }}
-    >
-      {label}
-      <select
-        name={name}
-        defaultValue={defaultValue}
-        style={{
-          padding: "6px 10px",
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: 6,
-          fontSize: 12,
-          backgroundColor: COLORS.surface,
-          color: COLORS.text,
-          fontFamily: "inherit",
-        }}
-      >
-        {children}
-      </select>
-    </label>
-  );
-}
-
 function eyebrowStyle(): React.CSSProperties {
   return {
     margin: 0,
@@ -563,20 +451,6 @@ function eyebrowStyle(): React.CSSProperties {
     fontWeight: 700,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-  };
-}
-
-function primaryButtonStyle(): React.CSSProperties {
-  return {
-    padding: "6px 12px",
-    border: `1px solid ${COLORS.brand}`,
-    borderRadius: 6,
-    backgroundColor: COLORS.brand,
-    color: COLORS.surface,
-    fontSize: 12,
-    fontWeight: 700,
-    cursor: "pointer",
-    fontFamily: "inherit",
   };
 }
 

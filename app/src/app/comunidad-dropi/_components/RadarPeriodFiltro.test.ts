@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RendimientoComunidad } from "./RendimientoComunidad";
+import { RadarPeriodFiltro } from "./RadarPeriodFiltro";
 import type { Comparativo } from "../_lib/crecimiento-data";
 
 function makeComparativo(overrides?: Partial<Comparativo>): Comparativo {
@@ -44,34 +44,36 @@ function makeComparativo(overrides?: Partial<Comparativo>): Comparativo {
 
 function render(comparativo: Comparativo): string {
   return renderToStaticMarkup(
-    createElement(RendimientoComunidad, { comparativo }),
+    createElement(RadarPeriodFiltro, {
+      comparativo,
+      formAction: "/comunidad-dropi/radar",
+    }),
   );
 }
 
-describe("RendimientoComunidad — sin filtro propio", () => {
-  it("no ofrece un selector 'Comparar con' ni la opción 'Sin comparación'", () => {
+describe("RadarPeriodFiltro — filtro único superior", () => {
+  it("contiene el selector 'Ver por' (granularidad), el período y el botón Aplicar", () => {
+    const html = render(makeComparativo());
+    expect(html).toContain("Ver por");
+    expect(html).toContain('name="granularity"');
+    expect(html).toContain('name="current"');
+    expect(html).toContain("Aplicar");
+  });
+
+  it("explica que la comparación es automática contra el período anterior", () => {
+    const html = render(makeComparativo());
+    expect(html).toContain("comparación es automática");
+    expect(html).toContain("el mes anterior");
+  });
+
+  it("usa 'la semana anterior' cuando la granularidad es semanal", () => {
+    const html = render(makeComparativo({ granularity: "weekly" }));
+    expect(html).toContain("la semana anterior");
+  });
+
+  it("no ofrece un selector 'Comparar con' ni 'Sin comparación'", () => {
     const html = render(makeComparativo());
     expect(html).not.toContain("Comparar con");
-    expect(html).not.toContain("Sin comparación");
-  });
-
-  it("ya no renderiza el filtro: sin 'Ver por', granularity/current ni 'Aplicar'", () => {
-    const html = render(makeComparativo());
-    expect(html).not.toContain("Ver por");
-    expect(html).not.toContain('name="granularity"');
-    expect(html).not.toContain('name="current"');
-    expect(html).not.toContain("Aplicar");
-    expect(html).not.toContain('type="hidden"');
-  });
-
-  it("muestra la comparación automática en el resumen del período", () => {
-    const html = render(makeComparativo());
-    expect(html).toContain("vs. mes anterior (Abril 2026)");
-  });
-
-  it("indica cuando no hay período anterior para comparar", () => {
-    const html = render(makeComparativo({ comparison: null }));
-    expect(html).toContain("Sin mes anterior para comparar");
     expect(html).not.toContain("Sin comparación");
   });
 });

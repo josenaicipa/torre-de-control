@@ -18,14 +18,10 @@ import { redirect } from "next/navigation";
 import { getActor } from "@/lib/actor";
 import { prisma } from "@/lib/prisma";
 import { type Radar } from "@/lib/comunidad-dropi-radar";
-import {
-  formatMonthRef,
-  loadRadar,
-  type AvailableMonth,
-} from "../_lib/radar-data";
+import { formatMonthRef, loadRadar } from "../_lib/radar-data";
 import { loadComparativo, type Granularity } from "../_lib/crecimiento-data";
 import { COLORS } from "../_lib/tokens";
-import { parsePeriod, periodKey } from "../_lib/period";
+import { parsePeriod } from "../_lib/period";
 import {
   classifyImportAge,
   type ImportAgeInfo,
@@ -35,7 +31,7 @@ import {
   type RadarFollowUpStats,
 } from "../_lib/follow-up-stats";
 import { SubNav } from "../_components/SubNav";
-import { PeriodSelector } from "../_components/PeriodSelector";
+import { RadarPeriodFiltro } from "../_components/RadarPeriodFiltro";
 import { RendimientoComunidad } from "../_components/RendimientoComunidad";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +46,20 @@ function flatten(sp: RawSearchParams): Record<string, string | undefined> {
 
 function parseGranularity(value: string | undefined): Granularity {
   return value === "monthly" ? "monthly" : "weekly";
+}
+
+// Extrae `{ year, month }` de un key mensual (`m:YYYY-M`) del filtro único.
+// Permite que el contexto mensual del Radar siga al período elegido sin
+// depender del `?period=` viejo.
+function monthFromCurrentKey(
+  current: string | null,
+): { year: number; month: number } | null {
+  if (!current || !current.startsWith("m:")) return null;
+  const [y, m] = current.slice(2).split("-");
+  const year = Number.parseInt(y ?? "", 10);
+  const month = Number.parseInt(m ?? "", 10);
+  if (Number.isFinite(year) && Number.isFinite(month)) return { year, month };
+  return null;
 }
 
 export default async function PulsoPage({
@@ -68,8 +78,15 @@ export default async function PulsoPage({
   const fallbackMonthly =
     year != null && month != null ? { year, month } : null;
 
-  const [{ radar, available, lastImportAt }, comparativo] = await Promise.all([
-    loadRadar({ year, month }),
+  // El contexto mensual (loadRadar) sigue al filtro único: si el operador
+  // eligió Mes con `?current=m:YYYY-M`, usamos ese mes; si está en Semana o no
+  // eligió mes, caemos al `?period=` viejo o al último mes disponible.
+  const monthlyCurrent =
+    granularity === "monthly" ? monthFromCurrentKey(currentKey) : null;
+  const radarMonth = monthlyCurrent ?? fallbackMonthly ?? {};
+
+  const [{ radar, lastImportAt }, comparativo] = await Promise.all([
+    loadRadar(radarMonth),
     loadComparativo({
       granularity,
       currentKey,
@@ -84,12 +101,7 @@ export default async function PulsoPage({
       <Header />
       <SubNav />
       {radar || comparativo ? (
-        <PulsoBody
-          radar={radar}
-          available={available}
-          importAge={importAge}
-          comparativo={comparativo}
-        />
+        <PulsoBody radar={radar} importAge={importAge} comparativo={comparativo} />
       ) : (
         <EmptyState />
       )}
@@ -128,19 +140,16 @@ function Header() {
 
 async function PulsoBody({
   radar,
-  available,
   importAge,
   comparativo,
 }: {
   radar: Radar | null;
-  available: AvailableMonth[];
   importAge: ImportAgeInfo;
   comparativo: Awaited<ReturnType<typeof loadComparativo>>;
 }) {
   const currentLabel = radar ? formatMonthRef(radar.current) : null;
   const previousLabel =
     radar && radar.previous ? formatMonthRef(radar.previous) : null;
-  const period = radar ? periodKey(radar.current) : null;
 
   // Una sola query alimenta el banner "Qué hacer hoy".
   const activeFollowUps = await prisma.dropiFollowUp.findMany({
@@ -157,38 +166,40 @@ async function PulsoBody({
   const now = new Date();
   const followUpStats = computeRadarFollowUpStats(activeFollowUps, now);
 
-  // Input oculto para que el form de la sección de Rendimiento conserve el
-  // `?period=` mensual del Radar al aplicar sus propios filtros.
-  const periodHidden = period
-    ? [{ name: "period", value: period }]
-    : undefined;
-
   return (
     <>
-      {currentLabel ? (
-        <PeriodNote
-          currentLabel={currentLabel}
-          previousLabel={previousLabel}
-          available={available}
-          active={
-            radar
-              ? { year: radar.current.year, month: radar.current.month }
-              : null
-          }
-          importAge={importAge}
-        />
-      ) : (
-        <ImportAgeBanner importAge={importAge} />
-      )}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 12,
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          marginBottom: 14,
+        }}
+      >
+        {currentLabel ? (
+          <PeriodNote
+            currentLabel={currentLabel}
+            previousLabel={previousLabel}
+            importAge={importAge}
+          />
+        ) : (
+          <ImportAgeBanner importAge={importAge} />
+        )}
+
+        {comparativo ? (
+          <RadarPeriodFiltro
+            comparativo={comparativo}
+            formAction="/comunidad-dropi/radar"
+          />
+        ) : null}
+      </div>
 
       <TodayActionsCard stats={followUpStats} />
 
       {comparativo ? (
-        <RendimientoComunidad
-          comparativo={comparativo}
-          formAction="/comunidad-dropi/radar"
-          extraHiddenInputs={periodHidden}
-        />
+        <RendimientoComunidad comparativo={comparativo} />
       ) : (
         <RendimientoEmpty />
       )}
@@ -351,53 +362,23 @@ function TodayActionsCard({ stats }: { stats: RadarFollowUpStats }) {
 function PeriodNote({
   currentLabel,
   previousLabel,
-  available,
-  active,
   importAge,
 }: {
   currentLabel: string;
   previousLabel: string | null;
-  available: AvailableMonth[];
-  active: { year: number; month: number } | null;
   importAge: ImportAgeInfo;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        marginBottom: 14,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 10,
-          alignItems: "center",
-          fontSize: 12,
-          color: COLORS.textSoft,
-        }}
-      >
-        <span>
-          Mes actual: <strong>{currentLabel}</strong>
-          {previousLabel ? (
-            <>
-              {" "}
-              · Comparado con <strong>{previousLabel}</strong>
-            </>
-          ) : null}
-          {" · Controla cohortes mensuales y KPIs"}
-        </span>
-        {active ? (
-          <PeriodSelector
-            basePath="/comunidad-dropi/radar"
-            active={active}
-            available={available}
-          />
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span style={{ fontSize: 12, color: COLORS.textSoft }}>
+        Mes de referencia: <strong>{currentLabel}</strong>
+        {previousLabel ? (
+          <>
+            {" "}
+            · Comparado con <strong>{previousLabel}</strong>
+          </>
         ) : null}
-      </div>
+      </span>
       <ImportAgeBanner importAge={importAge} />
     </div>
   );
