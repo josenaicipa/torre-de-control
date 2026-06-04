@@ -2,9 +2,10 @@
 // que ya vive en el Radar como lectura principal.
 //
 // Esta pestaña reusa los mismos bloques (`ComparativoSection` y
-// `CohortesSection`) y agrega un selector independiente de mes para las
-// cohortes, útil cuando el operador quiere mirar otro mes sin perder el
-// período comparativo elegido.
+// `CohortesSection`) bajo un único filtro superior (`RadarPeriodFiltro`):
+// "Ver por" Semana / Mes + selector de período + Aplicar. La comparación es
+// automática contra el período anterior; no hay selector manual de comparación.
+// Las cohortes siguen el mismo período cuando es mensual.
 //
 // Reglas duras respetadas:
 //   - No tocar pipeline de importación: la cohorte en caída expone un CTA
@@ -24,6 +25,7 @@ import {
 } from "../_lib/crecimiento-data";
 import { COLORS } from "../_lib/tokens";
 import { SubNav } from "../_components/SubNav";
+import { RadarPeriodFiltro } from "../_components/RadarPeriodFiltro";
 import { ComparativoSection } from "../_components/Comparativo";
 import { CohortesSection } from "../_components/Cohortes";
 
@@ -51,30 +53,19 @@ export default async function CrecimientoPage({
   const sp = flatten(await searchParams);
   const granularity = parseGranularity(sp.granularity);
   const currentKey = sp.current ?? null;
-  const comparisonKey = sp.comparison ?? null;
-  const monthKey = sp.cohortMonth ?? null;
 
+  // Filtro único: la comparación es siempre automática contra el período
+  // anterior, así que ignoramos cualquier `?comparison=` viejo de la URL.
   const [comparativo, monthlyPeriods] = await Promise.all([
-    loadComparativo({ granularity, currentKey, comparisonKey }),
+    loadComparativo({ granularity, currentKey, comparisonKey: null }),
     listMonthlyPeriodsForUi(),
   ]);
-  const cohortLoad = await loadMonthlyRadar(monthKey, monthlyPeriods);
 
-  // Hidden inputs que cada form arrastra para no perder el otro lado del
-  // estado: comparativo y selector de mes de cohortes viven en la misma
-  // URL pero con params disjuntos.
-  const comparativoHiddenInputs = monthKey
-    ? [{ name: "cohortMonth", value: monthKey }]
-    : undefined;
-  const cohortHiddenInputs = [
-    { name: "granularity", value: granularity },
-    ...(comparativo?.current.key
-      ? [{ name: "current", value: comparativo.current.key }]
-      : []),
-    ...(comparativo?.comparison?.key
-      ? [{ name: "comparison", value: comparativo.comparison.key }]
-      : []),
-  ];
+  // Las cohortes siguen el período único: si el operador eligió Mes, usan ese
+  // mes; en vista semanal caen al último mes disponible. Sin selector propio.
+  const cohortKey =
+    comparativo?.granularity === "monthly" ? comparativo.current.key : null;
+  const cohortLoad = await loadMonthlyRadar(cohortKey, monthlyPeriods);
 
   return (
     <div style={{ maxWidth: 1240, margin: "0 auto", color: COLORS.text }}>
@@ -85,13 +76,27 @@ export default async function CrecimientoPage({
       ) : (
         <>
           {comparativo ? (
-            <ComparativoSection
-              comparativo={comparativo}
-              formAction="/comunidad-dropi/crecimiento"
-              extraHiddenInputs={comparativoHiddenInputs}
-              eyebrow="Crecimiento vs. comparación"
-              title="Seguimiento de crecimiento"
-            />
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  marginBottom: 14,
+                }}
+              >
+                <RadarPeriodFiltro
+                  comparativo={comparativo}
+                  formAction="/comunidad-dropi/crecimiento"
+                />
+              </div>
+              <ComparativoSection
+                comparativo={comparativo}
+                formAction="/comunidad-dropi/crecimiento"
+                hideControls
+                eyebrow="Crecimiento vs. comparación"
+                title="Seguimiento de crecimiento"
+              />
+            </>
           ) : (
             <SectionEmpty
               title="Modelo comparativo"
@@ -102,17 +107,6 @@ export default async function CrecimientoPage({
             <CohortesSection
               members={cohortLoad.radar.members}
               monthLabel={cohortLoad.current.label}
-              monthSelector={
-                cohortLoad.available.length > 1
-                  ? {
-                      availableMonths: cohortLoad.available,
-                      currentKey: cohortLoad.current.key,
-                      formAction: "/comunidad-dropi/crecimiento",
-                      paramName: "cohortMonth",
-                      extraHiddenInputs: cohortHiddenInputs,
-                    }
-                  : undefined
-              }
               eyebrow="Cohortes mensuales"
               title="Cohortes sobre entregas"
             />
@@ -150,9 +144,10 @@ function Header() {
           lineHeight: 1.5,
         }}
       >
-        Drill-down del bloque que ya vive en el Radar. Comparativo con su
-        propio par de selectores y cohortes con su propio selector de mes
-        para investigar sin perder el contexto del Radar.
+        Drill-down del bloque que ya vive en el Radar. Usá el filtro de arriba
+        (Ver por Semana / Mes) para elegir el período: la comparación es
+        automática contra el período anterior y las cohortes siguen ese mismo
+        período.
       </p>
     </header>
   );

@@ -36,6 +36,11 @@ export interface ComparativoSectionProps {
   // Si true, agrega un link de drill-down al final de la sección.
   drillDownHref?: string;
   drillDownLabel?: string;
+  // Si true, oculta los controles manuales (granularidad / período /
+  // comparación). Se usa cuando el host ya monta un filtro único arriba
+  // (RadarPeriodFiltro) y la comparación es automática contra el período
+  // anterior.
+  hideControls?: boolean;
 }
 
 export function ComparativoSection({
@@ -46,12 +51,13 @@ export function ComparativoSection({
   eyebrow = "Crecimiento vs. comparación",
   drillDownHref,
   drillDownLabel,
+  hideControls = false,
 }: ComparativoSectionProps) {
   const granularityLabel =
     comparativo.granularity === "weekly" ? "Semanal" : "Mensual";
   const compLabel = comparativo.comparison
     ? comparativo.comparison.label
-    : "Sin comparación";
+    : "sin período anterior";
 
   return (
     <section
@@ -105,11 +111,13 @@ export function ComparativoSection({
               : " (vista mensual)."}
           </p>
         </div>
-        <ComparativoControls
-          comparativo={comparativo}
-          formAction={formAction}
-          extraHiddenInputs={extraHiddenInputs}
-        />
+        {hideControls ? null : (
+          <ComparativoControls
+            comparativo={comparativo}
+            formAction={formAction}
+            extraHiddenInputs={extraHiddenInputs}
+          />
+        )}
       </header>
 
       <KpiRow kpis={comparativo.kpis} comparativo={comparativo} />
