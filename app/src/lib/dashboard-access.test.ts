@@ -226,11 +226,21 @@ describe("resolveDashboardAccess — DIRECTOR AREA/TEAM", () => {
     expect(a.allowedMembers).not.toContain("Karen");
   });
 
-  it("maps a Marketing area to the marketing collaborator", () => {
+  it("maps a Marketing area to every legacy Marketing tab member", () => {
     const a = resolveDashboardAccess(
       actor({ position: "DIRECTOR", dataScope: "AREA", areaName: "Marketing" }),
     );
-    expect(a.allowedMembers).toEqual(["Karen", "Karen Anquiz"]);
+    expect(a.allowedMembers).toEqual([
+      "Karen",
+      "Karen Anquiz",
+      "Luisa",
+      "Luisa Vega",
+      "Valen",
+      "Carlos",
+      "Carlos Velez",
+      "Dahiana",
+      "Otro",
+    ]);
   });
 
   it("fails closed for an unrecognized area name", () => {
@@ -287,6 +297,11 @@ describe("isOwnDashboardEntryMember", () => {
     expect(isOwnDashboardEntryMember(actor({ name: "Karen Anquiz" }), "Karen")).toBe(true);
     expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Anquiz")).toBe(true);
     expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Setter")).toBe(true);
+  });
+
+  it("allows legacy Marketing tab members to fill their short-name row", () => {
+    expect(isOwnDashboardEntryMember(actor({ name: "Luisa Vega" }), "Luisa")).toBe(true);
+    expect(isOwnDashboardEntryMember(actor({ name: "Carlos Velez" }), "Carlos")).toBe(true);
   });
 
   it("allows closer legacy aliases only for the matched closer", () => {

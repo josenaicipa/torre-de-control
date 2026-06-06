@@ -31,6 +31,11 @@ interface Collaborator {
 
 const COLLABORATORS: readonly Collaborator[] = [
   { id: "Karen", label: "Karen Anquiz", role: "marketing" },
+  { id: "Luisa", label: "Luisa Vega", role: "marketing" },
+  { id: "Valen", label: "Valen", role: "marketing" },
+  { id: "Carlos", label: "Carlos Velez", role: "marketing" },
+  { id: "Dahiana", label: "Dahiana", role: "marketing" },
+  { id: "Otro", label: "Otro", role: "marketing" },
   { id: "Admin", label: "Valentina Sanchez", role: "closer" },
   { id: "Alejandro Gallo", label: "Alejandro Gallo", role: "setter" },
   { id: "Daniel Garcia", label: "Daniel Garcia", role: "setter" },
