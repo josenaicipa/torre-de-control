@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { parse } from "csv-parse/sync";
 import { getActor, requireActor, requireAdmin } from "@/lib/actor";
 import { handleApiError } from "@/lib/api-helpers";
-import { parseRowFromArray, type ParsedRow } from "@/lib/legacy-cartera-parser";
+import { type ParsedRow } from "@/lib/legacy-cartera-parser";
+import {
+  type CloserCandidate,
+  closerMatchesUser,
+  parseCarteraCsv,
+} from "@/lib/legacy-cartera-import";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -20,30 +24,8 @@ interface PreviewSummary {
   errors: Array<{ row: number; error: string }>;
 }
 
-function normalizeName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .trim()
-    .toLowerCase();
-}
-
-function closerMatches(
-  rawCloser: string,
-  users: Array<{ name: string | null; email: string }>,
-): boolean {
-  const closer = normalizeName(rawCloser);
-  return users.some((user) => {
-    const firstName = normalizeName(user.name?.split(/\s+/)[0] ?? "");
-    const emailPrefix = normalizeName(user.email.split("@")[0] ?? "");
-    return (
-      closer === firstName ||
-      closer === emailPrefix ||
-      (closer.length >= 3 &&
-        firstName.length >= 3 &&
-        (closer.startsWith(firstName) || firstName.startsWith(closer)))
-    );
-  });
+function closerMatches(rawCloser: string, users: CloserCandidate[]): boolean {
+  return users.some((user) => closerMatchesUser(rawCloser, user));
 }
 
 export async function POST(req: Request) {
@@ -69,28 +51,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "CSV vacío o inválido" }, { status: 400 });
     }
 
-    // Parse as arrays: the legacy header repeats "Medio de pago" and "Recibido".
-    const rows = parse(csvText, {
-      bom: true,
-      from_line: 5,
-      relax_column_count: true,
-      skip_empty_lines: true,
-    }) as string[][];
-
-    const parsedRows: ParsedRow[] = [];
-    const errors: Array<{ row: number; error: string }> = [];
-    rows.forEach((row, index) => {
-      if (!row[0]?.trim()) return;
-      const legacyRowId = index + 5;
-      try {
-        parsedRows.push(parseRowFromArray(row, legacyRowId));
-      } catch (err) {
-        errors.push({
-          row: legacyRowId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    });
+    // The legacy header repeats "Medio de pago" and "Recibido"; the shared
+    // parser reads fixed columns to stay robust against the duplicated header.
+    const { parsedRows, errors } = parseCarteraCsv(csvText);
 
     const allEmails = Array.from(
       new Set(
@@ -119,7 +82,7 @@ export async function POST(req: Request) {
         active: true,
         OR: [{ position: "CLOSER" }, { position: "ADMIN" }],
       },
-      select: { name: true, email: true },
+      select: { id: true, name: true, email: true },
     });
     const closers = Array.from(
       new Set(

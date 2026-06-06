@@ -23,9 +23,10 @@ export default async function ImportCarteraPage() {
           Importar Cuadro de Pagos (histórico)
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Importación única del Google Sheet histórico. Subí el CSV para revisar la vista previa.
+          Importación única del Google Sheet histórico. Primero subí el CSV y revisá la vista
+          previa (simulación, no escribe nada).
           <strong className="ml-1 text-slate-700">
-            No se escribe nada en la base de datos en esta etapa.
+            Recién al confirmar en el Paso 3 se escriben los registros en la base de datos.
           </strong>
         </p>
       </div>

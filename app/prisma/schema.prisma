@@ -418,6 +418,10 @@ model Student {
   durationAssumed      Boolean        @default(false)
   closedAt             DateTime?      @db.Date
   legacyRowId          Int?
+  // Traceability link to the historical cartera import that created this row.
+  // Nullable: students created directly in the UI have no import batch.
+  importBatchId        String?
+  importBatch          ImportBatch?   @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
   ghlContactId         String?
   notes                String?
   currentProgressLevel ProgressLevel  @default(SIN_DATO)
@@ -455,6 +459,7 @@ model Student {
   @@index([mentorshipStatus])
   @@index([accessStatus])
   @@index([legacyRowId])
+  @@index([importBatchId])
 }
 
 model StudentMember {
@@ -643,7 +648,8 @@ model ImportBatch {
   createdAt       DateTime     @default(now())
   confirmedAt     DateTime?
 
-  sales Sale[]
+  sales    Sale[]
+  students Student[]
 }
 
 model ReminderLog {
