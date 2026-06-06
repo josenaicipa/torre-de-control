@@ -127,6 +127,14 @@ describe("resolveDashboardAccess — CLOSER OWN", () => {
     expect(closer.allowedMembers).toEqual(["Daniel Garcia Closer", "Daniel Garcia"]);
   });
 
+  it("allows Alejandro Gallo to own his closer collaborator row", () => {
+    const a = resolveDashboardAccess(
+      actor({ position: "CLOSER", dataScope: "OWN", ghlUserName: "Alejandro Gallo" }),
+    );
+
+    expect(a.allowedMembers).toEqual(["Alejandro Gallo Closer", "Alejandro Gallo"]);
+  });
+
   it("renames Daryi Uribe to Daryi Perez while preserving the Daryi legacy alias", () => {
     const a = resolveDashboardAccess(
       actor({ position: "CLOSER", dataScope: "OWN", ghlUserName: "Daryi Perez" }),
@@ -205,6 +213,8 @@ describe("resolveDashboardAccess — DIRECTOR AREA/TEAM", () => {
       "Juan Diego Afanador",
       "Daniel Garcia Closer",
       "Daniel Garcia",
+      "Alejandro Gallo Closer",
+      "Alejandro Gallo",
     ]);
   });
 
@@ -282,6 +292,10 @@ describe("isOwnDashboardEntryMember", () => {
   it("allows closer legacy aliases only for the matched closer", () => {
     expect(isOwnDashboardEntryMember(actor({ name: "Carlos Velez" }), "Carlos")).toBe(true);
     expect(isOwnDashboardEntryMember(actor({ name: "Carlos Velez" }), "Daryi")).toBe(false);
+  });
+
+  it("allows Alejandro Gallo to fill his closer row as his own daily entry", () => {
+    expect(isOwnDashboardEntryMember(actor({ name: "Alejandro Gallo" }), "Alejandro Gallo Closer")).toBe(true);
   });
 
   it("does not allow arbitrary users to fill another collaborator row", () => {

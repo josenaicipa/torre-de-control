@@ -40,6 +40,7 @@ const COLLABORATORS: readonly Collaborator[] = [
   { id: "Daryi Perez", label: "Daryi Perez", legacy: "Daryi", role: "closer" },
   { id: "Wiston Quintero", label: "Wiston Quintero", legacy: "Juan Diego Afanador", role: "closer" },
   { id: "Daniel Garcia Closer", label: "Daniel Garcia", legacy: "Daniel Garcia", role: "closer" },
+  { id: "Alejandro Gallo Closer", label: "Alejandro Gallo", legacy: "Alejandro Gallo", role: "closer" },
 ];
 
 function uniq(values: string[]): string[] {
