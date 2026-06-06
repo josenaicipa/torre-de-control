@@ -4,6 +4,11 @@ import { getActor } from "@/lib/actor";
 import { mergeStudentScope } from "@/lib/access";
 import { redirect } from "next/navigation";
 import { DeleteStudentButton } from "./delete-student-button";
+import {
+  STUDENT_STATUS_OPTIONS,
+  studentStatusBadgeClass,
+  studentStatusLabel,
+} from "@/lib/student-status";
 
 export const dynamic = "force-dynamic";
 
@@ -103,12 +108,9 @@ export default async function EstudiantesPage({
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">Todos los estados</option>
-          <option value="ACTIVE">Activo</option>
-          <option value="PAUSED">Pausado</option>
-          <option value="COMPLETED">Completado</option>
-          <option value="DROPPED">Retirado</option>
-          <option value="EXTENDED">Extendido</option>
-          <option value="ACCESS_REVOKED">Sin accesos</option>
+          {STUDENT_STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
         <select
           name="mentorUserId"
@@ -207,25 +209,9 @@ export default async function EstudiantesPage({
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    ACTIVE: "bg-emerald-100 text-emerald-700",
-    PAUSED: "bg-amber-100 text-amber-700",
-    COMPLETED: "bg-blue-100 text-blue-700",
-    DROPPED: "bg-slate-200 text-slate-700",
-    EXTENDED: "bg-purple-100 text-purple-700",
-    ACCESS_REVOKED: "bg-rose-100 text-rose-700",
-  };
-  const labels: Record<string, string> = {
-    ACTIVE: "Activo",
-    PAUSED: "Pausado",
-    COMPLETED: "Completado",
-    DROPPED: "Retirado",
-    EXTENDED: "Extendido",
-    ACCESS_REVOKED: "Sin accesos",
-  };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colors[status] ?? "bg-slate-100 text-slate-700"}`}>
-      {labels[status] ?? status}
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${studentStatusBadgeClass(status)}`}>
+      {studentStatusLabel(status)}
     </span>
   );
 }

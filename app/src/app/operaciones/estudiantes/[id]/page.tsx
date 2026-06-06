@@ -9,21 +9,9 @@ import { PagosTab } from "./pagos-tab";
 import { MetricasTab } from "./metricas-tab";
 import { ProductosTab } from "./productos-tab";
 import { DeleteStudentButton } from "../delete-student-button";
+import { studentStatusLabel } from "@/lib/student-status";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Activo",
-  PAUSED: "Pausado",
-  COMPLETED: "Completado",
-  DROPPED: "Retirado",
-  EXTENDED: "Extendido",
-  ACCESS_REVOKED: "Sin accesos",
-};
-
-function statusLabel(status: string) {
-  return STATUS_LABELS[status] ?? status;
-}
 
 const TABS = [
   { key: "info", label: "Info" },
@@ -175,7 +163,7 @@ function InfoTab({ student }: { student: { fullName: string; email: string; phon
       </div>
       <div>
         <dt className="font-medium text-slate-500">Estado</dt>
-        <dd className="text-slate-900">{statusLabel(student.status)}</dd>
+        <dd className="text-slate-900">{studentStatusLabel(student.status)}</dd>
       </div>
       <div>
         <dt className="font-medium text-slate-500">Closer</dt>
