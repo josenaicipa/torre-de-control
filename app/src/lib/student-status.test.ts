@@ -37,6 +37,17 @@ describe("STUDENT_STATUS_OPTIONS", () => {
     const separado = STUDENT_STATUS_OPTIONS.find((o) => o.value === "SEPARATED");
     expect(separado).toEqual({ value: "SEPARATED", label: "Separado" });
   });
+
+  it("no ofrece 'Dado de baja' (WITHDRAWN) como opción de filtro", () => {
+    expect(STUDENT_STATUS_OPTIONS.some((o) => o.value === "WITHDRAWN")).toBe(false);
+    expect(STUDENT_STATUS_OPTIONS.some((o) => o.label === "Dado de baja")).toBe(
+      false,
+    );
+  });
+
+  it("mantiene el label español de WITHDRAWN para datos históricos", () => {
+    expect(studentStatusLabel("WITHDRAWN")).toBe("Dado de baja");
+  });
 });
 
 describe("studentStatusBadgeClass", () => {

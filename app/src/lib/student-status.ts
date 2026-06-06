@@ -39,6 +39,8 @@ export function studentStatusBadgeClass(status: string): string {
 }
 
 // Orden de aparición en selects/filtros de estado.
+// WITHDRAWN ("Dado de baja") se omite a propósito: sigue teniendo label/badge
+// para mostrar datos históricos, pero no debe ofrecerse como opción de filtro.
 export const STUDENT_STATUS_FILTER_ORDER = [
   "ACTIVE",
   "PAUSED",
@@ -48,7 +50,6 @@ export const STUDENT_STATUS_FILTER_ORDER = [
   "EXTENDED",
   "ACCESS_REVOKED",
   "INACTIVE",
-  "WITHDRAWN",
 ] as const;
 
 export const STUDENT_STATUS_OPTIONS: { value: string; label: string }[] =
