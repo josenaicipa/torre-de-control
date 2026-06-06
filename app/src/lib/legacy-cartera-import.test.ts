@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   closerMatchesUser,
+  ImportBatchNotFoundError,
+  ImportBatchSourceError,
   parseCarteraCsv,
   resolveCloserUserId,
+  revertCarteraBatch,
   scheduleStatusFor,
   type CloserCandidate,
 } from "./legacy-cartera-import";
@@ -112,5 +115,147 @@ describe("parseCarteraCsv", () => {
     const csv = ["h1", "h2", "h3", "h4", ",,,", ""].join("\n");
     const { parsedRows } = parseCarteraCsv(csv);
     expect(parsedRows).toHaveLength(0);
+  });
+});
+
+// In-memory fake of the Prisma transaction client used by revertCarteraBatch.
+// Mutates its own arrays so tests can assert exactly what survived the revert.
+interface FakeState {
+  batches: Array<{ id: string; source: string; filename: string }>;
+  students: Array<{ id: string; importBatchId: string | null }>;
+  members: Array<{ id: string; studentId: string }>;
+  schedules: Array<{ id: string; studentId: string }>;
+  payments: Array<{ id: string; studentId: string }>;
+  attributions: Array<{ id: string; studentId: string }>;
+}
+
+function makeFakeTx(state: FakeState) {
+  const deleteByStudent = (
+    rows: Array<{ studentId: string }>,
+    ids: string[],
+  ) => {
+    const keep = rows.filter((row) => !ids.includes(row.studentId));
+    const count = rows.length - keep.length;
+    rows.length = 0;
+    rows.push(...keep);
+    return { count };
+  };
+
+  return {
+    importBatch: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        state.batches.find((batch) => batch.id === where.id) ?? null,
+      delete: async ({ where }: { where: { id: string } }) => {
+        state.batches = state.batches.filter((batch) => batch.id !== where.id);
+        return {};
+      },
+    },
+    student: {
+      findMany: async ({ where }: { where: { importBatchId: string } }) =>
+        state.students
+          .filter((student) => student.importBatchId === where.importBatchId)
+          .map((student) => ({ id: student.id })),
+      deleteMany: async ({ where }: { where: { importBatchId: string } }) => {
+        const keep = state.students.filter(
+          (student) => student.importBatchId !== where.importBatchId,
+        );
+        const count = state.students.length - keep.length;
+        state.students = keep;
+        return { count };
+      },
+    },
+    payment: {
+      deleteMany: async ({ where }: { where: { studentId: { in: string[] } } }) =>
+        deleteByStudent(state.payments, where.studentId.in),
+    },
+    paymentSchedule: {
+      deleteMany: async ({ where }: { where: { studentId: { in: string[] } } }) =>
+        deleteByStudent(state.schedules, where.studentId.in),
+    },
+    saleAttribution: {
+      deleteMany: async ({ where }: { where: { studentId: { in: string[] } } }) =>
+        deleteByStudent(state.attributions, where.studentId.in),
+    },
+    studentMember: {
+      deleteMany: async ({ where }: { where: { studentId: { in: string[] } } }) =>
+        deleteByStudent(state.members, where.studentId.in),
+    },
+  };
+}
+
+type RevertTx = Parameters<typeof revertCarteraBatch>[0];
+
+describe("revertCarteraBatch", () => {
+  function seedState(): FakeState {
+    return {
+      batches: [
+        { id: "b1", source: "cartera_legacy", filename: "lote1.csv" },
+        { id: "b2", source: "cartera_legacy", filename: "lote2.csv" },
+      ],
+      students: [
+        { id: "s1", importBatchId: "b1" },
+        { id: "s2", importBatchId: "b1" },
+        { id: "s3", importBatchId: "b2" },
+        { id: "s4", importBatchId: null }, // creado a mano, sin lote
+      ],
+      members: [
+        { id: "m1", studentId: "s1" },
+        { id: "m2", studentId: "s3" },
+      ],
+      schedules: [
+        { id: "sch1", studentId: "s1" },
+        { id: "sch2", studentId: "s3" },
+      ],
+      payments: [
+        { id: "p1", studentId: "s2" },
+        { id: "p2", studentId: "s3" },
+      ],
+      attributions: [
+        { id: "a1", studentId: "s1" },
+        { id: "a2", studentId: "s3" },
+      ],
+    };
+  }
+
+  it("deletes only students of the target batch and their data, leaving others intact", async () => {
+    const state = seedState();
+    const tx = makeFakeTx(state) as unknown as RevertTx;
+
+    const result = await revertCarteraBatch(tx, "b1");
+
+    expect(result.studentsDeleted).toBe(2);
+    expect(result.membersDeleted).toBe(1);
+    expect(result.schedulesDeleted).toBe(1);
+    expect(result.paymentsDeleted).toBe(1);
+    expect(result.attributionsDeleted).toBe(1);
+
+    // Students of b2 and the manual one survive.
+    expect(state.students.map((s) => s.id).sort()).toEqual(["s3", "s4"]);
+    // Related data of the untouched students survives.
+    expect(state.members.map((m) => m.id)).toEqual(["m2"]);
+    expect(state.schedules.map((s) => s.id)).toEqual(["sch2"]);
+    expect(state.payments.map((p) => p.id)).toEqual(["p2"]);
+    expect(state.attributions.map((a) => a.id)).toEqual(["a2"]);
+    // The reverted batch is gone; b2 remains.
+    expect(state.batches.map((b) => b.id)).toEqual(["b2"]);
+  });
+
+  it("throws when the batch does not exist", async () => {
+    const state = seedState();
+    const tx = makeFakeTx(state) as unknown as RevertTx;
+    await expect(revertCarteraBatch(tx, "nope")).rejects.toBeInstanceOf(
+      ImportBatchNotFoundError,
+    );
+  });
+
+  it("refuses to revert a batch whose source is not cartera_legacy", async () => {
+    const state = seedState();
+    state.batches.push({ id: "b3", source: "dropi", filename: "x.csv" });
+    const tx = makeFakeTx(state) as unknown as RevertTx;
+    await expect(revertCarteraBatch(tx, "b3")).rejects.toBeInstanceOf(
+      ImportBatchSourceError,
+    );
+    // Nothing was deleted.
+    expect(state.students).toHaveLength(4);
   });
 });

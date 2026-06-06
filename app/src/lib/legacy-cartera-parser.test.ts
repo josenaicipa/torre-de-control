@@ -8,7 +8,22 @@ import {
   parseRowFromArray,
   parseStatus,
   parseStudentNames,
+  parseStudentStatusColumn,
 } from "./legacy-cartera-parser";
+
+// Construye una fila histórica con columnas A:V + la columna W (student_status).
+// `notes` (columna V, índice 21) permite probar que la columna W gana sobre el
+// heurístico legacy de notas.
+function rowWithStatus(studentStatus: string, notes = ""): string[] {
+  return [
+    "Estudiante Demo", "300 0000", "demo@x.com",
+    "Daryi/Valen", "10/03/25", "$1,500.00", "Stripe", "TRUE",
+    "", "", "", "FALSE", "", "", "", "FALSE",
+    "$0.00", "9 meses", "12/03/25", "12/12/25",
+    "", notes,
+    studentStatus,
+  ];
+}
 
 describe("parseDateFlexible", () => {
   it("parses dd/mm/yy", () => {
@@ -141,5 +156,55 @@ describe("parseRowFromArray", () => {
     expect(parsed.head.fullName).toBe("Lourdes");
     expect(parsed.members[0].fullName).toBe("Guillermo");
     expect(parsed.status).toBe("DROPPED");
+  });
+});
+
+describe("parseStudentStatusColumn", () => {
+  it("maps the three recognized states ignoring case/whitespace", () => {
+    expect(parseStudentStatusColumn("ACTIVE")).toBe("ACTIVE");
+    expect(parseStudentStatusColumn(" active ")).toBe("ACTIVE");
+    expect(parseStudentStatusColumn("Separated")).toBe("SEPARATED");
+    expect(parseStudentStatusColumn("inactive")).toBe("INACTIVE");
+  });
+
+  it("returns null for blank or unknown values", () => {
+    expect(parseStudentStatusColumn("")).toBeNull();
+    expect(parseStudentStatusColumn(null)).toBeNull();
+    expect(parseStudentStatusColumn("PAUSED")).toBeNull();
+  });
+});
+
+describe("parseRowFromArray with student_status column W", () => {
+  it("creates an INACTIVE student when student_status is INACTIVE (Gabriela case)", () => {
+    const parsed = parseRowFromArray(rowWithStatus("INACTIVE"), 7);
+    expect(parsed.status).toBe("INACTIVE");
+  });
+
+  it("creates a SEPARATED student when student_status is SEPARATED", () => {
+    const parsed = parseRowFromArray(rowWithStatus("SEPARATED"), 8);
+    expect(parsed.status).toBe("SEPARATED");
+  });
+
+  it("is ACTIVE when student_status is ACTIVE", () => {
+    const parsed = parseRowFromArray(rowWithStatus("ACTIVE"), 9);
+    expect(parsed.status).toBe("ACTIVE");
+  });
+
+  it("blank student_status defaults to ACTIVE and never PAUSED, even with frozen-mentoring notes (brekospaf case)", () => {
+    const parsed = parseRowFromArray(rowWithStatus("", "MENTORIA FRIZZADA POR 1 MES"), 10);
+    expect(parsed.status).toBe("ACTIVE");
+  });
+
+  it("falls back to ACTIVE with a warning for an unrecognized W value", () => {
+    const parsed = parseRowFromArray(rowWithStatus("RETIRADO"), 11);
+    expect(parsed.status).toBe("ACTIVE");
+    expect(parsed.warnings.some((w) => w.includes("student_status no reconocido"))).toBe(true);
+  });
+
+  it("keeps the legacy heuristic when there is no W column at all", () => {
+    const legacyRow = rowWithStatus("ACTIVE").slice(0, 22); // drop column W
+    legacyRow[21] = "MENTORIA FRIZZADA POR 1 MES";
+    const parsed = parseRowFromArray(legacyRow, 12);
+    expect(parsed.status).toBe("PAUSED");
   });
 });

@@ -32,7 +32,15 @@ export interface ParsedRow {
   installments: ParsedInstallment[];
   pendingAmount: number;
   notes: string | null;
-  status: "ACTIVE" | "PAUSED" | "COMPLETED" | "DROPPED" | "EXTENDED" | "ACCESS_REVOKED";
+  status:
+    | "ACTIVE"
+    | "PAUSED"
+    | "COMPLETED"
+    | "DROPPED"
+    | "EXTENDED"
+    | "ACCESS_REVOKED"
+    | "SEPARATED"
+    | "INACTIVE";
   warnings: string[];
 }
 
@@ -176,6 +184,23 @@ function warnInvalidDate(warnings: string[], label: string, raw: string | undefi
 }
 
 /**
+ * Columna W ("student_status") del CSV histórico corregido. Solo acepta los tres
+ * estados que mapean 1:1 a los colores del Google Sheet original:
+ *   blanco/sin color -> ACTIVE, amarillo (#FFF2CC) -> SEPARATED, rojo (#EA9999) -> INACTIVE.
+ * Devuelve null si la celda no trae un valor reconocido (incluido vacío), para
+ * que quien la consuma decida el fallback.
+ */
+export function parseStudentStatusColumn(
+  value: string | null | undefined,
+): "ACTIVE" | "SEPARATED" | "INACTIVE" | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (normalized === "ACTIVE") return "ACTIVE";
+  if (normalized === "SEPARATED") return "SEPARATED";
+  if (normalized === "INACTIVE") return "INACTIVE";
+  return null;
+}
+
+/**
  * Usa indices fijos porque "Medio de pago" y "Recibido" se repiten en el header.
  */
 export function parseRowFromArray(arr: string[], rowIndex: number): ParsedRow {
@@ -232,6 +257,28 @@ export function parseRowFromArray(arr: string[], rowIndex: number): ParsedRow {
   const notesField = arr[21]?.trim() || null;
   const notes = [observation, notesField].filter(Boolean).join(" | ") || null;
 
+  // Columna W (índice 22): si el CSV histórico corregido la trae, es la única
+  // fuente de verdad del estado (deriva de los colores del Google Sheet). En ese
+  // caso nunca derivamos PAUSED por fechas/notas: blanco = ACTIVE. Solo cuando la
+  // columna no existe (formato legacy sin W) caemos al heurístico parseStatus.
+  const statusColumnRaw = arr[22];
+  let status: ParsedRow["status"];
+  if (statusColumnRaw !== undefined) {
+    const explicit = parseStudentStatusColumn(statusColumnRaw);
+    if (explicit) {
+      status = explicit;
+    } else {
+      status = "ACTIVE";
+      if (statusColumnRaw.trim()) {
+        warnings.push(
+          `student_status no reconocido ("${statusColumnRaw.trim()}"), se usa ACTIVE`,
+        );
+      }
+    }
+  } else {
+    status = parseStatus(notesField, observation, pendingAmount, endDate);
+  }
+
   return {
     legacyRowId: rowIndex,
     head: names.head,
@@ -245,7 +292,7 @@ export function parseRowFromArray(arr: string[], rowIndex: number): ParsedRow {
     installments,
     pendingAmount,
     notes,
-    status: parseStatus(notesField, observation, pendingAmount, endDate),
+    status,
     warnings,
   };
 }

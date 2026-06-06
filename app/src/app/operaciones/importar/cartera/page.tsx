@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getActor } from "@/lib/actor";
 import { CarteraImportForm } from "./upload-form";
+import { RevertBatchesPanel } from "./revert-batches-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,10 @@ export default async function ImportCarteraPage() {
         </p>
       </div>
 
-      <CarteraImportForm />
+      <div className="space-y-8">
+        <CarteraImportForm />
+        <RevertBatchesPanel />
+      </div>
     </div>
   );
 }

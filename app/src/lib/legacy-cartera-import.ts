@@ -29,6 +29,30 @@ export interface SkippedRow {
   reason: string;
 }
 
+export interface CarteraRevertResult {
+  batchId: string;
+  filename: string;
+  studentsDeleted: number;
+  membersDeleted: number;
+  schedulesDeleted: number;
+  paymentsDeleted: number;
+  attributionsDeleted: number;
+}
+
+export class ImportBatchNotFoundError extends Error {
+  constructor(batchId: string) {
+    super(`Lote de importación no encontrado: ${batchId}`);
+    this.name = "ImportBatchNotFoundError";
+  }
+}
+
+export class ImportBatchSourceError extends Error {
+  constructor(source: string) {
+    super(`El lote no es de cartera_legacy (source=${source}); no se puede revertir`);
+    this.name = "ImportBatchSourceError";
+  }
+}
+
 export interface CarteraImportResult {
   studentsCreated: number;
   studentsSkippedExisting: number;
@@ -300,4 +324,72 @@ export async function importCarteraRows(
   }
 
   return result;
+}
+
+/**
+ * Revierte de forma segura un lote de importación `cartera_legacy`: borra SOLO
+ * los estudiantes creados por ese lote (Student.importBatchId === batchId) y su
+ * data asociada, sin tocar estudiantes preexistentes que la importación omitió
+ * por idempotencia.
+ *
+ * Aunque el schema define cascadas a nivel de FK (StudentMember, SaleAttribution,
+ * PaymentSchedule, Payment, ReminderLog, etc. se borran solos al borrar Student),
+ * acá borramos los hijos explícitamente en orden FK-seguro para poder devolver
+ * conteos exactos y dejar el borrado determinístico. Debe ejecutarse dentro de
+ * una transacción. Lanza ImportBatchNotFoundError / ImportBatchSourceError si el
+ * lote no existe o no es cartera_legacy.
+ */
+export async function revertCarteraBatch(
+  tx: Tx,
+  batchId: string,
+): Promise<CarteraRevertResult> {
+  const batch = await tx.importBatch.findUnique({
+    where: { id: batchId },
+    select: { id: true, source: true, filename: true },
+  });
+  if (!batch) {
+    throw new ImportBatchNotFoundError(batchId);
+  }
+  if (batch.source !== "cartera_legacy") {
+    throw new ImportBatchSourceError(batch.source);
+  }
+
+  const students = await tx.student.findMany({
+    where: { importBatchId: batchId },
+    select: { id: true },
+  });
+  const studentIds = students.map((student) => student.id);
+
+  let membersDeleted = 0;
+  let schedulesDeleted = 0;
+  let paymentsDeleted = 0;
+  let attributionsDeleted = 0;
+
+  if (studentIds.length > 0) {
+    const studentFilter = { studentId: { in: studentIds } };
+    // Order matters: payments reference schedules (SetNull) so remove them first;
+    // ReminderLog hangs off PaymentSchedule via DB cascade.
+    paymentsDeleted = (await tx.payment.deleteMany({ where: studentFilter })).count;
+    schedulesDeleted = (await tx.paymentSchedule.deleteMany({ where: studentFilter })).count;
+    attributionsDeleted = (await tx.saleAttribution.deleteMany({ where: studentFilter })).count;
+    membersDeleted = (await tx.studentMember.deleteMany({ where: studentFilter })).count;
+  }
+
+  const studentsDeleted = (
+    await tx.student.deleteMany({ where: { importBatchId: batchId } })
+  ).count;
+
+  // Borramos el lote recién después de borrar la data. La trazabilidad de la
+  // reversión queda en el AuditEvent que escribe la ruta API.
+  await tx.importBatch.delete({ where: { id: batchId } });
+
+  return {
+    batchId,
+    filename: batch.filename,
+    studentsDeleted,
+    membersDeleted,
+    schedulesDeleted,
+    paymentsDeleted,
+    attributionsDeleted,
+  };
 }
