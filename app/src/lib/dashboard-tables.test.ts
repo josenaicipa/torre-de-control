@@ -71,6 +71,30 @@ describe("sanitizeValues", () => {
     const out = sanitizeValues("daily_entries", { member: "Karen", posts: 0, mensajes: 0 });
     expect(out).toEqual({ member: "Karen", posts: 0, mensajes: 0 });
   });
+
+  it("allows the explicit setter metric columns", () => {
+    const out = sanitizeValues("daily_entries", {
+      member: "Carlos Velez",
+      setter_new_conversations: 7,
+      setter_new_inbound: 3,
+      setter_new_outbound: 4,
+      setter_outbound_replies: 2,
+      follow_ups: 5,
+      setter_calls_proposed: 6,
+      setter_links_sent: 1,
+      setter_secret_note: "strip me",
+    });
+    expect(out).toEqual({
+      member: "Carlos Velez",
+      setter_new_conversations: 7,
+      setter_new_inbound: 3,
+      setter_new_outbound: 4,
+      setter_outbound_replies: 2,
+      follow_ups: 5,
+      setter_calls_proposed: 6,
+      setter_links_sent: 1,
+    });
+  });
 });
 
 describe("conflictTarget", () => {

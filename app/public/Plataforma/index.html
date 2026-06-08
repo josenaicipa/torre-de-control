@@ -260,6 +260,10 @@ const leadsPerDollarForRevenue=()=>LEADS_NECESARIOS_POR_DOLAR;
 const blankEntry=()=>({
   igFollowers:0,posts:0,mensajes:0,followUps:0,bkOffers:0,
   gastoMeta:0,gastoGoogle:0,gastoTikTok:0,gastoOtros:0,
+  // Setter metrics are stored in explicit daily_entries columns; follow-ups
+  // already uses the shared follow_ups column.
+  setterNewConversations:0,setterNewInbound:0,setterNewOutbound:0,
+  setterOutboundReplies:0,setterCallsProposed:0,setterLinksSent:0,
   // Closer manual fields (only used by commercial collaborators). Persisted
   // through repurposed daily_entries columns — see rowToEntry/saveEntry.
   agendas:0,calificadas:0,agendasHoy:0,showUps:0,
@@ -343,6 +347,12 @@ const rowToEntry=row=>{
     // Marketing fields
     igFollowers:row.ig_followers||0,
     posts:row.posts||0,mensajes:row.mensajes||0,followUps:row.follow_ups||0,bkOffers:row.bk_offers||0,
+    setterNewConversations:(row.setter_new_conversations??0)||0,
+    setterNewInbound:(row.setter_new_inbound??0)||0,
+    setterNewOutbound:(row.setter_new_outbound??0)||0,
+    setterOutboundReplies:(row.setter_outbound_replies??0)||0,
+    setterCallsProposed:(row.setter_calls_proposed??0)||0,
+    setterLinksSent:(row.setter_links_sent??0)||0,
     callsScheduled:row.ig_followers||0,
     outboundContactados:row.posts||0,
     outboundAgendados:row.mensajes||0,
@@ -1913,8 +1923,9 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(d+":")).map(([,v])=>v);
     // Marketing aggregates skip commercial collaborators so closer rows don't
     // inflate mensajes/follow-ups/ig in the Detalle Diario marketing section.
-    const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member));
+    const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member)&&!isSetterMember(e.member));
     const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));
+    const setterEntries=entries.filter(e=>e&&isSetterMember(e.member));
     // Jan-Mar historical ad spend was imported as month totals. Keep those
     // Marketing Histórico rows out of daily cells, but allow Auto Ads daily
     // rows to remain visible. Total / Mes prioritizes the historical monthly
@@ -1927,8 +1938,9 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const sdAds=f=>sumF(dailyAdEntries,f);
     const sdMkt=f=>sumF(mktEntries,f);
     const sdCommercial=f=>allowCommercialFallback?sumF(commercialEntries,f):0;
+    const sdSetter=f=>sumF(setterEntries,f);
     const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,commercialEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,totalGastoDay};
+    return{day:i+1,d,entries,mktEntries,commercialEntries,setterEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdSetter,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -2017,6 +2029,15 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Show Ups",fn:d=>d.sdCommercial("showUps")||null,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.sdCommercial("followUps")||null,fmt:"n"},
       {l:"# Leads calientes",fn:d=>d.sdCommercial("pendAcumulados")||null,fmt:"n"},
+    ]},
+    {title:"Métricas Setter",bg:"#334155",rows:[
+      {l:"# Nuevas Conversaciones del Día",fn:d=>d.sdSetter("setterNewConversations")||null,fmt:"n"},
+      {l:"# Nuevos Inbound",fn:d=>d.sdSetter("setterNewInbound")||null,fmt:"n"},
+      {l:"# Nuevos Outbound",fn:d=>d.sdSetter("setterNewOutbound")||null,fmt:"n"},
+      {l:"# Respuestas de Outbound",fn:d=>d.sdSetter("setterOutboundReplies")||null,fmt:"n"},
+      {l:"# Follow-ups",fn:d=>d.sdSetter("followUps")||null,fmt:"n"},
+      {l:"# Llamadas Propuestas",fn:d=>d.sdSetter("setterCallsProposed")||null,fmt:"n"},
+      {l:"# Links Enviados",fn:d=>d.sdSetter("setterLinksSent")||null,fmt:"n"},
     ]},
     {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"},
@@ -2238,6 +2259,9 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
       upfrontCash:s("upfrontCash"),recurringCash:s("recurringCash"),
       pendDiaAnterior:s("pendDiaAnterior"),pendAcumulados:s("pendAcumulados"),
       reservas:s("reservas"),cashReservas:s("cashReservas"),
+      setterNewConversations:s("setterNewConversations"),setterNewInbound:s("setterNewInbound"),
+      setterNewOutbound:s("setterNewOutbound"),setterOutboundReplies:s("setterOutboundReplies"),
+      setterCallsProposed:s("setterCallsProposed"),setterLinksSent:s("setterLinksSent"),
       callsScheduled:s("callsScheduled"),hotLeads:s("hotLeads"),
       outboundContactados:s("outboundContactados"),
       outboundAgendados:s("outboundAgendados"),
@@ -2407,6 +2431,18 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
             </div>
           </Card>
           <Card>
+            <STit icon="🔁" title="Métricas Setter" sub="Actividad diaria para comparación por setter"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# Nuevas Conversaciones del Día" value={form.setterNewConversations} onChange={v=>sf("setterNewConversations",v)}/>
+              <Inp label="# Nuevos Inbound" value={form.setterNewInbound} onChange={v=>sf("setterNewInbound",v)}/>
+              <Inp label="# Nuevos Outbound" value={form.setterNewOutbound} onChange={v=>sf("setterNewOutbound",v)}/>
+              <Inp label="# Respuestas de Outbound" value={form.setterOutboundReplies} onChange={v=>sf("setterOutboundReplies",v)}/>
+              <Inp label="# Follow-ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+              <Inp label="# Llamadas Propuestas" value={form.setterCallsProposed} onChange={v=>sf("setterCallsProposed",v)}/>
+              <Inp label="# Links Enviados" value={form.setterLinksSent} onChange={v=>sf("setterLinksSent",v)}/>
+            </div>
+          </Card>
+          <Card>
             <STit icon="📝" title="Notas del setter" sub="Contexto cualitativo del reporte manual"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
               <Txt label="Notas/acciones importantes de los showups" value={form.showupNotes} onChange={v=>st("showupNotes",v)} placeholder="Ej: AM mostró intención alta, revisar grabación Fathom y enviar plan de pago..."/>
@@ -2526,6 +2562,15 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"Mensajes enviados",k:"setterMessagesSent",fmt:"n"},
       {l:"Orgánicos",k:"setterOrganicLeads",fmt:"n"},
       {l:"Ads",k:"setterAdsLeads",fmt:"n"},
+    ]},
+    {title:"Métricas Setter",bg:"#334155",role:"setter",rows:[
+      {l:"# Nuevas Conversaciones del Día",k:"setterNewConversations",fmt:"n"},
+      {l:"# Nuevos Inbound",k:"setterNewInbound",fmt:"n"},
+      {l:"# Nuevos Outbound",k:"setterNewOutbound",fmt:"n"},
+      {l:"# Respuestas de Outbound",k:"setterOutboundReplies",fmt:"n"},
+      {l:"# Follow-ups",k:"followUps",fmt:"n"},
+      {l:"# Llamadas Propuestas",k:"setterCallsProposed",fmt:"n"},
+      {l:"# Links Enviados",k:"setterLinksSent",fmt:"n"},
     ]},
     {title:"Actividad de llamadas",bg:"#0369a1",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
@@ -2783,7 +2828,18 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
       {l:"# Outbound agendados",fn:d=>d.e?d.e.outboundAgendados:0,fmt:"n"},
     ]},
   ];
-  const ROWS=role==="marketing"?MARKETING_ROWS:CLOSER_ROWS;
+  const SETTER_ROWS=[
+    {title:"Métricas Setter",bg:"#334155",rows:[
+      {l:"# Nuevas Conversaciones del Día",fn:d=>d.e?d.e.setterNewConversations:0,fmt:"n"},
+      {l:"# Nuevos Inbound",fn:d=>d.e?d.e.setterNewInbound:0,fmt:"n"},
+      {l:"# Nuevos Outbound",fn:d=>d.e?d.e.setterNewOutbound:0,fmt:"n"},
+      {l:"# Respuestas de Outbound",fn:d=>d.e?d.e.setterOutboundReplies:0,fmt:"n"},
+      {l:"# Follow-ups",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
+      {l:"# Llamadas Propuestas",fn:d=>d.e?d.e.setterCallsProposed:0,fmt:"n"},
+      {l:"# Links Enviados",fn:d=>d.e?d.e.setterLinksSent:0,fmt:"n"},
+    ]},
+  ];
+  const ROWS=role==="marketing"?MARKETING_ROWS:(role==="setter"?SETTER_ROWS:CLOSER_ROWS);
   const totForRow=row=>days.reduce((s,d)=>s+(row.fn(d)||0),0)||null;
 
   const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
@@ -3916,6 +3972,12 @@ function App(){
       mensajes:isCommercialMember(entry.member)?(entry.outboundAgendados||0):(entry.mensajes||0),
       follow_ups:entry.followUps||0,
       bk_offers:isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
+      setter_new_conversations:entry.setterNewConversations||0,
+      setter_new_inbound:entry.setterNewInbound||0,
+      setter_new_outbound:entry.setterNewOutbound||0,
+      setter_outbound_replies:entry.setterOutboundReplies||0,
+      setter_calls_proposed:entry.setterCallsProposed||0,
+      setter_links_sent:entry.setterLinksSent||0,
       gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
       gasto_tiktok:entry.gastoTikTok||0,
       gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),

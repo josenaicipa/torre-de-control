@@ -230,6 +230,12 @@ model DailyEntry {
   mensajes         Int?
   follow_ups       Int?
   bk_offers        Int?
+  setter_new_conversations Int?
+  setter_new_inbound       Int?
+  setter_new_outbound      Int?
+  setter_outbound_replies  Int?
+  setter_calls_proposed    Int?
+  setter_links_sent        Int?
   gasto_meta       Decimal? @db.Decimal(18, 2)
   gasto_google     Decimal? @db.Decimal(18, 2)
   gasto_tiktok     Decimal? @db.Decimal(18, 2)
