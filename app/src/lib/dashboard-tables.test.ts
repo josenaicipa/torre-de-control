@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   conflictTarget,
+  isExternalImportAllowedTable,
   isDashboardTable,
+  isManualOnlyDashboardTable,
   sanitizeValues,
   tableConfig,
 } from "./dashboard-tables";
@@ -115,5 +117,21 @@ describe("tableConfig", () => {
     expect(tableConfig("kpi_data").scope).toBe("aggregate");
     expect(tableConfig("ads_entries").scope).toBe("aggregate");
     expect(tableConfig("daily_closer").scope).toBe("aggregate");
+  });
+});
+
+describe("manual-only dashboard tables", () => {
+  it("prevents external imports from touching daily commercial manual sections", () => {
+    expect(isManualOnlyDashboardTable("daily_closer")).toBe(true);
+    expect(isManualOnlyDashboardTable("daily_entries")).toBe(true);
+    expect(isExternalImportAllowedTable("daily_closer")).toBe(false);
+    expect(isExternalImportAllowedTable("daily_entries")).toBe(false);
+  });
+
+  it("still allows external imports for non-manual aggregate support tables", () => {
+    expect(isManualOnlyDashboardTable("kpi_data")).toBe(false);
+    expect(isManualOnlyDashboardTable("ads_entries")).toBe(false);
+    expect(isExternalImportAllowedTable("kpi_data")).toBe(true);
+    expect(isExternalImportAllowedTable("ads_entries")).toBe(true);
   });
 });

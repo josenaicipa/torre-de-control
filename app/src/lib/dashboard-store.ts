@@ -9,6 +9,7 @@
 // configured database don't construct a client at import time.
 
 import {
+  isExternalImportAllowedTable,
   isDashboardTable,
   sanitizeValues,
   type DashboardTable,
@@ -107,12 +108,10 @@ export async function dashboardDelete(
 export type ImportTables = Partial<Record<DashboardTable, unknown>>;
 export type ImportCounts = Partial<Record<DashboardTable, number>>;
 
-const IMPORTABLE_TABLES: readonly DashboardTable[] = [
+const IMPORTABLE_TABLES: readonly DashboardTable[] = ([
   "kpi_data",
-  "daily_entries",
   "ads_entries",
-  "daily_closer",
-];
+] as readonly DashboardTable[]).filter((table) => isExternalImportAllowedTable(table));
 
 function coerceId(value: unknown): number | null {
   if (typeof value === "number" && Number.isInteger(value)) return value;

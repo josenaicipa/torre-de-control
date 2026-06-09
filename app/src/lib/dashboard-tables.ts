@@ -128,12 +128,25 @@ export const DASHBOARD_TABLES = {
 
 export type DashboardTable = keyof typeof DASHBOARD_TABLES;
 
+const MANUAL_ONLY_DASHBOARD_TABLES = new Set<DashboardTable>([
+  "daily_closer",
+  "daily_entries",
+]);
+
 export function isDashboardTable(value: unknown): value is DashboardTable {
   return typeof value === "string" && value in DASHBOARD_TABLES;
 }
 
 export function tableConfig(table: DashboardTable): TableConfig {
   return DASHBOARD_TABLES[table];
+}
+
+export function isManualOnlyDashboardTable(table: DashboardTable): boolean {
+  return MANUAL_ONLY_DASHBOARD_TABLES.has(table);
+}
+
+export function isExternalImportAllowedTable(table: DashboardTable): boolean {
+  return !isManualOnlyDashboardTable(table);
 }
 
 /**

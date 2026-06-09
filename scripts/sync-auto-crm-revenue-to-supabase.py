@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Conservative auto-sync of CRM agendas + revenue into Torre de Control's daily_closer.
 
+MANUAL_ONLY_DAILY_CLOSER_SYNC_DISABLED: Daily commercial fields are manual-only.
+This legacy metrics-to-daily_closer writer is kept for dry-run inspection only;
+production writes are blocked so Ventas, Actividad de llamadas and
+Agendas/Leads can only come from Torre's manual dashboard APIs.
+
 Reads three Unlocked dashboard exports and produces a partial daily_closer row
 per date.
 
@@ -77,6 +82,12 @@ DEFAULT_BASE = Path("/home/ubuntu/proyectos/unlocked-dashboard/cloud-automation"
 DEFAULT_CRM = DEFAULT_BASE / "crm-calls-lite.json"
 DEFAULT_HISTORY = DEFAULT_BASE / "daily-closers-history-lite.json"
 DEFAULT_PAYMENTS = DEFAULT_BASE / "payments-lead-join.json"
+
+MANUAL_ONLY_DAILY_CLOSER_SYNC_DISABLED = True
+MANUAL_ONLY_DAILY_CLOSER_SYNC_MESSAGE = (
+    "Daily commercial fields are manual-only; automatic daily_closer writes are disabled. "
+    "Use Torre de Control manual entries instead."
+)
 
 CHANNELS = ("organicas", "meta", "google", "tiktok", "otros")
 
@@ -870,6 +881,9 @@ def main() -> int:
         print("Refusing to run with both --dry-run and --write.", file=sys.stderr)
         return 2
     do_write = bool(args.write) and not args.dry_run
+    if do_write and MANUAL_ONLY_DAILY_CLOSER_SYNC_DISABLED:
+        print(MANUAL_ONLY_DAILY_CLOSER_SYNC_MESSAGE, file=sys.stderr)
+        return 2
     fields = fields_for_group(args.field_group)
 
     if not args.history.exists():

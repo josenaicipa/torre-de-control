@@ -16,4 +16,11 @@ describe("dashboard import audit wiring", () => {
     expect(source).toContain("daily_closer");
     expect(source).toContain("changedRows");
   });
+
+  it("does not report manual-only daily tables as imported changed rows", () => {
+    const source = routeSource();
+
+    expect(source).toContain("isExternalImportAllowedTable");
+    expect(source).toContain('!isExternalImportAllowedTable(table)');
+  });
 });

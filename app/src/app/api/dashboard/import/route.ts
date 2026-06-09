@@ -8,7 +8,7 @@ import {
   findDashboardExistingRow,
 } from "@/lib/dashboard-audit";
 import { dashboardImport, dashboardSelect, DashboardStoreError, type ImportTables } from "@/lib/dashboard-store";
-import { sanitizeValues, type DashboardTable } from "@/lib/dashboard-tables";
+import { isExternalImportAllowedTable, sanitizeValues, type DashboardTable } from "@/lib/dashboard-tables";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ function canImportWithSession(result: ActorResult | null): boolean {
 }
 
 async function changedRowsForImport(table: DashboardTable, rawRows: unknown): Promise<Record<string, unknown>[]> {
-  if (!Array.isArray(rawRows) || (table !== "daily_closer" && table !== "daily_entries")) return [];
+  if (!Array.isArray(rawRows) || !isExternalImportAllowedTable(table)) return [];
   const existingRows = await dashboardSelect(table);
   return rawRows
     .map((raw) => {
