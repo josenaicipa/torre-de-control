@@ -249,6 +249,23 @@ describe("manual collaborator labels", () => {
     expect(mobileTabsBlock).not.toContain('TABS.find(t=>t.id==="entrada")');
   });
 
+  it("orders the first left-menu tabs for the operations workflow", () => {
+    const tabsBlock = html.slice(html.indexOf('const TABS=['), html.indexOf('const MOBILE_TABS=['));
+    const expectedOrder = [
+      'l:"Torre CEO"',
+      'l:"Area Comercial"',
+      'l:"Agendas / Leads"',
+      'l:"Control Comercial"',
+      'l:"Operaciones"',
+      'l:"Comunidad Dropi"',
+      'l:"Detalle Diario"',
+    ];
+    const positions = expectedOrder.map((needle) => tabsBlock.indexOf(needle));
+
+    positions.forEach((position) => expect(position).toBeGreaterThanOrEqual(0));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
   it("replicates the metrics setter form and adds closer notes fields in Area Comercial", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
 

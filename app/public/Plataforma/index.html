@@ -3872,12 +3872,8 @@ const ControlComercial=()=>{
 const TABS=[
   {id:"torre",   l:"Torre CEO",          icon:"home"},
   {id:"colab",   l:"Area Comercial",sub:"Por Colaborador",icon:"dollar"},
-  {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
   {id:"agendas", l:"Agendas / Leads",    icon:"calendar"},
-  {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
-  {id:"funnel",  l:"Funnel",             icon:"filter"},
-  {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
-  {id:"hist",    l:"Histórico",          icon:"trendUp"},
+  {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
   {id:"operaciones", l:"Operaciones", icon:"users", children:[
     {id:"operaciones-estudiantes", l:"Estudiantes", href:"/operaciones/estudiantes"},
     {id:"operaciones-cartera", l:"Cartera", href:"/operaciones/cartera"},
@@ -3886,21 +3882,24 @@ const TABS=[
     {id:"operaciones-importar", l:"Importar Excel", href:"/operaciones/importar"},
   ]},
   {id:"comunidad-dropi", l:"Comunidad Dropi", icon:"users", href:"/comunidad-dropi"},
+  {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
+  {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
+  {id:"funnel",  l:"Funnel",             icon:"filter"},
+  {id:"hist",    l:"Histórico",          icon:"trendUp"},
   {id:"admin",   l:"Admin",              icon:"settings"},
 ];
 
 const MOBILE_TABS=[
-  TABS.find(t=>t.id==="control"),
   TABS.find(t=>t.id==="torre"),
-  TABS.find(t=>t.id==="closer"),
-  TABS.find(t=>t.id==="agendas"),
-  TABS.find(t=>t.id==="equipo"),
-  TABS.find(t=>t.id==="funnel"),
-  TABS.find(t=>t.id==="detalle"),
   TABS.find(t=>t.id==="colab"),
-  TABS.find(t=>t.id==="hist"),
+  TABS.find(t=>t.id==="agendas"),
+  TABS.find(t=>t.id==="control"),
   TABS.find(t=>t.id==="operaciones"),
   TABS.find(t=>t.id==="comunidad-dropi"),
+  TABS.find(t=>t.id==="detalle"),
+  TABS.find(t=>t.id==="equipo"),
+  TABS.find(t=>t.id==="funnel"),
+  TABS.find(t=>t.id==="hist"),
   TABS.find(t=>t.id==="admin"),
 ].filter(Boolean);
 
