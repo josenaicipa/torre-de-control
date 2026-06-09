@@ -196,8 +196,11 @@ describe("manual collaborator labels", () => {
     expect(detallePorDiaBlock).toContain('{l:"# Leads calientes",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"}');
     expect(detallePorDiaBlock).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"}');
     expect(html).toContain('{title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[');
-    expect(html).toContain('{l:"# Agendas hoy",fn:d=>d.sdCommercial("agendasHoy")||null,fmt:"n"}');
-    expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercial("pendAcumulados")||null,fmt:"n"}');
+    expect(html).toContain('const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;');
+    expect(html).toContain('{l:"# Agendas hoy",fn:d=>d.sdCommercialActivity("agendasHoy")||null,fmt:"n"}');
+    expect(html).toContain('{l:"# Show Ups",fn:d=>d.sdCommercialActivity("showUps")||null,fmt:"n"}');
+    expect(html).toContain('{l:"# Follow Ups contactados",fn:d=>d.sdCommercialActivity("followUps")||null,fmt:"n"}');
+    expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"}');
     expect(html).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"}');
   });
 

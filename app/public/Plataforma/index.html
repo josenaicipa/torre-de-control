@@ -1974,9 +1974,10 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const sdMkt=f=>sumF(mktEntries,f);
     const hasPrimaryCommercial=commercialDayHasPrimary(d,commercialEntries);
     const sdCommercial=f=>allowCommercialFallback?commercialDayValue(d,commercialEntries,f):0;
+    const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;
     const sdSetter=f=>sumF(setterEntries,f);
     const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,commercialEntries,setterEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdSetter,hasPrimaryCommercial,totalGastoDay};
+    return{day:i+1,d,entries,mktEntries,commercialEntries,setterEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdCommercialActivity,sdSetter,hasPrimaryCommercial,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -2061,10 +2062,10 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
     ]},
     {title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[
-      {l:"# Agendas hoy",fn:d=>d.sdCommercial("agendasHoy")||null,fmt:"n"},
-      {l:"# Show Ups",fn:d=>d.sdCommercial("showUps")||null,fmt:"n"},
-      {l:"# Follow Ups contactados",fn:d=>d.sdCommercial("followUps")||null,fmt:"n"},
-      {l:"# Leads calientes",fn:d=>d.sdCommercial("pendAcumulados")||null,fmt:"n"},
+      {l:"# Agendas hoy",fn:d=>d.sdCommercialActivity("agendasHoy")||null,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.sdCommercialActivity("showUps")||null,fmt:"n"},
+      {l:"# Follow Ups contactados",fn:d=>d.sdCommercialActivity("followUps")||null,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"},
     ]},
     {title:"Métricas Setter",bg:"#334155",rows:[
       {l:"# Nuevas Conversaciones del Día",fn:d=>d.sdSetter("setterNewConversations")||null,fmt:"n"},
