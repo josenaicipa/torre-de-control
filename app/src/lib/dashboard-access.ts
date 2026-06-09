@@ -41,7 +41,6 @@ const COLLABORATORS: readonly Collaborator[] = [
   { id: "Daniel Garcia", label: "Daniel Garcia", role: "setter" },
   { id: "Luisa Vega", label: "Luisa Vega", role: "setter" },
   { id: "Lucas Soria", label: "Lucas Soria", role: "setter" },
-  { id: "Karen Setter", label: "Karen Anquiz", legacy: "Karen", role: "setter" },
   { id: "Carlos Velez", label: "Carlos Velez", legacy: "Carlos", role: "closer" },
   { id: "Daryi Perez", label: "Daryi Perez", legacy: "Daryi", role: "closer" },
   { id: "Wiston Quintero", label: "Wiston Quintero", legacy: "Juan Diego Afanador", role: "closer" },
@@ -198,9 +197,8 @@ export function isMemberAllowed(access: DashboardAccess, member: unknown): boole
 /**
  * Can this actor fill the manual daily_entries row for this exact collaborator?
  * This is intentionally narrower than dashboard.write: it only matches the
- * user's own identity against the collaborator catalog and is used for the
- * "Llenar reporte" flow so operators like Karen can fill their own Detalle row
- * even when they are not broad dashboard writers.
+ * user's own identity against the active collaborator catalog and is used for the
+ * "Llenar reporte" flow so operators can fill their own Detalle row even when they are not broad dashboard writers.
  */
 export function isOwnDashboardEntryMember(
   actor: Pick<DashboardActor, "ghlUserName" | "name" | "email">,

@@ -187,8 +187,10 @@ const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahi
   "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Perez":C.gold,"Luisa Vega":C.pink,"Daniel Garcia":C.blue,"Wiston Quintero":C.blue,"Juan Diego Afanador":C.blue,"Valentina Sanchez":C.red,Admin:C.red};
 
 // ─── Manual Collaborator Reports (Por Colaborador) ──────────────────────────────
-// Karen is the marketing/IG setter; Valentina Sanchez (stored as "Admin" for
-// backward compatibility) uses the Area Comercial form. Carlos Velez, Daryi
+// Karen remains in the historical Marketing catalog, but her old setter row is
+// inactive: keep the id for historical daily_entries classification while hiding
+// it from the active Setters input list. Valentina Sanchez (stored as "Admin"
+// for backward compatibility) uses the Area Comercial form. Carlos Velez, Daryi
 // Perez and Wiston Quintero use the closer fields. Karen's id is preserved as
 // "Karen" for backward compatibility; legacy ids "Carlos" / "Daryi" and
 // "Juan Diego Afanador" still resolve to the current collaborator names.
@@ -203,8 +205,11 @@ const SETTER_COLLABORATORS=[
   {id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"},
   {id:"Luisa Vega",label:"Luisa Vega",color:C.pink,role:"setter"},
   {id:"Lucas Soria",label:"Lucas Soria",color:C.green,role:"setter"},
+];
+const INACTIVE_SETTER_COLLABORATORS=[
   {id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"},
 ];
+const ALL_SETTER_COLLABORATORS=[...SETTER_COLLABORATORS,...INACTIVE_SETTER_COLLABORATORS];
 const CLOSER_COLLABORATORS=[
   {id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"},
   {id:"Daryi Perez",label:"Daryi Perez",color:C.gold,role:"closer",legacy:"Daryi"},
@@ -218,9 +223,9 @@ const REPORT_GROUPS={
   setters:{label:"Setters",collaborators:SETTER_COLLABORATORS},
   closers:{label:"Closers",collaborators:CLOSER_COLLABORATORS},
 };
-const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...SETTER_COLLABORATORS,...CLOSER_COLLABORATORS];
+const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...ALL_SETTER_COLLABORATORS,...CLOSER_COLLABORATORS];
 const MARKETING_MEMBER_IDS=new Set(MARKETING_COLLABORATORS.map(c=>c.id));
-const SETTER_MEMBER_IDS=new Set(SETTER_COLLABORATORS.map(c=>c.id));
+const SETTER_MEMBER_IDS=new Set(ALL_SETTER_COLLABORATORS.map(c=>c.id));
 const COMMERCIAL_MEMBER_IDS=new Set([
   ...COMMERCIAL_COLLABORATORS.map(c=>c.id),
   ...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),

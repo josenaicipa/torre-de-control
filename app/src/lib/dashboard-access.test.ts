@@ -167,18 +167,18 @@ describe("resolveDashboardAccess — CLOSER OWN", () => {
 });
 
 describe("resolveDashboardAccess — SETTER OWN", () => {
-  it("matches Karen by email local-part", () => {
-    const a = resolveDashboardAccess(
+  it("does not grant active setter ownership to inactive Karen Anquiz", () => {
+    const byEmail = resolveDashboardAccess(
       actor({ position: "SETTER", dataScope: "OWN", email: "karen@naicipa.com" }),
     );
-    expect(a.allowedMembers).toEqual(["Karen Setter", "Karen Anquiz", "Karen"]);
-  });
-
-  it("matches Karen by display name", () => {
-    const a = resolveDashboardAccess(
+    const byName = resolveDashboardAccess(
       actor({ position: "SETTER", dataScope: "OWN", name: "Karen Anquiz" }),
     );
-    expect(a.allowedMembers).toEqual(["Karen Setter", "Karen Anquiz", "Karen"]);
+
+    expect(byEmail.allowedMembers).toEqual([]);
+    expect(byEmail.reason).toBe("no-rows");
+    expect(byName.allowedMembers).toEqual([]);
+    expect(byName.reason).toBe("no-rows");
   });
 
   it("matches Luisa Vega as a setter", () => {
@@ -301,10 +301,10 @@ describe("isMemberAllowed", () => {
 });
 
 describe("isOwnDashboardEntryMember", () => {
-  it("allows Karen to fill her own daily_entries member even without writer scope", () => {
+  it("keeps Karen's legacy marketing row available but not the inactive setter row", () => {
     expect(isOwnDashboardEntryMember(actor({ name: "Karen Anquiz" }), "Karen")).toBe(true);
     expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Anquiz")).toBe(true);
-    expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Setter")).toBe(true);
+    expect(isOwnDashboardEntryMember(actor({ email: "karen@naicipa.com" }), "Karen Setter")).toBe(false);
   });
 
   it("allows legacy Marketing tab members to fill their short-name row", () => {

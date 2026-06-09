@@ -186,14 +186,18 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"}');
   });
 
-  it("splits Area Comercial report entry into Admin, Setters, and Closers sub-tabs", () => {
+  it("splits Area Comercial report entry into Admin, active Setters, and Closers sub-tabs", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const activeSetterBlock = html.slice(html.indexOf('const SETTER_COLLABORATORS=['), html.indexOf('const INACTIVE_SETTER_COLLABORATORS=['));
+    const inactiveSetterBlock = html.slice(html.indexOf('const INACTIVE_SETTER_COLLABORATORS=['), html.indexOf('const CLOSER_COLLABORATORS=['));
 
     expect(html).toContain('const SETTER_COLLABORATORS=[');
-    expect(html).toContain('{id:"Alejandro Gallo",label:"Alejandro Gallo",color:C.teal,role:"setter"}');
-    expect(html).toContain('{id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"}');
-    expect(html).toContain('{id:"Luisa Vega",label:"Luisa Vega",color:C.pink,role:"setter"}');
-    expect(html).toContain('{id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"}');
+    expect(activeSetterBlock).toContain('{id:"Alejandro Gallo",label:"Alejandro Gallo",color:C.teal,role:"setter"}');
+    expect(activeSetterBlock).toContain('{id:"Daniel Garcia",label:"Daniel Garcia",color:C.blue,role:"setter"}');
+    expect(activeSetterBlock).toContain('{id:"Luisa Vega",label:"Luisa Vega",color:C.pink,role:"setter"}');
+    expect(activeSetterBlock).toContain('{id:"Lucas Soria",label:"Lucas Soria",color:C.green,role:"setter"}');
+    expect(activeSetterBlock).not.toContain('Karen Anquiz');
+    expect(inactiveSetterBlock).toContain('{id:"Karen Setter",label:"Karen Anquiz",color:C.purple,role:"setter",displayRole:"Setter"}');
     expect(html).toContain('{id:"Daniel Garcia Closer",label:"Daniel Garcia",color:C.blue,role:"closer",legacy:"Daniel Garcia"}');
     expect(html).toContain('{id:"Alejandro Gallo Closer",label:"Alejandro Gallo",color:C.teal,role:"closer",legacy:"Alejandro Gallo"}');
     expect(html).toContain('{id:"Daryi Perez",label:"Daryi Perez",color:C.gold,role:"closer",legacy:"Daryi"}');
