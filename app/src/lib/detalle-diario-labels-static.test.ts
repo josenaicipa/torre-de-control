@@ -57,9 +57,9 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
   it.each(dashboardFiles)("uses manual Área Comercial fields for June-onward operational rows in %s", (relativePath) => {
     const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
     const block = extractAgendasBlock(source);
-    expect(source).toContain('const manualAgendasHoy=d=>d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);');
-    expect(source).toContain('const manualCalificadas=d=>d.d>="2026-06-01"?d.sdCommercial("calificadas"):(d.closer.agendas_calificadas||0);');
-    expect(source).toContain('const manualShowUps=d=>d.d>="2026-06-01"?d.sdCommercial("showUps"):(d.closer.citas_asistidas||0);');
+    expect(source).toContain('const manualAgendasHoy=d=>areaComercialHasPriority(d.d)?d.sdCommercial("agendasHoy")||d.closer.agendas_final||0:d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);');
+    expect(source).toContain('const manualCalificadas=d=>areaComercialHasPriority(d.d)?d.sdCommercial("calificadas")||d.closer.agendas_calificadas||0:d.d>="2026-06-01"?d.sdCommercial("calificadas"):(d.closer.agendas_calificadas||0);');
+    expect(source).toContain('const manualShowUps=d=>areaComercialHasPriority(d.d)?d.sdCommercial("showUps")||d.closer.citas_asistidas||0:d.d>="2026-06-01"?d.sdCommercial("showUps"):(d.closer.citas_asistidas||0);');
     expect(block).toContain('{l:"Hoy (en agenda)",fn:d=>manualAgendasHoy(d)||null,fmt:"n"}');
     expect(block).toContain('{l:"Calificadas Total",fn:d=>manualCalificadas(d)||null,fmt:"n"}');
     expect(block).toContain('{l:"% Calificadas",fn:d=>{const h=manualAgendasHoy(d),c=manualCalificadas(d);return h>0?pv(c,h):null;},fmt:"%"');
