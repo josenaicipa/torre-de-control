@@ -107,13 +107,12 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
     expect(torreBlock).toContain('const allowCommercialFallback=year>2026||(year===2026&&month>=5);');
     expect(torreBlock).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialMember(e.member)):[];');
-    expect(torreBlock).toContain('addByDay(commercialValorHTByDay,e.date,e.valorVentaHT);');
-    expect(torreBlock).toContain('valorHT:areaComercialHasPriority(date)?commercialValorHTByDay[date]||((closerRow&&closerRow.valor_venta_ht)||0):((closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0),');
-    expect(torreBlock).toContain('const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");');
-    expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
+    expect(torreBlock).toContain('const commercialEntriesByDay={};');
+    expect(torreBlock).toContain('addByDay(commercialValorHTByDay,date,commercialValueByDay(date,"valorVentaHT"));');
+    expect(torreBlock).toContain('const monthlyCommercialSalesDay=(date,closerRow)=>commercialDayHasPrimary(date,commercialEntriesByDay[date]||[])?commercialValueByDay(date,"ventasHT"):(commercialValueByDay(date,"ventasHT")||((closerRow&&closerRow.q_ventas_ht)||0));');
     expect(detalleBlock).toContain('const allowCommercialFallback=d>="2026-06-01";');
-    expect(detalleBlock).toContain('const sdCommercial=f=>allowCommercialFallback?sumF(commercialEntries,f):0;');
-    expect(detalleBlock).toContain('const cv=(d,closerField,entryField)=>areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;');
+    expect(detalleBlock).toContain('const sdCommercial=f=>allowCommercialFallback?commercialDayValue(d,commercialEntries,f):0;');
+    expect(detalleBlock).toContain('const cv=(d,closerField,entryField)=>d.hasPrimaryCommercial?d.sdCommercial(entryField):areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;');
     expect(detalleBlock).toContain('const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);');
     expect(detalleBlock).toContain('const mValorHT=dayData.reduce((s,d)=>s+valorHTDay(d),0);');
     expect(detalleBlock).toContain('{l:"# Ventas HT",fn:d=>cv(d,"q_ventas_ht","ventasHT")||null,fmt:"n"}');
@@ -123,14 +122,20 @@ describe("manual collaborator labels", () => {
     expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>cashReservasDay(d)||null,fmt:"$"}');
   });
 
-  it("gives Area Comercial manual entries priority from 2026-06-08 onward", () => {
+  it("gives Admin Area Comercial entries authoritative priority from 2026-06-08 onward", () => {
     expect(html).toContain('const AREA_COMERCIAL_PRIORITY_START="2026-06-08";');
     expect(html).toContain('const areaComercialHasPriority=date=>date>=AREA_COMERCIAL_PRIORITY_START;');
-    expect(html).toContain('valorHT:areaComercialHasPriority(date)?commercialValorHTByDay[date]||((closerRow&&closerRow.valor_venta_ht)||0):((closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0),');
-    expect(html).toContain('cashHT:areaComercialHasPriority(date)?commercialCashByDay[date]||((closerRow&&closerRow.ventas_cash)||ledgerHTByDay[date]||0):((closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0),');
-    expect(html).toContain('const cv=(d,closerField,entryField)=>areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;');
-    expect(html).toContain('const valorHTDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT")||d.closer.valor_venta_ht||0:d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;');
-    expect(html).toContain('const manualAgendasHoy=d=>areaComercialHasPriority(d.d)?d.sdCommercial("agendasHoy")||d.closer.agendas_final||0:d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);');
+    expect(html).toContain('const commercialPrimaryEntry=entries=>(entries||[]).find(e=>e&&isAdminMember(e.member))||null;');
+    expect(html).toContain('const commercialDayHasPrimary=(date,entries)=>areaComercialHasPriority(date)&&!!commercialPrimaryEntry(entries);');
+    expect(html).toContain('const commercialDayValue=(date,entries,field)=>commercialDayHasPrimary(date,entries)?nv(commercialPrimaryEntry(entries)[field]):sumF(entries,field);');
+    expect(html).toContain('const totalVentas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialSalesDay(date,allCloser[date]),0);');
+    expect(html).toContain('const hasPrimaryCommercial=commercialDayHasPrimary(d,commercialEntries);');
+    expect(html).toContain('const sdCommercial=f=>allowCommercialFallback?commercialDayValue(d,commercialEntries,f):0;');
+    expect(html).toContain('const cv=(d,closerField,entryField)=>d.hasPrimaryCommercial?d.sdCommercial(entryField):areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;');
+    expect(html).toContain('const valorHTDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaHT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT")||d.closer.valor_venta_ht||0:d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;');
+    expect(html).toContain('const manualAgendasHoy=d=>d.hasPrimaryCommercial?d.sdCommercial("agendasHoy"):areaComercialHasPriority(d.d)?d.sdCommercial("agendasHoy")||d.closer.agendas_final||0:d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);');
+    expect(html).not.toContain('const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");');
+    expect(html).not.toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
   });
 
   it("sums commercial money metrics day-by-day in Detalle Diario and Torre CEO instead of choosing one monthly source", () => {
@@ -142,21 +147,21 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('...Object.keys(ledgerLTByDay).filter(k=>k.startsWith(prefix)),');
     expect(html).toContain('...Object.keys(ledgerReservasByDay).filter(k=>k.startsWith(prefix)),');
     expect(html).toContain('const monthlyCommercialMoneyDay=(date,closerRow)=>{');
-    expect(html).toContain('valorHT:areaComercialHasPriority(date)?commercialValorHTByDay[date]||((closerRow&&closerRow.valor_venta_ht)||0):((closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0),');
-    expect(html).toContain('cashHT:areaComercialHasPriority(date)?commercialCashByDay[date]||((closerRow&&closerRow.ventas_cash)||ledgerHTByDay[date]||0):((closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0),');
-    expect(html).toContain('recurring:areaComercialHasPriority(date)?commercialRecurringByDay[date]||((closerRow&&closerRow.recurring_cash)||0):((closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0),');
-    expect(html).toContain('lowTicket:areaComercialHasPriority(date)?commercialLowTicketByDay[date]||((closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0):((closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0),');
-    expect(html).toContain('reservas:areaComercialHasPriority(date)?commercialReservasByDay[date]||((closerRow&&closerRow.cash_reservas)||ledgerReservasByDay[date]||0):((closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0),');
+    expect(html).toContain('valorHT:hasPrimary?commercialValueByDay(date,"valorVentaHT"):areaComercialHasPriority(date)?commercialValorHTByDay[date]||((closerRow&&closerRow.valor_venta_ht)||0):((closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0),');
+    expect(html).toContain('cashHT:hasPrimary?(commercialValueByDay(date,"cashCollected")||commercialValueByDay(date,"upfrontCash")):areaComercialHasPriority(date)?commercialCashByDay[date]||((closerRow&&closerRow.ventas_cash)||ledgerHTByDay[date]||0):((closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0),');
+    expect(html).toContain('recurring:hasPrimary?commercialValueByDay(date,"recurringCash"):areaComercialHasPriority(date)?commercialRecurringByDay[date]||((closerRow&&closerRow.recurring_cash)||0):((closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0),');
+    expect(html).toContain('lowTicket:hasPrimary?commercialValueByDay(date,"valorVentaLT"):areaComercialHasPriority(date)?commercialLowTicketByDay[date]||((closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0):((closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0),');
+    expect(html).toContain('reservas:hasPrimary?commercialValueByDay(date,"cashReservas"):areaComercialHasPriority(date)?commercialReservasByDay[date]||((closerRow&&closerRow.cash_reservas)||ledgerReservasByDay[date]||0):((closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0),');
     expect(html).toContain('const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);');
     expect(html).toContain('const dispCash=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).cashHT,0)||(cashApi?cashApi.highTicket:0);');
     expect(html).toContain('const totalRecurring=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).recurring,0);');
     expect(html).toContain('const dispLowT=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).lowTicket,0)||(cashApi?cashApi.lowTicket:0);');
     expect(html).toContain('const dispReservas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).reservas,0)||(cashApi?cashApi.reservas:0);');
-    expect(html).toContain('const valorHTDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT")||d.closer.valor_venta_ht||0:d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;');
-    expect(html).toContain('const cashHTDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.closer.ventas_cash||d.ledger.highTicket||0:d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;');
-    expect(html).toContain('const recurringDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("recurringCash")||d.closer.recurring_cash||0:d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;');
-    expect(html).toContain('const cashLowTicketDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaLT")||d.closer.valor_venta_lt||d.ledger.lowTicket||0:d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;');
-    expect(html).toContain('const cashReservasDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||0:d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;');
+    expect(html).toContain('const valorHTDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaHT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT")||d.closer.valor_venta_ht||0:d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;');
+    expect(html).toContain('const cashHTDay=d=>d.hasPrimaryCommercial?(d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")):areaComercialHasPriority(d.d)?d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.closer.ventas_cash||d.ledger.highTicket||0:d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;');
+    expect(html).toContain('const recurringDay=d=>d.hasPrimaryCommercial?d.sdCommercial("recurringCash"):areaComercialHasPriority(d.d)?d.sdCommercial("recurringCash")||d.closer.recurring_cash||0:d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;');
+    expect(html).toContain('const cashLowTicketDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaLT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaLT")||d.closer.valor_venta_lt||d.ledger.lowTicket||0:d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;');
+    expect(html).toContain('const cashReservasDay=d=>d.hasPrimaryCommercial?d.sdCommercial("cashReservas"):areaComercialHasPriority(d.d)?d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||0:d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;');
     expect(html).toContain('{l:"$ Venta HT",fn:d=>valorHTDay(d)||null,fmt:"$"}');
     expect(html).toContain('{l:"Recurring Cash",fn:d=>recurringDay(d)||null,fmt:"$"}');
     expect(html).toContain('{l:"$ Venta LT",fn:d=>cashLowTicketDay(d)||null,fmt:"$"}');
@@ -410,7 +415,7 @@ describe("manual collaborator labels", () => {
     expect(saveEntryBlock).not.toContain('saveCloserEntry(entry.date');
     expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
     expect(torreBlock).toContain('const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);');
-    expect(torreBlock).toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
+    expect(torreBlock).toContain('const totalVentas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialSalesDay(date,allCloser[date]),0);');
     expect(torreBlock).toContain('const totalAgendasCampo=totalAgendasFromCollaborators||sumF(closerEntries,"agendas_final");');
     expect(torreBlock).toContain('const totalLeadsCampo=totalLeadsFromCollaborators||sumF(closerEntries,"agendas_calificadas");');
     expect(torreBlock).toContain('const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);');
