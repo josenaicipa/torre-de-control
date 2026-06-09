@@ -225,6 +225,30 @@ describe("manual collaborator labels", () => {
     expect(tablaBlock).toContain('{l:"# No Show",k:"agendas",fmt:"n"}');
   });
 
+  it("replicates the marketing daily activity card as the first setter section", () => {
+    const setterBlock = html.slice(html.indexOf('{role==="setter"&&('), html.indexOf('{role==="closer"&&('));
+    const activityIndex = setterBlock.indexOf('<STit icon="📱" title="Actividad del día"/>');
+    const reportIndex = setterBlock.indexOf('<STit icon="💬" title="Reporte de Setter" sub="Qué pasó con tus conversaciones"/>');
+
+    expect(activityIndex).toBeGreaterThanOrEqual(0);
+    expect(reportIndex).toBeGreaterThanOrEqual(0);
+    expect(activityIndex).toBeLessThan(reportIndex);
+    expect(setterBlock).toContain('<Inp label="# IG Seguidores" value={form.igFollowers} onChange={v=>sf("igFollowers",v)}/>');
+    expect(setterBlock).toContain('<Inp label="# Posts + CTA" value={form.posts} onChange={v=>sf("posts",v)}/>');
+    expect(setterBlock).toContain('<Inp label="# Mensajes Diarios" value={form.mensajes} onChange={v=>sf("mensajes",v)}/>');
+    expect(setterBlock).toContain('<Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>');
+    expect(setterBlock).toContain('<Inp label="# Booking Offers" value={form.bkOffers} onChange={v=>sf("bkOffers",v)}/>');
+  });
+
+  it("removes the unused Marketing tab from the main and mobile left menus", () => {
+    const tabsBlock = html.slice(html.indexOf('const TABS=['), html.indexOf('const MOBILE_TABS=['));
+    const mobileTabsBlock = html.slice(html.indexOf('const MOBILE_TABS=['), html.indexOf('const App='));
+
+    expect(tabsBlock).not.toContain('{id:"entrada", l:"Marketing"');
+    expect(tabsBlock).not.toContain('l:"Marketing"');
+    expect(mobileTabsBlock).not.toContain('TABS.find(t=>t.id==="entrada")');
+  });
+
   it("replicates the metrics setter form and adds closer notes fields in Area Comercial", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
 

@@ -2448,6 +2448,16 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
       {role==="setter"&&(
         <>
           <Card>
+            <STit icon="📱" title="Actividad del día"/>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+              <Inp label="# IG Seguidores" value={form.igFollowers} onChange={v=>sf("igFollowers",v)}/>
+              <Inp label="# Posts + CTA" value={form.posts} onChange={v=>sf("posts",v)}/>
+              <Inp label="# Mensajes Diarios" value={form.mensajes} onChange={v=>sf("mensajes",v)}/>
+              <Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+              <Inp label="# Booking Offers" value={form.bkOffers} onChange={v=>sf("bkOffers",v)}/>
+            </div>
+          </Card>
+          <Card>
             <STit icon="💬" title="Reporte de Setter" sub="Qué pasó con tus conversaciones"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
               <Inp label="Leads contactados" value={form.setterLeadsContacted} onChange={v=>sf("setterLeadsContacted",v)}/>
@@ -3863,7 +3873,6 @@ const TABS=[
   {id:"torre",   l:"Torre CEO",          icon:"home"},
   {id:"colab",   l:"Area Comercial",sub:"Por Colaborador",icon:"dollar"},
   {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
-  {id:"entrada", l:"Marketing",          icon:"rocket"},
   {id:"agendas", l:"Agendas / Leads",    icon:"calendar"},
   {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
   {id:"funnel",  l:"Funnel",             icon:"filter"},
@@ -3885,7 +3894,6 @@ const MOBILE_TABS=[
   TABS.find(t=>t.id==="torre"),
   TABS.find(t=>t.id==="closer"),
   TABS.find(t=>t.id==="agendas"),
-  TABS.find(t=>t.id==="entrada"),
   TABS.find(t=>t.id==="equipo"),
   TABS.find(t=>t.id==="funnel"),
   TABS.find(t=>t.id==="detalle"),
