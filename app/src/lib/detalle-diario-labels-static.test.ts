@@ -79,4 +79,10 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
     expect(source).toContain('agendas_final:r.scheduled||0');
     expect(source).toContain('citas_asistidas:r.showed||0');
   });
+
+  it.each(dashboardFiles)("lists Lucas Soria as a setter collaborator in %s", (relativePath) => {
+    const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
+    expect(source).toContain('{id:"Lucas Soria",label:"Lucas Soria"');
+    expect(source).toContain('role:"setter"');
+  });
 });

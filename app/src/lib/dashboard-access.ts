@@ -40,6 +40,7 @@ const COLLABORATORS: readonly Collaborator[] = [
   { id: "Alejandro Gallo", label: "Alejandro Gallo", role: "setter" },
   { id: "Daniel Garcia", label: "Daniel Garcia", role: "setter" },
   { id: "Luisa Vega", label: "Luisa Vega", role: "setter" },
+  { id: "Lucas Soria", label: "Lucas Soria", role: "setter" },
   { id: "Karen Setter", label: "Karen Anquiz", legacy: "Karen", role: "setter" },
   { id: "Carlos Velez", label: "Carlos Velez", legacy: "Carlos", role: "closer" },
   { id: "Daryi Perez", label: "Daryi Perez", legacy: "Daryi", role: "closer" },

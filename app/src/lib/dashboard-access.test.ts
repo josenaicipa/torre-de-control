@@ -189,6 +189,14 @@ describe("resolveDashboardAccess — SETTER OWN", () => {
     expect(a.allowedMembers).toEqual(["Luisa Vega"]);
   });
 
+  it("matches Lucas Soria as a setter", () => {
+    const a = resolveDashboardAccess(
+      actor({ position: "SETTER", dataScope: "OWN", ghlUserName: "Lucas Soria" }),
+    );
+
+    expect(a.allowedMembers).toEqual(["Lucas Soria"]);
+  });
+
   it("does not match a closer identity for a SETTER", () => {
     const a = resolveDashboardAccess(
       actor({ position: "SETTER", dataScope: "OWN", ghlUserName: "Carlos Velez" }),
@@ -311,6 +319,10 @@ describe("isOwnDashboardEntryMember", () => {
 
   it("allows Alejandro Gallo to fill his closer row as his own daily entry", () => {
     expect(isOwnDashboardEntryMember(actor({ name: "Alejandro Gallo" }), "Alejandro Gallo Closer")).toBe(true);
+  });
+
+  it("allows Lucas Soria to fill his own setter daily entry", () => {
+    expect(isOwnDashboardEntryMember(actor({ name: "Lucas Soria" }), "Lucas Soria")).toBe(true);
   });
 
   it("does not allow arbitrary users to fill another collaborator row", () => {
