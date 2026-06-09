@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDashboardActor } from "@/lib/dashboard-actor";
+import { writeAudit } from "@/lib/audit";
+import {
+  auditTargetForDashboardMutation,
+  buildDashboardMutationAuditMetadata,
+  findDashboardExistingRow,
+  shouldAuditDashboardMutation,
+} from "@/lib/dashboard-audit";
 import {
   canReadDashboard,
   isMemberAllowed,
@@ -12,9 +19,11 @@ import {
   tableConfig,
   type DashboardTable,
 } from "@/lib/dashboard-tables";
+import type { DashboardActor } from "@/lib/dashboard-access";
 import {
   dashboardDelete,
   dashboardInsert,
+  dashboardSelect,
   dashboardUpsert,
   DashboardStoreError,
 } from "@/lib/dashboard-store";
@@ -35,6 +44,39 @@ interface MutateBody {
 
 function isOp(value: unknown): value is MutateOp {
   return value === "upsert" || value === "insert" || value === "delete";
+}
+
+async function previousDashboardAuditRow(
+  table: DashboardTable,
+  values: Record<string, unknown>,
+  members?: readonly string[],
+): Promise<Record<string, unknown> | null> {
+  if (!shouldAuditDashboardMutation("upsert", table)) return null;
+  const rows = await dashboardSelect(table, members);
+  return findDashboardExistingRow(table, rows, values);
+}
+
+async function writeDashboardMutationAudit(
+  op: MutateOp,
+  table: DashboardTable,
+  values: Record<string, unknown>,
+  actorId: string,
+  actor: DashboardActor,
+  previousRow: Record<string, unknown> | null,
+): Promise<void> {
+  if (!shouldAuditDashboardMutation(op, table)) return;
+  await writeAudit({
+    actorId,
+    action: `dashboard.${table}.${op}`,
+    target: auditTargetForDashboardMutation(table, values),
+    metadata: buildDashboardMutationAuditMetadata({
+      op,
+      table,
+      values,
+      previousRow,
+      actor,
+    }),
+  });
 }
 
 // Delete filters are restricted to "id" plus the table's known columns, and
@@ -106,7 +148,10 @@ export async function POST(req: NextRequest) {
           return FORBIDDEN;
         }
       }
+      const auditMembers = memberScoped && !access.isGlobalData && "member" in match ? [String(match.member)] : undefined;
+      const previousRow = await previousDashboardAuditRow(table, match, auditMembers);
       await dashboardDelete(table, match);
+      await writeDashboardMutationAudit(body.op, table, match, result.userId, result.actor, previousRow);
       return NextResponse.json({ ok: true });
     }
 
@@ -119,13 +164,18 @@ export async function POST(req: NextRequest) {
       return FORBIDDEN;
     }
 
+    const auditMembers = memberScoped && !access.isGlobalData && values.member ? [String(values.member)] : undefined;
+    const previousRow = await previousDashboardAuditRow(table, values, auditMembers);
+
     if (body.op === "upsert") {
       await dashboardUpsert(table, values);
+      await writeDashboardMutationAudit(body.op, table, values, result.userId, result.actor, previousRow);
       return NextResponse.json({ ok: true });
     }
 
     // insert returns the inserted row(s) (ads_entries needs the new id)
     const rows = await dashboardInsert(table, values);
+    await writeDashboardMutationAudit(body.op, table, values, result.userId, result.actor, previousRow);
     return NextResponse.json({ ok: true, rows });
   } catch (error) {
     const status = error instanceof DashboardStoreError ? error.status : 500;

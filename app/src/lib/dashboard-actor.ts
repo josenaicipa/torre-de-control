@@ -7,6 +7,7 @@ import type { DashboardActor } from "@/lib/dashboard-access";
 // database so a suspended or downgraded user loses access immediately.
 
 export interface ActorResult {
+  userId: string;
   actor: DashboardActor;
 }
 
@@ -49,7 +50,7 @@ export async function getDashboardActor(): Promise<ActorResult | null> {
       areaName: user.area?.name ?? null,
       teamName: user.team?.name ?? null,
     };
-    return { actor };
+    return { userId: session.sub, actor };
   } catch {
     // Database unreachable: fail closed. Session claims alone are not enough to
     // prove the user is still active or still has the same permissions/scope.
