@@ -213,9 +213,11 @@ describe("manual collaborator labels", () => {
     expect(llenarBlock).not.toContain('{role==="setter"&&(\n        <>\n          <Card>\n            <STit icon="📱" title="Actividad del día"/>');
   });
 
-  it("turns Actividad de llamadas in Admin/Closers into a computed summary from Agendas and Follow Ups", () => {
+  it("turns Actividad de llamadas High Ticket into a computed summary from Area Comercial por colaborador Admin/Closers", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const activityBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Actividad de llamadas'), detalleBlock.indexOf('{title:"Métricas Setter"'));
 
     expect(llenarBlock).toContain('const noShowCalc=Math.max(0,(form.calificadas||0)-(form.showUps||0));');
     expect(llenarBlock).toContain('const normalizedCommercialForm=role==="closer"?{...form,agendas:noShowCalc}:form;');
@@ -233,13 +235,15 @@ describe("manual collaborator labels", () => {
     expect(detallePorDiaBlock).toContain('{l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"}');
     expect(detallePorDiaBlock).toContain('{l:"# Leads calientes",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"}');
     expect(detallePorDiaBlock).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"}');
-    expect(html).toContain('{title:"Actividad de llamadas — Área Comercial",bg:"#0369a1",rows:[');
-    expect(html).toContain('const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;');
-    expect(html).toContain('{l:"# Agendas hoy",fn:d=>d.sdCommercialActivity("agendasHoy")||null,fmt:"n"}');
-    expect(html).toContain('{l:"# Show Ups",fn:d=>d.sdCommercialActivity("showUps")||null,fmt:"n"}');
-    expect(html).toContain('{l:"# Follow Ups contactados",fn:d=>d.sdCommercialActivity("followUps")||null,fmt:"n"}');
-    expect(html).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"}');
-    expect(html).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.sdCommercial("callsScheduled")||null,fmt:"n"}');
+    expect(detalleBlock).toContain('const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));');
+    expect(activityBlock).toContain('{title:"Actividad de llamadas — Área Comercial High Ticket",bg:"#0369a1",rows:[');
+    expect(detalleBlock).toContain('const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;');
+    expect(activityBlock).toContain('{l:"# Agendas hoy",fn:d=>d.sdCommercialActivity("agendasHoy")||null,fmt:"n"}');
+    expect(activityBlock).toContain('{l:"# Show Ups",fn:d=>d.sdCommercialActivity("showUps")||null,fmt:"n"}');
+    expect(activityBlock).toContain('{l:"# Follow Ups contactados",fn:d=>d.sdCommercialActivity("followUps")||null,fmt:"n"}');
+    expect(activityBlock).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"}');
+    expect(activityBlock).not.toContain('fn:d=>d.sdCommercial("agendasHoy")');
+    expect(activityBlock).not.toContain('daily_closer');
   });
 
   it("splits Area Comercial report entry into Admin, active Setters, and Closers sub-tabs", () => {
