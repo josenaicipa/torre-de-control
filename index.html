@@ -218,6 +218,7 @@ const CLOSER_COLLABORATORS=[
   {id:"Alejandro Gallo Closer",label:"Alejandro Gallo",color:C.teal,role:"closer",legacy:"Alejandro Gallo"},
 ];
 const COMMERCIAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...CLOSER_COLLABORATORS];
+const HIGH_TICKET_CLOSER_MEMBER_IDS=new Set(CLOSER_COLLABORATORS.map(c=>c.id));
 const REPORT_GROUPS={
   admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS},
   setters:{label:"Setters",collaborators:SETTER_COLLABORATORS},
@@ -270,8 +271,9 @@ const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const AREA_COMERCIAL_PRIORITY_START="2026-06-08";
 const areaComercialHasPriority=date=>date>=AREA_COMERCIAL_PRIORITY_START;
+const isJune2026=date=>date>="2026-06-01"&&date<="2026-06-30";
 const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_REPORTING_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);
-const isHighTicketCloserReportingMember=(m,date)=>isCommercialReportingMember(m,date)&&!isAdminMember(m);
+const isHighTicketCloserReportingMember=(m,date)=>isJune2026(date)?HIGH_TICKET_CLOSER_MEMBER_IDS.has(m):isCommercialReportingMember(m,date)&&!isAdminMember(m);
 
 // Modelo objetivo del embudo (plan): fixed hypothetical planning assumption.
 // "Leads necesarios por dólar" was derived from the historical Excel baseline.

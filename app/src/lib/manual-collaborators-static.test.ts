@@ -210,13 +210,24 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),');
   });
 
-  it("counts only active reporting commercial member ids in Detalle Diario from the June 8 priority date", () => {
-    expect(html).toContain('const COMMERCIAL_REPORTING_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.filter(c=>!c.legacy||!SETTER_MEMBER_IDS.has(c.legacy)).map(c=>c.id));');
-    expect(html).toContain('const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_REPORTING_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);');
-    expect(html).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialReportingMember(e.member,e.date)):[];');
-    expect(html).toContain('const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));');
-    expect(html).not.toContain('const COMMERCIAL_CURRENT_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.id));');
-    expect(html).not.toContain('const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));');
+  it("counts all five High Ticket closers for June Agendas / Leads manual fields", () => {
+    const collaboratorBlock = html.slice(html.indexOf('const CLOSER_COLLABORATORS=['), html.indexOf('const COMMERCIAL_COLLABORATORS='));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
+
+    expect(collaboratorBlock).toContain('{id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"}');
+    expect(collaboratorBlock).toContain('{id:"Daryi Perez",label:"Daryi Perez",color:C.gold,role:"closer",legacy:"Daryi"}');
+    expect(collaboratorBlock).toContain('{id:"Wiston Quintero",label:"Wiston Quintero",color:C.blue,role:"closer",legacy:"Juan Diego Afanador"}');
+    expect(collaboratorBlock).toContain('{id:"Daniel Garcia Closer",label:"Daniel Garcia",color:C.blue,role:"closer",legacy:"Daniel Garcia"}');
+    expect(collaboratorBlock).toContain('{id:"Alejandro Gallo Closer",label:"Alejandro Gallo",color:C.teal,role:"closer",legacy:"Alejandro Gallo"}');
+    expect(html).toContain('const HIGH_TICKET_CLOSER_MEMBER_IDS=new Set(CLOSER_COLLABORATORS.map(c=>c.id));');
+    expect(html).toContain('const isHighTicketCloserReportingMember=(m,date)=>isJune2026(date)?HIGH_TICKET_CLOSER_MEMBER_IDS.has(m):isCommercialReportingMember(m,date)&&!isAdminMember(m);');
+    expect(detalleBlock).toContain('const highTicketCloserEntries=entries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,d));');
+    expect(detalleBlock).toContain('const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");');
+    expect(detalleBlock).toContain('const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");');
+    expect(detalleBlock).toContain('const manualShowUps=d=>d.sdHighTicketCloser("showUps");');
+    expect(torreBlock).toContain('const highTicketCloserMonthlyEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,e.date)):[];');
+    expect(html).not.toContain('const isHighTicketCloserReportingMember=(m,date)=>isCommercialReportingMember(m,date)&&!isAdminMember(m);');
   });
 
   it("limits Actividad Marketing to Lucas Soria and feeds Detalle Diario only from Lucas", () => {
