@@ -175,6 +175,14 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;');
   });
 
+  it("does not count active setter rows as commercial legacy closer rows", () => {
+    expect(html).toContain('const COMMERCIAL_LEGACY_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean).filter(id=>!SETTER_MEMBER_IDS.has(id)));');
+    expect(html).toContain('const COMMERCIAL_MEMBER_IDS=new Set([');
+    expect(html).toContain('...COMMERCIAL_LEGACY_MEMBER_IDS,');
+    expect(html).toContain('const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);');
+    expect(html).not.toContain('...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),');
+  });
+
   it("turns Actividad de llamadas in Admin/Closers into a computed summary from Agendas and Follow Ups", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
