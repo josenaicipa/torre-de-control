@@ -686,65 +686,6 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
     </div>
   );
 };
-
-
-// Compact permissions/access snapshot displayed inside Resumen Equipo. Admin user
-// management stays action-only; this view is where we expose the per-user summary.
-const ResumenPermisosEquipo=()=>{
-  const [state,setState]=useState({loading:true,allowed:true,error:null,users:[]});
-  useEffect(()=>{
-    let alive=true;
-    fetch("/api/admin/team-access-summary",{credentials:"same-origin"})
-      .then(async r=>{
-        if(r.status===401||r.status===403)return {allowed:false,users:[]};
-        if(!r.ok)throw new Error("No se pudo cargar el resumen de accesos");
-        const data=await r.json();
-        return {allowed:true,users:data.users||[]};
-      })
-      .then(data=>{if(alive)setState({loading:false,allowed:data.allowed!==false,error:null,users:data.users||[]});})
-      .catch(err=>{if(alive)setState({loading:false,allowed:true,error:err.message||"Error cargando resumen",users:[]});});
-    return()=>{alive=false;};
-  },[]);
-  if(!state.allowed)return null;
-  return(
-    <Card>
-      <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:12,flexWrap:"wrap"}}>
-        <div>
-          <div style={{fontSize:9,color:TXT3,letterSpacing:"0.12em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>Usuarios y permisos</div>
-          <div style={{fontSize:15,fontWeight:800,color:TXT,marginTop:2}}>Resumen por usuario</div>
-          <div style={{fontSize:11,color:TXT2,lineHeight:1.6,marginTop:3}}>Alcance efectivo y qué puede hacer cada usuario. La edición queda en Admin Usuarios.</div>
-        </div>
-        {state.loading&&<span style={{fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace"}}>Cargando…</span>}
-      </div>
-      {state.error&&<div style={{fontSize:11,color:C.red,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:10}}>{state.error}</div>}
-      {!state.loading&&!state.error&&state.users.length===0&&(
-        <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace"}}>Sin usuarios para mostrar.</div>
-      )}
-      {!state.loading&&!state.error&&state.users.length>0&&(
-        <div style={{display:"grid",gap:8}}>
-          {state.users.map(u=>(
-            <details key={u.id} style={{border:`1px solid ${BORDER}`,borderRadius:10,padding:"10px 12px",background:u.active?SURFACE2:"#f8fafc",opacity:u.active?1:.68}}>
-              <summary style={{cursor:"pointer",listStyle:"none",display:"grid",gridTemplateColumns:"minmax(180px,1fr) auto",gap:10,alignItems:"center"}}>
-                <span>
-                  <span style={{display:"block",fontSize:12,fontWeight:700,color:TXT}}>{u.name}</span>
-                  <span style={{display:"block",fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace",marginTop:2}}>{u.email} · {u.positionLabel} · {u.active?"Activo":"Suspendido"}</span>
-                </span>
-                <span style={{fontSize:10,color:TXT2,fontWeight:700}}>{u.summary?.scopeLabel||u.dataScopeLabel}</span>
-              </summary>
-              <div style={{borderTop:`1px solid ${BORDER2}`,marginTop:10,paddingTop:10}}>
-                <div style={{fontSize:11,color:TXT2,lineHeight:1.6,marginBottom:8}}>{u.summary?.description}</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {(u.summary?.badges||[]).map(b=><span key={b} style={{fontSize:9,color:TXT2,border:`1px solid ${BORDER}`,borderRadius:999,padding:"3px 8px",background:SURFACE}}>{b}</span>)}
-                </div>
-              </div>
-            </details>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-};
-
 // ─── RESUMEN EQUIPO ───────────────────────────────────────────────────────────
 const ResumenEquipo=({year,month,allDaily})=>{
   const [view,setView]=useState("resumen");
@@ -786,7 +727,6 @@ const ResumenEquipo=({year,month,allDaily})=>{
         ))}
       </div>
 
-      <ResumenPermisosEquipo/>
 
       {entries.length===0&&(
         <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
@@ -3128,239 +3068,6 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
     </div>
   );
 };
-
-// ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-const AdminView=({allDaily,onSave,onDelete,onOpenUsers})=>{
-  const [authed,setAuthed]=useState(false);
-  const [authState,setAuthState]=useState("checking");
-  const [filterMember,setFilterMember]=useState("Todos");
-  const [filterDate,setFilterDate]=useState("");
-  const [editing,setEditing]=useState(null);
-  const [form,setForm]=useState({});
-  const [saving,setSaving]=useState(false);
-  const [deleting,setDeleting]=useState(null);
-
-  useEffect(()=>{
-    let alive=true;
-    fetch("/api/auth/me",{credentials:"same-origin"})
-      .then(async res=>{
-        if(!alive)return;
-        if(res.status===401){setAuthState("login");return;}
-        if(!res.ok){setAuthState("error");return;}
-        const data=await res.json().catch(()=>({}));
-        if(data?.user?.canManageUsers){setAuthed(true);setAuthState("ok");}
-        else{setAuthState("forbidden");}
-      })
-      .catch(()=>alive&&setAuthState("error"));
-    return()=>{alive=false;};
-  },[]);
-
-  const entries=Object.entries(allDaily)
-    .map(([k,v])=>({key:k,...v}))
-    .filter(e=>filterMember==="Todos"||e.member===filterMember)
-    .filter(e=>!filterDate||e.date===filterDate)
-    .sort((a,b)=>b.date.localeCompare(a.date)||a.member.localeCompare(b.member));
-
-  const startEdit=entry=>{setEditing(entry.key);setForm({...entry});};
-  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
-
-  const saveEdit=async()=>{
-    setSaving(true);
-    const newBk=(form.newBkOrganic||0)+(form.newBkPaid||0);
-    const qualBk=(form.qualBkOrganic||0)+(form.qualBkPaid||0);
-    const shows=(form.showOrganic||0)+(form.showPaid||0);
-    const entry={...form,
-      newBkTotal:newBk,qualBkTotal:qualBk,showsTotal:shows,
-      bkInboundTotal:(form.bkInboundOrganic||0)+(form.bkInboundPaid||0),
-    };
-    await onSave(`${form.date}:${form.member}`,entry);
-    setSaving(false);setEditing(null);
-  };
-
-  const handleDelete=async entry=>{
-    if(!window.confirm(`¿Eliminar entrada de ${entry.member} del ${entry.date}?`))return;
-    setDeleting(entry.key);
-    await onDelete(entry.date,entry.member);
-    setDeleting(null);
-  };
-
-  if(!authed){
-    const isChecking=authState==="checking";
-    const title=isChecking?"Validando acceso admin":authState==="forbidden"?"Tu usuario no tiene permisos de admin":"Inicia sesión como admin";
-    const subtitle=isChecking?"Revisando tu sesión segura…":authState==="forbidden"?"Pide a un admin que te active permisos de usuarios":"El PIN fue removido; el acceso depende de tu usuario y permisos";
-    return(
-    <Card>
-      <div style={{textAlign:"center",padding:"50px 20px"}}>
-        <div style={{width:52,height:52,borderRadius:14,background:BORDER2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
-          <Icon name={isChecking?"users":"lock"} size={22} color={TXT3}/>
-        </div>
-        <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>{title}</div>
-        <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace",marginBottom:24}}>
-          {subtitle}
-        </div>
-        {!isChecking&&authState!=="forbidden"&&<a href="/login" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
-          border:"none",borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`,textDecoration:"none"}}>
-          Iniciar sesión
-        </a>}
-        {!isChecking&&authState==="forbidden"&&<a href="/" style={{display:"inline-flex",alignItems:"center",gap:8,background:SURFACE2,color:TXT,
-          border:`1px solid ${BORDER}`,borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Epilogue',sans-serif",textDecoration:"none"}}>
-          Volver al dashboard
-        </a>}
-      </div>
-    </Card>
-  );}
-
-  const EDIT_FIELDS=[
-    {k:"posts",l:"Posts + CTA"},{k:"mensajes",l:"Mensajes"},{k:"followUps",l:"Follow-ups"},{k:"bkOffers",l:"Bk Offers"},
-    {k:"newBkOrganic",l:"New Bk Orgánico"},{k:"newBkPaid",l:"New Bk Paid"},
-    {k:"qualBkOrganic",l:"Quality Bk Orgánico"},{k:"qualBkPaid",l:"Quality Bk Paid"},
-    {k:"todayBkOrganic",l:"Today Bk Orgánico"},{k:"todayBkPaid",l:"Today Bk Paid"},
-    {k:"showOrganic",l:"Shows Orgánico"},{k:"showPaid",l:"Shows Paid"},
-    {k:"pitchesOrganic",l:"Pitches Orgánico"},{k:"pitchesPaid",l:"Pitches Paid"},
-    {k:"bkInboundOrganic",l:"Inbound Orgánico"},{k:"bkInboundPaid",l:"Inbound Paid"},
-    {k:"bkOutbound",l:"Outbound"},{k:"paidBkInvestment",l:"Inversión Ads $",p:"$"},
-    {k:"paidBkCount",l:"# Paid Bookings"},{k:"activeClients",l:"Clientes Activos"},
-    {k:"igFollowers",l:"IG Followers (k)"},{k:"offerPrice",l:"Precio Oferta $",p:"$"},
-  ];
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      <Card>
-        <STit icon="👥" title="Administración de usuarios" sub="Crea accesos, cambia roles y ajusta permisos por módulo"/>
-        <div style={{display:"flex",justifyContent:"space-between",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{fontSize:12,color:TXT3,lineHeight:1.55,maxWidth:620}}>
-            Gestiona quién puede entrar a Torre de Control. El panel usa login seguro y conserva auditoría: los usuarios se suspenden, no se eliminan.
-          </div>
-          <button type="button" onClick={onOpenUsers} style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
-            border:"none",borderRadius:10,padding:"11px 18px",fontWeight:900,fontSize:12,cursor:"pointer",
-            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 10px ${C.gold}35`,textDecoration:"none"}}>
-            Abrir usuarios y permisos →
-          </button>
-        </div>
-      </Card>
-
-      <Card>
-        <STit icon="🔐" title="Panel Admin" sub="Visualiza, edita o elimina cualquier entrada del equipo"/>
-        <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div style={{display:"flex",flexDirection:"column",gap:4}}>
-            <Lbl>Miembro</Lbl>
-            <select value={filterMember} onChange={e=>setFilterMember(e.target.value)}
-              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
-                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
-              <option>Todos</option>
-              {TEAM.map(m=><option key={m}>{m}</option>)}
-            </select>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:4}}>
-            <Lbl>Fecha</Lbl>
-            <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)}
-              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
-                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace",height:36}}/>
-          </div>
-          {filterDate&&(
-            <button onClick={()=>setFilterDate("")}
-              style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,
-                color:TXT2,padding:"7px 12px",fontSize:11,cursor:"pointer",
-                fontFamily:"'Epilogue',sans-serif",height:36}}>× Limpiar</button>
-          )}
-          <div style={{marginLeft:"auto",fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace",paddingBottom:6}}>
-            {entries.length} entradas encontradas
-          </div>
-        </div>
-      </Card>
-
-      {entries.length===0&&(
-        <Card><div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
-          fontFamily:"'DM Mono',monospace"}}>No hay entradas con esos filtros.</div></Card>
-      )}
-
-      {entries.map(entry=>(
-        <Card key={entry.key} style={{padding:"16px 20px"}}>
-          {editing===entry.key?(
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <MemberBadge name={entry.member} size="lg"/>
-                  <span style={{fontSize:12,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
-                  <span style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace"}}>✏️ Modo edición</span>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={saveEdit} disabled={saving} style={{background:C.green,color:"#fff",
-                    border:"none",borderRadius:8,padding:"8px 18px",fontWeight:800,fontSize:12,
-                    cursor:"pointer",fontFamily:"'Epilogue',sans-serif",opacity:saving?0.7:1}}>
-                    {saving?"Guardando...":"✓ Guardar cambios"}
-                  </button>
-                  <button onClick={()=>setEditing(null)} style={{background:"transparent",
-                    border:`1px solid ${BORDER}`,borderRadius:8,padding:"8px 14px",fontSize:12,
-                    cursor:"pointer",color:TXT2,fontFamily:"'Epilogue',sans-serif"}}>
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-                {EDIT_FIELDS.map(f=>(
-                  <Inp key={f.k} label={f.l} prefix={f.p} value={form[f.k]||""} onChange={v=>sf(f.k,v)}/>
-                ))}
-              </div>
-            </div>
-          ):(
-            <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <MemberBadge name={entry.member} size="lg"/>
-                  <span style={{fontSize:13,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>startEdit(entry)} style={{background:C.gold+"15",
-                    border:`1px solid ${C.gold}40`,borderRadius:7,padding:"6px 14px",fontSize:11,
-                    cursor:"pointer",color:C.gold,fontFamily:"'Epilogue',sans-serif",fontWeight:700}}>
-                    ✏️ Editar
-                  </button>
-                  <button onClick={()=>handleDelete(entry)} disabled={deleting===entry.key}
-                    style={{background:C.red+"10",border:`1px solid ${C.red}30`,borderRadius:7,
-                      padding:"6px 14px",fontSize:11,cursor:"pointer",color:C.red,
-                      fontFamily:"'Epilogue',sans-serif",fontWeight:700,opacity:deleting===entry.key?0.5:1}}>
-                    {deleting===entry.key?"...":"🗑 Eliminar"}
-                  </button>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
-                {[
-                  ["Mensajes",    entry.mensajes,       TXT2],
-                  ["Follow-ups",  entry.followUps,      C.blue],
-                  ["Bk Offers",   entry.bkOffers,       C.orange],
-                  ["New Bk",      entry.newBkTotal,     C.purple],
-                  ["Quality Bk",  entry.qualBkTotal,    C.teal],
-                  ["Shows",       entry.showsTotal,     C.green],
-                  ["Show-up %",   fP(pv(entry.showsTotal,entry.qualBkTotal)), cH(pv(entry.showsTotal,entry.qualBkTotal),60,40)],
-                  ["% Calif.",    fP(pv(entry.qualBkTotal,entry.newBkTotal)), cH(pv(entry.qualBkTotal,entry.newBkTotal),50,20)],
-                  ["Posts",       entry.posts,          TXT3],
-                  ["Pitches",     (entry.pitchesOrganic||0)+(entry.pitchesPaid||0), C.blue],
-                  ["Clientes",    entry.activeClients,  C.blue],
-                  ["Inv. Ads",    fD(entry.paidBkInvestment), C.red],
-                  ["Paid Bk #",   entry.paidBkCount,   C.orange],
-                  ["IG Followers",entry.igFollowers,    C.purple],
-                  ["Precio",      fD(entry.offerPrice), C.gold],
-                ].map(([l,v,c])=>(
-                  <div key={l} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
-                    borderRadius:8,padding:"9px 12px"}}>
-                    <Lbl style={{marginBottom:2}}>{l}</Lbl>
-                    <div style={{fontSize:16,fontWeight:700,color:c,fontFamily:"'DM Mono',monospace"}}>
-                      {typeof v==="string"?v:fN(v)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
-      ))}
-    </div>
-  );
-};
-
 // ─── CONTROL COMERCIAL (audit-only — does NOT write to GHL) ────────────────
 const ControlComercial=()=>{
   const [date,setDate]=useState(today());
@@ -3993,7 +3700,7 @@ const TABS=[
   {id:"equipo",  l:"Resumen Equipo",     icon:"users"},
   {id:"funnel",  l:"Funnel",             icon:"filter"},
   {id:"hist",    l:"Histórico",          icon:"trendUp"},
-  {id:"admin",   l:"Admin",              icon:"settings"},
+  {id:"admin",   l:"Admin",              icon:"settings", href:"/admin/users"},
 ];
 
 const MOBILE_TABS=[
@@ -4080,7 +3787,8 @@ function App(){
   // If the user landed on a now-hidden tab, fall back to the default view.
   useEffect(()=>{
     if(me&&!canManage&&tab==="admin")changeTab("torre");
-  },[me,canManage,tab]);
+    if(me&&canManage&&tab==="admin"&&!embedUrl)openEmbeddedRoute("/admin/users","admin");
+  },[me,canManage,tab,embedUrl]);
 
   useEffect(()=>{
     (async()=>{
@@ -4606,7 +4314,6 @@ function App(){
                 {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
                 {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
                 {tab==="colab"  &&<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>}
-                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry} onOpenUsers={() => openEmbeddedRoute("/admin/users", "admin")}/>}
               </>
             )}
           </div>

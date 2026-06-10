@@ -38,28 +38,32 @@ describe("admin users UX", () => {
     expect(source).not.toContain("<article className={`card user-row");
   });
 
-  it("moves the per-user access summary into Resumen Equipo", () => {
+  it("keeps access-user administration out of Resumen Equipo", () => {
     const dashboard = staticDashboardSource();
     const route = teamAccessRouteSource();
 
-    expect(dashboard).toContain("ResumenPermisosEquipo");
-    expect(dashboard).toContain("/api/admin/team-access-summary");
-    expect(dashboard).toContain("Resumen por usuario");
-    expect(dashboard).toContain("Alcance efectivo");
+    expect(dashboard).not.toContain("ResumenPermisosEquipo");
+    expect(dashboard).not.toContain("/api/admin/team-access-summary");
+    expect(dashboard).not.toContain("Resumen por usuario");
+    expect(dashboard).not.toContain("Alcance efectivo");
     expect(route).toContain("summarizeEffectiveAccess");
     expect(route).toContain("canManageUsers");
   });
 
-  it("keeps Next.js admin and operations pages embedded inside the legacy dashboard shell", () => {
+  it("opens Admin directly as embedded Usuarios y permisos, without the legacy Panel Admin", () => {
     const dashboard = staticDashboardSource();
 
     expect(dashboard).toContain("const openEmbeddedRoute=(href,sectionId)");
     expect(dashboard).toContain("setEmbedUrl(href)");
-    expect(dashboard).toContain("openEmbeddedRoute(c.href,t.id)");
+    expect(dashboard).toContain('href:"/admin/users"');
     expect(dashboard).toContain("openEmbeddedRoute(t.href,t.id)");
-    expect(dashboard).toContain("onOpenUsers={() => openEmbeddedRoute(\"/admin/users\", \"admin\")}");
     expect(dashboard).toContain("<iframe");
     expect(dashboard).toContain("src={embedUrl}");
+    expect(dashboard).not.toContain("const AdminView=");
+    expect(dashboard).not.toContain("Administración de usuarios");
+    expect(dashboard).not.toContain("Panel Admin");
+    expect(dashboard).not.toContain("Visualiza, edita o elimina cualquier entrada del equipo");
+    expect(dashboard).not.toContain("onOpenUsers");
     expect(dashboard).not.toContain('href="/admin/users" style={{display:"inline-flex"');
   });
 });
