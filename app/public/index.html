@@ -271,6 +271,7 @@ const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:
 const AREA_COMERCIAL_PRIORITY_START="2026-06-08";
 const areaComercialHasPriority=date=>date>=AREA_COMERCIAL_PRIORITY_START;
 const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_REPORTING_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);
+const isHighTicketCloserReportingMember=(m,date)=>isCommercialReportingMember(m,date)&&!isAdminMember(m);
 
 // Modelo objetivo del embudo (plan): fixed hypothetical planning assumption.
 // "Leads necesarios por dólar" was derived from the historical Excel baseline.
@@ -1972,6 +1973,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     // Do not aggregate other setters/collaborators into Detalle Diario.
     const mktEntries=entries.filter(e=>e&&isMarketingActivityMember(e.member));
     const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));
+    const highTicketCloserEntries=entries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,d));
     const setterEntries=entries.filter(e=>e&&isSetterMember(e.member));
     const lowTicketEntries=setterEntries.filter(e=>e&&isLowTicketSetter(e.member));
     // Jan-Mar historical ad spend was imported as month totals. Keep those
@@ -1988,10 +1990,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const hasPrimaryCommercial=commercialDayHasPrimary(d,commercialEntries);
     const sdCommercial=f=>allowCommercialFallback?commercialDayValue(d,commercialEntries,f):0;
     const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;
+    const sdHighTicketCloser=f=>sumF(highTicketCloserEntries,f);
     const sdSetter=f=>sumF(setterEntries,f);
     const sdLowTicket=f=>sumF(lowTicketEntries,f);
     const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,commercialEntries,setterEntries,lowTicketEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdCommercialActivity,sdSetter,sdLowTicket,hasPrimaryCommercial,totalGastoDay};
+    return{day:i+1,d,entries,mktEntries,commercialEntries,highTicketCloserEntries,setterEntries,lowTicketEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdCommercialActivity,sdHighTicketCloser,sdSetter,sdLowTicket,hasPrimaryCommercial,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -2029,9 +2032,9 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mGastoOtros=hasHistoricalGasto?mHistoricalGastoOtros:mDailyGastoOtros;
   const mGastoTotal=mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros;
   const cv=(d,closerField,entryField)=>d.hasPrimaryCommercial?d.sdCommercial(entryField):areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;
-  const manualAgendasHoy=d=>d.hasPrimaryCommercial?d.sdCommercial("agendasHoy"):areaComercialHasPriority(d.d)?d.sdCommercial("agendasHoy")||d.closer.agendas_final||0:d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);
-  const manualCalificadas=d=>d.hasPrimaryCommercial?d.sdCommercial("calificadas"):areaComercialHasPriority(d.d)?d.sdCommercial("calificadas")||d.closer.agendas_calificadas||0:d.d>="2026-06-01"?d.sdCommercial("calificadas"):(d.closer.agendas_calificadas||0);
-  const manualShowUps=d=>d.hasPrimaryCommercial?d.sdCommercial("showUps"):areaComercialHasPriority(d.d)?d.sdCommercial("showUps")||d.closer.citas_asistidas||0:d.d>="2026-06-01"?d.sdCommercial("showUps"):(d.closer.citas_asistidas||0);
+  const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");
+  const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");
+  const manualShowUps=d=>d.sdHighTicketCloser("showUps");
   const agTotal=d=>["organicas","meta","google","tiktok","otros"].reduce((s,c)=>s+(d.closer[`agendas_${c}`]||0),0);
   const mAgTotal=dayData.reduce((s,d)=>s+agTotal(d),0);
   const mAgMeta=dayData.reduce((s,d)=>s+(d.closer.agendas_meta||0),0);
@@ -2096,7 +2099,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Llamadas Propuestas",fn:d=>d.sdSetter("setterCallsProposed")||null,fmt:"n"},
       {l:"# Links Enviados",fn:d=>d.sdSetter("setterLinksSent")||null,fmt:"n"},
     ]},
-    {title:"Agendas / Leads",bg:"#0f766e",rows:[
+    {title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"},
       {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true},
       {l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true},

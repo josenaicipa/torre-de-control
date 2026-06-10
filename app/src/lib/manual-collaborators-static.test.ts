@@ -133,7 +133,6 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('const sdCommercial=f=>allowCommercialFallback?commercialDayValue(d,commercialEntries,f):0;');
     expect(html).toContain('const cv=(d,closerField,entryField)=>d.hasPrimaryCommercial?d.sdCommercial(entryField):areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;');
     expect(html).toContain('const valorHTDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaHT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT")||d.closer.valor_venta_ht||0:d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;');
-    expect(html).toContain('const manualAgendasHoy=d=>d.hasPrimaryCommercial?d.sdCommercial("agendasHoy"):areaComercialHasPriority(d.d)?d.sdCommercial("agendasHoy")||d.closer.agendas_final||0:d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);');
     expect(html).not.toContain('const totalVentasFromCollaborators=sumF(collabCommercialEntries,"ventasHT");');
     expect(html).not.toContain('const totalVentas=totalVentasFromCollaborators||sumF(closerEntries,"q_ventas_ht");');
   });
@@ -244,6 +243,30 @@ describe("manual collaborator labels", () => {
     expect(activityBlock).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"}');
     expect(activityBlock).not.toContain('fn:d=>d.sdCommercial("agendasHoy")');
     expect(activityBlock).not.toContain('daily_closer');
+  });
+
+  it("feeds Agendas / Leads High Ticket from manual Agendas plus collaborator Closers only", () => {
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const agendasBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Agendas / Leads High Ticket"'), detalleBlock.indexOf('{title:"Costos por Lead"'));
+
+    expect(detalleBlock).toContain('const highTicketCloserEntries=entries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,d));');
+    expect(detalleBlock).toContain('const sdHighTicketCloser=f=>sumF(highTicketCloserEntries,f);');
+    expect(detalleBlock).toContain('const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");');
+    expect(detalleBlock).toContain('const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");');
+    expect(detalleBlock).toContain('const manualShowUps=d=>d.sdHighTicketCloser("showUps");');
+    expect(agendasBlock).toContain('{title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:[');
+    expect(agendasBlock).toContain('{l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"}');
+    expect(agendasBlock).toContain('{l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true}');
+    expect(agendasBlock).toContain('{l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true}');
+    expect(agendasBlock).toContain('{l:"Google",fn:d=>d.closer.agendas_google||null,fmt:"n",sub:true}');
+    expect(agendasBlock).toContain('{l:"TikTok",fn:d=>d.closer.agendas_tiktok||null,fmt:"n",sub:true}');
+    expect(agendasBlock).toContain('{l:"Otros",fn:d=>d.closer.agendas_otros||null,fmt:"n",sub:true}');
+    expect(agendasBlock).toContain('{l:"Hoy (en agenda)",fn:d=>manualAgendasHoy(d)||null,fmt:"n"}');
+    expect(agendasBlock).toContain('{l:"Calificadas Total",fn:d=>manualCalificadas(d)||null,fmt:"n"}');
+    expect(agendasBlock).toContain('{l:"Show Ups",fn:d=>manualShowUps(d)||null,fmt:"n"}');
+    expect(detalleBlock).not.toContain('const manualAgendasHoy=d=>d.hasPrimaryCommercial?');
+    expect(detalleBlock).not.toContain('const manualCalificadas=d=>d.hasPrimaryCommercial?');
+    expect(detalleBlock).not.toContain('const manualShowUps=d=>d.hasPrimaryCommercial?');
   });
 
   it("adds Alejandro Gallo Low Ticket call activity and shows it before Métricas Setter in Detalle Diario", () => {
@@ -411,7 +434,7 @@ describe("manual collaborator labels", () => {
 
   it("orders and renames Detalle Diario Agendas / Leads rows around GHL-derived fields", () => {
     const agendasBlock = html.slice(
-      html.indexOf('{title:"Agendas / Leads",bg:"#0f766e",rows:['),
+      html.indexOf('{title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:['),
       html.indexOf('{title:"Costos por Lead",bg:"#92400e",rows:[')
     );
 

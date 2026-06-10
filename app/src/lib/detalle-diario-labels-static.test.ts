@@ -11,7 +11,7 @@ const dashboardFiles = [
 ];
 
 function extractAgendasBlock(source: string): string {
-  const marker = '{title:"Agendas / Leads",bg:"#0f766e",rows:[';
+  const marker = '{title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:[';
   const start = source.indexOf(marker);
   expect(start, "Detalle Diario Agendas / Leads group missing").toBeGreaterThanOrEqual(0);
   const end = source.indexOf(']},\n    {title:"Costos por Lead"', start);
@@ -54,12 +54,14 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
     expect(rowTotalBlock).not.toContain('if(row.totFn) return row.totFn();');
   });
 
-  it.each(dashboardFiles)("uses manual Área Comercial fields for June-onward operational rows in %s", (relativePath) => {
+  it.each(dashboardFiles)("uses manual Closers fields for High Ticket operational rows in %s", (relativePath) => {
     const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
     const block = extractAgendasBlock(source);
-    expect(source).toContain('const manualAgendasHoy=d=>d.hasPrimaryCommercial?d.sdCommercial("agendasHoy"):areaComercialHasPriority(d.d)?d.sdCommercial("agendasHoy")||d.closer.agendas_final||0:d.d>="2026-06-01"?d.sdCommercial("agendasHoy"):(d.closer.agendas_final||0);');
-    expect(source).toContain('const manualCalificadas=d=>d.hasPrimaryCommercial?d.sdCommercial("calificadas"):areaComercialHasPriority(d.d)?d.sdCommercial("calificadas")||d.closer.agendas_calificadas||0:d.d>="2026-06-01"?d.sdCommercial("calificadas"):(d.closer.agendas_calificadas||0);');
-    expect(source).toContain('const manualShowUps=d=>d.hasPrimaryCommercial?d.sdCommercial("showUps"):areaComercialHasPriority(d.d)?d.sdCommercial("showUps")||d.closer.citas_asistidas||0:d.d>="2026-06-01"?d.sdCommercial("showUps"):(d.closer.citas_asistidas||0);');
+    expect(source).toContain('const highTicketCloserEntries=entries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,d));');
+    expect(source).toContain('const sdHighTicketCloser=f=>sumF(highTicketCloserEntries,f);');
+    expect(source).toContain('const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");');
+    expect(source).toContain('const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");');
+    expect(source).toContain('const manualShowUps=d=>d.sdHighTicketCloser("showUps");');
     expect(block).toContain('{l:"Hoy (en agenda)",fn:d=>manualAgendasHoy(d)||null,fmt:"n"}');
     expect(block).toContain('{l:"Calificadas Total",fn:d=>manualCalificadas(d)||null,fmt:"n"}');
     expect(block).toContain('{l:"% Calificadas",fn:d=>{const h=manualAgendasHoy(d),c=manualCalificadas(d);return h>0?pv(c,h):null;},fmt:"%"');
