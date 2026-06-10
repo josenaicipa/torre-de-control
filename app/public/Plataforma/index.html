@@ -247,6 +247,8 @@ const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
 const isSetterMember=m=>SETTER_MEMBER_IDS.has(m);
 const MARKETING_ACTIVITY_MEMBER_ID="Lucas Soria";
 const isMarketingActivityMember=m=>m===MARKETING_ACTIVITY_MEMBER_ID;
+const LOW_TICKET_SETTER_MEMBER_ID="Alejandro Gallo";
+const isLowTicketSetter=m=>m===LOW_TICKET_SETTER_MEMBER_ID;
 const HISTORICAL_MARKETING_MEMBER="Marketing Histórico";
 const AUTO_ADS_MEMBER="Auto Ads";
 const isHistoricalMonthlyAdSpendEntry=e=>e?.member===HISTORICAL_MARKETING_MEMBER;
@@ -291,6 +293,7 @@ const blankEntry=()=>({
   pendDiaAnterior:0,pendAcumulados:0,
   callsScheduled:0,hotLeads:0,
   outboundContactados:0,outboundAgendados:0,
+  lowTicketVentas:0,lowTicketAgendasHoy:0,lowTicketShowUps:0,lowTicketFollowUps:0,
   setterLeadsContacted:0,setterConfirmedAgendas:0,setterCallsToLeads:0,setterMessagesSent:0,
   setterOrganicLeads:0,setterAdsLeads:0,
   showupNotes:"",hotLeadsEvidence:"",blockers:"",setterFindings:"",
@@ -416,6 +419,10 @@ const rowToEntry=row=>{
     setterMessagesSent:row.show_organic||0,
     setterOrganicLeads:row.sales_organic||0,
     setterAdsLeads:row.pitches_organic||0,
+    lowTicketVentas:isLowTicketSetter(row.member)?(row.revenue_organic||0):0,
+    lowTicketAgendasHoy:isLowTicketSetter(row.member)?(row.cash_organic||0):0,
+    lowTicketShowUps:isLowTicketSetter(row.member)?(row.recurring_organic||0):0,
+    lowTicketFollowUps:isLowTicketSetter(row.member)?(row.pitches_paid||0):0,
     showupNotes:row.showup_notes||"",
     hotLeadsEvidence:row.hot_leads_evidence||"",
     blockers:row.blockers||"",
@@ -1966,6 +1973,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const mktEntries=entries.filter(e=>e&&isMarketingActivityMember(e.member));
     const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));
     const setterEntries=entries.filter(e=>e&&isSetterMember(e.member));
+    const lowTicketEntries=setterEntries.filter(e=>e&&isLowTicketSetter(e.member));
     // Jan-Mar historical ad spend was imported as month totals. Keep those
     // Marketing Histórico rows out of daily cells, but allow Auto Ads daily
     // rows to remain visible. Total / Mes prioritizes the historical monthly
@@ -1981,8 +1989,9 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const sdCommercial=f=>allowCommercialFallback?commercialDayValue(d,commercialEntries,f):0;
     const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;
     const sdSetter=f=>sumF(setterEntries,f);
+    const sdLowTicket=f=>sumF(lowTicketEntries,f);
     const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,commercialEntries,setterEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdCommercialActivity,sdSetter,hasPrimaryCommercial,totalGastoDay};
+    return{day:i+1,d,entries,mktEntries,commercialEntries,setterEntries,lowTicketEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdCommercialActivity,sdSetter,sdLowTicket,hasPrimaryCommercial,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -2066,11 +2075,17 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Follow Ups",fn:d=>d.sdMkt("followUps")||null,fmt:"n"},
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
     ]},
-    {title:"Actividad de llamadas — Área Comercial High Ticket",bg:"#0369a1",rows:[
+    {title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[
       {l:"# Agendas hoy",fn:d=>d.sdCommercialActivity("agendasHoy")||null,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.sdCommercialActivity("showUps")||null,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.sdCommercialActivity("followUps")||null,fmt:"n"},
       {l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"},
+    ]},
+    {title:"Actividad de llamadas — Low Ticket",bg:"#0f766e",rows:[
+      {l:"# Ventas",fn:d=>d.sdLowTicket("lowTicketVentas")||null,fmt:"n"},
+      {l:"# Agendas hoy",fn:d=>d.sdLowTicket("lowTicketAgendasHoy")||null,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.sdLowTicket("lowTicketShowUps")||null,fmt:"n"},
+      {l:"# Follow Ups contactados",fn:d=>d.sdLowTicket("lowTicketFollowUps")||null,fmt:"n"},
     ]},
     {title:"Métricas Setter",bg:"#334155",rows:[
       {l:"# Nuevas Conversaciones del Día",fn:d=>d.sdSetter("setterNewConversations")||null,fmt:"n"},
@@ -2485,6 +2500,17 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Inp label="Ads" value={form.setterAdsLeads} onChange={v=>sf("setterAdsLeads",v)}/>
             </div>
           </Card>
+          {isLowTicketSetter(collabId)&&(
+            <Card>
+              <STit icon="📞" title="Actividad de llamadas Low Ticket" sub="Solo Alejandro Gallo"/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+                <Inp label="# Ventas" value={form.lowTicketVentas} onChange={v=>sf("lowTicketVentas",v)}/>
+                <Inp label="# Agendas hoy" value={form.lowTicketAgendasHoy} onChange={v=>sf("lowTicketAgendasHoy",v)}/>
+                <Inp label="# Show Ups" value={form.lowTicketShowUps} onChange={v=>sf("lowTicketShowUps",v)}/>
+                <Inp label="# Follow Ups contactados" value={form.lowTicketFollowUps} onChange={v=>sf("lowTicketFollowUps",v)}/>
+              </div>
+            </Card>
+          )}
           <Card>
             <STit icon="🔁" title="Métricas Setter" sub="Actividad diaria para comparación por setter"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
@@ -4057,6 +4083,7 @@ function App(){
     // Marketing activity columns are writable only by Lucas Soria. Commercial
     // collaborators still reuse these physical columns for their own mapped fields.
     const writesMarketingActivity=isMarketingActivityMember(entry.member);
+    const writesLowTicketActivity=isLowTicketSetter(entry.member);
     const {error}=await db.from("daily_entries").upsert({
       date:entry.date,member:entry.member,
       ig_followers:writesMarketingActivity?(entry.igFollowers||0):isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):0,
@@ -4078,11 +4105,11 @@ function App(){
       today_bk_organic:isSetterMember(entry.member)?(entry.setterCallsToLeads||0):(entry.agendasHoy||0),
       show_organic:isSetterMember(entry.member)?(entry.setterMessagesSent||0):(entry.showUps||0),
       sales_organic:isSetterMember(entry.member)?(entry.setterOrganicLeads||0):(entry.ventasHT||0),
-      revenue_organic:entry.valorVentaHT||0,
-      cash_organic:entry.cashCollected||entry.upfrontCash||0,
-      recurring_organic:entry.recurringCash||0,
+      revenue_organic:writesLowTicketActivity?(entry.lowTicketVentas||0):(entry.valorVentaHT||0),
+      cash_organic:writesLowTicketActivity?(entry.lowTicketAgendasHoy||0):(entry.cashCollected||entry.upfrontCash||0),
+      recurring_organic:writesLowTicketActivity?(entry.lowTicketShowUps||0):(entry.recurringCash||0),
       pitches_organic:isAdminMember(entry.member)?(entry.activeClients||0):isSetterMember(entry.member)?(entry.setterAdsLeads||0):(entry.pendDiaAnterior||0),
-      pitches_paid:entry.pendAcumulados||0,
+      pitches_paid:writesLowTicketActivity?(entry.lowTicketFollowUps||0):(entry.pendAcumulados||0),
       reservas_organic:entry.reservas||0,
       showup_notes:entry.showupNotes||"",
       hot_leads_evidence:entry.hotLeadsEvidence||"",

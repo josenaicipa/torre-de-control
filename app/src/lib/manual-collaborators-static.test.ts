@@ -217,7 +217,7 @@ describe("manual collaborator labels", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
     const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
-    const activityBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Actividad de llamadas'), detalleBlock.indexOf('{title:"Métricas Setter"'));
+    const activityBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Actividad de llamadas'), detalleBlock.indexOf('{title:"Actividad de llamadas — Low Ticket"'));
 
     expect(llenarBlock).toContain('const noShowCalc=Math.max(0,(form.calificadas||0)-(form.showUps||0));');
     expect(llenarBlock).toContain('const normalizedCommercialForm=role==="closer"?{...form,agendas:noShowCalc}:form;');
@@ -236,7 +236,7 @@ describe("manual collaborator labels", () => {
     expect(detallePorDiaBlock).toContain('{l:"# Leads calientes",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"}');
     expect(detallePorDiaBlock).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"}');
     expect(detalleBlock).toContain('const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));');
-    expect(activityBlock).toContain('{title:"Actividad de llamadas — Área Comercial High Ticket",bg:"#0369a1",rows:[');
+    expect(activityBlock).toContain('{title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[');
     expect(detalleBlock).toContain('const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;');
     expect(activityBlock).toContain('{l:"# Agendas hoy",fn:d=>d.sdCommercialActivity("agendasHoy")||null,fmt:"n"}');
     expect(activityBlock).toContain('{l:"# Show Ups",fn:d=>d.sdCommercialActivity("showUps")||null,fmt:"n"}');
@@ -244,6 +244,37 @@ describe("manual collaborator labels", () => {
     expect(activityBlock).toContain('{l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"}');
     expect(activityBlock).not.toContain('fn:d=>d.sdCommercial("agendasHoy")');
     expect(activityBlock).not.toContain('daily_closer');
+  });
+
+  it("adds Alejandro Gallo Low Ticket call activity and shows it before Métricas Setter in Detalle Diario", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const setterFormBlock = llenarBlock.slice(llenarBlock.indexOf('<STit icon="💬" title="Reporte de Setter"'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const lowTicketBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Actividad de llamadas — Low Ticket"'), detalleBlock.indexOf('{title:"Métricas Setter"'));
+    const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
+
+    expect(html).toContain('const LOW_TICKET_SETTER_MEMBER_ID="Alejandro Gallo";');
+    expect(html).toContain('const isLowTicketSetter=m=>m===LOW_TICKET_SETTER_MEMBER_ID;');
+    expect(html).toContain('lowTicketVentas:0,lowTicketAgendasHoy:0,lowTicketShowUps:0,lowTicketFollowUps:0,');
+    expect(setterFormBlock).toContain('{isLowTicketSetter(collabId)&&(');
+    expect(setterFormBlock).toContain('<STit icon="📞" title="Actividad de llamadas Low Ticket" sub="Solo Alejandro Gallo"/>');
+    expect(setterFormBlock).toContain('<Inp label="# Ventas" value={form.lowTicketVentas} onChange={v=>sf("lowTicketVentas",v)}/>');
+    expect(setterFormBlock).toContain('<Inp label="# Agendas hoy" value={form.lowTicketAgendasHoy} onChange={v=>sf("lowTicketAgendasHoy",v)}/>');
+    expect(setterFormBlock).toContain('<Inp label="# Show Ups" value={form.lowTicketShowUps} onChange={v=>sf("lowTicketShowUps",v)}/>');
+    expect(setterFormBlock).toContain('<Inp label="# Follow Ups contactados" value={form.lowTicketFollowUps} onChange={v=>sf("lowTicketFollowUps",v)}/>');
+    expect(detalleBlock).toContain('const lowTicketEntries=setterEntries.filter(e=>e&&isLowTicketSetter(e.member));');
+    expect(detalleBlock).toContain('const sdLowTicket=f=>sumF(lowTicketEntries,f);');
+    expect(detalleBlock.indexOf('{title:"Actividad de llamadas — Low Ticket"')).toBeGreaterThan(detalleBlock.indexOf('{title:"Actividad de llamadas — High Ticket"'));
+    expect(detalleBlock.indexOf('{title:"Actividad de llamadas — Low Ticket"')).toBeLessThan(detalleBlock.indexOf('{title:"Métricas Setter"'));
+    expect(lowTicketBlock).toContain('{l:"# Ventas",fn:d=>d.sdLowTicket("lowTicketVentas")||null,fmt:"n"}');
+    expect(lowTicketBlock).toContain('{l:"# Agendas hoy",fn:d=>d.sdLowTicket("lowTicketAgendasHoy")||null,fmt:"n"}');
+    expect(lowTicketBlock).toContain('{l:"# Show Ups",fn:d=>d.sdLowTicket("lowTicketShowUps")||null,fmt:"n"}');
+    expect(lowTicketBlock).toContain('{l:"# Follow Ups contactados",fn:d=>d.sdLowTicket("lowTicketFollowUps")||null,fmt:"n"}');
+    expect(saveEntryBlock).toContain('const writesLowTicketActivity=isLowTicketSetter(entry.member);');
+    expect(saveEntryBlock).toContain('revenue_organic:writesLowTicketActivity?(entry.lowTicketVentas||0):(entry.valorVentaHT||0),');
+    expect(saveEntryBlock).toContain('cash_organic:writesLowTicketActivity?(entry.lowTicketAgendasHoy||0):(entry.cashCollected||entry.upfrontCash||0),');
+    expect(saveEntryBlock).toContain('recurring_organic:writesLowTicketActivity?(entry.lowTicketShowUps||0):(entry.recurringCash||0),');
+    expect(saveEntryBlock).toContain('pitches_paid:writesLowTicketActivity?(entry.lowTicketFollowUps||0):(entry.pendAcumulados||0),');
   });
 
   it("splits Area Comercial report entry into Admin, active Setters, and Closers sub-tabs", () => {
