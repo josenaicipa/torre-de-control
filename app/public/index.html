@@ -1007,17 +1007,17 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   const commercialEntriesByDay={};
   collabCommercialEntries.forEach(e=>{if(e&&e.date){commercialEntriesByDay[e.date]=commercialEntriesByDay[e.date]||[];commercialEntriesByDay[e.date].push(e);}});
   const commercialValueByDay=(date,field)=>commercialDayValue(date,commercialEntriesByDay[date]||[],field)||0;
-  // Keep Torre CEO's committed sales total aligned with Detalle Diario →
-  // Ventas — Área Comercial → $ Venta HT. Low Ticket remains shown separately
-  // as Cash Low Ticket and must not inflate this HT committed KPI.
-  const totalAgendasFromCollaborators=sumF(collabCommercialEntries,"agendasHoy");
-  const totalLeadsFromCollaborators=sumF(collabCommercialEntries,"calificadas");
-  const totalShowsFromCollaborators=sumF(collabCommercialEntries,"showUps");
-  const totalAgendasCampo=totalAgendasFromCollaborators||sumF(closerEntries,"agendas_final");
-  const totalLeadsCampo=totalLeadsFromCollaborators||sumF(closerEntries,"agendas_calificadas");
-  const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);
-  const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);
-  const totalAsistidas=totalShowsFromCollaborators||sumF(closerEntries,"citas_asistidas");
+  // Torre CEO must mirror Detalle Diario → Agendas / Leads High Ticket exactly:
+  // Citas agendadas reales = total Hoy (en agenda), Leads calificados reales =
+  // total Calificadas Total, Citas Show Up (asistidas) = total Show Ups.
+  // Do not recalculate with Área Comercial completa/Admin or Math.min/Max.
+  const highTicketCloserMonthlyEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,e.date)):[];
+  const totalAgendasFromDetalle=sumF(highTicketCloserMonthlyEntries,"agendasHoy");
+  const totalLeadsFromDetalle=sumF(highTicketCloserMonthlyEntries,"calificadas");
+  const totalShowsFromDetalle=sumF(highTicketCloserMonthlyEntries,"showUps");
+  const totalAgendas=totalAgendasFromDetalle||sumF(closerEntries,"agendas_final");
+  const totalLeads=totalLeadsFromDetalle||sumF(closerEntries,"agendas_calificadas");
+  const totalAsistidas=totalShowsFromDetalle||sumF(closerEntries,"citas_asistidas");
   // Gasto Ads viene del tab Marketing (daily_entries, por miembro)
   const totalGastoMeta=sumF(adDailyEntries,"gastoMeta");
   const totalGastoGoogle=sumF(adDailyEntries,"gastoGoogle");

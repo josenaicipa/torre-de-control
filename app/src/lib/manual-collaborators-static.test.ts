@@ -107,6 +107,11 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
     expect(torreBlock).toContain('const allowCommercialFallback=year>2026||(year===2026&&month>=5);');
     expect(torreBlock).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialReportingMember(e.member,e.date)):[];');
+    expect(torreBlock).toContain('const highTicketCloserMonthlyEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,e.date)):[];');
+    expect(torreBlock).toContain('const totalLeadsFromDetalle=sumF(highTicketCloserMonthlyEntries,"calificadas");');
+    expect(torreBlock).toContain('const totalLeads=totalLeadsFromDetalle||sumF(closerEntries,"agendas_calificadas");');
+    expect(torreBlock).not.toContain('const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);');
+    expect(torreBlock).not.toContain('const totalLeadsFromCollaborators=sumF(collabCommercialEntries,"calificadas");');
     expect(torreBlock).toContain('const commercialEntriesByDay={};');
     expect(torreBlock).toContain('addByDay(commercialValorHTByDay,date,commercialValueByDay(date,"valorVentaHT"));');
     expect(torreBlock).toContain('const monthlyCommercialSalesDay=(date,closerRow)=>commercialDayHasPrimary(date,commercialEntriesByDay[date]||[])?commercialValueByDay(date,"ventasHT"):(commercialValueByDay(date,"ventasHT")||((closerRow&&closerRow.q_ventas_ht)||0));');
@@ -120,6 +125,29 @@ describe("manual collaborator labels", () => {
     expect(detalleBlock).toContain('{l:"Recurring Cash",fn:d=>recurringDay(d)||null,fmt:"$"}');
     expect(detalleBlock).toContain('{l:"# Reservas",fn:d=>cv(d,"q_reservas","reservas")||null,fmt:"n"}');
     expect(detalleBlock).toContain('{l:"$ Cash Reservas",fn:d=>cashReservasDay(d)||null,fmt:"$"}');
+  });
+
+  it("maps Torre CEO real funnel metrics exactly from Detalle Diario High Ticket totals", () => {
+    const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+
+    expect(detalleBlock).toContain('const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");');
+    expect(detalleBlock).toContain('const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");');
+    expect(detalleBlock).toContain('const manualShowUps=d=>d.sdHighTicketCloser("showUps");');
+    expect(detalleBlock).toContain('{l:"Hoy (en agenda)",fn:d=>manualAgendasHoy(d)||null,fmt:"n"}');
+    expect(detalleBlock).toContain('{l:"Calificadas Total",fn:d=>manualCalificadas(d)||null,fmt:"n"}');
+    expect(detalleBlock).toContain('{l:"Show Ups",fn:d=>manualShowUps(d)||null,fmt:"n"}');
+
+    expect(torreBlock).toContain('const highTicketCloserMonthlyEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,e.date)):[];');
+    expect(torreBlock).toContain('const totalAgendasFromDetalle=sumF(highTicketCloserMonthlyEntries,"agendasHoy");');
+    expect(torreBlock).toContain('const totalLeadsFromDetalle=sumF(highTicketCloserMonthlyEntries,"calificadas");');
+    expect(torreBlock).toContain('const totalShowsFromDetalle=sumF(highTicketCloserMonthlyEntries,"showUps");');
+    expect(torreBlock).toContain('const totalAgendas=totalAgendasFromDetalle||sumF(closerEntries,"agendas_final");');
+    expect(torreBlock).toContain('const totalLeads=totalLeadsFromDetalle||sumF(closerEntries,"agendas_calificadas");');
+    expect(torreBlock).toContain('const totalAsistidas=totalShowsFromDetalle||sumF(closerEntries,"citas_asistidas");');
+    expect(torreBlock).not.toContain('const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);');
+    expect(torreBlock).not.toContain('const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);');
+    expect(torreBlock).not.toContain('const totalLeadsFromCollaborators=sumF(collabCommercialEntries,"calificadas");');
   });
 
   it("gives Admin Area Comercial entries authoritative priority from 2026-06-08 onward", () => {
@@ -516,11 +544,12 @@ describe("manual collaborator labels", () => {
     expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
     expect(torreBlock).toContain('const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);');
     expect(torreBlock).toContain('const totalVentas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialSalesDay(date,allCloser[date]),0);');
-    expect(torreBlock).toContain('const totalAgendasCampo=totalAgendasFromCollaborators||sumF(closerEntries,"agendas_final");');
-    expect(torreBlock).toContain('const totalLeadsCampo=totalLeadsFromCollaborators||sumF(closerEntries,"agendas_calificadas");');
-    expect(torreBlock).toContain('const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);');
-    expect(torreBlock).toContain('const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);');
-    expect(torreBlock).toContain('const totalAsistidas=totalShowsFromCollaborators||sumF(closerEntries,"citas_asistidas");');
+    expect(torreBlock).toContain('const highTicketCloserMonthlyEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,e.date)):[];');
+    expect(torreBlock).toContain('const totalAgendas=totalAgendasFromDetalle||sumF(closerEntries,"agendas_final");');
+    expect(torreBlock).toContain('const totalLeads=totalLeadsFromDetalle||sumF(closerEntries,"agendas_calificadas");');
+    expect(torreBlock).toContain('const totalAsistidas=totalShowsFromDetalle||sumF(closerEntries,"citas_asistidas");');
+    expect(torreBlock).not.toContain('const totalAgendas=Math.max(totalAgendasCampo,totalLeadsCampo);');
+    expect(torreBlock).not.toContain('const totalLeads=Math.min(totalAgendasCampo,totalLeadsCampo);');
   });
 
   it("calculates Salud del embudo ratios from the corrected Torre CEO denominators", () => {
