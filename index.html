@@ -687,6 +687,64 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
   );
 };
 
+
+// Compact permissions/access snapshot displayed inside Resumen Equipo. Admin user
+// management stays action-only; this view is where we expose the per-user summary.
+const ResumenPermisosEquipo=()=>{
+  const [state,setState]=useState({loading:true,allowed:true,error:null,users:[]});
+  useEffect(()=>{
+    let alive=true;
+    fetch("/api/admin/team-access-summary",{credentials:"same-origin"})
+      .then(async r=>{
+        if(r.status===401||r.status===403)return {allowed:false,users:[]};
+        if(!r.ok)throw new Error("No se pudo cargar el resumen de accesos");
+        const data=await r.json();
+        return {allowed:true,users:data.users||[]};
+      })
+      .then(data=>{if(alive)setState({loading:false,allowed:data.allowed!==false,error:null,users:data.users||[]});})
+      .catch(err=>{if(alive)setState({loading:false,allowed:true,error:err.message||"Error cargando resumen",users:[]});});
+    return()=>{alive=false;};
+  },[]);
+  if(!state.allowed)return null;
+  return(
+    <Card>
+      <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:12,flexWrap:"wrap"}}>
+        <div>
+          <div style={{fontSize:9,color:TXT3,letterSpacing:"0.12em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>Usuarios y permisos</div>
+          <div style={{fontSize:15,fontWeight:800,color:TXT,marginTop:2}}>Resumen por usuario</div>
+          <div style={{fontSize:11,color:TXT2,lineHeight:1.6,marginTop:3}}>Alcance efectivo y qué puede hacer cada usuario. La edición queda en Admin Usuarios.</div>
+        </div>
+        {state.loading&&<span style={{fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace"}}>Cargando…</span>}
+      </div>
+      {state.error&&<div style={{fontSize:11,color:C.red,background:"#fef2f2",border:"1px solid #fecaca",borderRadius:10,padding:10}}>{state.error}</div>}
+      {!state.loading&&!state.error&&state.users.length===0&&(
+        <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace"}}>Sin usuarios para mostrar.</div>
+      )}
+      {!state.loading&&!state.error&&state.users.length>0&&(
+        <div style={{display:"grid",gap:8}}>
+          {state.users.map(u=>(
+            <details key={u.id} style={{border:`1px solid ${BORDER}`,borderRadius:10,padding:"10px 12px",background:u.active?SURFACE2:"#f8fafc",opacity:u.active?1:.68}}>
+              <summary style={{cursor:"pointer",listStyle:"none",display:"grid",gridTemplateColumns:"minmax(180px,1fr) auto",gap:10,alignItems:"center"}}>
+                <span>
+                  <span style={{display:"block",fontSize:12,fontWeight:700,color:TXT}}>{u.name}</span>
+                  <span style={{display:"block",fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace",marginTop:2}}>{u.email} · {u.positionLabel} · {u.active?"Activo":"Suspendido"}</span>
+                </span>
+                <span style={{fontSize:10,color:TXT2,fontWeight:700}}>{u.summary?.scopeLabel||u.dataScopeLabel}</span>
+              </summary>
+              <div style={{borderTop:`1px solid ${BORDER2}`,marginTop:10,paddingTop:10}}>
+                <div style={{fontSize:11,color:TXT2,lineHeight:1.6,marginBottom:8}}>{u.summary?.description}</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {(u.summary?.badges||[]).map(b=><span key={b} style={{fontSize:9,color:TXT2,border:`1px solid ${BORDER}`,borderRadius:999,padding:"3px 8px",background:SURFACE}}>{b}</span>)}
+                </div>
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 // ─── RESUMEN EQUIPO ───────────────────────────────────────────────────────────
 const ResumenEquipo=({year,month,allDaily})=>{
   const [view,setView]=useState("resumen");
@@ -727,6 +785,8 @@ const ResumenEquipo=({year,month,allDaily})=>{
           <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
         ))}
       </div>
+
+      <ResumenPermisosEquipo/>
 
       {entries.length===0&&(
         <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>

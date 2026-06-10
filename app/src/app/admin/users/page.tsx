@@ -252,47 +252,55 @@ export default async function UsersAdminPage() {
 
       <section className="admin-section">
         <h2>Accesos existentes</h2>
+        <p className="muted">Vista resumida: abre un usuario solo cuando necesites revisar o editar su configuración.</p>
         <div className="user-list">
           {users.map((user) => (
-            <article className={`card user-row ${user.active ? "" : "is-suspended"}`} key={user.id}>
-              <div>
-                <strong>{user.name || user.email}</strong>
-                <p className="muted">{user.email} · {roleLabels[user.role]} · {user.active ? "Activo" : "Suspendido"}</p>
-                <p className="muted">Cargo: {POSITION_LABELS[user.position]} · Alcance: {SCOPE_LABELS[user.dataScope]}</p>
-                <p className="muted">GHL: {user.ghlUserId ? user.ghlUserId : "sin mapear"}{user.ghlUserName ? ` (${user.ghlUserName})` : ""}</p>
-                <p className="muted">Cartera: {user.isCollector ? "Encargado de cobro" : "No"}</p>
-                <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por cargo"}</p>
-                <p className="muted">Último acceso: {user.lastLoginAt ? user.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") : "nunca"}</p>
-              </div>
-              <form action={updateUserAction} className="inline-admin-form">
-                <input type="hidden" name="id" value={user.id} />
-                <div className="compact-grid">
-                  <label className="compact-field">Rol<select name="role" defaultValue={user.role}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-                  <label className="compact-field">Cargo<PositionSelect value={user.position} /></label>
-                  <label className="compact-field">Alcance<ScopeSelect value={user.dataScope} /></label>
-                  <label className="compact-field">Área<RelationSelect name="areaId" value={user.areaId} placeholder="Sin área" options={areaOptions} /></label>
-                  <label className="compact-field">Equipo<RelationSelect name="teamId" value={user.teamId} placeholder="Sin equipo" options={teamOptions} /></label>
-                  <label className="compact-field">Responsable<RelationSelect name="managerId" value={user.managerId} placeholder="Sin responsable" options={managerOptions.filter((option) => option.id !== user.id)} /></label>
-                  <label className="compact-field">GHL User ID<input name="ghlUserId" defaultValue={user.ghlUserId ?? ""} placeholder="ID en GHL" /></label>
-                  <label className="compact-field">GHL Email<input name="ghlUserEmail" type="email" defaultValue={user.ghlUserEmail ?? ""} placeholder="correo en GHL" /></label>
-                  <label className="compact-field">GHL Nombre<input name="ghlUserName" defaultValue={user.ghlUserName ?? ""} placeholder="nombre en GHL" /></label>
-                  <label className="compact-field">
-                    Encargado de cobro
-                    <span className="checkbox-row" style={{ marginTop: 4 }}>
-                      <input type="checkbox" name="isCollector" defaultChecked={user.isCollector} />
-                      <span>Cobra</span>
-                    </span>
-                  </label>
+            <details className={`card user-row ${user.active ? "" : "is-suspended"}`} key={user.id}>
+              <summary className="user-summary-line">
+                <span>
+                  <strong>{user.name || user.email}</strong>
+                  <small>{user.email} · {roleLabels[user.role]} · {POSITION_LABELS[user.position]} · {SCOPE_LABELS[user.dataScope]}</small>
+                </span>
+                <span className={`status-pill ${user.active ? "" : "danger"}`}>{user.active ? "Activo" : "Suspendido"}</span>
+                <span className="muted">Ver / editar</span>
+              </summary>
+              <div className="user-detail-body">
+                <div>
+                  <p className="muted">GHL: {user.ghlUserId ? user.ghlUserId : "sin mapear"}{user.ghlUserName ? ` (${user.ghlUserName})` : ""}</p>
+                  <p className="muted">Cartera: {user.isCollector ? "Encargado de cobro" : "No"}</p>
+                  <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por cargo"}</p>
+                  <p className="muted">Último acceso: {user.lastLoginAt ? user.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") : "nunca"}</p>
                 </div>
-                <PermissionCheckboxes selected={user.permissions.length ? user.permissions : defaultPermissionsForPosition(user.position)} />
-                <button className="btn secondary" type="submit" disabled={user.id === session.sub}>Guardar configuración</button>
-              </form>
-              <form action={toggleUserStatusAction}>
-                <input type="hidden" name="id" value={user.id} />
-                <input type="hidden" name="active" value={String(!user.active)} />
-                <button className="btn secondary danger" type="submit" disabled={user.id === session.sub}>{user.active ? "Suspender" : "Reactivar"}</button>
-              </form>
-            </article>
+                <form action={updateUserAction} className="inline-admin-form">
+                  <input type="hidden" name="id" value={user.id} />
+                  <div className="compact-grid">
+                    <label className="compact-field">Rol<select name="role" defaultValue={user.role}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                    <label className="compact-field">Cargo<PositionSelect value={user.position} /></label>
+                    <label className="compact-field">Alcance<ScopeSelect value={user.dataScope} /></label>
+                    <label className="compact-field">Área<RelationSelect name="areaId" value={user.areaId} placeholder="Sin área" options={areaOptions} /></label>
+                    <label className="compact-field">Equipo<RelationSelect name="teamId" value={user.teamId} placeholder="Sin equipo" options={teamOptions} /></label>
+                    <label className="compact-field">Responsable<RelationSelect name="managerId" value={user.managerId} placeholder="Sin responsable" options={managerOptions.filter((option) => option.id !== user.id)} /></label>
+                    <label className="compact-field">GHL User ID<input name="ghlUserId" defaultValue={user.ghlUserId ?? ""} placeholder="ID en GHL" /></label>
+                    <label className="compact-field">GHL Email<input name="ghlUserEmail" type="email" defaultValue={user.ghlUserEmail ?? ""} placeholder="correo en GHL" /></label>
+                    <label className="compact-field">GHL Nombre<input name="ghlUserName" defaultValue={user.ghlUserName ?? ""} placeholder="nombre en GHL" /></label>
+                    <label className="compact-field">
+                      Encargado de cobro
+                      <span className="checkbox-row" style={{ marginTop: 4 }}>
+                        <input type="checkbox" name="isCollector" defaultChecked={user.isCollector} />
+                        <span>Cobra</span>
+                      </span>
+                    </label>
+                  </div>
+                  <PermissionCheckboxes selected={user.permissions.length ? user.permissions : defaultPermissionsForPosition(user.position)} />
+                  <button className="btn secondary" type="submit" disabled={user.id === session.sub}>Guardar configuración</button>
+                </form>
+                <form action={toggleUserStatusAction}>
+                  <input type="hidden" name="id" value={user.id} />
+                  <input type="hidden" name="active" value={String(!user.active)} />
+                  <button className="btn secondary danger" type="submit" disabled={user.id === session.sub}>{user.active ? "Suspender" : "Reactivar"}</button>
+                </form>
+              </div>
+            </details>
           ))}
         </div>
       </section>
