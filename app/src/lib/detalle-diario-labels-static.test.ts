@@ -11,7 +11,7 @@ const dashboardFiles = [
 ];
 
 function extractAgendasBlock(source: string): string {
-  const marker = '{title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:[';
+  const marker = '{title:"Agendas / Leads High Ticket",bg:';
   const start = source.indexOf(marker);
   expect(start, "Detalle Diario Agendas / Leads group missing").toBeGreaterThanOrEqual(0);
   const end = source.indexOf(']},\n    {title:"Costos por Lead"', start);
@@ -20,7 +20,7 @@ function extractAgendasBlock(source: string): string {
 }
 
 function extractHighTicketCallsBlock(source: string): string {
-  const marker = '{title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[';
+  const marker = '{title:"Actividad de llamadas — High Ticket",bg:';
   const start = source.indexOf(marker);
   expect(start, "Detalle Diario Actividad de llamadas — High Ticket group missing").toBeGreaterThanOrEqual(0);
   const end = source.indexOf(']},\n    {title:"Actividad de llamadas — Low Ticket"', start);

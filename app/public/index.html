@@ -176,9 +176,14 @@ const COMERCIAL_BUCKETS=[
 
 const BRAND="#F23005",BRAND2="#D62A04"; // Unlocked brand red (ua-red-500 / ua-red-600; hover ramp #F8551F)
 const THEMES={
-  dark:{BG:"#0C0E0E",SURFACE:"#141717",SURFACE2:"#1B1F1F",BORDER:"#262B2B",BORDER2:"#303636",TXT:"#F6F7F7",TXT2:"#9CA5A6",TXT3:"#5E6566"},
-  light:{BG:"#F6F7F7",SURFACE:"#ffffff",SURFACE2:"#F0F2F2",BORDER:"#E2E4E4",BORDER2:"#ECEEEE",TXT:"#0C0E0E",TXT2:"#565D5E",TXT3:"#9CA5A6"},
+  dark:{BG:"#100D0C",SURFACE:"#181413",SURFACE2:"#201B19",BORDER:"#2C2624",BORDER2:"#37302D",TXT:"#F7F5F4",TXT2:"#A8A09B",TXT3:"#665E59"},
+  light:{BG:"#F7F5F3",SURFACE:"#ffffff",SURFACE2:"#F3EFEB",BORDER:"#E7E1DC",BORDER2:"#F0EAE5",TXT:"#14100E",TXT2:"#5D5550",TXT3:"#A29A93"},
 };
+// Warm brand surfaces (Unlocked Ecom): hero/section gradients + dark charcoal table headers
+const BRAND_GRAD="linear-gradient(135deg,#1C0D08 0%,#8F1D04 55%,#F23005 100%)";
+const BRAND_BAR="linear-gradient(100deg,#A82104,#F23005 78%,#F8551F)";
+const BRAND_ON="#FFC9B5";   // warm peach for eyebrow/labels on brand surfaces
+const BRAND_ON2="#FFE3D6";  // warm light for emphasized values on brand surfaces
 let BG,SURFACE,SURFACE2,BORDER,BORDER2,TXT,TXT2,TXT3,IS_DARK=false;
 const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];BG=t.BG;SURFACE=t.SURFACE;SURFACE2=t.SURFACE2;BORDER=t.BORDER;BORDER2=t.BORDER2;TXT=t.TXT;TXT2=t.TXT2;TXT3=t.TXT3;};
 applyTheme(false);
@@ -889,7 +894,7 @@ const Row2=({label,value,color=TXT,bold=false,bg=null,onClick=null})=>(
   </div>
 );
 const SectionTitle=({children})=>(
-  <div style={{background:"#1e2a4a",color:"#fff",padding:"6px 10px",fontSize:10,
+  <div style={{background:BRAND_BAR,color:"#fff",padding:"6px 10px",fontSize:10,
     fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
     fontFamily:"'Hanken Grotesk','Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
 );
@@ -913,14 +918,14 @@ const PaymentsDrawer=({drill,onClose})=>{
   const cols=["Lead","Monto","Fecha","Fuente","Producto","Clasificación","Revisión"];
   return(
     <div onClick={onClose} role="presentation"
-      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(15,23,42,.55)",display:"flex",justifyContent:"flex-end"}}>
+      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(28,13,8,.55)",display:"flex",justifyContent:"flex-end"}}>
       <div onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-label={drill.title}
         style={{width:"min(780px,96vw)",height:"100%",background:SURFACE,display:"flex",flexDirection:"column",boxShadow:"-8px 0 30px rgba(0,0,0,.25)"}}>
-        <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        <div style={{background:BRAND_GRAD,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
           <div>
-            <div style={{fontSize:9,color:"#94a3b8",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'Space Grotesk','DM Mono',monospace"}}>Cash Collected — detalle</div>
+            <div style={{fontSize:9,color:BRAND_ON,letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'Space Grotesk','DM Mono',monospace"}}>Cash Collected — detalle</div>
             <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>{drill.title}</div>
-            <div style={{fontSize:11,color:"#cbd5e1",fontFamily:"'Space Grotesk','DM Mono',monospace",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
+            <div style={{fontSize:11,color:BRAND_ON2,fontFamily:"'Space Grotesk','DM Mono',monospace",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
           </div>
           <button onClick={onClose} aria-label="Cerrar"
             style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:8,padding:"6px 12px",fontSize:13,cursor:"pointer",color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>✕</button>
@@ -1180,18 +1185,22 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
       {/* HEADER */}
-      <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",borderRadius:12,padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-        <div>
-          <div style={{fontSize:11,color:"#94a3b8",letterSpacing:"0.18em",textTransform:"uppercase",fontFamily:"'Space Grotesk','DM Mono',monospace",marginBottom:3}}>Torre de Control — Comercial</div>
-          <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
+      <div style={{background:BRAND_GRAD,borderRadius:12,padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,boxShadow:"0 6px 22px rgba(143,29,4,.28)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+          <img src="/brand/icon-white.png" alt="Unlocked Ecom" style={{width:38,height:38,borderRadius:10,objectFit:"contain",flexShrink:0,boxShadow:"0 2px 10px rgba(0,0,0,.35)"}}
+            onError={e=>{e.target.style.display="none";}}/>
+          <div>
+            <div style={{fontSize:11,color:BRAND_ON,letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'Space Grotesk','DM Mono',monospace",marginBottom:3}}>Unlocked Ecom · Torre Comercial</div>
+            <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
+          </div>
         </div>
         <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'Space Grotesk','DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Cash Total</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{fD(cashHeaderTotal)}</div>
+            <div style={{fontSize:8,color:BRAND_ON,fontFamily:"'Space Grotesk','DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Cash Total</div>
+            <div style={{fontSize:18,fontWeight:800,color:BRAND_ON2,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{fD(cashHeaderTotal)}</div>
           </div>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'Space Grotesk','DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
+            <div style={{fontSize:8,color:BRAND_ON,fontFamily:"'Space Grotesk','DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
             <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{isFuture?"—":day}/{dm}</div>
           </div>
           {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Config</button>}
@@ -1201,14 +1210,14 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
       {/* DATO COMERCIAL MANUAL — Valentina/Admin + closers are the primary cash source; ledger remains a validation aid */}
       {cashApi&&hasManualCommercialCash&&(
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
-          background:C.amber+"10",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"12px 16px"}}>
+          background:BRAND+"0E",border:`1px solid ${BRAND}3D`,borderLeft:`3px solid ${BRAND}`,borderRadius:10,padding:"12px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div>
               <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Dato comercial principal</div>
               <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Valentina/Admin y closers registraron datos en Área Comercial. Este cash operativo tiene prioridad; el ledger queda como apoyo para verificación.</div>
             </div>
           </div>
-          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
+          <span style={{fontSize:12,color:BRAND,fontWeight:700,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
         </div>
       )}
 
@@ -1272,7 +1281,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         <div style={block}>
           <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
           <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
-          <Row2 label="Ventas $ (cash cobrado)" value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label="Ventas $ (cash cobrado)" value={fD(dispCash)} bold color={BRAND} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
           <Row2 label="Recurring Cash" value={fD(totalRecurring)} color={C.purple}/>
           <Row2 label="Cash Low Ticket" value={fD(dispLowT)} color={C.teal} onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):null}/>
           {cashApi&&<Row2 label="Reservas (cash)" value={fD(dispReservas)} color={C.amber} onClick={()=>openDrill("Reservas","reservas")}/>}
@@ -1297,7 +1306,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
           <Row2 label={isCurrent?"Meta esperada a hoy ($)":isPast?"Meta total del mes ($)":"Meta esperada al cierre ($)"} value={fD(metaEsperadaHoy)} bold/>
-          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)} bold color={BRAND} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
           <Row2 label={isPast?"Gap vs meta ($)":"Gap vs ritmo ($)"} value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
         </div>
 
@@ -2063,7 +2072,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mRecurring=dayData.reduce((s,d)=>s+recurringDay(d),0);
 
   const GROUPS=[
-    {title:"Gasto Publicitario",bg:"#1e40af",rows:[
+    {title:"Gasto Publicitario",bg:"#A82104",rows:[
       {l:"$ Total Gasto",fn:d=>d.totalGastoDay||null,fmt:"$",totFn:()=>mGastoTotal||null},
       {l:"Meta",fn:d=>d.sdAds("gastoMeta")||null,fmt:"$",sub:true,totFn:()=>mGastoMeta||null},
       {l:"Google",fn:d=>d.sdAds("gastoGoogle")||null,fmt:"$",sub:true,totFn:()=>mGastoGoogle||null},
@@ -2077,19 +2086,19 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Follow Ups",fn:d=>d.sdMkt("followUps")||null,fmt:"n"},
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
     ]},
-    {title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[
+    {title:"Actividad de llamadas — High Ticket",bg:"#B45309",rows:[
       {l:"# Agendas hoy",fn:d=>d.sdHighTicketCloser("agendasHoy")||null,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.sdHighTicketCloser("showUps")||null,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.sdHighTicketCloser("followUps")||null,fmt:"n"},
       {l:"# Leads calientes",fn:d=>d.sdHighTicketCloser("pendAcumulados")||null,fmt:"n"},
     ]},
-    {title:"Actividad de llamadas — Low Ticket",bg:"#0f766e",rows:[
+    {title:"Actividad de llamadas — Low Ticket",bg:"#9A3412",rows:[
       {l:"# Ventas",fn:d=>d.sdLowTicket("lowTicketVentas")||null,fmt:"n"},
       {l:"# Agendas hoy",fn:d=>d.sdLowTicket("lowTicketAgendasHoy")||null,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.sdLowTicket("lowTicketShowUps")||null,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.sdLowTicket("lowTicketFollowUps")||null,fmt:"n"},
     ]},
-    {title:"Métricas Setter",bg:"#334155",rows:[
+    {title:"Métricas Setter",bg:"#57534E",rows:[
       {l:"# Nuevas Conversaciones del Día",fn:d=>d.sdSetter("setterNewConversations")||null,fmt:"n"},
       {l:"# Nuevos Inbound",fn:d=>d.sdSetter("setterNewInbound")||null,fmt:"n"},
       {l:"# Nuevos Outbound",fn:d=>d.sdSetter("setterNewOutbound")||null,fmt:"n"},
@@ -2098,7 +2107,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Llamadas Propuestas",fn:d=>d.sdSetter("setterCallsProposed")||null,fmt:"n"},
       {l:"# Links Enviados",fn:d=>d.sdSetter("setterLinksSent")||null,fmt:"n"},
     ]},
-    {title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:[
+    {title:"Agendas / Leads High Ticket",bg:"#9A3412",rows:[
       {l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"},
       {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true},
       {l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true},
@@ -2155,9 +2164,9 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     ]},
   ];
 
-  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
-  const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
-  const HDR_TXT="#f1f5f9";
+  const HDR_BG=IS_DARK?"#1A0F0B":"#2E1812";
+  const WKD_BG=IS_DARK?"#150D0A":SURFACE2;
+  const HDR_TXT="#FAEFE9";
   const thBase={padding:"5px 3px",textAlign:"center",fontSize:9,fontWeight:700,
     fontFamily:"'Space Grotesk','DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
   const tdBase={padding:"3px 4px",textAlign:"right",fontSize:9,fontFamily:"'Space Grotesk','DM Mono',monospace",
@@ -2659,8 +2668,8 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
     if(fmt==="%")return fP(v);
     return fN(v);
   };
-  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
-  const HDR_TXT="#f1f5f9";
+  const HDR_BG=IS_DARK?"#1A0F0B":"#2E1812";
+  const HDR_TXT="#FAEFE9";
   const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
     fontFamily:"'Space Grotesk','DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
   const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'Space Grotesk','DM Mono',monospace",
@@ -2685,7 +2694,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"Orgánicos",k:"setterOrganicLeads",fmt:"n"},
       {l:"Ads",k:"setterAdsLeads",fmt:"n"},
     ]},
-    {title:"Métricas Setter",bg:"#334155",role:"setter",rows:[
+    {title:"Métricas Setter",bg:"#57534E",role:"setter",rows:[
       {l:"# Nuevas Conversaciones del Día",k:"setterNewConversations",fmt:"n"},
       {l:"# Nuevos Inbound",k:"setterNewInbound",fmt:"n"},
       {l:"# Nuevos Outbound",k:"setterNewOutbound",fmt:"n"},
@@ -2694,13 +2703,13 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"# Llamadas Propuestas",k:"setterCallsProposed",fmt:"n"},
       {l:"# Links Enviados",k:"setterLinksSent",fmt:"n"},
     ]},
-    {title:"Actividad de llamadas",bg:"#0369a1",role:"closer",rows:[
+    {title:"Actividad de llamadas",bg:"#B45309",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
       {l:"# Show Ups",k:"showUps",fmt:"n"},
       {l:"# Follow Ups contactados",k:"followUps",fmt:"n"},
       {l:"# Leads calientes",k:"pendAcumulados",fmt:"n"},
     ]},
-    {title:"Agendas / Leads",bg:"#0f766e",role:"closer",rows:[
+    {title:"Agendas / Leads",bg:"#9A3412",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
       {l:"# Calificadas / Agendas Confirmadas",k:"calificadas",fmt:"n"},
       {l:"# Show Ups",k:"showUps",fmt:"n"},
@@ -2717,7 +2726,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"# Reservas",k:"reservas",fmt:"n"},
       {l:"$ Cash Reservas",k:"cashReservas",fmt:"$"},
     ]},
-    {title:"Otros",bg:"#334155",role:"closer",rows:[
+    {title:"Otros",bg:"#57534E",role:"closer",rows:[
       {l:"# Outbound contactados",k:"outboundContactados",fmt:"n"},
       {l:"# Outbound agendados",k:"outboundAgendados",fmt:"n"},
     ]},
@@ -2821,7 +2830,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
             ))}
 
             <tr>
-              <td colSpan={allCols.length+2} style={{background:"#1e40af",color:"#fff",padding:"5px 10px",
+              <td colSpan={allCols.length+2} style={{background:"#A82104",color:"#fff",padding:"5px 10px",
                 fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
                 fontFamily:"'Hanken Grotesk','Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
                 Gasto Publicitario (automático · total mes)
@@ -2903,7 +2912,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
   const DOW=["D","L","M","M","J","V","S"];
   const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
   const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
-  const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
+  const WKD_BG=IS_DARK?"#150D0A":SURFACE2;
 
   const cellTxt=(v,fmt)=>{
     if(v===null||v===undefined||v===0||(typeof v==="number"&&isNaN(v)))return null;
@@ -2922,13 +2931,13 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
     ]},
   ];
   const CLOSER_ROWS=[
-    {title:"Actividad de llamadas",bg:"#0369a1",rows:[
+    {title:"Actividad de llamadas",bg:"#B45309",rows:[
       {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
       {l:"# Leads calientes",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"},
     ]},
-    {title:"Agendas / Leads",bg:"#0f766e",rows:[
+    {title:"Agendas / Leads",bg:"#9A3412",rows:[
       {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
       {l:"# Calificadas / Agendas Confirmadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
@@ -2945,13 +2954,13 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
       {l:"# Reservas",fn:d=>d.e?d.e.reservas:0,fmt:"n"},
       {l:"$ Cash Reservas",fn:d=>d.e?d.e.cashReservas:0,fmt:"$"},
     ]},
-    {title:"Otros",bg:"#334155",rows:[
+    {title:"Otros",bg:"#57534E",rows:[
       {l:"# Outbound contactados",fn:d=>d.e?d.e.outboundContactados:0,fmt:"n"},
       {l:"# Outbound agendados",fn:d=>d.e?d.e.outboundAgendados:0,fmt:"n"},
     ]},
   ];
   const SETTER_ROWS=[
-    {title:"Métricas Setter",bg:"#334155",rows:[
+    {title:"Métricas Setter",bg:"#57534E",rows:[
       {l:"# Nuevas Conversaciones del Día",fn:d=>d.e?d.e.setterNewConversations:0,fmt:"n"},
       {l:"# Nuevos Inbound",fn:d=>d.e?d.e.setterNewInbound:0,fmt:"n"},
       {l:"# Nuevos Outbound",fn:d=>d.e?d.e.setterNewOutbound:0,fmt:"n"},
@@ -2964,8 +2973,8 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
   const ROWS=role==="marketing"?MARKETING_ROWS:(role==="setter"?SETTER_ROWS:CLOSER_ROWS);
   const totForRow=row=>days.reduce((s,d)=>s+(row.fn(d)||0),0)||null;
 
-  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
-  const HDR_TXT="#f1f5f9";
+  const HDR_BG=IS_DARK?"#1A0F0B":"#2E1812";
+  const HDR_TXT="#FAEFE9";
   const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
     fontFamily:"'Space Grotesk','DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
   const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'Space Grotesk','DM Mono',monospace",
@@ -4250,7 +4259,7 @@ function App(){
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:${BG}}
         ::-webkit-scrollbar-thumb{background:${BORDER2};border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:#3A4040}
+        ::-webkit-scrollbar-thumb:hover{background:#47403B}
         input[type=number]{-moz-appearance:textfield}
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
@@ -4463,8 +4472,11 @@ function App(){
                 <Icon name="menu" size={15} color={TXT}/>
                 <span>Menú</span>
               </button>
+              <img src="/brand/icon-red.png" alt="Unlocked Ecom" style={{width:26,height:26,borderRadius:7,objectFit:"contain",flexShrink:0}}
+                onError={e=>{e.target.style.display="none";}}/>
               <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
               <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
+                <div style={{fontSize:8,fontWeight:800,color:BRAND,letterSpacing:"0.16em",marginBottom:2}}>UNLOCKED ECOM</div>
                 {TABS.find(t=>t.id===tab)?.l}
                 {TABS.find(t=>t.id===tab)?.sub&&<div style={{fontSize:10,fontWeight:600,color:TXT3,lineHeight:1.2,marginTop:2}}>{TABS.find(t=>t.id===tab)?.sub}</div>}
               </div>

@@ -101,7 +101,7 @@ describe("manual collaborator labels", () => {
 
   it("shows Area Comercial por colaborador entries in Detalle Diario and Torre for June onward without rewriting closed May", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
-    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
 
     expect(html).toContain('gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),');
     expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
@@ -129,7 +129,7 @@ describe("manual collaborator labels", () => {
 
   it("maps Torre CEO real funnel metrics exactly from Detalle Diario High Ticket totals", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
-    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
 
     expect(detalleBlock).toContain('const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");');
     expect(detalleBlock).toContain('const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");');
@@ -212,7 +212,7 @@ describe("manual collaborator labels", () => {
 
   it("counts all five High Ticket closers for June Agendas / Leads manual fields", () => {
     const collaboratorBlock = html.slice(html.indexOf('const CLOSER_COLLABORATORS=['), html.indexOf('const COMMERCIAL_COLLABORATORS='));
-    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
 
     expect(collaboratorBlock).toContain('{id:"Carlos Velez",label:"Carlos Velez",color:C.orange,role:"closer",legacy:"Carlos"}');
@@ -232,7 +232,7 @@ describe("manual collaborator labels", () => {
 
   it("limits Actividad Marketing to Lucas Soria and feeds Detalle Diario only from Lucas", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
-    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
     const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
 
     expect(html).toContain('const MARKETING_ACTIVITY_MEMBER_ID="Lucas Soria";');
@@ -254,7 +254,7 @@ describe("manual collaborator labels", () => {
   it("turns Actividad de llamadas High Ticket into a computed summary from collaborator Closers only", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
-    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
     const activityBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Actividad de llamadas'), detalleBlock.indexOf('{title:"Actividad de llamadas — Low Ticket"'));
 
     expect(llenarBlock).toContain('const noShowCalc=Math.max(0,(form.calificadas||0)-(form.showUps||0));');
@@ -275,7 +275,7 @@ describe("manual collaborator labels", () => {
     expect(detallePorDiaBlock).not.toContain('{l:"# Llamadas / citas que tenías",fn:d=>d.e?d.e.callsScheduled:0,fmt:"n"}');
     expect(detalleBlock).toContain('const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));');
     expect(detalleBlock).toContain('const highTicketCloserEntries=entries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,d));');
-    expect(activityBlock).toContain('{title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[');
+    expect(activityBlock).toContain('{title:"Actividad de llamadas — High Ticket",bg:');
     expect(activityBlock).toContain('{l:"# Agendas hoy",fn:d=>d.sdHighTicketCloser("agendasHoy")||null,fmt:"n"}');
     expect(activityBlock).toContain('{l:"# Show Ups",fn:d=>d.sdHighTicketCloser("showUps")||null,fmt:"n"}');
     expect(activityBlock).toContain('{l:"# Follow Ups contactados",fn:d=>d.sdHighTicketCloser("followUps")||null,fmt:"n"}');
@@ -286,7 +286,7 @@ describe("manual collaborator labels", () => {
   });
 
   it("feeds Agendas / Leads High Ticket from manual Agendas plus collaborator Closers only", () => {
-    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
     const agendasBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Agendas / Leads High Ticket"'), detalleBlock.indexOf('{title:"Costos por Lead"'));
 
     expect(detalleBlock).toContain('const highTicketCloserEntries=entries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,d));');
@@ -294,7 +294,7 @@ describe("manual collaborator labels", () => {
     expect(detalleBlock).toContain('const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");');
     expect(detalleBlock).toContain('const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");');
     expect(detalleBlock).toContain('const manualShowUps=d=>d.sdHighTicketCloser("showUps");');
-    expect(agendasBlock).toContain('{title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:[');
+    expect(agendasBlock).toContain('{title:"Agendas / Leads High Ticket",bg:');
     expect(agendasBlock).toContain('{l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"}');
     expect(agendasBlock).toContain('{l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true}');
     expect(agendasBlock).toContain('{l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true}');
@@ -312,7 +312,7 @@ describe("manual collaborator labels", () => {
   it("adds Alejandro Gallo Low Ticket call activity and shows it before Métricas Setter in Detalle Diario", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const setterFormBlock = llenarBlock.slice(llenarBlock.indexOf('<STit icon="💬" title="Reporte de Setter"'));
-    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
     const lowTicketBlock = detalleBlock.slice(detalleBlock.indexOf('{title:"Actividad de llamadas — Low Ticket"'), detalleBlock.indexOf('{title:"Métricas Setter"'));
     const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
 
@@ -474,7 +474,7 @@ describe("manual collaborator labels", () => {
 
   it("orders and renames Detalle Diario Agendas / Leads rows around GHL-derived fields", () => {
     const agendasBlock = html.slice(
-      html.indexOf('{title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:['),
+      html.indexOf('{title:"Agendas / Leads High Ticket",bg:'),
       html.indexOf('{title:"Costos por Lead",bg:"#92400e",rows:[')
     );
 
