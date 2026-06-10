@@ -245,6 +245,8 @@ const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
 const isAdminMember=m=>m==="Admin";
 const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
 const isSetterMember=m=>SETTER_MEMBER_IDS.has(m);
+const MARKETING_ACTIVITY_MEMBER_ID="Lucas Soria";
+const isMarketingActivityMember=m=>m===MARKETING_ACTIVITY_MEMBER_ID;
 const HISTORICAL_MARKETING_MEMBER="Marketing Histórico";
 const AUTO_ADS_MEMBER="Auto Ads";
 const isHistoricalMonthlyAdSpendEntry=e=>e?.member===HISTORICAL_MARKETING_MEMBER;
@@ -1959,9 +1961,9 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const dayData=Array.from({length:dm},(_,i)=>{
     const d=`${mp}-${pad(i+1)}`;
     const entries=Object.entries(allDaily).filter(([k])=>k.startsWith(d+":")).map(([,v])=>v);
-    // Marketing aggregates skip commercial collaborators so closer rows don't
-    // inflate mensajes/follow-ups/ig in the Detalle Diario marketing section.
-    const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member)&&!isSetterMember(e.member));
+    // Actividad Marketing is manual and only Lucas Soria can report it.
+    // Do not aggregate other setters/collaborators into Detalle Diario.
+    const mktEntries=entries.filter(e=>e&&isMarketingActivityMember(e.member));
     const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));
     const setterEntries=entries.filter(e=>e&&isSetterMember(e.member));
     // Jan-Mar historical ad spend was imported as month totals. Keep those
@@ -2348,6 +2350,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   const role=collab.role;
   const isValentina=collabId==="Admin";
   const isSetter=role==="setter";
+  const canEditMarketingActivity=isMarketingActivityMember(collabId);
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
   const st=(k,v)=>setForm(p=>({...p,[k]:v}));
 
@@ -2459,16 +2462,18 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
 
       {role==="setter"&&(
         <>
-          <Card>
-            <STit icon="📱" title="Actividad del día"/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
-              <Inp label="# IG Seguidores" value={form.igFollowers} onChange={v=>sf("igFollowers",v)}/>
-              <Inp label="# Posts + CTA" value={form.posts} onChange={v=>sf("posts",v)}/>
-              <Inp label="# Mensajes Diarios" value={form.mensajes} onChange={v=>sf("mensajes",v)}/>
-              <Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
-              <Inp label="# Booking Offers" value={form.bkOffers} onChange={v=>sf("bkOffers",v)}/>
-            </div>
-          </Card>
+          {role==="setter"&&canEditMarketingActivity&&(
+            <Card>
+              <STit icon="📱" title="Actividad del día"/>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
+                <Inp label="# IG Seguidores" value={form.igFollowers} onChange={v=>sf("igFollowers",v)}/>
+                <Inp label="# Posts + CTA" value={form.posts} onChange={v=>sf("posts",v)}/>
+                <Inp label="# Mensajes Diarios" value={form.mensajes} onChange={v=>sf("mensajes",v)}/>
+                <Inp label="# Follow Ups" value={form.followUps} onChange={v=>sf("followUps",v)}/>
+                <Inp label="# Booking Offers" value={form.bkOffers} onChange={v=>sf("bkOffers",v)}/>
+              </div>
+            </Card>
+          )}
           <Card>
             <STit icon="💬" title="Reporte de Setter" sub="Qué pasó con tus conversaciones"/>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
@@ -4049,15 +4054,16 @@ function App(){
   const saveEntry=async(key,entry)=>{
     const nd={...daily,[key]:entry};
     setDaily(nd);
-    // Marketing columns are always written; closer columns get the manual values
-    // when present (commercial collaborators) or default to 0 (marketing rows).
+    // Marketing activity columns are writable only by Lucas Soria. Commercial
+    // collaborators still reuse these physical columns for their own mapped fields.
+    const writesMarketingActivity=isMarketingActivityMember(entry.member);
     const {error}=await db.from("daily_entries").upsert({
       date:entry.date,member:entry.member,
-      ig_followers:isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):(entry.igFollowers||0),
-      posts:isAdminMember(entry.member)?(entry.valorVentaLT||0):isCommercialMember(entry.member)?(entry.outboundContactados||0):(entry.posts||0),
-      mensajes:isAdminMember(entry.member)?(entry.refunds||0):isCommercialMember(entry.member)?(entry.outboundAgendados||0):(entry.mensajes||0),
+      ig_followers:writesMarketingActivity?(entry.igFollowers||0):isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):0,
+      posts:writesMarketingActivity?(entry.posts||0):isAdminMember(entry.member)?(entry.valorVentaLT||0):isCommercialMember(entry.member)?(entry.outboundContactados||0):0,
+      mensajes:writesMarketingActivity?(entry.mensajes||0):isAdminMember(entry.member)?(entry.refunds||0):isCommercialMember(entry.member)?(entry.outboundAgendados||0):0,
       follow_ups:entry.followUps||0,
-      bk_offers:isAdminMember(entry.member)?(entry.refundValue||0):isCommercialMember(entry.member)?(entry.hotLeads||0):(entry.bkOffers||0),
+      bk_offers:writesMarketingActivity?(entry.bkOffers||0):isAdminMember(entry.member)?(entry.refundValue||0):isCommercialMember(entry.member)?(entry.hotLeads||0):0,
       setter_new_conversations:entry.setterNewConversations||0,
       setter_new_inbound:entry.setterNewInbound||0,
       setter_new_outbound:entry.setterNewOutbound||0,

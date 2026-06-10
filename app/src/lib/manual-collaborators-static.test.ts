@@ -192,6 +192,27 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));');
   });
 
+  it("limits Actividad Marketing to Lucas Soria and feeds Detalle Diario only from Lucas", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?"#0D1526":SURFACE2;'));
+    const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
+
+    expect(html).toContain('const MARKETING_ACTIVITY_MEMBER_ID="Lucas Soria";');
+    expect(html).toContain('const isMarketingActivityMember=m=>m===MARKETING_ACTIVITY_MEMBER_ID;');
+    expect(llenarBlock).toContain('const canEditMarketingActivity=isMarketingActivityMember(collabId);');
+    expect(llenarBlock).toContain('{role==="setter"&&canEditMarketingActivity&&(');
+    expect(detalleBlock).toContain('const mktEntries=entries.filter(e=>e&&isMarketingActivityMember(e.member));');
+    expect(detalleBlock).toContain('{title:"Actividad Marketing",bg:"#6d28d9",rows:[');
+    expect(detalleBlock).toContain('{l:"# IG Seguidores",fn:d=>d.sdMkt("igFollowers")||null,fmt:"n"}');
+    expect(saveEntryBlock).toContain('const writesMarketingActivity=isMarketingActivityMember(entry.member);');
+    expect(saveEntryBlock).toContain('ig_followers:writesMarketingActivity?(entry.igFollowers||0):isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):0,');
+    expect(saveEntryBlock).toContain('posts:writesMarketingActivity?(entry.posts||0):isAdminMember(entry.member)?(entry.valorVentaLT||0):isCommercialMember(entry.member)?(entry.outboundContactados||0):0,');
+    expect(saveEntryBlock).toContain('mensajes:writesMarketingActivity?(entry.mensajes||0):isAdminMember(entry.member)?(entry.refunds||0):isCommercialMember(entry.member)?(entry.outboundAgendados||0):0,');
+    expect(saveEntryBlock).toContain('bk_offers:writesMarketingActivity?(entry.bkOffers||0):isAdminMember(entry.member)?(entry.refundValue||0):isCommercialMember(entry.member)?(entry.hotLeads||0):0,');
+    expect(detalleBlock).not.toContain('const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member)&&!isSetterMember(e.member));');
+    expect(llenarBlock).not.toContain('{role==="setter"&&(\n        <>\n          <Card>\n            <STit icon="📱" title="Actividad del día"/>');
+  });
+
   it("turns Actividad de llamadas in Admin/Closers into a computed summary from Agendas and Follow Ups", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
     const tablaBlock = html.slice(html.indexOf('const TablaMensual='), html.indexOf('const DetallePorDia='));
