@@ -3130,7 +3130,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
 };
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-const AdminView=({allDaily,onSave,onDelete})=>{
+const AdminView=({allDaily,onSave,onDelete,onOpenUsers})=>{
   const [authed,setAuthed]=useState(false);
   const [authState,setAuthState]=useState("checking");
   const [filterMember,setFilterMember]=useState("Todos");
@@ -3233,11 +3233,11 @@ const AdminView=({allDaily,onSave,onDelete})=>{
           <div style={{fontSize:12,color:TXT3,lineHeight:1.55,maxWidth:620}}>
             Gestiona quién puede entrar a Torre de Control. El panel usa login seguro y conserva auditoría: los usuarios se suspenden, no se eliminan.
           </div>
-          <a href="/admin/users" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
+          <button type="button" onClick={onOpenUsers} style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
             border:"none",borderRadius:10,padding:"11px 18px",fontWeight:900,fontSize:12,cursor:"pointer",
             fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 10px ${C.gold}35`,textDecoration:"none"}}>
             Abrir usuarios y permisos →
-          </a>
+          </button>
         </div>
       </Card>
 
@@ -4015,11 +4015,14 @@ function App(){
   applyTheme(isDark);
   const toggleTheme=()=>{const n=!isDark;setIsDark(n);localStorage.setItem("theme",n?"dark":"light");};
   const [tab,setTab]=useState(()=>{
-    const requested=new URLSearchParams(window.location.search).get("tab");
+    const params=new URLSearchParams(window.location.search);
+    const requested=params.get("tab");
+    const requestedEmbed=params.get("embed");
+    if(requestedEmbed&&TABS.some(t=>t.id===requested))return requested;
     return TABS.some(t=>t.id===requested&&!t.children)?requested:"torre";
   });
-  const [openSubmenu,setOpenSubmenu]=useState(null);
-  const [embedUrl,setEmbedUrl]=useState(null);
+  const [openSubmenu,setOpenSubmenu]=useState(()=>new URLSearchParams(window.location.search).get("tab")==="operaciones"?"operaciones":null);
+  const [embedUrl,setEmbedUrl]=useState(()=>new URLSearchParams(window.location.search).get("embed"));
   const [mobileOpsMenuOpen,setMobileOpsMenuOpen]=useState(false);
   // Cambia la pestaña legacy activa y refleja el cambio en la URL con History API
   // para que un refresh restaure la misma vista. Operaciones usa rutas reales,
@@ -4029,11 +4032,24 @@ function App(){
     setEmbedUrl(null);
     if(!TABS.some(t=>t.id===id&&!t.children))return;
     const url=new URL(window.location.href);
+    url.searchParams.delete("embed");
     if(id==="torre")url.searchParams.delete("tab");
     else url.searchParams.set("tab",id);
     const next=url.pathname+url.search+url.hash;
     const current=window.location.pathname+window.location.search+window.location.hash;
     if(next!==current)window.history.replaceState({tab:id},"",next);
+  };
+  const openEmbeddedRoute=(href,sectionId)=>{
+    setTab(sectionId);
+    setEmbedUrl(href);
+    setMobileOpsMenuOpen(false);
+    if(sectionId==="operaciones")setOpenSubmenu("operaciones");
+    const url=new URL(window.location.href);
+    url.searchParams.set("tab",sectionId);
+    url.searchParams.set("embed",href);
+    const next=url.pathname+url.search+url.hash;
+    const current=window.location.pathname+window.location.search+window.location.hash;
+    if(next!==current)window.history.replaceState({tab:sectionId,embed:href},"",next);
   };
   const [year,setYear]=useState(new Date().getFullYear());
   const [month,setMonth]=useState(new Date().getMonth());
@@ -4422,16 +4438,16 @@ function App(){
               const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
               if(t.href){
                 return(
-                  <a key={t.id} href={t.href}
-                    className="sidebar-item"
-                    style={{width:"100%",textAlign:"left",background:"transparent",
-                      borderLeft:"2px solid transparent",borderRadius:"0 9px 9px 0",
-                      padding:"9px 12px",color:TXT2,fontSize:12,fontWeight:500,
+                  <button type="button" key={t.id} onClick={()=>openEmbeddedRoute(t.href,t.id)}
+                    className={`sidebar-item${embedUrl===t.href?" active":""}`}
+                    style={{width:"100%",textAlign:"left",background:embedUrl===t.href?BRAND+"18":"transparent",
+                      border:"none",borderLeft:embedUrl===t.href?`2px solid ${BRAND}`:"2px solid transparent",borderRadius:"0 9px 9px 0",
+                      padding:"9px 12px",color:embedUrl===t.href?BRAND:TXT2,fontSize:12,fontWeight:embedUrl===t.href?700:500,
                       fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
-                      gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s"}}>
-                    <Icon name={t.icon} size={15} color={TXT3}/>
+                      gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s",cursor:"pointer"}}>
+                    <Icon name={t.icon} size={15} color={embedUrl===t.href?BRAND:TXT3}/>
                     <span>{t.l}</span>
-                  </a>
+                  </button>
                 );
               }
               if(t.children&&t.children.length>0){
@@ -4454,17 +4470,17 @@ function App(){
                     {expanded&&<div id={`submenu-${t.id}`}>{t.children.map(c=>{
                       const subActive=embedUrl===c.href;
                       return(
-                        <a key={c.id} href={c.href}
+                        <button type="button" key={c.id} onClick={()=>openEmbeddedRoute(c.href,t.id)}
                           style={{padding:"7px 12px 7px 37px",fontSize:12,
                             color:subActive?BRAND:TXT2,
                             background:subActive?BRAND+"18":"transparent",
                             fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,
                             textDecoration:"none",textAlign:"left",width:"100%",
-                            display:"block",borderRadius:"0 9px 9px 0"}}
+                            display:"block",borderRadius:"0 9px 9px 0",border:"none",cursor:"pointer"}}
                           onMouseEnter={e=>{if(!subActive)e.currentTarget.style.background=BRAND+"10";}}
                           onMouseLeave={e=>{if(!subActive)e.currentTarget.style.background="transparent";}}>
                           {c.l}
-                        </a>
+                        </button>
                       );
                     })}</div>}
                   </div>
@@ -4590,7 +4606,7 @@ function App(){
                 {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
                 {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
                 {tab==="colab"  &&<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>}
-                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry} onOpenUsers={() => openEmbeddedRoute("/admin/users", "admin")}/>}
               </>
             )}
           </div>
@@ -4637,7 +4653,7 @@ function App(){
                       const subActive=embedUrl===c.href;
                       return(
                         <button type="button" key={c.id}
-                          onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");setMobileOpsMenuOpen(false);}}
+                          onClick={()=>openEmbeddedRoute(c.href,t.id)}
                           style={{display:"block",width:"100%",textAlign:"left",
                             padding:"9px 18px 9px 36px",fontSize:13,
                             color:subActive?BRAND:TXT2,
@@ -4654,17 +4670,17 @@ function App(){
               }
               if(t.href){
                 return(
-                  <a key={t.id} href={t.href} onClick={()=>setMobileOpsMenuOpen(false)}
+                  <button type="button" key={t.id} onClick={()=>openEmbeddedRoute(t.href,t.id)}
                     style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
-                      padding:"11px 18px",fontSize:13,color:TXT2,
-                      background:"transparent",borderLeft:"2px solid transparent",
-                      fontFamily:"'Inter',sans-serif",fontWeight:500,textDecoration:"none"}}>
-                    <Icon name={t.icon} size={14} color={TXT3}/>
+                      padding:"11px 18px",fontSize:13,color:embedUrl===t.href?BRAND:TXT2,
+                      background:embedUrl===t.href?BRAND+"18":"transparent",borderLeft:embedUrl===t.href?`2px solid ${BRAND}`:"2px solid transparent",
+                      border:"none",fontFamily:"'Inter',sans-serif",fontWeight:embedUrl===t.href?700:500,textDecoration:"none",cursor:"pointer"}}>
+                    <Icon name={t.icon} size={14} color={embedUrl===t.href?BRAND:TXT3}/>
                     <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
                       <span>{t.l}</span>
                       {t.sub&&<span style={{fontSize:10,lineHeight:1.15,opacity:.75}}>{t.sub}</span>}
                     </span>
-                  </a>
+                  </button>
                 );
               }
               const active=!embedUrl&&tab===t.id;

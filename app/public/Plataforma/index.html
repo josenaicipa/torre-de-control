@@ -12,7 +12,7 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="root"></div>
@@ -174,20 +174,15 @@ const COMERCIAL_BUCKETS=[
   {k:"perdido",     label:"Perdido",     c:"#64748B"},
 ];
 
-const BRAND="#F23005",BRAND2="#D62A04"; // Unlocked brand red (ua-red-500 / ua-red-600; hover ramp #F8551F)
+const BRAND="#E03A18",BRAND2="#C82A0A"; // Unlocked brand red
 const THEMES={
-  dark:{BG:"#100D0C",SURFACE:"#181413",SURFACE2:"#201B19",BORDER:"#2C2624",BORDER2:"#37302D",TXT:"#F7F5F4",TXT2:"#A8A09B",TXT3:"#665E59"},
-  light:{BG:"#F7F5F3",SURFACE:"#ffffff",SURFACE2:"#F3EFEB",BORDER:"#E7E1DC",BORDER2:"#F0EAE5",TXT:"#14100E",TXT2:"#5D5550",TXT3:"#A29A93"},
+  dark:{BG:"#07090F",SURFACE:"#0E1117",SURFACE2:"#141925",BORDER:"#1C2333",BORDER2:"#222B3A",TXT:"#F1F5F9",TXT2:"#94A3B8",TXT3:"#475569"},
+  light:{BG:"#F7F7F5",SURFACE:"#ffffff",SURFACE2:"#F4F4F2",BORDER:"#E5E4DF",BORDER2:"#EDECE8",TXT:"#111110",TXT2:"#5C5C52",TXT3:"#9C9B93"},
 };
-// Warm brand surfaces (Unlocked Ecom): hero/section gradients + dark charcoal table headers
-const BRAND_GRAD="linear-gradient(135deg,#1C0D08 0%,#8F1D04 55%,#F23005 100%)";
-const BRAND_BAR="linear-gradient(100deg,#A82104,#F23005 78%,#F8551F)";
-const BRAND_ON="#FFC9B5";   // warm peach for eyebrow/labels on brand surfaces
-const BRAND_ON2="#FFE3D6";  // warm light for emphasized values on brand surfaces
 let BG,SURFACE,SURFACE2,BORDER,BORDER2,TXT,TXT2,TXT3,IS_DARK=false;
 const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];BG=t.BG;SURFACE=t.SURFACE;SURFACE2=t.SURFACE2;BORDER=t.BORDER;BORDER2=t.BORDER2;TXT=t.TXT;TXT2=t.TXT2;TXT3=t.TXT3;};
 applyTheme(false);
-const C={gold:BRAND,green:"#22C55E",amber:"#F2B705",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F28705",pink:"#EC4899"};
+const C={gold:BRAND,green:"#22C55E",amber:"#F59E0B",red:"#EF4444",blue:"#3B82F6",purple:"#8B5CF6",teal:"#14B8A6",orange:"#F97316",pink:"#EC4899"};
 const TEAM_COLORS={Karen:C.purple,Luisa:C.teal,Valen:C.blue,Carlos:C.orange,Dahiana:C.pink,Daryi:C.gold,Otro:"#64748b",
   "Karen Anquiz":C.purple,"Carlos Velez":C.orange,"Daryi Perez":C.gold,"Luisa Vega":C.pink,"Daniel Garcia":C.blue,"Wiston Quintero":C.blue,"Juan Diego Afanador":C.blue,"Valentina Sanchez":C.red,Admin:C.red};
 
@@ -495,7 +490,7 @@ const Card=({children,style={}})=>(
 );
 const Lbl=({children,style={}})=>(
   <div style={{fontSize:9,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
-    fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600,marginBottom:5,...style}}>{children}</div>
+    fontFamily:"'Inter',sans-serif",fontWeight:600,marginBottom:5,...style}}>{children}</div>
 );
 const Stat=({label,value,sub,color=C.gold,size="md"})=>(
   <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:12,
@@ -506,8 +501,8 @@ const Stat=({label,value,sub,color=C.gold,size="md"})=>(
     <div style={{paddingLeft:10}}>
       <Lbl style={{marginBottom:4}}>{label}</Lbl>
       <div style={{fontSize:size==="lg"?28:20,fontWeight:800,color,
-        fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1,letterSpacing:"-0.03em"}}>{value}</div>
-      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:4,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>{sub}</div>}
+        fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.03em"}}>{value}</div>
+      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:4,fontFamily:"'Inter',sans-serif"}}>{sub}</div>}
     </div>
   </div>
 );
@@ -517,7 +512,7 @@ const Barz=({value,max,color=C.gold,h=6,label,right})=>{
     <div>
       {(label||right)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
         {label&&<span style={{fontSize:11,color:TXT2,fontWeight:500}}>{label}</span>}
-        {right&&<span style={{fontSize:11,color,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600}}>{right}</span>}
+        {right&&<span style={{fontSize:11,color,fontFamily:"'Inter',sans-serif",fontWeight:600}}>{right}</span>}
       </div>}
       <div style={{background:BORDER2,borderRadius:100,height:h,overflow:"hidden"}}>
         <div style={{width:p+"%",height:"100%",background:color,borderRadius:100,
@@ -531,12 +526,12 @@ const Inp=({label,value,onChange,prefix,hint,type="number"})=>(
     <Lbl>{label}</Lbl>
     <div style={{display:"flex",alignItems:"center",background:SURFACE2,
       border:`1px solid ${BORDER}`,borderRadius:9,overflow:"hidden",height:38}}>
-      {prefix&&<span style={{padding:"0 10px",color:TXT3,fontSize:12,fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+      {prefix&&<span style={{padding:"0 10px",color:TXT3,fontSize:12,fontFamily:"'Inter',sans-serif",
         borderRight:`1px solid ${BORDER}`,height:"100%",display:"flex",alignItems:"center",
         background:BG,fontWeight:500}}>{prefix}</span>}
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder="0"
         style={{flex:1,background:"transparent",border:"none",outline:"none",color:TXT,
-          fontSize:13,padding:"0 11px",fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:500}}/>
+          fontSize:13,padding:"0 11px",fontFamily:"'Inter',sans-serif",fontWeight:500}}/>
     </div>
     {hint&&<div style={{fontSize:10,color:TXT3}}>{hint}</div>}
   </div>
@@ -547,7 +542,7 @@ const CalcBox=({label,value,color=C.red,hint="Automático"})=>(
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
       background:SURFACE2,border:`1px solid ${color}55`,borderRadius:9,
       overflow:"hidden",height:38,padding:"0 11px",boxShadow:`inset 3px 0 0 ${color}`}}>
-      <span style={{color,fontSize:13,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:800}}>{value}</span>
+      <span style={{color,fontSize:13,fontFamily:"'Inter',sans-serif",fontWeight:800}}>{value}</span>
       <span style={{fontSize:9,color:TXT3,textTransform:"uppercase",letterSpacing:"0.09em",fontWeight:700}}>{hint}</span>
     </div>
   </div>
@@ -558,7 +553,7 @@ const Txt=({label,value,onChange,placeholder})=>(
     <textarea value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder||""} rows={3}
       style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
         color:TXT,padding:"10px 11px",fontSize:13,outline:"none",
-        fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:76,width:"100%"}}/>
+        fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:76,width:"100%"}}/>
   </div>
 );
 const STit=({icon,title,sub,right})=>(
@@ -579,7 +574,7 @@ const MemberBadge=({name,size="sm"})=>{
     <div style={{display:"inline-flex",alignItems:"center",gap:6,background:col+"18",
       border:`1px solid ${col}35`,borderRadius:7,padding:size==="lg"?"7px 13px":"4px 10px"}}>
       <div style={{width:size==="lg"?8:6,height:size==="lg"?8:6,borderRadius:100,background:col}}/>
-      <span style={{fontSize:size==="lg"?12:10,color:col,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600,letterSpacing:"0.01em"}}>{name}</span>
+      <span style={{fontSize:size==="lg"?12:10,color:col,fontFamily:"'Inter',sans-serif",fontWeight:600,letterSpacing:"0.01em"}}>{name}</span>
     </div>
   );
 };
@@ -623,7 +618,7 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
                 return(<button key={m} onClick={()=>setMember(m)} style={{
                   background:sel?col+"15":SURFACE2,border:`1.5px solid ${sel?col:BORDER}`,
                   borderRadius:8,padding:"7px 15px",cursor:"pointer",color:sel?col:TXT2,
-                  fontSize:12,fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",fontWeight:sel?700:500,
+                  fontSize:12,fontFamily:"'Epilogue',sans-serif",fontWeight:sel?700:500,
                   transition:"all .15s"}}>{m}</button>);
               })}
             </div>
@@ -632,10 +627,10 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
             <Lbl>Fecha</Lbl>
             <input type="date" value={date} onChange={e=>setDate(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Space Grotesk','DM Mono',monospace"}}/>
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
           </div>
           {allDaily[`${date}:${member}`]&&(
-            <div style={{fontSize:10,color:C.amber,fontFamily:"'Space Grotesk','DM Mono',monospace",
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",
               paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
               Editando entrada existente
@@ -679,12 +674,12 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${member} · ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600}}>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
           Marketing guardado ✓
         </div>}
       </div>
@@ -781,7 +776,7 @@ const ResumenEquipo=({year,month,allDaily})=>{
   const sortedDates=Object.keys(byDate).sort().reverse();
   const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
     borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
-    fontSize:11,fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+    fontSize:11,fontFamily:"'Epilogue',sans-serif",fontWeight:view===v?700:400,outline:"none"});
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -794,7 +789,7 @@ const ResumenEquipo=({year,month,allDaily})=>{
       <ResumenPermisosEquipo/>
 
       {entries.length===0&&(
-        <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>
+        <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
           Sin entradas para {MONTHS[month]} {year}.<br/>
           <span style={{fontSize:10,marginTop:6,display:"block"}}>El equipo debe usar "Entrada Diaria" para registrar.</span>
         </div></Card>
@@ -846,13 +841,13 @@ const ResumenEquipo=({year,month,allDaily})=>{
               <Card key={m.member} style={{padding:"14px 16px",cursor:"pointer"}} onClick={()=>setView("miembro")}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                   <MemberBadge name={m.member} size="lg"/>
-                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{m.days} días</span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días</span>
                 </div>
                 {[["New Bk",fN(m.newBk),C.purple],["Quality Bk",fN(m.qualBk),C.teal],
                   ["Shows",fN(m.shows),C.green],["Show %",fP(m.showRate),cH(m.showRate,60,40)]].map(([l,v,c])=>(
                   <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                     <span style={{fontSize:10,color:TXT2}}>{l}</span>
-                    <span style={{fontSize:11,color:c,fontFamily:"'Space Grotesk','DM Mono',monospace",fontWeight:600}}>{v}</span>
+                    <span style={{fontSize:11,color:c,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{v}</span>
                   </div>
                 ))}
               </Card>
@@ -867,7 +862,7 @@ const ResumenEquipo=({year,month,allDaily})=>{
             <Card key={m.member}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <MemberBadge name={m.member} size="lg"/>
-                <span style={{fontSize:9,color:TXT3,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{m.days} días / {dm} del mes</span>
+                <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días / {dm} del mes</span>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8,marginBottom:14}}>
                 <Stat label="New Bookings"  value={fN(m.newBk)}    color={C.purple} size="sm"/>
@@ -899,13 +894,13 @@ const ResumenEquipo=({year,month,allDaily})=>{
           {sortedDates.map(date=>(
             <Card key={date} style={{padding:"12px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9,flexWrap:"wrap"}}>
-                <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{date}</span>
+                <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{date}</span>
                 <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                   {Object.keys(byDate[date]).map(m=><MemberBadge key={m} name={m}/>)}
                 </div>
               </div>
               <div style={{overflowX:"auto"}}>
-                <table style={{borderCollapse:"collapse",fontSize:11,fontFamily:"'Space Grotesk','DM Mono',monospace",width:"100%"}}>
+                <table style={{borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace",width:"100%"}}>
                   <thead>
                     <tr style={{borderBottom:`1px solid ${BORDER}`}}>
                       {["Miembro","Mensajes","Follow-ups","Bk Offers","New Bk","Quality Bk","Shows","Show %"].map(h=>(
@@ -948,15 +943,15 @@ const Row2=({label,value,color=TXT,bold=false,bg=null,onClick=null})=>(
     style={{display:"flex",justifyContent:"space-between",alignItems:"center",
     padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`,
     cursor:onClick?"pointer":"default"}}>
-    <span style={{fontSize:10,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>{label}</span>
-    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'Space Grotesk','DM Mono',monospace",
+    <span style={{fontSize:10,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{label}</span>
+    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace",
       textDecoration:onClick?"underline dotted":"none",textUnderlineOffset:3}}>{value}{onClick?" ›":""}</span>
   </div>
 );
 const SectionTitle=({children})=>(
-  <div style={{background:BRAND_BAR,color:"#fff",padding:"6px 10px",fontSize:10,
+  <div style={{background:"#1e2a4a",color:"#fff",padding:"6px 10px",fontSize:10,
     fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
-    fontFamily:"'Hanken Grotesk','Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
+    fontFamily:"'Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
 );
 
 // Spanish labels for the ticket classification returned by /api/payments/summary.
@@ -978,23 +973,23 @@ const PaymentsDrawer=({drill,onClose})=>{
   const cols=["Lead","Monto","Fecha","Fuente","Producto","Clasificación","Revisión"];
   return(
     <div onClick={onClose} role="presentation"
-      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(28,13,8,.55)",display:"flex",justifyContent:"flex-end"}}>
+      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(15,23,42,.55)",display:"flex",justifyContent:"flex-end"}}>
       <div onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-label={drill.title}
         style={{width:"min(780px,96vw)",height:"100%",background:SURFACE,display:"flex",flexDirection:"column",boxShadow:"-8px 0 30px rgba(0,0,0,.25)"}}>
-        <div style={{background:BRAND_GRAD,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
           <div>
-            <div style={{fontSize:9,color:BRAND_ON,letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'Space Grotesk','DM Mono',monospace"}}>Cash Collected — detalle</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>{drill.title}</div>
-            <div style={{fontSize:11,color:BRAND_ON2,fontFamily:"'Space Grotesk','DM Mono',monospace",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
+            <div style={{fontSize:9,color:"#94a3b8",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>Cash Collected — detalle</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Inter',sans-serif"}}>{drill.title}</div>
+            <div style={{fontSize:11,color:"#cbd5e1",fontFamily:"'DM Mono',monospace",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
           </div>
           <button onClick={onClose} aria-label="Cerrar"
-            style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:8,padding:"6px 12px",fontSize:13,cursor:"pointer",color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>✕</button>
+            style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:8,padding:"6px 12px",fontSize:13,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>✕</button>
         </div>
         <div style={{flex:1,overflowY:"auto"}}>
           {rows.length===0?(
-            <div style={{padding:"40px 20px",textAlign:"center",color:TXT3,fontSize:13,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Sin transacciones para este periodo.</div>
+            <div style={{padding:"40px 20px",textAlign:"center",color:TXT3,fontSize:13,fontFamily:"'Inter',sans-serif"}}>Sin transacciones para este periodo.</div>
           ):(
-            <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Space Grotesk','DM Mono',monospace",fontSize:11}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
               <thead>
                 <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                   {cols.map(h=>(
@@ -1245,39 +1240,36 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
       {/* HEADER */}
-      <div style={{background:BRAND_GRAD,borderRadius:12,padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,boxShadow:"0 6px 22px rgba(143,29,4,.28)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-          <img src="/brand/icon-white.png" alt="Unlocked Ecom" style={{width:38,height:38,borderRadius:10,objectFit:"contain",flexShrink:0,boxShadow:"0 2px 10px rgba(0,0,0,.35)"}}
-            onError={e=>{e.target.style.display="none";}}/>
-          <div>
-            <div style={{fontSize:11,color:BRAND_ON,letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'Space Grotesk','DM Mono',monospace",marginBottom:3}}>Unlocked Ecom · Torre Comercial</div>
-            <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
-          </div>
+      <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",borderRadius:12,padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:11,color:"#94a3b8",letterSpacing:"0.18em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace",marginBottom:3}}>Torre de Control — Comercial</div>
+          <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
         </div>
         <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:BRAND_ON,fontFamily:"'Space Grotesk','DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Cash Total</div>
-            <div style={{fontSize:18,fontWeight:800,color:BRAND_ON2,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{fD(cashHeaderTotal)}</div>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Cash Total</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(cashHeaderTotal)}</div>
           </div>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:BRAND_ON,fontFamily:"'Space Grotesk','DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{isFuture?"—":day}/{dm}</div>
+            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
+            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'DM Mono',monospace"}}>{isFuture?"—":day}/{dm}</div>
           </div>
-          {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Config</button>}
+          {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
         </div>
       </div>
 
       {/* DATO COMERCIAL MANUAL — Valentina/Admin + closers are the primary cash source; ledger remains a validation aid */}
       {cashApi&&hasManualCommercialCash&&(
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
-          background:BRAND+"0E",border:`1px solid ${BRAND}3D`,borderLeft:`3px solid ${BRAND}`,borderRadius:10,padding:"12px 16px"}}>
+          background:C.amber+"10",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"12px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:18}}>📝</span>
             <div>
-              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Dato comercial principal</div>
-              <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Valentina/Admin y closers registraron datos en Área Comercial. Este cash operativo tiene prioridad; el ledger queda como apoyo para verificación.</div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato comercial principal</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>Valentina/Admin y closers registraron datos en Área Comercial. Este cash operativo tiene prioridad; el ledger queda como apoyo para verificación.</div>
             </div>
           </div>
-          <span style={{fontSize:12,color:BRAND,fontWeight:700,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
         </div>
       )}
 
@@ -1288,13 +1280,13 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,cursor:"pointer",
             background:C.amber+"14",border:`1px solid ${C.amber}66`,borderRadius:10,padding:"12px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:16,color:C.amber,fontWeight:700}}>⚠</span>
+            <span style={{fontSize:18}}>⚠️</span>
             <div>
-              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Pagos a revisar</div>
-              <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>{reviewCount} {reviewCount===1?"pago de fuente no oficial":"pagos de fuente no oficial"} · {fD(reviewAmount)}</div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Pagos a revisar</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{reviewCount} {reviewCount===1?"pago de fuente no oficial":"pagos de fuente no oficial"} · {fD(reviewAmount)}</div>
             </div>
           </div>
-          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>Ver detalle ›</span>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>Ver detalle ›</span>
         </div>
       )}
 
@@ -1304,7 +1296,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <span style={{fontSize:12,fontWeight:700,color:TXT}}>Configuración del mes</span>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={handleSaveCfg} disabled={savingCfg} style={{background:BRAND,color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:700,opacity:savingCfg?0.7:1}}>{savingCfg?"...":"✓ Guardar"}</button>
+              <button onClick={handleSaveCfg} disabled={savingCfg} style={{background:BRAND,color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:700,opacity:savingCfg?0.7:1}}>{savingCfg?"...":"✓ Guardar"}</button>
               <button onClick={()=>setEditConfig(false)} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",color:TXT2}}>Cancelar</button>
             </div>
           </div>
@@ -1341,7 +1333,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         <div style={block}>
           <SectionTitle>Realidad del mes (ejecución)</SectionTitle>
           <Row2 label="Valor Total Venta (comprometido)" value={fD(totalValor)} bold color={BRAND}/>
-          <Row2 label="Ventas $ (cash cobrado)" value={fD(dispCash)} bold color={BRAND} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label="Ventas $ (cash cobrado)" value={fD(dispCash)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
           <Row2 label="Recurring Cash" value={fD(totalRecurring)} color={C.purple}/>
           <Row2 label="Cash Low Ticket" value={fD(dispLowT)} color={C.teal} onClick={cashApi?()=>openDrill("Cash Low Ticket","lowTicket"):null}/>
           {cashApi&&<Row2 label="Reservas (cash)" value={fD(dispReservas)} color={C.amber} onClick={()=>openDrill("Reservas","reservas")}/>}
@@ -1366,7 +1358,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{height:1,background:BORDER,margin:"4px 0"}}/>
           <Row2 label="Meta mensual ($)" value={fD(metaMensual)}/>
           <Row2 label={isCurrent?"Meta esperada a hoy ($)":isPast?"Meta total del mes ($)":"Meta esperada al cierre ($)"} value={fD(metaEsperadaHoy)} bold/>
-          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)} bold color={BRAND} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
+          <Row2 label={isPast?"Ventas reales al cierre ($)":"Ventas reales acumuladas ($)"} value={fD(ventasRealesAcum)} bold color={C.green} onClick={cashApi?()=>openDrill("Cash Collected","cashCollected"):null}/>
           <Row2 label={isPast?"Gap vs meta ($)":"Gap vs ritmo ($)"} value={fD(gapVsRitmo)} bold color={gapVsRitmo>=0?C.green:C.red} bg={gapVsRitmo>=0?"#f0fdf4":"#fef2f2"}/>
         </div>
 
@@ -1400,7 +1392,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
       <div style={block}>
         <SectionTitle>{isPast?`Funnel del mes (cerrado) — Plan vs Real · ${dm}/${dm} días`:isFuture?`Funnel del mes (sin datos aún) — Plan vs Real · Día 0/${dm}`:`Funnel a hoy — Plan vs Real · Día ${day}/${dm} (${fP(pctTranscurrido*100,0)} transcurrido)`}</SectionTitle>
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Space Grotesk','DM Mono',monospace",fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                 {["Métrica",isCurrent?"Requerido a hoy":isPast?"Requerido mes":"Requerido (mes)",isCurrent?"Real a hoy":isPast?"Real mes":"Real","Gap","Estado"].map(h=>(
@@ -1442,7 +1434,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
 
         <div style={block}>
           <SectionTitle>Salud del embudo — Meta vs Real · Ticket promedio: {fD(ticketProm)}</SectionTitle>
-          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Space Grotesk','DM Mono',monospace",fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                 {["Métrica","Meta","Real","Estado"].map(h=>(
@@ -1483,7 +1475,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <Row2 label={isCurrent?"Inversión Ads esperada a hoy ($)":isPast?"Inversión Ads esperada total ($)":"Inversión Ads esperada al cierre ($)"} value={fD(invEsperadaHoy)}/>
           <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={gapInversion>500?C.red:gapInversion<-500?C.green:TXT} bg={gapInversion>500?"#fef2f2":gapInversion<-500?"#f0fdf4":"transparent"}/>
           <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
-          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Space Grotesk','DM Mono',monospace",fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2}}>
                 {["","Cash Total","Comprometido HT"].map(h=>(
@@ -1526,8 +1518,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             {l:"Ventas requeridas (unidades)",v:ventasUniMeta,fmt:"n"},
           ].map(r=>(
             <div key={r.l} style={{padding:"14px 16px",borderRight:`1px solid ${BORDER}`,textAlign:"center"}}>
-              <div style={{fontSize:9,color:TXT3,fontFamily:"'Space Grotesk','DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>{r.l}</div>
-              <div style={{fontSize:24,fontWeight:800,color:BRAND,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{r.fmt==="$"?fD(r.v):fN(r.v)}</div>
+              <div style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>{r.l}</div>
+              <div style={{fontSize:24,fontWeight:800,color:BRAND,fontFamily:"'DM Mono',monospace"}}>{r.fmt==="$"?fD(r.v):fN(r.v)}</div>
             </div>
           ))}
         </div>
@@ -1576,7 +1568,7 @@ const FunnelView=({f,onUpdate})=>{
             {stages.map((s,i)=>(
               <div key={s.l} style={{display:"flex",alignItems:"center",gap:5,flex:"1 1 0",minWidth:65}}>
                 <div style={{flex:1,background:`${s.c}10`,border:`1.5px solid ${s.c}30`,borderRadius:10,padding:"11px 7px",textAlign:"center"}}>
-                  <div style={{fontSize:22,fontWeight:800,color:s.c,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{s.v!=null?fN(s.v):"—"}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:s.c,fontFamily:"'DM Mono',monospace"}}>{s.v!=null?fN(s.v):"—"}</div>
                   <div style={{fontSize:8,color:TXT3,marginTop:2,textTransform:"uppercase",letterSpacing:"0.1em"}}>{s.l}</div>
                   {i>0&&stages[i-1].v&&s.v&&<div style={{fontSize:8,color:TXT3,marginTop:2}}>{fP(pv(s.v,stages[i-1].v))} conv</div>}
                 </div>
@@ -1611,12 +1603,12 @@ const AdsView=({entries,onAdd,onRemove})=>{
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             <Lbl>Fecha</Lbl>
             <input type="date" value={form.fecha} onChange={e=>sf("fecha",e.target.value)}
-              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Space Grotesk','DM Mono',monospace"}}/>
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             <Lbl>Canal</Lbl>
             <select value={form.canal} onChange={e=>sf("canal",e.target.value)}
-              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",cursor:"pointer",height:36}}>
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
               {CANALES.map(c=><option key={c}>{c}</option>)}
             </select>
           </div>
@@ -1624,15 +1616,15 @@ const AdsView=({entries,onAdd,onRemove})=>{
             <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
               <Lbl>{l}</Lbl>
               <div style={{display:"flex",alignItems:"center",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",height:36}}>
-                {p&&<span style={{padding:"0 7px",color:TXT3,fontSize:11,background:BORDER2,borderRight:`1px solid ${BORDER}`,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{p}</span>}
+                {p&&<span style={{padding:"0 7px",color:TXT3,fontSize:11,background:BORDER2,borderRight:`1px solid ${BORDER}`,fontFamily:"'DM Mono',monospace"}}>{p}</span>}
                 <input type="number" value={form[k]} onChange={e=>sf(k,e.target.value)} placeholder="0"
-                  style={{background:"transparent",border:"none",outline:"none",color:TXT,fontSize:12,padding:"0 8px",width:82,fontFamily:"'Space Grotesk','DM Mono',monospace"}}/>
+                  style={{background:"transparent",border:"none",outline:"none",color:TXT,fontSize:12,padding:"0 8px",width:82,fontFamily:"'DM Mono',monospace"}}/>
               </div>
             </div>
           ))}
           <button onClick={add} disabled={saving} style={{background:C.gold,color:"#fff",border:"none",
             borderRadius:8,padding:"0 16px",height:36,fontWeight:800,fontSize:12,cursor:"pointer",
-            fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",boxShadow:`0 2px 6px ${C.gold}40`,opacity:saving?0.7:1}}>
+            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 6px ${C.gold}40`,opacity:saving?0.7:1}}>
             {saving?"...":"+ Agregar"}
           </button>
         </div>
@@ -1647,7 +1639,7 @@ const AdsView=({entries,onAdd,onRemove})=>{
           </div>
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Space Grotesk','DM Mono',monospace",fontSize:11}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
                 <thead>
                   <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                     {["Fecha","Canal","Gasto","Impr","Clicks","CTR","CPC","Revenue","ROAS",""].map(h=>(
@@ -1700,7 +1692,7 @@ const HistoricoView=({allKpi,allDaily})=>{
   const maxRev=Math.max(...rows.map(r=>r.rev||r.meta||0),1);
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {rows.length===0&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>Sin datos históricos aún.</div></Card>}
+      {rows.length===0&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>Sin datos históricos aún.</div></Card>}
       {rows.length>0&&(
         <>
           <Card>
@@ -1712,7 +1704,7 @@ const HistoricoView=({allKpi,allDaily})=>{
                 const c=cH(pv(r.rev,r.meta),85,60);
                 return(
                   <div key={r.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:40}}>
-                    <div style={{fontSize:8,color:c,fontFamily:"'Space Grotesk','DM Mono',monospace",textAlign:"center"}}>{fD(r.rev)}</div>
+                    <div style={{fontSize:8,color:c,fontFamily:"'DM Mono',monospace",textAlign:"center"}}>{fD(r.rev)}</div>
                     <div style={{width:"100%",display:"flex",alignItems:"flex-end",justifyContent:"center",gap:2}}>
                       {r.meta&&<div style={{width:"38%",height:mH,background:BORDER,borderRadius:"3px 3px 0 0",minHeight:2}}/>}
                       {r.rev&&<div style={{width:"38%",height:rH,background:c,borderRadius:"3px 3px 0 0"}}/>}
@@ -1732,7 +1724,7 @@ const HistoricoView=({allKpi,allDaily})=>{
               <STit icon="🗂" title="Histórico mensual"/>
             </div>
             <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Space Grotesk','DM Mono',monospace",fontSize:11}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
                 <thead>
                   <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                     {["Mes","Meta","Revenue","Cumpl.","Ads","ROAS","New Bk","QB","Shows","Show%","Clients"].map(h=>(
@@ -1818,10 +1810,10 @@ const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
             <Lbl>Fecha</Lbl>
             <input type="date" value={date} onChange={e=>setDate(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Space Grotesk','DM Mono',monospace"}}/>
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
           </div>
           {allCloser[date]&&(
-            <div style={{fontSize:10,color:C.amber,fontFamily:"'Space Grotesk','DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
               Editando entrada existente
             </div>
@@ -1831,9 +1823,10 @@ const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
 
       {manualCashInput>0&&(
         <div style={{display:"flex",alignItems:"flex-start",gap:10,background:C.amber+"12",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"11px 13px"}}>
+          <span style={{fontSize:18,lineHeight:1}}>📝</span>
           <div>
-            <div style={{fontSize:12,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Dato manual: verificar contra pagos reales</div>
-            <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1.45}}>Este dato lo está llenando Valentina manualmente para operación comercial. El Cash Collected oficial sale del ledger Hotmart/Stripe/Manual; antes de tomar decisiones, validar que no esté duplicado o desactualizado.</div>
+            <div style={{fontSize:12,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato manual: verificar contra pagos reales</div>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.45}}>Este dato lo está llenando Valentina manualmente para operación comercial. El Cash Collected oficial sale del ledger Hotmart/Stripe/Manual; antes de tomar decisiones, validar que no esté duplicado o desactualizado.</div>
           </div>
         </div>
       )}
@@ -1894,12 +1887,12 @@ const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600}}>Área Comercial guardada ✓</div>}
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Área Comercial guardada ✓</div>}
       </div>
     </div>
   );
@@ -1945,7 +1938,7 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
         {AG_CANALES.map((canal,i)=>(
           <div key={canal}>
             <div style={{fontSize:9,fontWeight:700,color:AG_CANAL_COLORS[canal],
-              fontFamily:"'Hanken Grotesk','Inter',sans-serif",letterSpacing:"0.06em",
+              fontFamily:"'Inter',sans-serif",letterSpacing:"0.06em",
               textTransform:"uppercase",marginBottom:4}}>{canal}</div>
             <Inp label={`# ${label} ${canal}`} value={form[`${prefix}_${AG_CANAL_KEYS[i]}`]}
               onChange={v=>sf(`${prefix}_${AG_CANAL_KEYS[i]}`,v)}/>
@@ -1964,10 +1957,10 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
             <Lbl>Fecha</Lbl>
             <input type="date" value={date} onChange={e=>setDate(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Space Grotesk','DM Mono',monospace"}}/>
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
           </div>
           {allCloser[date]&&(
-            <div style={{fontSize:10,color:C.amber,fontFamily:"'Space Grotesk','DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
               Editando entrada existente
             </div>
@@ -1995,12 +1988,12 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600}}>Agendas guardadas ✓</div>}
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Agendas guardadas ✓</div>}
       </div>
     </div>
   );
@@ -2132,7 +2125,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mRecurring=dayData.reduce((s,d)=>s+recurringDay(d),0);
 
   const GROUPS=[
-    {title:"Gasto Publicitario",bg:"#A82104",rows:[
+    {title:"Gasto Publicitario",bg:"#1e40af",rows:[
       {l:"$ Total Gasto",fn:d=>d.totalGastoDay||null,fmt:"$",totFn:()=>mGastoTotal||null},
       {l:"Meta",fn:d=>d.sdAds("gastoMeta")||null,fmt:"$",sub:true,totFn:()=>mGastoMeta||null},
       {l:"Google",fn:d=>d.sdAds("gastoGoogle")||null,fmt:"$",sub:true,totFn:()=>mGastoGoogle||null},
@@ -2146,19 +2139,19 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Follow Ups",fn:d=>d.sdMkt("followUps")||null,fmt:"n"},
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
     ]},
-    {title:"Actividad de llamadas — High Ticket",bg:"#B45309",rows:[
+    {title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[
       {l:"# Agendas hoy",fn:d=>d.sdHighTicketCloser("agendasHoy")||null,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.sdHighTicketCloser("showUps")||null,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.sdHighTicketCloser("followUps")||null,fmt:"n"},
       {l:"# Leads calientes",fn:d=>d.sdHighTicketCloser("pendAcumulados")||null,fmt:"n"},
     ]},
-    {title:"Actividad de llamadas — Low Ticket",bg:"#9A3412",rows:[
+    {title:"Actividad de llamadas — Low Ticket",bg:"#0f766e",rows:[
       {l:"# Ventas",fn:d=>d.sdLowTicket("lowTicketVentas")||null,fmt:"n"},
       {l:"# Agendas hoy",fn:d=>d.sdLowTicket("lowTicketAgendasHoy")||null,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.sdLowTicket("lowTicketShowUps")||null,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.sdLowTicket("lowTicketFollowUps")||null,fmt:"n"},
     ]},
-    {title:"Métricas Setter",bg:"#57534E",rows:[
+    {title:"Métricas Setter",bg:"#334155",rows:[
       {l:"# Nuevas Conversaciones del Día",fn:d=>d.sdSetter("setterNewConversations")||null,fmt:"n"},
       {l:"# Nuevos Inbound",fn:d=>d.sdSetter("setterNewInbound")||null,fmt:"n"},
       {l:"# Nuevos Outbound",fn:d=>d.sdSetter("setterNewOutbound")||null,fmt:"n"},
@@ -2167,7 +2160,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Llamadas Propuestas",fn:d=>d.sdSetter("setterCallsProposed")||null,fmt:"n"},
       {l:"# Links Enviados",fn:d=>d.sdSetter("setterLinksSent")||null,fmt:"n"},
     ]},
-    {title:"Agendas / Leads High Ticket",bg:"#9A3412",rows:[
+    {title:"Agendas / Leads High Ticket",bg:"#0f766e",rows:[
       {l:"Agendas Total",fn:d=>agTotal(d)||null,fmt:"n"},
       {l:"Orgánicas",fn:d=>d.closer.agendas_organicas||null,fmt:"n",sub:true},
       {l:"Meta",fn:d=>d.closer.agendas_meta||null,fmt:"n",sub:true},
@@ -2224,22 +2217,22 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     ]},
   ];
 
-  const HDR_BG=IS_DARK?"#1A0F0B":"#2E1812";
-  const WKD_BG=IS_DARK?"#150D0A":SURFACE2;
-  const HDR_TXT="#FAEFE9";
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
+  const HDR_TXT="#f1f5f9";
   const thBase={padding:"5px 3px",textAlign:"center",fontSize:9,fontWeight:700,
-    fontFamily:"'Space Grotesk','DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
-  const tdBase={padding:"3px 4px",textAlign:"right",fontSize:9,fontFamily:"'Space Grotesk','DM Mono',monospace",
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"3px 4px",textAlign:"right",fontSize:9,fontFamily:"'DM Mono',monospace",
     borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:21};
   const stickyCol={position:"sticky",left:0,zIndex:2};
 
   return(
     <div>
-      <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {MONTHS[month]} {year} · Scroll horizontal para ver todos los días
       </div>
       {cash&&cash.available&&(
-        <div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk','Inter',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
+        <div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
 Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Área Comercial/Valentina; el ledger real de pagos queda como fallback para verificación.
         </div>
       )}
@@ -2272,7 +2265,7 @@ Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Á
                 <tr>
                   <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
                     fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                    fontFamily:"'Hanken Grotesk','Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
                     {g.title}
                   </td>
                 </tr>
@@ -2287,7 +2280,7 @@ Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Á
                         fontSize:row.sub?8:9,
                         background:SURFACE,
                         borderRight:`2px solid ${BORDER}`,
-                        fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+                        fontFamily:"'Inter',sans-serif",
                         whiteSpace:"nowrap"}}>
                         {row.l}
                       </td>
@@ -2401,7 +2394,7 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
 
   const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
     borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
-    fontSize:11,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+    fontSize:11,fontFamily:"'Inter',sans-serif",fontWeight:view===v?700:400,outline:"none"});
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -2467,7 +2460,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
                 <button key={key} onClick={()=>{setReportGroup(key);setCollabId(g.collaborators[0].id);}} style={{
                   background:reportGroup===key?BRAND+"18":SURFACE2,border:`1.5px solid ${reportGroup===key?BRAND:BORDER}`,
                   borderRadius:999,padding:"7px 15px",cursor:"pointer",color:reportGroup===key?BRAND:TXT2,
-                  fontSize:12,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:reportGroup===key?800:600,
+                  fontSize:12,fontFamily:"'Inter',sans-serif",fontWeight:reportGroup===key?800:600,
                   transition:"all .15s"}}>{g.label}</button>
               ))}
             </div>
@@ -2480,7 +2473,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
                 return(<button key={c.id} onClick={()=>setCollabId(c.id)} style={{
                   background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
                   borderRadius:8,padding:"7px 13px",cursor:"pointer",color:sel?c.color:TXT2,
-                  fontSize:12,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:sel?700:500,
+                  fontSize:12,fontFamily:"'Inter',sans-serif",fontWeight:sel?700:500,
                   display:"inline-flex",alignItems:"center",gap:7,
                   transition:"all .15s"}}>
                   <span style={{width:7,height:7,borderRadius:100,background:c.color,display:"inline-block"}}/>
@@ -2497,10 +2490,10 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Lbl>Fecha</Lbl>
               <input type="date" value={date} onChange={e=>setDate(e.target.value)}
                 style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                  color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Space Grotesk','DM Mono',monospace"}}/>
+                  color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
             </div>
             {allDaily[`${date}:${collabId}`]&&(
-              <div style={{fontSize:10,color:C.amber,fontFamily:"'Space Grotesk','DM Mono',monospace",
+              <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",
                 paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
                 <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
                 Editando entrada existente
@@ -2511,7 +2504,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
       </Card>
 
       {isValentina&&(
-        <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1.55,
+        <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.55,
           background:C.red+"0F",border:`1px solid ${C.red}33`,borderRadius:10,padding:"10px 12px"}}>
           Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>, pero ahora se guarda como una colaboradora comercial individual y suma al consolidado diario junto con los closers.
         </div>
@@ -2531,7 +2524,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
           </Card>
           <Card>
             <STit icon="📊" title="Gasto Ads (automático)" sub="No se llena manualmente — viene de la sincronización Meta/Google/TikTok"/>
-            <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1.6,marginBottom:11}}>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.6,marginBottom:11}}>
               El gasto publicitario y los costos por lead se calculan automáticamente a partir de la integración con cada plataforma. Karen no tiene que registrarlos a mano.
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:9}}>
@@ -2707,12 +2700,12 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${collab.label} · ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600}}>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
           Reporte guardado ✓
         </div>}
       </div>
@@ -2728,11 +2721,11 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
     if(fmt==="%")return fP(v);
     return fN(v);
   };
-  const HDR_BG=IS_DARK?"#1A0F0B":"#2E1812";
-  const HDR_TXT="#FAEFE9";
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const HDR_TXT="#f1f5f9";
   const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
-    fontFamily:"'Space Grotesk','DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
-  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'Space Grotesk','DM Mono',monospace",
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'DM Mono',monospace",
     borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:23};
   const stickyCol={position:"sticky",left:0,zIndex:2};
 
@@ -2754,7 +2747,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"Orgánicos",k:"setterOrganicLeads",fmt:"n"},
       {l:"Ads",k:"setterAdsLeads",fmt:"n"},
     ]},
-    {title:"Métricas Setter",bg:"#57534E",role:"setter",rows:[
+    {title:"Métricas Setter",bg:"#334155",role:"setter",rows:[
       {l:"# Nuevas Conversaciones del Día",k:"setterNewConversations",fmt:"n"},
       {l:"# Nuevos Inbound",k:"setterNewInbound",fmt:"n"},
       {l:"# Nuevos Outbound",k:"setterNewOutbound",fmt:"n"},
@@ -2763,13 +2756,13 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"# Llamadas Propuestas",k:"setterCallsProposed",fmt:"n"},
       {l:"# Links Enviados",k:"setterLinksSent",fmt:"n"},
     ]},
-    {title:"Actividad de llamadas",bg:"#B45309",role:"closer",rows:[
+    {title:"Actividad de llamadas",bg:"#0369a1",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
       {l:"# Show Ups",k:"showUps",fmt:"n"},
       {l:"# Follow Ups contactados",k:"followUps",fmt:"n"},
       {l:"# Leads calientes",k:"pendAcumulados",fmt:"n"},
     ]},
-    {title:"Agendas / Leads",bg:"#9A3412",role:"closer",rows:[
+    {title:"Agendas / Leads",bg:"#0f766e",role:"closer",rows:[
       {l:"# Agendas hoy",k:"agendasHoy",fmt:"n"},
       {l:"# Calificadas / Agendas Confirmadas",k:"calificadas",fmt:"n"},
       {l:"# Show Ups",k:"showUps",fmt:"n"},
@@ -2786,7 +2779,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
       {l:"# Reservas",k:"reservas",fmt:"n"},
       {l:"$ Cash Reservas",k:"cashReservas",fmt:"$"},
     ]},
-    {title:"Otros",bg:"#57534E",role:"closer",rows:[
+    {title:"Otros",bg:"#334155",role:"closer",rows:[
       {l:"# Outbound contactados",k:"outboundContactados",fmt:"n"},
       {l:"# Outbound agendados",k:"outboundAgendados",fmt:"n"},
     ]},
@@ -2808,7 +2801,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
 
   return(
     <div>
-      <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {MONTHS[month]} {year} · {allCols.length} colaboradores · acumulado mensual manual
       </div>
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
@@ -2846,7 +2839,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                 <tr>
                   <td colSpan={allCols.length+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
                     fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                    fontFamily:"'Hanken Grotesk','Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
                     {g.title}
                   </td>
                 </tr>
@@ -2862,7 +2855,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                         fontSize:row.sub?9:10,
                         background:SURFACE,
                         borderRight:`2px solid ${BORDER}`,
-                        fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+                        fontFamily:"'Inter',sans-serif",
                         whiteSpace:"nowrap"}}>
                         {row.l}
                       </td>
@@ -2890,9 +2883,9 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
             ))}
 
             <tr>
-              <td colSpan={allCols.length+2} style={{background:"#A82104",color:"#fff",padding:"5px 10px",
+              <td colSpan={allCols.length+2} style={{background:"#1e40af",color:"#fff",padding:"5px 10px",
                 fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                fontFamily:"'Hanken Grotesk','Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
                 Gasto Publicitario (automático · total mes)
               </td>
             </tr>
@@ -2905,7 +2898,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                   fontSize:row.sub?9:10,
                   background:SURFACE,
                   borderRight:`2px solid ${BORDER}`,
-                  fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+                  fontFamily:"'Inter',sans-serif",
                   whiteSpace:"nowrap"}}>
                   {row.l}
                 </td>
@@ -2923,7 +2916,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
             <tr>
               <td colSpan={allCols.length+2} style={{background:"#92400e",color:"#fff",padding:"5px 10px",
                 fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                fontFamily:"'Hanken Grotesk','Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
                 Costos por Lead (automático · total mes)
               </td>
             </tr>
@@ -2934,7 +2927,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                   color:TXT,fontWeight:600,fontSize:10,
                   background:SURFACE,
                   borderRight:`2px solid ${BORDER}`,
-                  fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+                  fontFamily:"'Inter',sans-serif",
                   whiteSpace:"nowrap"}}>
                   {row.l}
                 </td>
@@ -2972,7 +2965,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
   const DOW=["D","L","M","M","J","V","S"];
   const getDoW=d=>{const dt=new Date(d+"T12:00:00");return DOW[dt.getDay()];};
   const isWeekend=d=>{const dt=new Date(d+"T12:00:00");return dt.getDay()===0||dt.getDay()===6;};
-  const WKD_BG=IS_DARK?"#150D0A":SURFACE2;
+  const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
 
   const cellTxt=(v,fmt)=>{
     if(v===null||v===undefined||v===0||(typeof v==="number"&&isNaN(v)))return null;
@@ -2991,13 +2984,13 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
     ]},
   ];
   const CLOSER_ROWS=[
-    {title:"Actividad de llamadas",bg:"#B45309",rows:[
+    {title:"Actividad de llamadas",bg:"#0369a1",rows:[
       {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
       {l:"# Follow Ups contactados",fn:d=>d.e?d.e.followUps:0,fmt:"n"},
       {l:"# Leads calientes",fn:d=>d.e?d.e.pendAcumulados:0,fmt:"n"},
     ]},
-    {title:"Agendas / Leads",bg:"#9A3412",rows:[
+    {title:"Agendas / Leads",bg:"#0f766e",rows:[
       {l:"# Agendas hoy",fn:d=>d.e?d.e.agendasHoy:0,fmt:"n"},
       {l:"# Calificadas / Agendas Confirmadas",fn:d=>d.e?d.e.calificadas:0,fmt:"n"},
       {l:"# Show Ups",fn:d=>d.e?d.e.showUps:0,fmt:"n"},
@@ -3014,13 +3007,13 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
       {l:"# Reservas",fn:d=>d.e?d.e.reservas:0,fmt:"n"},
       {l:"$ Cash Reservas",fn:d=>d.e?d.e.cashReservas:0,fmt:"$"},
     ]},
-    {title:"Otros",bg:"#57534E",rows:[
+    {title:"Otros",bg:"#334155",rows:[
       {l:"# Outbound contactados",fn:d=>d.e?d.e.outboundContactados:0,fmt:"n"},
       {l:"# Outbound agendados",fn:d=>d.e?d.e.outboundAgendados:0,fmt:"n"},
     ]},
   ];
   const SETTER_ROWS=[
-    {title:"Métricas Setter",bg:"#57534E",rows:[
+    {title:"Métricas Setter",bg:"#334155",rows:[
       {l:"# Nuevas Conversaciones del Día",fn:d=>d.e?d.e.setterNewConversations:0,fmt:"n"},
       {l:"# Nuevos Inbound",fn:d=>d.e?d.e.setterNewInbound:0,fmt:"n"},
       {l:"# Nuevos Outbound",fn:d=>d.e?d.e.setterNewOutbound:0,fmt:"n"},
@@ -3033,11 +3026,11 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
   const ROWS=role==="marketing"?MARKETING_ROWS:(role==="setter"?SETTER_ROWS:CLOSER_ROWS);
   const totForRow=row=>days.reduce((s,d)=>s+(row.fn(d)||0),0)||null;
 
-  const HDR_BG=IS_DARK?"#1A0F0B":"#2E1812";
-  const HDR_TXT="#FAEFE9";
+  const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
+  const HDR_TXT="#f1f5f9";
   const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
-    fontFamily:"'Space Grotesk','DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
-  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'Space Grotesk','DM Mono',monospace",
+    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'DM Mono',monospace",
     borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:23};
   const stickyCol={position:"sticky",left:0,zIndex:2};
 
@@ -3045,13 +3038,13 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
     <div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
         <span style={{fontSize:10,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
-          fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600,marginRight:4}}>Colaborador</span>
+          fontFamily:"'Inter',sans-serif",fontWeight:600,marginRight:4}}>Colaborador</span>
         {MANUAL_COLLABORATORS.map(c=>{
           const sel=picked===c.id;
           return(<button key={c.id} onClick={()=>setPicked(c.id)} style={{
             background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
             borderRadius:8,padding:"5px 12px",cursor:"pointer",color:sel?c.color:TXT2,
-            fontSize:11,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:sel?700:500,
+            fontSize:11,fontFamily:"'Inter',sans-serif",fontWeight:sel?700:500,
             display:"inline-flex",alignItems:"center",gap:7,
             transition:"all .15s"}}>
             <span style={{width:6,height:6,borderRadius:100,background:c.color,display:"inline-block"}}/>
@@ -3059,7 +3052,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
           </button>);
         })}
       </div>
-      <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {collab.label} · {MONTHS[month]} {year} · {rowsM.length} días con registro
       </div>
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
@@ -3091,7 +3084,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
                 <tr>
                   <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
                     fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                    fontFamily:"'Hanken Grotesk','Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
                     {g.title}
                   </td>
                 </tr>
@@ -3104,7 +3097,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
                         color:TXT,fontWeight:600,fontSize:10,
                         background:SURFACE,
                         borderRight:`2px solid ${BORDER}`,
-                        fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+                        fontFamily:"'Inter',sans-serif",
                         whiteSpace:"nowrap"}}>
                         {row.l}
                       </td>
@@ -3137,7 +3130,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
 };
 
 // ─── ADMIN VIEW ───────────────────────────────────────────────────────────────
-const AdminView=({allDaily,onSave,onDelete})=>{
+const AdminView=({allDaily,onSave,onDelete,onOpenUsers})=>{
   const [authed,setAuthed]=useState(false);
   const [authState,setAuthState]=useState("checking");
   const [filterMember,setFilterMember]=useState("Todos");
@@ -3202,17 +3195,17 @@ const AdminView=({allDaily,onSave,onDelete})=>{
           <Icon name={isChecking?"users":"lock"} size={22} color={TXT3}/>
         </div>
         <div style={{fontSize:15,fontWeight:800,color:TXT,marginBottom:6}}>{title}</div>
-        <div style={{fontSize:11,color:TXT3,fontFamily:"'Space Grotesk','DM Mono',monospace",marginBottom:24}}>
+        <div style={{fontSize:11,color:TXT3,fontFamily:"'DM Mono',monospace",marginBottom:24}}>
           {subtitle}
         </div>
         {!isChecking&&authState!=="forbidden"&&<a href="/login" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
           border:"none",borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`,textDecoration:"none"}}>
+          fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 8px ${C.gold}40`,textDecoration:"none"}}>
           Iniciar sesión
         </a>}
         {!isChecking&&authState==="forbidden"&&<a href="/" style={{display:"inline-flex",alignItems:"center",gap:8,background:SURFACE2,color:TXT,
           border:`1px solid ${BORDER}`,borderRadius:9,padding:"11px 28px",fontWeight:800,fontSize:13,cursor:"pointer",
-          fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",textDecoration:"none"}}>
+          fontFamily:"'Epilogue',sans-serif",textDecoration:"none"}}>
           Volver al dashboard
         </a>}
       </div>
@@ -3240,11 +3233,11 @@ const AdminView=({allDaily,onSave,onDelete})=>{
           <div style={{fontSize:12,color:TXT3,lineHeight:1.55,maxWidth:620}}>
             Gestiona quién puede entrar a Torre de Control. El panel usa login seguro y conserva auditoría: los usuarios se suspenden, no se eliminan.
           </div>
-          <a href="/admin/users" style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
+          <button type="button" onClick={onOpenUsers} style={{display:"inline-flex",alignItems:"center",gap:8,background:C.gold,color:"#fff",
             border:"none",borderRadius:10,padding:"11px 18px",fontWeight:900,fontSize:12,cursor:"pointer",
-            fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",boxShadow:`0 2px 10px ${C.gold}35`,textDecoration:"none"}}>
+            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 10px ${C.gold}35`,textDecoration:"none"}}>
             Abrir usuarios y permisos →
-          </a>
+          </button>
         </div>
       </Card>
 
@@ -3255,7 +3248,7 @@ const AdminView=({allDaily,onSave,onDelete})=>{
             <Lbl>Miembro</Lbl>
             <select value={filterMember} onChange={e=>setFilterMember(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
-                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",cursor:"pointer",height:36}}>
+                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
               <option>Todos</option>
               {TEAM.map(m=><option key={m}>{m}</option>)}
             </select>
@@ -3264,15 +3257,15 @@ const AdminView=({allDaily,onSave,onDelete})=>{
             <Lbl>Fecha</Lbl>
             <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,
-                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Space Grotesk','DM Mono',monospace",height:36}}/>
+                padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace",height:36}}/>
           </div>
           {filterDate&&(
             <button onClick={()=>setFilterDate("")}
               style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,
                 color:TXT2,padding:"7px 12px",fontSize:11,cursor:"pointer",
-                fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",height:36}}>× Limpiar</button>
+                fontFamily:"'Epilogue',sans-serif",height:36}}>× Limpiar</button>
           )}
-          <div style={{marginLeft:"auto",fontSize:10,color:TXT3,fontFamily:"'Space Grotesk','DM Mono',monospace",paddingBottom:6}}>
+          <div style={{marginLeft:"auto",fontSize:10,color:TXT3,fontFamily:"'DM Mono',monospace",paddingBottom:6}}>
             {entries.length} entradas encontradas
           </div>
         </div>
@@ -3280,7 +3273,7 @@ const AdminView=({allDaily,onSave,onDelete})=>{
 
       {entries.length===0&&(
         <Card><div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
-          fontFamily:"'Space Grotesk','DM Mono',monospace"}}>No hay entradas con esos filtros.</div></Card>
+          fontFamily:"'DM Mono',monospace"}}>No hay entradas con esos filtros.</div></Card>
       )}
 
       {entries.map(entry=>(
@@ -3290,18 +3283,18 @@ const AdminView=({allDaily,onSave,onDelete})=>{
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <MemberBadge name={entry.member} size="lg"/>
-                  <span style={{fontSize:12,color:TXT3,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{entry.date}</span>
-                  <span style={{fontSize:10,color:C.amber,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>Modo edición</span>
+                  <span style={{fontSize:12,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
+                  <span style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace"}}>✏️ Modo edición</span>
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={saveEdit} disabled={saving} style={{background:C.green,color:"#fff",
                     border:"none",borderRadius:8,padding:"8px 18px",fontWeight:800,fontSize:12,
-                    cursor:"pointer",fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",opacity:saving?0.7:1}}>
+                    cursor:"pointer",fontFamily:"'Epilogue',sans-serif",opacity:saving?0.7:1}}>
                     {saving?"Guardando...":"✓ Guardar cambios"}
                   </button>
                   <button onClick={()=>setEditing(null)} style={{background:"transparent",
                     border:`1px solid ${BORDER}`,borderRadius:8,padding:"8px 14px",fontSize:12,
-                    cursor:"pointer",color:TXT2,fontFamily:"'Hanken Grotesk','Epilogue',sans-serif"}}>
+                    cursor:"pointer",color:TXT2,fontFamily:"'Epilogue',sans-serif"}}>
                     Cancelar
                   </button>
                 </div>
@@ -3317,19 +3310,19 @@ const AdminView=({allDaily,onSave,onDelete})=>{
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <MemberBadge name={entry.member} size="lg"/>
-                  <span style={{fontSize:13,fontWeight:700,color:TXT,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{entry.date}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{entry.date}</span>
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>startEdit(entry)} style={{background:C.gold+"15",
                     border:`1px solid ${C.gold}40`,borderRadius:7,padding:"6px 14px",fontSize:11,
-                    cursor:"pointer",color:C.gold,fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",fontWeight:700}}>
-                    Editar
+                    cursor:"pointer",color:C.gold,fontFamily:"'Epilogue',sans-serif",fontWeight:700}}>
+                    ✏️ Editar
                   </button>
                   <button onClick={()=>handleDelete(entry)} disabled={deleting===entry.key}
                     style={{background:C.red+"10",border:`1px solid ${C.red}30`,borderRadius:7,
                       padding:"6px 14px",fontSize:11,cursor:"pointer",color:C.red,
-                      fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",fontWeight:700,opacity:deleting===entry.key?0.5:1}}>
-                    {deleting===entry.key?"...":"Eliminar"}
+                      fontFamily:"'Epilogue',sans-serif",fontWeight:700,opacity:deleting===entry.key?0.5:1}}>
+                    {deleting===entry.key?"...":"🗑 Eliminar"}
                   </button>
                 </div>
               </div>
@@ -3354,7 +3347,7 @@ const AdminView=({allDaily,onSave,onDelete})=>{
                   <div key={l} style={{background:SURFACE2,border:`1px solid ${BORDER}`,
                     borderRadius:8,padding:"9px 12px"}}>
                     <Lbl style={{marginBottom:2}}>{l}</Lbl>
-                    <div style={{fontSize:16,fontWeight:700,color:c,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>
+                    <div style={{fontSize:16,fontWeight:700,color:c,fontFamily:"'DM Mono',monospace"}}>
                       {typeof v==="string"?v:fN(v)}
                     </div>
                   </div>
@@ -3542,7 +3535,7 @@ const ControlComercial=()=>{
 
   const fieldBox={background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
     color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
-    fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:500,height:38,width:"100%"};
+    fontFamily:"'Inter',sans-serif",fontWeight:500,height:38,width:"100%"};
 
   const renderItemCard=(it)=>{
     const meta=bucketMeta(it.bucket);
@@ -3556,7 +3549,7 @@ const ControlComercial=()=>{
         <div className="cc-pipeline-card-rail" style={{position:"absolute",left:0,top:0,bottom:0,width:1,background:meta.c}}/>
         <div className="cc-pipeline-card-head" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
           <div className="cc-pipeline-card-headinfo" style={{display:"flex",alignItems:"center",gap:8,minWidth:0,flexWrap:"wrap"}}>
-            <span className="cc-pipeline-time" style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'Space Grotesk','JetBrains Mono',monospace"}}>{fmtTime(it.appointmentAt)}</span>
+            <span className="cc-pipeline-time" style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(it.appointmentAt)}</span>
             <span className="cc-pipeline-lead-name" style={{fontSize:13,fontWeight:600,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={it.lead}>{it.lead||"—"}</span>
             {tempBadge&&<span style={{fontSize:9,fontWeight:800,letterSpacing:"0.08em",
               color:tempBadge.c,background:tempBadge.c+"18",border:`1px solid ${tempBadge.c}40`,
@@ -3564,12 +3557,12 @@ const ControlComercial=()=>{
           </div>
           <button className="cc-pipeline-card-actualizar" onClick={()=>openUpdate(it)} style={{background:BRAND+"15",
             border:`1px solid ${BRAND}40`,borderRadius:7,padding:"3px 9px",fontSize:10,
-            cursor:"pointer",color:BRAND,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:700,whiteSpace:"nowrap"}}>
+            cursor:"pointer",color:BRAND,fontFamily:"'Inter',sans-serif",fontWeight:700,whiteSpace:"nowrap"}}>
             Actualizar
           </button>
         </div>
         <div className="cc-pipeline-card-meta" style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:TXT3,marginBottom:6,flexWrap:"wrap"}}>
-          <span style={{fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:600,color:TXT2}}>{it.closer||"Sin asignar"}</span>
+          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:TXT2}}>{it.closer||"Sin asignar"}</span>
           {it.ghlStatus&&<><span>•</span><span>{it.ghlStatus}</span></>}
           {it.stage&&it.stage!==it.ghlStatus&&<><span>•</span><span title={it.stage}>{String(it.stage).slice(0,18)}</span></>}
           {it.automationSource==="manual"&&<><span>•</span><span style={{color:C.amber,fontWeight:700}}>MANUAL</span></>}
@@ -3578,7 +3571,7 @@ const ControlComercial=()=>{
           <div style={{paddingTop:6,borderTop:`1px dashed ${BORDER}`,display:"flex",flexDirection:"column",gap:4}}>
             {it.outcome&&<div style={{fontSize:11,fontWeight:700,color:outcomeColor(it.outcome)}}>{it.outcome}</div>}
             {it.nextAction&&<div style={{fontSize:11,color:TXT}}>→ {it.nextAction}</div>}
-            {it.followUpAt&&<div style={{fontSize:10,color:TXT2,fontFamily:"'Space Grotesk','JetBrains Mono',monospace"}}>Follow-up: {fmtDate(it.followUpAt)}</div>}
+            {it.followUpAt&&<div style={{fontSize:10,color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>Follow-up: {fmtDate(it.followUpAt)}</div>}
             {it.note&&<div style={{fontSize:10,color:TXT2,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{it.note}</div>}
           </div>
         )}
@@ -3645,7 +3638,7 @@ const ControlComercial=()=>{
             <button onClick={()=>loadPipeline(date)} disabled={loading} style={{
               background:"transparent",border:`1px solid ${BORDER}`,borderRadius:10,
               padding:"9px 16px",fontWeight:600,fontSize:12,cursor:"pointer",
-              color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",opacity:loading?0.5:1}}>
+              color:TXT2,fontFamily:"'Inter',sans-serif",opacity:loading?0.5:1}}>
               ↻ {loading?"Cargando...":"Refrescar"}
             </button>
             {savedFlag&&<div style={{fontSize:11,color:C.green,fontWeight:700}}>✓ Guardado</div>}
@@ -3655,7 +3648,7 @@ const ControlComercial=()=>{
                 background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
                 border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
                 padding:"6px 10px",borderRadius:8,
-                fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>
+                fontFamily:"'Inter',sans-serif"}}>
                 {syncStatus.msg}
               </div>
             )}
@@ -3688,7 +3681,7 @@ const ControlComercial=()=>{
       {loading&&!loadError&&!pipeline&&(
         <Card>
           <div style={{textAlign:"center",padding:"24px",color:TXT3,fontSize:12,
-            fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Cargando pipeline...</div>
+            fontFamily:"'Inter',sans-serif"}}>Cargando pipeline...</div>
         </Card>
       )}
 
@@ -3704,7 +3697,7 @@ const ControlComercial=()=>{
                   borderRadius:10,padding:"11px 13px"}}>
                   <div className="cc-closer-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
                     <span className="cc-closer-name" style={{fontSize:12,fontWeight:700,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}} title={c.closer}>{c.closer}</span>
-                    <span className="cc-closer-score" style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Hanken Grotesk','Inter',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
+                    <span className="cc-closer-score" style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Inter',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
                   </div>
                   <Barz value={c.score} max={100} color={scoreColor} h={5}/>
                   <div className="cc-closer-metrics" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:4,marginTop:8,fontSize:10}}>
@@ -3727,7 +3720,7 @@ const ControlComercial=()=>{
         <Card style={{borderColor:BRAND+"55"}}>
           <STit title="Actualizar registro" sub="Muestra datos de GHL para identificar el contacto. Se guarda en el panel interno y, si está activado, sincroniza con GHL."
             right={<button onClick={closeUpdate} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:8,
-              padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Cerrar</button>}/>
+              padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Cerrar</button>}/>
           {activeItem&&(
             <div className="cc-ghl-readonly" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
               borderRadius:10,padding:"10px 12px",marginBottom:10,display:"flex",flexDirection:"column",gap:6}}>
@@ -3736,7 +3729,7 @@ const ControlComercial=()=>{
                   background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 7px",borderRadius:6}}>
                   DATOS GHL
                 </span>
-                <span style={{fontSize:10,color:TXT3,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>
+                <span style={{fontSize:10,color:TXT3,fontFamily:"'Inter',sans-serif"}}>
                   solo lectura · para ubicar el contacto en GHL
                 </span>
               </div>
@@ -3744,13 +3737,13 @@ const ControlComercial=()=>{
                 gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
                 <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
                   <Lbl>Email</Lbl>
-                  <div style={{fontSize:12,color:TXT,fontFamily:"'Space Grotesk','JetBrains Mono',monospace",
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
                     title={activeItem.email||""}>{activeItem.email||"—"}</div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
                   <Lbl>Teléfono</Lbl>
-                  <div style={{fontSize:12,color:TXT,fontFamily:"'Space Grotesk','JetBrains Mono',monospace",
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
                     title={activeItem.phone||""}>{activeItem.phone||"—"}</div>
                 </div>
@@ -3763,7 +3756,7 @@ const ControlComercial=()=>{
               </div>
               {(activeItem.contactId||activeItem.opportunityId)&&(
                 <div style={{display:"flex",gap:10,flexWrap:"wrap",fontSize:10,color:TXT3,
-                  fontFamily:"'Space Grotesk','JetBrains Mono',monospace",paddingTop:4,borderTop:`1px dashed ${BORDER}`}}>
+                  fontFamily:"'JetBrains Mono',monospace",paddingTop:4,borderTop:`1px dashed ${BORDER}`}}>
                   {activeItem.contactId&&<span style={{userSelect:"all"}} title="contactId">
                     contact: {String(activeItem.contactId).slice(0,10)}…
                   </span>}
@@ -3830,11 +3823,11 @@ const ControlComercial=()=>{
                     background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
                     NOTA GHL
                   </span>
-                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>solo lectura</span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
                   {hasMultiple&&(
                     <span style={{fontSize:9,fontWeight:700,color:TXT2,
                       background:BORDER,border:`1px solid ${BORDER}`,
-                      padding:"1px 6px",borderRadius:999,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>
+                      padding:"1px 6px",borderRadius:999,fontFamily:"'Inter',sans-serif"}}>
                       {noteCount} notas
                     </span>
                   )}
@@ -3844,14 +3837,14 @@ const ControlComercial=()=>{
                       style={{marginLeft:"auto",background:"transparent",
                         border:`1px solid ${BORDER}`,borderRadius:6,
                         padding:"2px 8px",fontSize:10,fontWeight:700,color:TXT2,
-                        cursor:"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>
+                        cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>
                       {showAllGhlNotes?"Ocultar":"Ver todas"}
                     </button>
                   )}
                 </div>
                 {!showAllGhlNotes&&(
                   <div style={{fontSize:12,color:latestBody?TXT:TXT3,whiteSpace:"pre-wrap",
-                    wordBreak:"break-word",fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1.4,
+                    wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
                     maxHeight:140,overflowY:"auto"}}>
                     {latestBody||"Sin nota GHL para este contacto."}
                   </div>
@@ -3867,12 +3860,12 @@ const ControlComercial=()=>{
                           display:"flex",flexDirection:"column",gap:3,minWidth:0}}>
                           {dt&&(
                             <div style={{fontSize:9,fontWeight:700,color:TXT3,
-                              letterSpacing:"0.04em",fontFamily:"'Space Grotesk','JetBrains Mono',monospace"}}>
+                              letterSpacing:"0.04em",fontFamily:"'JetBrains Mono',monospace"}}>
                               {dt}
                             </div>
                           )}
                           <div style={{fontSize:12,color:TXT,whiteSpace:"pre-wrap",
-                            wordBreak:"break-word",fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1.4}}>
+                            wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4}}>
                             {n.body}
                           </div>
                         </div>
@@ -3888,10 +3881,10 @@ const ControlComercial=()=>{
                     background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
                     NOTA FATHOM
                   </span>
-                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>solo lectura</span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
                 </div>
                 <div style={{fontSize:12,color:activeItem.fathomNote?TXT:TXT3,whiteSpace:"pre-wrap",
-                  wordBreak:"break-word",fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1.4,
+                  wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
                   maxHeight:140,overflowY:"auto"}}>
                   {activeItem.fathomNote||"Sin contexto de llamada (Fathom)."}
                 </div>
@@ -3905,18 +3898,18 @@ const ControlComercial=()=>{
               placeholder="Lo que escribas aquí se guarda en el panel y se sincroniza a GHL como nota nueva."
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
                 color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
-                fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
+                fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
             <button onClick={handleSave} disabled={saving} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:10,
               padding:"10px 22px",fontWeight:700,fontSize:13,
-              cursor:saving?"wait":"pointer",fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+              cursor:saving?"wait":"pointer",fontFamily:"'Inter',sans-serif",
               opacity:saving?0.6:1}}>
               {saving?"Guardando...":(syncGhl?"Guardar y sincronizar":"Guardar registro")}
             </button>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",
-              fontFamily:"'Hanken Grotesk','Inter',sans-serif",userSelect:"none"}}>
+              fontFamily:"'Inter',sans-serif",userSelect:"none"}}>
               <input type="checkbox" checked={syncGhl}
                 onChange={e=>setSyncGhl(e.target.checked)}
                 style={{width:16,height:16,cursor:"pointer",accentColor:BRAND}}/>
@@ -3933,7 +3926,7 @@ const ControlComercial=()=>{
                 background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
                 border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
                 padding:"6px 10px",borderRadius:8,
-                fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>
+                fontFamily:"'Inter',sans-serif"}}>
                 {syncStatus.msg}
               </div>
             )}
@@ -3945,8 +3938,8 @@ const ControlComercial=()=>{
       {!loading&&!loadError&&items.length===0&&(
         <Card>
           <div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
-            fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>
-            Sin items en pipeline para <b style={{color:TXT2,fontFamily:"'Space Grotesk','JetBrains Mono',monospace"}}>{date}</b>.
+            fontFamily:"'Inter',sans-serif"}}>
+            Sin items en pipeline para <b style={{color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>{date}</b>.
           </div>
         </Card>
       )}
@@ -3964,11 +3957,11 @@ const ControlComercial=()=>{
                     <div style={{width:6,height:6,borderRadius:100,background:b.c}}/>
                     <span style={{fontSize:12,fontWeight:700,color:TXT,letterSpacing:"-0.01em"}}>{b.label}</span>
                   </div>
-                  <span style={{fontSize:10,color:TXT3,fontFamily:"'Space Grotesk','JetBrains Mono',monospace",fontWeight:700}}>{list.length}</span>
+                  <span style={{fontSize:10,color:TXT3,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{list.length}</span>
                 </div>
                 <div className="cc-pipeline-list" style={{display:"flex",flexDirection:"column",gap:8,maxHeight:520,overflowY:"auto"}}>
                   {list.length===0&&(
-                    <div className="cc-pipeline-empty" style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>—</div>
+                    <div className="cc-pipeline-empty" style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Inter',sans-serif"}}>—</div>
                   )}
                   {list.map(renderItemCard)}
                 </div>
@@ -4022,11 +4015,14 @@ function App(){
   applyTheme(isDark);
   const toggleTheme=()=>{const n=!isDark;setIsDark(n);localStorage.setItem("theme",n?"dark":"light");};
   const [tab,setTab]=useState(()=>{
-    const requested=new URLSearchParams(window.location.search).get("tab");
+    const params=new URLSearchParams(window.location.search);
+    const requested=params.get("tab");
+    const requestedEmbed=params.get("embed");
+    if(requestedEmbed&&TABS.some(t=>t.id===requested))return requested;
     return TABS.some(t=>t.id===requested&&!t.children)?requested:"torre";
   });
-  const [openSubmenu,setOpenSubmenu]=useState(null);
-  const [embedUrl,setEmbedUrl]=useState(null);
+  const [openSubmenu,setOpenSubmenu]=useState(()=>new URLSearchParams(window.location.search).get("tab")==="operaciones"?"operaciones":null);
+  const [embedUrl,setEmbedUrl]=useState(()=>new URLSearchParams(window.location.search).get("embed"));
   const [mobileOpsMenuOpen,setMobileOpsMenuOpen]=useState(false);
   // Cambia la pestaña legacy activa y refleja el cambio en la URL con History API
   // para que un refresh restaure la misma vista. Operaciones usa rutas reales,
@@ -4036,11 +4032,24 @@ function App(){
     setEmbedUrl(null);
     if(!TABS.some(t=>t.id===id&&!t.children))return;
     const url=new URL(window.location.href);
+    url.searchParams.delete("embed");
     if(id==="torre")url.searchParams.delete("tab");
     else url.searchParams.set("tab",id);
     const next=url.pathname+url.search+url.hash;
     const current=window.location.pathname+window.location.search+window.location.hash;
     if(next!==current)window.history.replaceState({tab:id},"",next);
+  };
+  const openEmbeddedRoute=(href,sectionId)=>{
+    setTab(sectionId);
+    setEmbedUrl(href);
+    setMobileOpsMenuOpen(false);
+    if(sectionId==="operaciones")setOpenSubmenu("operaciones");
+    const url=new URL(window.location.href);
+    url.searchParams.set("tab",sectionId);
+    url.searchParams.set("embed",href);
+    const next=url.pathname+url.search+url.hash;
+    const current=window.location.pathname+window.location.search+window.location.hash;
+    if(next!==current)window.history.replaceState({tab:sectionId,embed:href},"",next);
   };
   const [year,setYear]=useState(new Date().getFullYear());
   const [month,setMonth]=useState(new Date().getMonth());
@@ -4281,17 +4290,17 @@ function App(){
   if(!ready)return(
     <div style={{display:"flex",justifyContent:"center",alignItems:"center",
       height:"100vh",background:BG,flexDirection:"column",gap:20}}>
-      <img src="/brand/ecom-logo-color.png" alt="Unlocked Ecom" style={{width:52,height:52,objectFit:"contain"}}
+      <img src="logo.png" alt="Unlocked" style={{width:52,height:52,objectFit:"contain"}}
         onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
       <div style={{display:"none",width:48,height:48,borderRadius:14,
         background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
         alignItems:"center",justifyContent:"center",
         fontSize:20,fontWeight:900,color:"#fff",boxShadow:`0 0 30px ${BRAND}40`}}>U</div>
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-        <div style={{color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontSize:13,fontWeight:600,letterSpacing:"-0.01em"}}>
+        <div style={{color:TXT,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:600,letterSpacing:"-0.01em"}}>
           Torre de Control
         </div>
-        <div style={{color:TXT3,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>
+        <div style={{color:TXT3,fontFamily:"'Inter',sans-serif",fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>
           Cargando datos...
         </div>
       </div>
@@ -4306,7 +4315,7 @@ function App(){
           alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
           <Icon name="megaphone" size={20} color={C.red}/>
         </div>
-        <div style={{color:C.red,fontSize:12,lineHeight:1.8,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>{error}</div>
+        <div style={{color:C.red,fontSize:12,lineHeight:1.8,fontFamily:"'Inter',sans-serif"}}>{error}</div>
       </div>
     </div>
   );
@@ -4315,11 +4324,11 @@ function App(){
     <>
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:${BG};font-family:'Hanken Grotesk','Inter',sans-serif;color:${TXT};height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+        html,body{background:${BG};font-family:'Inter',sans-serif;color:${TXT};height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:${BG}}
         ::-webkit-scrollbar-thumb{background:${BORDER2};border-radius:4px}
-        ::-webkit-scrollbar-thumb:hover{background:#47403B}
+        ::-webkit-scrollbar-thumb:hover{background:#2D3A50}
         input[type=number]{-moz-appearance:textfield}
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
@@ -4390,13 +4399,13 @@ function App(){
           {/* Logo */}
           <div style={{padding:"20px 18px 16px",borderBottom:`1px solid ${BORDER}`}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <img src="/brand/ecom-logo-color.png" alt="Unlocked Ecom" style={{width:30,height:30,objectFit:"contain"}}
+              <img src="logo.png" alt="Unlocked" style={{width:30,height:30,objectFit:"contain"}}
                 onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
               <div style={{display:"none",width:30,height:30,borderRadius:8,
                 background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
                 alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>U</div>
               <div>
-                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED ECOM</div>
+                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED</div>
                 <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Centro de Operaciones</div>
               </div>
             </div>
@@ -4409,13 +4418,13 @@ function App(){
               <select value={month} onChange={e=>setMonth(Number(e.target.value))}
                 style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                   color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
-                  fontFamily:"'Hanken Grotesk','Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
                 {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
               </select>
               <select value={year} onChange={e=>setYear(Number(e.target.value))}
                 style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                   color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
-                  fontFamily:"'Hanken Grotesk','Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
                 {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
               </select>
             </div>
@@ -4429,16 +4438,16 @@ function App(){
               const hasAlert=(t.id==="equipo"||t.id==="torre")&&alertShow;
               if(t.href){
                 return(
-                  <a key={t.id} href={t.href}
-                    className="sidebar-item"
-                    style={{width:"100%",textAlign:"left",background:"transparent",
-                      borderLeft:"2px solid transparent",borderRadius:"0 9px 9px 0",
-                      padding:"9px 12px",color:TXT2,fontSize:12,fontWeight:500,
-                      fontFamily:"'Hanken Grotesk','Inter',sans-serif",display:"flex",alignItems:"center",
-                      gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s"}}>
-                    <Icon name={t.icon} size={15} color={TXT3}/>
+                  <button type="button" key={t.id} onClick={()=>openEmbeddedRoute(t.href,t.id)}
+                    className={`sidebar-item${embedUrl===t.href?" active":""}`}
+                    style={{width:"100%",textAlign:"left",background:embedUrl===t.href?BRAND+"18":"transparent",
+                      border:"none",borderLeft:embedUrl===t.href?`2px solid ${BRAND}`:"2px solid transparent",borderRadius:"0 9px 9px 0",
+                      padding:"9px 12px",color:embedUrl===t.href?BRAND:TXT2,fontSize:12,fontWeight:embedUrl===t.href?700:500,
+                      fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                      gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s",cursor:"pointer"}}>
+                    <Icon name={t.icon} size={15} color={embedUrl===t.href?BRAND:TXT3}/>
                     <span>{t.l}</span>
-                  </a>
+                  </button>
                 );
               }
               if(t.children&&t.children.length>0){
@@ -4452,7 +4461,7 @@ function App(){
                         border:"none",borderLeft:expanded?`2px solid ${BRAND}`:"2px solid transparent",
                         borderRadius:"0 9px 9px 0",padding:"9px 12px",cursor:"pointer",
                         color:expanded?BRAND:TXT2,fontSize:12,fontWeight:expanded?700:500,
-                        fontFamily:"'Hanken Grotesk','Inter',sans-serif",display:"flex",alignItems:"center",
+                        fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
                         gap:9,transition:"all .15s"}}>
                       <Icon name={t.icon} size={15} color={expanded?BRAND:TXT3}/>
                       <span style={{flex:1}}>{t.l}</span>
@@ -4461,17 +4470,17 @@ function App(){
                     {expanded&&<div id={`submenu-${t.id}`}>{t.children.map(c=>{
                       const subActive=embedUrl===c.href;
                       return(
-                        <a key={c.id} href={c.href}
+                        <button type="button" key={c.id} onClick={()=>openEmbeddedRoute(c.href,t.id)}
                           style={{padding:"7px 12px 7px 37px",fontSize:12,
                             color:subActive?BRAND:TXT2,
                             background:subActive?BRAND+"18":"transparent",
-                            fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:subActive?700:500,
+                            fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,
                             textDecoration:"none",textAlign:"left",width:"100%",
-                            display:"block",borderRadius:"0 9px 9px 0"}}
+                            display:"block",borderRadius:"0 9px 9px 0",border:"none",cursor:"pointer"}}
                           onMouseEnter={e=>{if(!subActive)e.currentTarget.style.background=BRAND+"10";}}
                           onMouseLeave={e=>{if(!subActive)e.currentTarget.style.background="transparent";}}>
                           {c.l}
-                        </a>
+                        </button>
                       );
                     })}</div>}
                   </div>
@@ -4485,7 +4494,7 @@ function App(){
                     borderRadius:active?"0 9px 9px 0":"0 9px 9px 0",
                     padding:"9px 12px",cursor:"pointer",
                     color:active?BRAND:TXT2,fontSize:12,fontWeight:active?700:500,
-                    fontFamily:"'Hanken Grotesk','Inter',sans-serif",display:"flex",alignItems:"center",
+                    fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
                     gap:9,marginBottom:2,position:"relative",transition:"all .15s"}}>
                   <Icon name={t.icon} size={15} color={active?BRAND:TXT3}/>
                   <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
@@ -4509,7 +4518,7 @@ function App(){
             <button onClick={toggleTheme} style={{
               width:"100%",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
               padding:"8px 10px",cursor:"pointer",color:TXT2,fontSize:11,fontWeight:600,
-              fontFamily:"'Hanken Grotesk','Inter',sans-serif",display:"flex",alignItems:"center",gap:8,
+              fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",gap:8,
               transition:"all .15s"}}>
               <Icon name={isDark?"trendUp":"barChart"} size={13} color={TXT3}/>
               {isDark?"Modo Claro":"Modo Oscuro"}
@@ -4528,15 +4537,12 @@ function App(){
                 aria-label="Abrir menú" aria-expanded={mobileOpsMenuOpen}
                 style={{display:"none",alignItems:"center",gap:6,padding:"7px 11px",
                   background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:8,
-                  color:TXT,fontSize:12,fontWeight:700,fontFamily:"'Hanken Grotesk','Inter',sans-serif",cursor:"pointer"}}>
+                  color:TXT,fontSize:12,fontWeight:700,fontFamily:"'Inter',sans-serif",cursor:"pointer"}}>
                 <Icon name="menu" size={15} color={TXT}/>
                 <span>Menú</span>
               </button>
-              <img src="/brand/icon-red.png" alt="Unlocked Ecom" style={{width:26,height:26,borderRadius:7,objectFit:"contain",flexShrink:0}}
-                onError={e=>{e.target.style.display="none";}}/>
               <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
               <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
-                <div style={{fontSize:8,fontWeight:800,color:BRAND,letterSpacing:"0.16em",marginBottom:2}}>UNLOCKED ECOM</div>
                 {TABS.find(t=>t.id===tab)?.l}
                 {TABS.find(t=>t.id===tab)?.sub&&<div style={{fontSize:10,fontWeight:600,color:TXT3,lineHeight:1.2,marginTop:2}}>{TABS.find(t=>t.id===tab)?.sub}</div>}
               </div>
@@ -4551,19 +4557,19 @@ function App(){
           <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
             {tab!=="control"&&<button onClick={()=>changeTab("control")} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:9,padding:"8px 10px",
-              fontSize:11,fontWeight:800,fontFamily:"'Hanken Grotesk','Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
+              fontSize:11,fontWeight:800,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
               Control Comercial
             </button>}
             <select value={month} onChange={e=>setMonth(Number(e.target.value))}
               style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                 color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
-                fontFamily:"'Hanken Grotesk','Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
               {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
             </select>
             <select value={year} onChange={e=>setYear(Number(e.target.value))}
               style={{width:80,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                 color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
-                fontFamily:"'Hanken Grotesk','Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
               {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
             </select>
           </div>
@@ -4600,7 +4606,7 @@ function App(){
                 {tab==="hist"   &&<HistoricoView allKpi={allKpi} allDaily={daily}/>}
                 {tab==="detalle"&&<DetalleView allDaily={daily} allCloser={closerData} year={year} month={month}/>}
                 {tab==="colab"  &&<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>}
-                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry}/>}
+                {tab==="admin"  &&<AdminView allDaily={daily} onSave={saveEntry} onDelete={deleteEntry} onOpenUsers={() => openEmbeddedRoute("/admin/users", "admin")}/>}
               </>
             )}
           </div>
@@ -4638,7 +4644,7 @@ function App(){
                   <div key={t.id} style={{marginTop:6}}>
                     <div style={{display:"flex",alignItems:"center",gap:9,
                       padding:"10px 18px 4px",fontSize:10,
-                      color:TXT3,fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:700,
+                      color:TXT3,fontFamily:"'Inter',sans-serif",fontWeight:700,
                       letterSpacing:"0.1em",textTransform:"uppercase"}}>
                       <Icon name={t.icon} size={13} color={TXT3}/>
                       <span>{t.l}</span>
@@ -4647,13 +4653,13 @@ function App(){
                       const subActive=embedUrl===c.href;
                       return(
                         <button type="button" key={c.id}
-                          onClick={()=>{setEmbedUrl(c.href);setTab("operaciones");setMobileOpsMenuOpen(false);}}
+                          onClick={()=>openEmbeddedRoute(c.href,t.id)}
                           style={{display:"block",width:"100%",textAlign:"left",
                             padding:"9px 18px 9px 36px",fontSize:13,
                             color:subActive?BRAND:TXT2,
                             background:subActive?BRAND+"18":"transparent",
                             borderLeft:subActive?`2px solid ${BRAND}`:"2px solid transparent",
-                            border:"none",fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+                            border:"none",fontFamily:"'Inter',sans-serif",
                             fontWeight:subActive?700:500,cursor:"pointer"}}>
                           {c.l}
                         </button>
@@ -4664,17 +4670,17 @@ function App(){
               }
               if(t.href){
                 return(
-                  <a key={t.id} href={t.href} onClick={()=>setMobileOpsMenuOpen(false)}
+                  <button type="button" key={t.id} onClick={()=>openEmbeddedRoute(t.href,t.id)}
                     style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
-                      padding:"11px 18px",fontSize:13,color:TXT2,
-                      background:"transparent",borderLeft:"2px solid transparent",
-                      fontFamily:"'Hanken Grotesk','Inter',sans-serif",fontWeight:500,textDecoration:"none"}}>
-                    <Icon name={t.icon} size={14} color={TXT3}/>
+                      padding:"11px 18px",fontSize:13,color:embedUrl===t.href?BRAND:TXT2,
+                      background:embedUrl===t.href?BRAND+"18":"transparent",borderLeft:embedUrl===t.href?`2px solid ${BRAND}`:"2px solid transparent",
+                      border:"none",fontFamily:"'Inter',sans-serif",fontWeight:embedUrl===t.href?700:500,textDecoration:"none",cursor:"pointer"}}>
+                    <Icon name={t.icon} size={14} color={embedUrl===t.href?BRAND:TXT3}/>
                     <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
                       <span>{t.l}</span>
                       {t.sub&&<span style={{fontSize:10,lineHeight:1.15,opacity:.75}}>{t.sub}</span>}
                     </span>
-                  </a>
+                  </button>
                 );
               }
               const active=!embedUrl&&tab===t.id;
@@ -4686,7 +4692,7 @@ function App(){
                     color:active?BRAND:TXT2,
                     background:active?BRAND+"18":"transparent",
                     borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
-                    border:"none",fontFamily:"'Hanken Grotesk','Inter',sans-serif",
+                    border:"none",fontFamily:"'Inter',sans-serif",
                     fontWeight:active?700:500,cursor:"pointer"}}>
                   <Icon name={t.icon} size={14} color={active?BRAND:TXT3}/>
                   <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>

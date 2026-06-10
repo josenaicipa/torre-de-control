@@ -49,4 +49,17 @@ describe("admin users UX", () => {
     expect(route).toContain("summarizeEffectiveAccess");
     expect(route).toContain("canManageUsers");
   });
+
+  it("keeps Next.js admin and operations pages embedded inside the legacy dashboard shell", () => {
+    const dashboard = staticDashboardSource();
+
+    expect(dashboard).toContain("const openEmbeddedRoute=(href,sectionId)");
+    expect(dashboard).toContain("setEmbedUrl(href)");
+    expect(dashboard).toContain("openEmbeddedRoute(c.href,t.id)");
+    expect(dashboard).toContain("openEmbeddedRoute(t.href,t.id)");
+    expect(dashboard).toContain("onOpenUsers={() => openEmbeddedRoute(\"/admin/users\", \"admin\")}");
+    expect(dashboard).toContain("<iframe");
+    expect(dashboard).toContain("src={embedUrl}");
+    expect(dashboard).not.toContain('href="/admin/users" style={{display:"inline-flex"');
+  });
 });
