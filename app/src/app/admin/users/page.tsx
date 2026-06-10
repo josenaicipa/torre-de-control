@@ -201,51 +201,58 @@ export default async function UsersAdminPage() {
 
       <section className="card admin-section">
         <h2>Crear usuario</h2>
-        <p className="muted">Elige una plantilla para crear accesos rápido; luego puedes ajustar área, equipo, GHL y permisos puntuales si hace falta.</p>
+        <p className="muted">Crea el acceso desde una plantilla rápida y completa solo los datos operativos necesarios.</p>
         <form action={createUserAction} className="admin-form">
-          <fieldset className="permission-group">
-            <legend>Tipo de usuario</legend>
-            <p className="muted">Elige una plantilla. El servidor aplicará rol, cargo, alcance y permisos de forma consistente.</p>
-            <div className="permission-grid">
-              {PERMISSION_PRESETS.map((preset) => (
-                <label className="checkbox-row" key={preset.id}>
-                  <input
-                    type="radio"
-                    name="permissionPreset"
-                    value={preset.id}
-                    defaultChecked={preset.id === "solo-lectura"}
-                  />
-                  <span><strong>{preset.label}</strong><br />{preset.description}</span>
-                </label>
-              ))}
-              <label className="checkbox-row">
-                <input type="radio" name="permissionPreset" value="manual" />
-                <span><strong>Manual avanzado</strong><br />Usa exactamente el rol, cargo, alcance y permisos seleccionados abajo.</span>
-              </label>
-            </div>
-          </fieldset>
           <div className="form-grid">
             <div className="field"><label>Nombre</label><input name="name" placeholder="Nombre completo" /></div>
             <div className="field"><label>Correo</label><input name="email" type="email" required placeholder="usuario@naicipa.com" /></div>
-            <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-            <div className="field"><label>Cargo</label><PositionSelect value="VIEWER" /></div>
-            <div className="field"><label>Alcance</label><ScopeSelect value="OWN" /></div>
-            <div className="field"><label>Área</label><RelationSelect name="areaId" placeholder="Sin área" options={areaOptions} /></div>
-            <div className="field"><label>Equipo</label><RelationSelect name="teamId" placeholder="Sin equipo" options={teamOptions} /></div>
-            <div className="field"><label>Responsable / Director</label><RelationSelect name="managerId" placeholder="Sin responsable" options={managerOptions} /></div>
-            <div className="field"><label>GHL User ID</label><input name="ghlUserId" placeholder="ID de usuario en GHL" /></div>
-            <div className="field"><label>GHL Email</label><input name="ghlUserEmail" type="email" placeholder="correo en GHL" /></div>
-            <div className="field"><label>GHL Nombre</label><input name="ghlUserName" placeholder="nombre en GHL" /></div>
             <div className="field"><label>Contraseña temporal</label><input name="password" type="password" required minLength={10} placeholder="mín. 10 caracteres" /></div>
-            <div className="field">
-              <label>Encargado de cobro</label>
-              <label className="checkbox-row">
-                <input type="checkbox" name="isCollector" />
-                <span>Recibe recordatorios y reportes de cartera</span>
-              </label>
-            </div>
           </div>
-          <PermissionCheckboxes selected={defaultPermissionsForPosition("VIEWER")} />
+
+          <div className="preset-select-panel">
+            <div>
+              <label htmlFor="permissionPreset">Plantilla de acceso</label>
+              <p className="muted">Usar plantilla rápida aplica rol, cargo, alcance y permisos automáticamente.</p>
+            </div>
+            <select id="permissionPreset" name="permissionPreset" defaultValue="solo-lectura">
+              {PERMISSION_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>{preset.label} · {preset.description}</option>
+              ))}
+              <option value="manual">Manual avanzado · usar exactamente lo configurado abajo</option>
+            </select>
+          </div>
+
+          <fieldset className="permission-group">
+            <legend>Asignación operativa</legend>
+            <p className="muted">Estos datos sí se guardan con cualquier plantilla: área, equipo, responsable, GHL y cobro.</p>
+            <div className="form-grid">
+              <div className="field"><label>Área</label><RelationSelect name="areaId" placeholder="Sin área" options={areaOptions} /></div>
+              <div className="field"><label>Equipo</label><RelationSelect name="teamId" placeholder="Sin equipo" options={teamOptions} /></div>
+              <div className="field"><label>Responsable / Director</label><RelationSelect name="managerId" placeholder="Sin responsable" options={managerOptions} /></div>
+              <div className="field"><label>GHL User ID</label><input name="ghlUserId" placeholder="ID de usuario en GHL" /></div>
+              <div className="field"><label>GHL Email</label><input name="ghlUserEmail" type="email" placeholder="correo en GHL" /></div>
+              <div className="field"><label>GHL Nombre</label><input name="ghlUserName" placeholder="nombre en GHL" /></div>
+              <div className="field">
+                <label>Encargado de cobro</label>
+                <label className="checkbox-row">
+                  <input type="checkbox" name="isCollector" />
+                  <span>Recibe recordatorios y reportes de cartera</span>
+                </label>
+              </div>
+            </div>
+          </fieldset>
+
+          <details className="manual-advanced-panel">
+            <summary>Manual avanzado</summary>
+            <p className="muted">Solo aplica si seleccionas “Manual avanzado” en Plantilla de acceso. Con una plantilla rápida, el servidor ignora estos campos y usa la plantilla.</p>
+            <div className="form-grid">
+              <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+              <div className="field"><label>Cargo</label><PositionSelect value="VIEWER" /></div>
+              <div className="field"><label>Alcance</label><ScopeSelect value="OWN" /></div>
+            </div>
+            <PermissionCheckboxes selected={defaultPermissionsForPosition("VIEWER")} />
+          </details>
+
           <button className="btn" type="submit">Crear acceso</button>
         </form>
       </section>
