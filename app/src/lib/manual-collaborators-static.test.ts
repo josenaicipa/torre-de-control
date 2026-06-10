@@ -183,11 +183,12 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),');
   });
 
-  it("counts only current commercial member ids in Detalle Diario from the June 8 priority date", () => {
-    expect(html).toContain('const COMMERCIAL_CURRENT_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.id));');
-    expect(html).toContain('const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_CURRENT_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);');
+  it("counts only active reporting commercial member ids in Detalle Diario from the June 8 priority date", () => {
+    expect(html).toContain('const COMMERCIAL_REPORTING_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.filter(c=>!c.legacy||!SETTER_MEMBER_IDS.has(c.legacy)).map(c=>c.id));');
+    expect(html).toContain('const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_REPORTING_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);');
     expect(html).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialReportingMember(e.member,e.date)):[];');
     expect(html).toContain('const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));');
+    expect(html).not.toContain('const COMMERCIAL_CURRENT_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.id));');
     expect(html).not.toContain('const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));');
   });
 
