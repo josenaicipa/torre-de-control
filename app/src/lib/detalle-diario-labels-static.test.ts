@@ -19,6 +19,15 @@ function extractAgendasBlock(source: string): string {
   return source.slice(start, end);
 }
 
+function extractHighTicketCallsBlock(source: string): string {
+  const marker = '{title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[';
+  const start = source.indexOf(marker);
+  expect(start, "Detalle Diario Actividad de llamadas — High Ticket group missing").toBeGreaterThanOrEqual(0);
+  const end = source.indexOf(']},\n    {title:"Actividad de llamadas — Low Ticket"', start);
+  expect(end, "Detalle Diario Actividad de llamadas — High Ticket group end missing").toBeGreaterThan(start);
+  return source.slice(start, end);
+}
+
 function extractAgendasRows(source: string): string[] {
   const block = extractAgendasBlock(source);
   return [...block.matchAll(/\{l:"([^"]+)"/g)].map((match) => match[1]);
@@ -57,6 +66,7 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
   it.each(dashboardFiles)("uses manual Closers fields for High Ticket operational rows in %s", (relativePath) => {
     const source = readFileSync(resolve(repoRoot, relativePath), "utf8");
     const block = extractAgendasBlock(source);
+    const callsBlock = extractHighTicketCallsBlock(source);
     expect(source).toContain('const highTicketCloserEntries=entries.filter(e=>e&&isHighTicketCloserReportingMember(e.member,d));');
     expect(source).toContain('const sdHighTicketCloser=f=>sumF(highTicketCloserEntries,f);');
     expect(source).toContain('const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");');
@@ -72,6 +82,11 @@ describe("Detalle Diario > Agendas / Leads labels", () => {
     expect(block).not.toContain('d.closer.citas_asistidas||null');
     expect(block).not.toContain('mAgTotal>0?pv(mCalTotal,mAgTotal):null');
     expect(block).not.toContain('mHoyTotal>0?pv(mShows,mHoyTotal):null');
+    expect(callsBlock).toContain('{l:"# Agendas hoy",fn:d=>d.sdHighTicketCloser("agendasHoy")||null,fmt:"n"}');
+    expect(callsBlock).toContain('{l:"# Show Ups",fn:d=>d.sdHighTicketCloser("showUps")||null,fmt:"n"}');
+    expect(callsBlock).toContain('{l:"# Follow Ups contactados",fn:d=>d.sdHighTicketCloser("followUps")||null,fmt:"n"}');
+    expect(callsBlock).toContain('{l:"# Leads calientes",fn:d=>d.sdHighTicketCloser("pendAcumulados")||null,fmt:"n"}');
+    expect(callsBlock).not.toContain('sdCommercialActivity(');
   });
 
   it.each(dashboardFiles)("pins May 31 closing adjustment for final May 2026 Torre totals in %s", (relativePath) => {

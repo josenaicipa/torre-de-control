@@ -1989,12 +1989,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
     const sdMkt=f=>sumF(mktEntries,f);
     const hasPrimaryCommercial=commercialDayHasPrimary(d,commercialEntries);
     const sdCommercial=f=>allowCommercialFallback?commercialDayValue(d,commercialEntries,f):0;
-    const sdCommercialActivity=f=>allowCommercialFallback?sumF(commercialEntries,f):0;
     const sdHighTicketCloser=f=>sumF(highTicketCloserEntries,f);
     const sdSetter=f=>sumF(setterEntries,f);
     const sdLowTicket=f=>sumF(lowTicketEntries,f);
     const totalGastoDay=sdAds("gastoMeta")+sdAds("gastoGoogle")+sdAds("gastoTikTok")+sdAds("gastoOtros");
-    return{day:i+1,d,entries,mktEntries,commercialEntries,highTicketCloserEntries,setterEntries,lowTicketEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdCommercialActivity,sdHighTicketCloser,sdSetter,sdLowTicket,hasPrimaryCommercial,totalGastoDay};
+    return{day:i+1,d,entries,mktEntries,commercialEntries,highTicketCloserEntries,setterEntries,lowTicketEntries,dailyAdEntries,closer,ledger,sd,sdAds,sdMkt,sdCommercial,sdHighTicketCloser,sdSetter,sdLowTicket,hasPrimaryCommercial,totalGastoDay};
   });
 
   const cellTxt=(v,fmt)=>{
@@ -2079,10 +2078,10 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
       {l:"# Booking Offers",fn:d=>d.sdMkt("bkOffers")||null,fmt:"n"},
     ]},
     {title:"Actividad de llamadas — High Ticket",bg:"#0369a1",rows:[
-      {l:"# Agendas hoy",fn:d=>d.sdCommercialActivity("agendasHoy")||null,fmt:"n"},
-      {l:"# Show Ups",fn:d=>d.sdCommercialActivity("showUps")||null,fmt:"n"},
-      {l:"# Follow Ups contactados",fn:d=>d.sdCommercialActivity("followUps")||null,fmt:"n"},
-      {l:"# Leads calientes",fn:d=>d.sdCommercialActivity("pendAcumulados")||null,fmt:"n"},
+      {l:"# Agendas hoy",fn:d=>d.sdHighTicketCloser("agendasHoy")||null,fmt:"n"},
+      {l:"# Show Ups",fn:d=>d.sdHighTicketCloser("showUps")||null,fmt:"n"},
+      {l:"# Follow Ups contactados",fn:d=>d.sdHighTicketCloser("followUps")||null,fmt:"n"},
+      {l:"# Leads calientes",fn:d=>d.sdHighTicketCloser("pendAcumulados")||null,fmt:"n"},
     ]},
     {title:"Actividad de llamadas — Low Ticket",bg:"#0f766e",rows:[
       {l:"# Ventas",fn:d=>d.sdLowTicket("lowTicketVentas")||null,fmt:"n"},
