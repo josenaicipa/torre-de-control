@@ -198,7 +198,7 @@ function KpiCard({
         border: `1px solid ${hero ? COLORS.brand : COLORS.border}`,
         borderRadius: 12,
         padding: 14,
-        boxShadow: hero ? "0 1px 0 rgba(224,58,24,0.08)" : "none",
+        boxShadow: hero ? "0 1px 0 rgba(242,48,5,0.08)" : "none",
       }}
     >
       <p style={eyebrowStyle()}>{label}</p>

@@ -1,16 +1,21 @@
+@import url("https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
+/* Unlocked brand tokens (ua ramp): red #F23005, hover #F8551F, press #D62A04,
+   amber #F2B705, orange #F28705, warm-neutral matte surfaces. Visual only. */
 :root {
-  --color-bg: oklch(98% 0.005 250);
-  --color-surface: oklch(100% 0 0);
-  --color-surface-2: oklch(96% 0.008 250);
-  --color-border: oklch(90% 0.01 250);
-  --color-text: oklch(22% 0.02 260);
-  --color-muted: oklch(52% 0.02 260);
-  --color-accent: oklch(58% 0.17 255);
-  --color-accent-text: oklch(99% 0 0);
-  --color-warn: oklch(72% 0.16 70);
-  --color-good: oklch(64% 0.15 150);
+  --color-bg: #f6f7f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #f0f2f2;
+  --color-border: #e2e4e4;
+  --color-text: #0c0e0e;
+  --color-muted: #565d5e;
+  --color-accent: #f23005;
+  --color-accent-hover: #f8551f;
+  --color-accent-press: #d62a04;
+  --color-accent-text: #ffffff;
+  --color-warn: #f2b705;
+  --color-good: #1f9d55;
 
   --radius: 12px;
   --radius-sm: 8px;
@@ -28,19 +33,20 @@
   --text-2xl: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
   --text-kpi: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-numeric: "Space Grotesk", ui-monospace, "SF Mono", monospace;
   --duration: 180ms;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: oklch(20% 0.02 260);
-    --color-surface: oklch(25% 0.02 260);
-    --color-surface-2: oklch(28% 0.02 260);
-    --color-border: oklch(34% 0.02 260);
-    --color-text: oklch(95% 0.01 260);
-    --color-muted: oklch(72% 0.02 260);
+    --color-bg: #0c0e0e;
+    --color-surface: #141717;
+    --color-surface-2: #1b1f1f;
+    --color-border: #262b2b;
+    --color-text: #f6f7f7;
+    --color-muted: #9ca5a6;
     --shadow-card: 0 1px 2px oklch(0% 0 0 / 0.3), 0 8px 24px oklch(0% 0 0 / 0.35);
   }
 }
@@ -130,8 +136,10 @@ a:hover {
 }
 
 .kpi-card .kpi-value {
+  font-family: var(--font-numeric);
   font-size: var(--text-kpi);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
   margin-top: var(--space-2);
 }
@@ -231,6 +239,16 @@ a:hover {
 
 .btn:active {
   filter: brightness(0.96);
+}
+
+.btn:not(.secondary):hover {
+  filter: none;
+  background: var(--color-accent-hover);
+}
+
+.btn:not(.secondary):active {
+  filter: none;
+  background: var(--color-accent-press);
 }
 
 .btn.secondary {
@@ -386,5 +404,5 @@ body.embed-mode [data-operations-main] {
 }
 
 body.embed-mode {
-  background: #f7f7f5 !important;
+  background: #f6f7f7 !important;
 }

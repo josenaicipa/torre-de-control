@@ -2,13 +2,13 @@
 // visually aligned with Operaciones without re-declaring colors and labels.
 
 export const COLORS = {
-  brand: "#E03A18",
-  text: "#111110",
-  textSoft: "#5C5C52",
-  textMuted: "#9C9B93",
+  brand: "#F23005",
+  text: "#0C0E0E",
+  textSoft: "#565D5E",
+  textMuted: "#9CA5A6",
   surface: "#FFFFFF",
-  border: "#E5E4DF",
-  background: "#F7F6F2",
+  border: "#E2E4E4",
+  background: "#F6F7F7",
   success: "#15803D",
   warning: "#D97706",
   danger: "#B91C1C",

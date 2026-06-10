@@ -48,12 +48,12 @@ interface SidebarItemProps {
   onClick?: () => void;
 }
 
-const BRAND = "#E03A18";
-const TXT = "#111110";
-const TXT2 = "#5C5C52";
-const TXT3 = "#9C9B93";
+const BRAND = "#F23005";
+const TXT = "#0C0E0E";
+const TXT2 = "#565D5E";
+const TXT3 = "#9CA5A6";
 const SURFACE = "#FFFFFF";
-const BORDER = "#E5E4DF";
+const BORDER = "#E2E4E4";
 
 // Query tab ids match app/public/index.html so links land on the requested view.
 const LEGACY_TABS: Array<{
@@ -98,7 +98,7 @@ function SidebarItem({
         fontSize: isSubitem ? 13 : 14,
         fontWeight: active ? 700 : 500,
         color: active ? BRAND : TXT2,
-        backgroundColor: active ? "rgba(224, 58, 24, 0.10)" : "transparent",
+        backgroundColor: active ? "rgba(242, 48, 5, 0.10)" : "transparent",
         borderLeft: active ? `2px solid ${BRAND}` : "2px solid transparent",
         textDecoration: "none",
       }}
@@ -168,7 +168,7 @@ function NavigationContent({
             alignItems: "center",
             gap: 10,
             padding: "8px 16px",
-            backgroundColor: operationsActive ? "rgba(224, 58, 24, 0.10)" : "transparent",
+            backgroundColor: operationsActive ? "rgba(242, 48, 5, 0.10)" : "transparent",
             borderLeft: operationsActive ? `2px solid ${BRAND}` : "2px solid transparent",
             borderTop: "none",
             borderRight: "none",
@@ -335,7 +335,7 @@ export function OperationsShell({
   );
 
   return (
-    <div className="flex min-h-screen bg-[#f7f7f5]" style={{ color: TXT }}>
+    <div className="flex min-h-screen bg-[#f6f7f7]" style={{ color: TXT }}>
       <aside
         data-operations-sidebar
         className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col overflow-y-auto md:flex"
@@ -376,7 +376,7 @@ export function OperationsShell({
               alignItems: "center",
               gap: 6,
               padding: "8px 12px",
-              backgroundColor: mobileMenuOpen ? "rgba(224, 58, 24, 0.10)" : SURFACE,
+              backgroundColor: mobileMenuOpen ? "rgba(242, 48, 5, 0.10)" : SURFACE,
               border: `1px solid ${BORDER}`,
               borderRadius: 8,
               color: mobileMenuOpen ? BRAND : TXT,
@@ -389,8 +389,28 @@ export function OperationsShell({
             {mobileMenuOpen ? <X size={16} /> : <Menu size={16} />}
             <span>{mobileMenuOpen ? "Cerrar" : "Menú"}</span>
           </button>
-          <span style={{ fontSize: 15, fontWeight: 800, color: TXT, letterSpacing: "-0.02em" }}>
-            Operaciones
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              minWidth: 0,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="Unlocked"
+              width={24}
+              height={24}
+              style={{ objectFit: "contain", flexShrink: 0 }}
+            />
+            <span
+              className="truncate"
+              style={{ fontSize: 15, fontWeight: 800, color: TXT, letterSpacing: "-0.02em" }}
+            >
+              Operaciones
+            </span>
           </span>
         </header>
       )}
@@ -474,7 +494,7 @@ export function OperationsShell({
 
       <main
         data-operations-main
-        className={`min-h-screen flex-1 overflow-x-auto bg-slate-50 p-4 ${
+        className={`min-h-screen flex-1 overflow-x-auto bg-[#f6f7f7] p-4 ${
           isEmbedded ? "" : "pt-20"
         } md:ml-[220px] md:p-8`}
       >

@@ -3,7 +3,7 @@ import { EmbedDetector } from "@/components/embed-detector";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Torre de Control",
+  title: "Torre de Control — Unlocked",
   description: "Torre de Control v2 — robust platform foundation.",
 };
 
