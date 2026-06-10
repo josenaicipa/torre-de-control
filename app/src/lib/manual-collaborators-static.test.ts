@@ -106,7 +106,7 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),');
     expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
     expect(torreBlock).toContain('const allowCommercialFallback=year>2026||(year===2026&&month>=5);');
-    expect(torreBlock).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialMember(e.member)):[];');
+    expect(torreBlock).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialReportingMember(e.member,e.date)):[];');
     expect(torreBlock).toContain('const commercialEntriesByDay={};');
     expect(torreBlock).toContain('addByDay(commercialValorHTByDay,date,commercialValueByDay(date,"valorVentaHT"));');
     expect(torreBlock).toContain('const monthlyCommercialSalesDay=(date,closerRow)=>commercialDayHasPrimary(date,commercialEntriesByDay[date]||[])?commercialValueByDay(date,"ventasHT"):(commercialValueByDay(date,"ventasHT")||((closerRow&&closerRow.q_ventas_ht)||0));');
@@ -181,6 +181,14 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('...COMMERCIAL_LEGACY_MEMBER_IDS,');
     expect(html).toContain('const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);');
     expect(html).not.toContain('...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),');
+  });
+
+  it("counts only current commercial member ids in Detalle Diario from the June 8 priority date", () => {
+    expect(html).toContain('const COMMERCIAL_CURRENT_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.id));');
+    expect(html).toContain('const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_CURRENT_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);');
+    expect(html).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialReportingMember(e.member,e.date)):[];');
+    expect(html).toContain('const commercialEntries=entries.filter(e=>e&&isCommercialReportingMember(e.member,d));');
+    expect(html).not.toContain('const commercialEntries=entries.filter(e=>e&&isCommercialMember(e.member));');
   });
 
   it("turns Actividad de llamadas in Admin/Closers into a computed summary from Agendas and Follow Ups", () => {
