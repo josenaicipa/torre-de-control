@@ -10,6 +10,8 @@ import {
   POSITION_LABELS,
   SCOPE_LABELS,
 } from "@/lib/permissions";
+import { PERMISSION_PRESETS } from "@/lib/permission-presets";
+import { summarizeEffectiveAccess } from "@/lib/effective-access-summary";
 import { prisma } from "@/lib/prisma";
 import { OperationsShell } from "@/app/operaciones/operations-shell";
 import { createUserAction, toggleUserStatusAction, updateOwnProfileAction, updateUserAction } from "./actions";
@@ -141,6 +143,9 @@ export default async function UsersAdminPage() {
         ghlUserEmail: true,
         ghlUserName: true,
         isCollector: true,
+        area: { select: { name: true } },
+        team: { select: { name: true } },
+        manager: { select: { name: true, email: true } },
       },
     }),
     prisma.area.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -200,7 +205,29 @@ export default async function UsersAdminPage() {
 
       <section className="card admin-section">
         <h2>Crear usuario</h2>
+        <p className="muted">Elige una plantilla para crear accesos rápido; luego puedes ajustar área, equipo, GHL y permisos puntuales si hace falta.</p>
         <form action={createUserAction} className="admin-form">
+          <fieldset className="permission-group">
+            <legend>Tipo de usuario</legend>
+            <p className="muted">Elige una plantilla. El servidor aplicará rol, cargo, alcance y permisos de forma consistente.</p>
+            <div className="permission-grid">
+              {PERMISSION_PRESETS.map((preset) => (
+                <label className="checkbox-row" key={preset.id}>
+                  <input
+                    type="radio"
+                    name="permissionPreset"
+                    value={preset.id}
+                    defaultChecked={preset.id === "solo-lectura"}
+                  />
+                  <span><strong>{preset.label}</strong><br />{preset.description}</span>
+                </label>
+              ))}
+              <label className="checkbox-row">
+                <input type="radio" name="permissionPreset" value="manual" />
+                <span><strong>Manual avanzado</strong><br />Usa exactamente el rol, cargo, alcance y permisos seleccionados abajo.</span>
+              </label>
+            </div>
+          </fieldset>
           <div className="form-grid">
             <div className="field"><label>Nombre</label><input name="name" placeholder="Nombre completo" /></div>
             <div className="field"><label>Correo</label><input name="email" type="email" required placeholder="usuario@naicipa.com" /></div>
@@ -239,6 +266,29 @@ export default async function UsersAdminPage() {
                 <p className="muted">GHL: {user.ghlUserId ? user.ghlUserId : "sin mapear"}{user.ghlUserName ? ` (${user.ghlUserName})` : ""}</p>
                 <p className="muted">Cartera: {user.isCollector ? "Encargado de cobro" : "No"}</p>
                 <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por cargo"}</p>
+                {(() => {
+                  const accessSummary = summarizeEffectiveAccess({
+                    role: user.role,
+                    position: user.position,
+                    dataScope: user.dataScope,
+                    permissions: user.permissions.length ? user.permissions : defaultPermissionsForPosition(user.position),
+                    areaName: user.area?.name ?? null,
+                    teamName: user.team?.name ?? null,
+                    managerName: user.manager?.name ?? user.manager?.email ?? null,
+                  });
+                  return (
+                    <div className="access-summary">
+                      <strong>Alcance efectivo</strong>
+                      <p className="muted">{accessSummary.scopeLabel}</p>
+                      <p className="muted">{accessSummary.description}</p>
+                      <div className="permission-grid">
+                        {accessSummary.badges.map((badge) => (
+                          <span className="pill" key={badge}>{badge}</span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <p className="muted">Último acceso: {user.lastLoginAt ? user.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") : "nunca"}</p>
               </div>
               <form action={updateUserAction} className="inline-admin-form">
