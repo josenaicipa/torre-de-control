@@ -293,10 +293,10 @@ export function OperationsShell({
         textDecoration: "none",
       }}
     >
-      <img src="/logo.png" alt="Unlocked" style={{ height: 30, width: 30, objectFit: "contain" }} />
+      <img src="/brand/ecom-logo-color.png" alt="Unlocked Ecom" style={{ height: 30, width: 30, objectFit: "contain" }} />
       <span>
         <span style={{ display: "block", fontSize: 11, fontWeight: 800, lineHeight: 1 }}>
-          UNLOCKED
+          UNLOCKED ECOM
         </span>
         <span
           style={{
@@ -399,8 +399,8 @@ export function OperationsShell({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo.png"
-              alt="Unlocked"
+              src="/brand/ecom-logo-color.png"
+              alt="Unlocked Ecom"
               width={24}
               height={24}
               style={{ objectFit: "contain", flexShrink: 0 }}

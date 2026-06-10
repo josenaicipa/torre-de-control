@@ -1203,7 +1203,6 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
           background:C.amber+"10",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"12px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:18}}>📝</span>
             <div>
               <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Dato comercial principal</div>
               <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Valentina/Admin y closers registraron datos en Área Comercial. Este cash operativo tiene prioridad; el ledger queda como apoyo para verificación.</div>
@@ -1220,7 +1219,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,cursor:"pointer",
             background:C.amber+"14",border:`1px solid ${C.amber}66`,borderRadius:10,padding:"12px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:18}}>⚠️</span>
+            <span style={{fontSize:16,color:C.amber,fontWeight:700}}>⚠</span>
             <div>
               <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Pagos a revisar</div>
               <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>{reviewCount} {reviewCount===1?"pago de fuente no oficial":"pagos de fuente no oficial"} · {fD(reviewAmount)}</div>
@@ -1763,7 +1762,6 @@ const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
 
       {manualCashInput>0&&(
         <div style={{display:"flex",alignItems:"flex-start",gap:10,background:C.amber+"12",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"11px 13px"}}>
-          <span style={{fontSize:18,lineHeight:1}}>📝</span>
           <div>
             <div style={{fontSize:12,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk','Inter',sans-serif"}}>Dato manual: verificar contra pagos reales</div>
             <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk','Inter',sans-serif",lineHeight:1.45}}>Este dato lo está llenando Valentina manualmente para operación comercial. El Cash Collected oficial sale del ledger Hotmart/Stripe/Manual; antes de tomar decisiones, validar que no esté duplicado o desactualizado.</div>
@@ -3224,7 +3222,7 @@ const AdminView=({allDaily,onSave,onDelete})=>{
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <MemberBadge name={entry.member} size="lg"/>
                   <span style={{fontSize:12,color:TXT3,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>{entry.date}</span>
-                  <span style={{fontSize:10,color:C.amber,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>✏️ Modo edición</span>
+                  <span style={{fontSize:10,color:C.amber,fontFamily:"'Space Grotesk','DM Mono',monospace"}}>Modo edición</span>
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={saveEdit} disabled={saving} style={{background:C.green,color:"#fff",
@@ -3256,13 +3254,13 @@ const AdminView=({allDaily,onSave,onDelete})=>{
                   <button onClick={()=>startEdit(entry)} style={{background:C.gold+"15",
                     border:`1px solid ${C.gold}40`,borderRadius:7,padding:"6px 14px",fontSize:11,
                     cursor:"pointer",color:C.gold,fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",fontWeight:700}}>
-                    ✏️ Editar
+                    Editar
                   </button>
                   <button onClick={()=>handleDelete(entry)} disabled={deleting===entry.key}
                     style={{background:C.red+"10",border:`1px solid ${C.red}30`,borderRadius:7,
                       padding:"6px 14px",fontSize:11,cursor:"pointer",color:C.red,
                       fontFamily:"'Hanken Grotesk','Epilogue',sans-serif",fontWeight:700,opacity:deleting===entry.key?0.5:1}}>
-                    {deleting===entry.key?"...":"🗑 Eliminar"}
+                    {deleting===entry.key?"...":"Eliminar"}
                   </button>
                 </div>
               </div>
@@ -4214,7 +4212,7 @@ function App(){
   if(!ready)return(
     <div style={{display:"flex",justifyContent:"center",alignItems:"center",
       height:"100vh",background:BG,flexDirection:"column",gap:20}}>
-      <img src="logo.png" alt="Unlocked" style={{width:52,height:52,objectFit:"contain"}}
+      <img src="/brand/ecom-logo-color.png" alt="Unlocked Ecom" style={{width:52,height:52,objectFit:"contain"}}
         onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
       <div style={{display:"none",width:48,height:48,borderRadius:14,
         background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
@@ -4323,13 +4321,13 @@ function App(){
           {/* Logo */}
           <div style={{padding:"20px 18px 16px",borderBottom:`1px solid ${BORDER}`}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <img src="logo.png" alt="Unlocked" style={{width:30,height:30,objectFit:"contain"}}
+              <img src="/brand/ecom-logo-color.png" alt="Unlocked Ecom" style={{width:30,height:30,objectFit:"contain"}}
                 onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex";}}/>
               <div style={{display:"none",width:30,height:30,borderRadius:8,
                 background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
                 alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>U</div>
               <div>
-                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED</div>
+                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED ECOM</div>
                 <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Centro de Operaciones</div>
               </div>
             </div>

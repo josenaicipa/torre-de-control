@@ -26,8 +26,8 @@ export default async function LoginPage() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo.png"
-              alt="Unlocked"
+              src="/brand/ecom-logo-color.png"
+              alt="Unlocked Ecom"
               width={36}
               height={36}
               style={{ objectFit: "contain", flexShrink: 0 }}
