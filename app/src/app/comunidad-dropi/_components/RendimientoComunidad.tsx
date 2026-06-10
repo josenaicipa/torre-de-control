@@ -23,6 +23,7 @@ import {
   topDeliveredRows,
   type MemberPeriodRow,
 } from "../_lib/rendimiento";
+import { RendimientoSortableTable } from "./RendimientoSortableTable";
 
 export interface RendimientoComunidadProps {
   comparativo: Comparativo;
@@ -326,120 +327,10 @@ function Acordeon({
         {filas.length === 0 ? (
           <p style={{ margin: 0, color: COLORS.textMuted, fontSize: 13 }}>{vacio}</p>
         ) : (
-          <ListaTabla filas={filas} tipo={tipo} />
+          <RendimientoSortableTable filas={filas} tipo={tipo} />
         )}
       </div>
     </details>
-  );
-}
-
-function ListaTabla({
-  filas,
-  tipo,
-}: {
-  filas: MemberPeriodRow[];
-  tipo: "top" | "caida" | "aumento";
-}) {
-  const headers =
-    tipo === "top"
-      ? ["#", "Miembro", "Entregadas", "Ingresadas"]
-      : tipo === "caida"
-        ? ["Miembro", "Actual", "Previo", "Pérdida", "% caída"]
-        : ["Miembro", "Actual", "Previo", "Aumento", "% aumento"];
-
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "separate",
-          borderSpacing: 0,
-          fontSize: 12.5,
-        }}
-      >
-        <thead>
-          <tr>
-            {headers.map((h, i) => (
-              <th key={i} style={thStyle()}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filas.map((m, idx) => (
-            <tr
-              key={m.id}
-              style={{
-                backgroundColor: idx % 2 === 0 ? COLORS.surface : COLORS.background,
-              }}
-            >
-              {tipo === "top"
-                ? renderTopCells(m, idx)
-                : renderDeltaCells(m, tipo)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function renderTopCells(m: MemberPeriodRow, idx: number) {
-  return (
-    <>
-      <td style={tdStyle()}>{idx + 1}</td>
-      <td style={tdStyle()}>
-        <MiembroCelda name={m.fullName} country={m.country} id={m.id} />
-      </td>
-      <td style={tdStyle()}>{fmt(m.current.ordersDelivered)}</td>
-      <td style={tdStyle()}>{fmt(m.current.ordersEntered)}</td>
-    </>
-  );
-}
-
-function renderDeltaCells(m: MemberPeriodRow, tipo: "caida" | "aumento") {
-  const previo = m.comparison?.ordersDelivered ?? 0;
-  const delta = m.deliveredDelta ?? 0;
-  const color = tipo === "caida" ? COLORS.danger : COLORS.success;
-  const pct = m.deliveredDeltaPct;
-  return (
-    <>
-      <td style={tdStyle()}>
-        <MiembroCelda name={m.fullName} country={m.country} id={m.id} />
-      </td>
-      <td style={tdStyle()}>{fmt(m.current.ordersDelivered)}</td>
-      <td style={tdStyle()}>{fmt(previo)}</td>
-      <td style={{ ...tdStyle(), color, fontWeight: 700 }}>
-        {tipo === "caida" ? "▼" : "▲"} {fmt(Math.abs(delta))}
-      </td>
-      <td style={{ ...tdStyle(), color, fontWeight: 700 }}>
-        {pct != null ? `${Math.abs(pct)}%` : "—"}
-      </td>
-    </>
-  );
-}
-
-function MiembroCelda({
-  name,
-  country,
-  id,
-}: {
-  name: string | null;
-  country: string | null;
-  id: string;
-}) {
-  return (
-    <span style={{ display: "block", minWidth: 150 }}>
-      <a href={`/comunidad-dropi/miembros/${id}`} style={memberLinkStyle()}>
-        {name ?? "Sin nombre"}
-      </a>
-      {country ? (
-        <span style={{ display: "block", fontSize: 11, color: COLORS.textMuted }}>
-          {country}
-        </span>
-      ) : null}
-    </span>
   );
 }
 
@@ -463,37 +354,5 @@ function countBadgeStyle(alerta?: boolean): React.CSSProperties {
     color: alerta ? "#991B1B" : "#475569",
     fontSize: 11,
     fontWeight: 800,
-  };
-}
-
-function thStyle(): React.CSSProperties {
-  return {
-    padding: "8px 10px",
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-    color: COLORS.textSoft,
-    borderBottom: `1px solid ${COLORS.border}`,
-    whiteSpace: "nowrap",
-  };
-}
-
-function tdStyle(): React.CSSProperties {
-  return {
-    padding: "8px 10px",
-    borderTop: `1px solid ${COLORS.border}`,
-    verticalAlign: "middle",
-    fontVariantNumeric: "tabular-nums",
-  };
-}
-
-function memberLinkStyle(): React.CSSProperties {
-  return {
-    color: COLORS.brand,
-    fontWeight: 700,
-    fontSize: 13,
-    textDecoration: "none",
   };
 }
