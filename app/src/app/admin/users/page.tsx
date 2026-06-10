@@ -11,7 +11,6 @@ import {
   SCOPE_LABELS,
 } from "@/lib/permissions";
 import { PERMISSION_PRESETS } from "@/lib/permission-presets";
-import { summarizeEffectiveAccess } from "@/lib/effective-access-summary";
 import { prisma } from "@/lib/prisma";
 import { OperationsShell } from "@/app/operaciones/operations-shell";
 import { createUserAction, toggleUserStatusAction, updateOwnProfileAction, updateUserAction } from "./actions";
@@ -143,9 +142,6 @@ export default async function UsersAdminPage() {
         ghlUserEmail: true,
         ghlUserName: true,
         isCollector: true,
-        area: { select: { name: true } },
-        team: { select: { name: true } },
-        manager: { select: { name: true, email: true } },
       },
     }),
     prisma.area.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
@@ -266,29 +262,6 @@ export default async function UsersAdminPage() {
                 <p className="muted">GHL: {user.ghlUserId ? user.ghlUserId : "sin mapear"}{user.ghlUserName ? ` (${user.ghlUserName})` : ""}</p>
                 <p className="muted">Cartera: {user.isCollector ? "Encargado de cobro" : "No"}</p>
                 <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por cargo"}</p>
-                {(() => {
-                  const accessSummary = summarizeEffectiveAccess({
-                    role: user.role,
-                    position: user.position,
-                    dataScope: user.dataScope,
-                    permissions: user.permissions.length ? user.permissions : defaultPermissionsForPosition(user.position),
-                    areaName: user.area?.name ?? null,
-                    teamName: user.team?.name ?? null,
-                    managerName: user.manager?.name ?? user.manager?.email ?? null,
-                  });
-                  return (
-                    <div className="access-summary">
-                      <strong>Alcance efectivo</strong>
-                      <p className="muted">{accessSummary.scopeLabel}</p>
-                      <p className="muted">{accessSummary.description}</p>
-                      <div className="permission-grid">
-                        {accessSummary.badges.map((badge) => (
-                          <span className="pill" key={badge}>{badge}</span>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
                 <p className="muted">Último acceso: {user.lastLoginAt ? user.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") : "nunca"}</p>
               </div>
               <form action={updateUserAction} className="inline-admin-form">

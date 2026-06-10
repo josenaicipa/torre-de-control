@@ -15,11 +15,11 @@ describe("admin users UX", () => {
     expect(source).toContain('name="permissionPreset"');
   });
 
-  it("shows an effective access summary for existing users", () => {
+  it("keeps team summary out of user administration", () => {
     const source = usersPageSource();
 
-    expect(source).toContain("summarizeEffectiveAccess");
-    expect(source).toContain("access-summary");
-    expect(source).toContain("Alcance efectivo");
+    expect(source).not.toContain("summarizeEffectiveAccess");
+    expect(source).not.toContain("access-summary");
+    expect(source).not.toContain("Alcance efectivo");
   });
 });
