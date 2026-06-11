@@ -8,10 +8,14 @@ on:
     branches: [main, feature/robust-platform-v2]
     paths:
       - "app/**"
+      - "docs/design-lock.md"
+      - ".github/CODEOWNERS"
       - ".github/workflows/torre-v2-verify.yml"
   pull_request:
     paths:
       - "app/**"
+      - "docs/design-lock.md"
+      - ".github/CODEOWNERS"
       - ".github/workflows/torre-v2-verify.yml"
 
 jobs:

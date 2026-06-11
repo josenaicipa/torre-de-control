@@ -169,13 +169,20 @@ export default async function UsersAdminPage() {
       title="Usuarios y permisos"
       eyebrow="Administración · Torre de Control"
     >
-      <div className="space-y-6">
+      <div className="admin-users-surface space-y-6">
 
-      <h1 className="page-title">Usuarios y permisos</h1>
-      <p className="muted">
-        Crea accesos, asigna cargo y alcance de datos (amarrado a GHL) y ajusta permisos por módulo. Los usuarios no se
-        borran: se suspenden para conservar auditoría.
-      </p>
+      <header className="admin-users-header">
+        <h1 className="page-title">Usuarios y permisos</h1>
+        <p className="muted">
+          Crea accesos, asigna cargo y alcance de datos (amarrado a GHL) y ajusta permisos por módulo. Los usuarios no se
+          borran: se suspenden para conservar auditoría.
+        </p>
+        <div className="admin-summary-row">
+          <span className="admin-chip"><strong>{users.filter((user) => user.active).length}</strong> activos</span>
+          <span className="admin-chip is-suspended"><strong>{users.filter((user) => !user.active).length}</strong> suspendidos</span>
+          <span className="admin-chip"><strong>{users.length}</strong> en total</span>
+        </div>
+      </header>
 
       <section className="card admin-section">
         <h2>Mi usuario</h2>

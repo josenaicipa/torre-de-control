@@ -1,0 +1,13 @@
+# Design-sensitive files for Torre de Control / control.unlockedecom.co.
+# Changes to the approved Unlocked Ecom visual system require owner review.
+# Contract: docs/design-lock.md
+
+/app/public/index.html @josenaicipa
+/app/public/Plataforma/index.html @josenaicipa
+/app/public/brand/ @josenaicipa
+/app/src/app/globals.css @josenaicipa
+/app/src/app/login/page.tsx @josenaicipa
+/app/src/app/operaciones/operations-shell.tsx @josenaicipa
+/app/src/app/admin/users/page.tsx @josenaicipa
+/docs/design-lock.md @josenaicipa
+/.github/CODEOWNERS @josenaicipa
