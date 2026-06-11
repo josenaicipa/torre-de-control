@@ -8,11 +8,10 @@ import { hashPassword } from "@/lib/password";
 import {
   canManageUsers,
   defaultPermissionsForRole,
-  defaultPermissionsForPosition,
-  normalizePermissions,
   parsePosition,
   parseScope,
 } from "@/lib/permissions";
+import { menuAccessToPermissions, normalizeMenuAccess } from "@/lib/menu-access";
 import { prisma } from "@/lib/prisma";
 import { normalizeAreaForSelectedTeam } from "@/lib/user-scope-normalization";
 
@@ -84,14 +83,11 @@ async function normalizeScopedReferences(fields: ScopedFields, selfId: string | 
 
 function resolvedPermissions(
   role: Role,
-  selected: ReturnType<typeof normalizePermissions>,
-  position: ScopedFields["position"],
+  selected: ReturnType<typeof menuAccessToPermissions>,
 ) {
-  if (role === "MENTOR") {
-    const operacionesOnly = selected.filter((permission) => permission.startsWith("operaciones."));
-    return operacionesOnly.length > 0 ? operacionesOnly : defaultPermissionsForRole(role);
-  }
-  return selected.length > 0 ? selected : defaultPermissionsForPosition(position);
+  if (role === "ADMIN") return selected.length > 0 ? selected : defaultPermissionsForRole(role);
+  if (role === "MENTOR") return selected.filter((permission) => permission.startsWith("operaciones."));
+  return selected;
 }
 
 async function assertCollectorAvailable(
@@ -131,12 +127,12 @@ export async function createUserAction(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const role = parseRole(formData.get("role"));
   let scoped = readScopedFields(formData);
-  const selected = normalizePermissions(formData.getAll("permissions"));
+  const selected = menuAccessToPermissions(normalizeMenuAccess(formData.getAll("menuAccess")));
 
   if (!email || !email.includes("@")) throw new Error("Correo inválido");
   if (password.length < 10) throw new Error("La contraseña temporal debe tener mínimo 10 caracteres");
   scoped = await normalizeScopedReferences(scoped, null);
-  const permissions = resolvedPermissions(role, selected, scoped.position);
+  const permissions = resolvedPermissions(role, selected);
 
   await prisma.$transaction(async (tx) => {
     await assertCollectorAvailable(tx, scoped.isCollector);
@@ -234,10 +230,13 @@ export async function updateUserAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
   const role = parseRole(formData.get("role"));
   let scoped = readScopedFields(formData);
-  const permissions = normalizePermissions(formData.getAll("permissions"));
+  const permissions = resolvedPermissions(
+    role,
+    menuAccessToPermissions(normalizeMenuAccess(formData.getAll("menuAccess"))),
+  );
   if (!id || id === actor.id) return;
   scoped = await normalizeScopedReferences(scoped, id);
-  const effectivePermissions = resolvedPermissions(role, permissions, scoped.position);
+  const effectivePermissions = permissions;
 
   await prisma.$transaction(async (tx) => {
     await assertCollectorAvailable(tx, scoped.isCollector, id);

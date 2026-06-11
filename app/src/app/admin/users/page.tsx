@@ -3,13 +3,12 @@ import { Role } from "@prisma/client";
 import { getSession } from "@/lib/auth";
 import {
   canManageUsers,
-  defaultPermissionsForPosition,
   OPERATIONAL_POSITIONS,
   DATA_SCOPES,
-  PERMISSION_GROUPS,
   POSITION_LABELS,
   SCOPE_LABELS,
 } from "@/lib/permissions";
+import { deriveMenuAccessFromPermissions, MENU_ACCESS_ITEMS } from "@/lib/menu-access";
 import { prisma } from "@/lib/prisma";
 import { OperationsShell } from "@/app/operaciones/operations-shell";
 import { createUserAction, toggleUserStatusAction, updateOwnProfileAction, updateUserAction } from "./actions";
@@ -36,21 +35,25 @@ interface OptionItem {
   label: string;
 }
 
-function PermissionCheckboxes({ selected }: { selected: string[] }) {
+function MenuAccessCheckboxes({ selected }: { selected: string[] }) {
+  const groups = ["Comercial", "Operaciones", "Sistema"] as const;
   return (
-    <div className="permission-grid">
-      {PERMISSION_GROUPS.map((group) => (
-        <fieldset className="permission-group" key={group.id}>
-          <legend>{group.label}</legend>
-          {group.permissions.map((permission) => (
-            <label className="checkbox-row" key={permission.id}>
+    <div className="menu-access-grid">
+      {groups.map((group) => (
+        <fieldset className="menu-access-group" key={group}>
+          <legend>{group}</legend>
+          {MENU_ACCESS_ITEMS.filter((item) => item.group === group).map((item) => (
+            <label className="menu-access-row" key={item.id}>
               <input
                 type="checkbox"
-                name="permissions"
-                value={permission.id}
-                defaultChecked={selected.includes(permission.id)}
+                name="menuAccess"
+                value={item.id}
+                defaultChecked={selected.includes(item.id)}
               />
-              <span>{permission.label}</span>
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.description}</small>
+              </span>
             </label>
           ))}
         </fieldset>
@@ -208,7 +211,7 @@ export default async function UsersAdminPage() {
             <div className="field"><label>Contraseña temporal</label><input name="password" type="password" required minLength={10} placeholder="mín. 10 caracteres" /></div>
           </div>
 
-          <fieldset className="permission-group">
+          <fieldset className="menu-access-section">
             <legend>Asignación operativa</legend>
             <p className="muted">Área, equipo, responsable, GHL y cobro del usuario.</p>
             <div className="form-grid">
@@ -228,15 +231,20 @@ export default async function UsersAdminPage() {
             </div>
           </fieldset>
 
+          <fieldset className="menu-access-section">
+            <legend>Pestañas habilitadas</legend>
+            <p className="muted">Acceso visible del menú izquierdo. Marca solo las secciones que este usuario debe poder abrir.</p>
+            <MenuAccessCheckboxes selected={[]} />
+          </fieldset>
+
           <details className="manual-advanced-panel">
-            <summary>Manual avanzado</summary>
-            <p className="muted">Opcional: ajusta rol, cargo, alcance y permisos técnicos iniciales si necesitas algo distinto al acceso básico.</p>
+            <summary>Manual técnico</summary>
+            <p className="muted">Opcional: ajusta rol, cargo y alcance de datos. Las pestañas marcadas se traducen automáticamente a permisos internos.</p>
             <div className="form-grid">
               <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
               <div className="field"><label>Cargo</label><PositionSelect value="VIEWER" /></div>
               <div className="field"><label>Alcance</label><ScopeSelect value="OWN" /></div>
             </div>
-            <PermissionCheckboxes selected={defaultPermissionsForPosition("VIEWER")} />
           </details>
 
           <button className="btn" type="submit">Crear acceso</button>
@@ -261,7 +269,7 @@ export default async function UsersAdminPage() {
                 <div>
                   <p className="muted">GHL: {user.ghlUserId ? user.ghlUserId : "sin mapear"}{user.ghlUserName ? ` (${user.ghlUserName})` : ""}</p>
                   <p className="muted">Cartera: {user.isCollector ? "Encargado de cobro" : "No"}</p>
-                  <p className="muted">Permisos: {user.permissions.length ? user.permissions.join(", ") : "por cargo"}</p>
+                  <p className="muted">Pestañas: {deriveMenuAccessFromPermissions(user.role, user.permissions).map((id) => MENU_ACCESS_ITEMS.find((item) => item.id === id)?.label ?? id).join(", ") || "sin acceso visible"}</p>
                   <p className="muted">Último acceso: {user.lastLoginAt ? user.lastLoginAt.toISOString().slice(0, 16).replace("T", " ") : "nunca"}</p>
                 </div>
                 <form action={updateUserAction} className="inline-admin-form">
@@ -284,7 +292,11 @@ export default async function UsersAdminPage() {
                       </span>
                     </label>
                   </div>
-                  <PermissionCheckboxes selected={user.permissions.length ? user.permissions : defaultPermissionsForPosition(user.position)} />
+                  <fieldset className="menu-access-section compact-menu-access">
+                    <legend>Pestañas habilitadas</legend>
+                    <p className="muted">Marca lo que verá en el menú izquierdo.</p>
+                    <MenuAccessCheckboxes selected={deriveMenuAccessFromPermissions(user.role, user.permissions)} />
+                  </fieldset>
                   <button className="btn secondary" type="submit" disabled={user.id === session.sub}>Guardar configuración</button>
                 </form>
                 <form action={toggleUserStatusAction}>

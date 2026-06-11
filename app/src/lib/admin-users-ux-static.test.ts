@@ -8,7 +8,7 @@ const staticDashboardSource = () => readFileSync(resolve(appRoot, "../index.html
 const teamAccessRouteSource = () => readFileSync(resolve(appRoot, "src/app/api/admin/team-access-summary/route.ts"), "utf8");
 
 describe("admin users UX", () => {
-  it("keeps user creation free of access-template complexity", () => {
+  it("uses left-menu tabs as the primary access selector", () => {
     const source = usersPageSource();
 
     expect(source).not.toContain("PERMISSION_PRESETS");
@@ -16,7 +16,13 @@ describe("admin users UX", () => {
     expect(source).not.toContain("Usar plantilla rápida");
     expect(source).not.toContain('name="permissionPreset"');
     expect(source).not.toContain("preset-select-panel");
-    expect(source).toContain("Manual avanzado");
+    expect(source).not.toContain("<PermissionCheckboxes");
+    expect(source).toContain("MENU_ACCESS_ITEMS");
+    expect(source).toContain('name="menuAccess"');
+    expect(source).toContain("Pestañas habilitadas");
+    expect(source).toContain("Acceso visible del menú izquierdo");
+    expect(source).toContain("deriveMenuAccessFromPermissions");
+    expect(source).toContain("Manual técnico");
     expect(source).toContain("manual-advanced-panel");
   });
 
@@ -56,6 +62,10 @@ describe("admin users UX", () => {
     expect(dashboard).toContain("const openEmbeddedRoute=(href,sectionId)");
     expect(dashboard).toContain("setEmbedUrl(href)");
     expect(dashboard).toContain('href:"/admin/users"');
+    expect(dashboard).toContain("menuAccess=new Set");
+    expect(dashboard).toContain("filterMenuTab");
+    expect(dashboard).toContain("visibleTabs=TABS.map(filterMenuTab).filter(Boolean)");
+    expect(dashboard).toContain("visibleMobileTabs=MOBILE_TABS.map(filterMenuTab).filter(Boolean)");
     expect(dashboard).toContain("openEmbeddedRoute(t.href,t.id)");
     expect(dashboard).toContain("<iframe");
     expect(dashboard).toContain("src={embedUrl}");

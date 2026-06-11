@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { canManageUsers, ALL_PERMISSIONS, SCOPE_LABELS, POSITION_LABELS } from "@/lib/permissions";
+import { deriveMenuAccessFromPermissions } from "@/lib/menu-access";
 import { getDashboardActor } from "@/lib/dashboard-actor";
 import { isAdmin, resolveDashboardAccess } from "@/lib/dashboard-access";
 
@@ -33,6 +34,7 @@ export async function GET() {
       name: actor.name,
       role: actor.role,
       permissions,
+      menuAccess: deriveMenuAccessFromPermissions(actor.role, permissions),
       canManageUsers: canManageUsers(actor.role, permissions),
       position: actor.position,
       positionLabel: POSITION_LABELS[actor.position],

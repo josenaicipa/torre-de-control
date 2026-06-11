@@ -3781,14 +3781,33 @@ function App(){
   const canManage=!!(me&&me.canManageUsers);
   const caps=(me&&me.capabilities)||null;
   const scopeLimited=!!(caps&&!caps.isGlobalData);
-  // Hide the Admin tab unless the user can manage users.
-  const visibleTabs=TABS.filter(t=>t.id!=="admin"||canManage);
-  const visibleMobileTabs=MOBILE_TABS.filter(t=>t&&(t.id!=="admin"||canManage));
-  // If the user landed on a now-hidden tab, fall back to the default view.
+  const menuAccess=new Set((me&&Array.isArray(me.menuAccess))?me.menuAccess:[]);
+  const isMenuAllowed=(id)=>!me||menuAccess.has(id)||(id==="admin"&&canManage);
+  const filterMenuTab=(t)=>{
+    if(!t)return null;
+    if(t.id==="admin")return isMenuAllowed("admin")?t:null;
+    if(t.children&&t.children.length>0){
+      const children=t.children.filter(c=>isMenuAllowed(c.id));
+      return isMenuAllowed(t.id)||children.length>0?{...t,children}:null;
+    }
+    return isMenuAllowed(t.id)?t:null;
+  };
+  const visibleTabs=TABS.map(filterMenuTab).filter(Boolean);
+  const visibleMobileTabs=MOBILE_TABS.map(filterMenuTab).filter(Boolean);
+  // If the user landed on a now-hidden tab, fall back to the first visible view.
   useEffect(()=>{
-    if(me&&!canManage&&tab==="admin")changeTab("torre");
-    if(me&&canManage&&tab==="admin"&&!embedUrl)openEmbeddedRoute("/admin/users","admin");
-  },[me,canManage,tab,embedUrl]);
+    if(!me)return;
+    const currentVisible=visibleTabs.some(t=>t.id===tab);
+    if(!currentVisible){
+      const fallback=visibleTabs.find(t=>!t.href&&!t.children)||visibleTabs[0];
+      if(fallback){
+        if(fallback.href)openEmbeddedRoute(fallback.href,fallback.id);
+        else changeTab(fallback.id);
+      }
+      return;
+    }
+    if(tab==="admin"&&canManage&&!embedUrl)openEmbeddedRoute("/admin/users","admin");
+  },[me,canManage,tab,embedUrl,visibleTabs.length]);
 
   useEffect(()=>{
     (async()=>{

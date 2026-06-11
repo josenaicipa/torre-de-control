@@ -307,22 +307,61 @@ a:hover {
   color: var(--color-text);
 }
 
-.permission-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
-  gap: var(--space-3);
-}
-
-.permission-group {
+.menu-access-section,
+.menu-access-group {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: var(--space-3);
   background: var(--color-surface-2);
 }
 
-.permission-group legend {
+.menu-access-section > legend,
+.menu-access-group > legend {
   padding-inline: var(--space-2);
   font-weight: 700;
+}
+
+.menu-access-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.menu-access-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.menu-access-row {
+  align-items: flex-start;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.menu-access-row input {
+  margin-top: 3px;
+}
+
+.menu-access-row strong,
+.menu-access-row small {
+  display: block;
+}
+
+.menu-access-row small {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.compact-menu-access .menu-access-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 }
 
 .manual-advanced-panel summary {
