@@ -269,6 +269,44 @@ describe("botón Registrar pago / Ver pagos (contraste)", () => {
   });
 });
 
+describe("rendimiento del query de Cartera (regresión)", () => {
+  // Guarda contra la regresión de performance: el query principal de la página
+  // debe ser liviano (select de campos mínimos para KPIs), y los metadatos
+  // pesados (nombre/mentor/closer) y el detalle de cuotas deben traerse solo
+  // para los estudiantes visibles. Si alguien vuelve a meter un `include`
+  // pesado en el query principal o quita el límite de render, esto debe romper.
+  const pageSource = readFileSync(
+    fileURLToPath(new URL("../app/operaciones/cartera/page.tsx", import.meta.url)),
+    "utf8",
+  );
+
+  it("usa un select liviano (sin include) para el query principal de KPIs", () => {
+    // El primer findMany no debe incluir relaciones; solo los campos del cálculo.
+    const mainQuery = pageSource.slice(
+      pageSource.indexOf("prisma.paymentSchedule.findMany"),
+      pageSource.indexOf("const today"),
+    );
+    expect(mainQuery).toContain("select:");
+    expect(mainQuery).not.toContain("include:");
+    expect(mainQuery).not.toContain("mentorUser");
+    expect(mainQuery).not.toContain("enrollment");
+  });
+
+  it("limita el render inicial a los primeros 50 por prioridad", () => {
+    expect(pageSource).toContain("INITIAL_RENDER_LIMIT = 50");
+    expect(pageSource).toContain("filteredSummaries.slice(0, INITIAL_RENDER_LIMIT)");
+    expect(pageSource).toContain("Mostrando los primeros");
+  });
+
+  it("trae metadatos y detalle solo para los estudiantes visibles, con scope", () => {
+    expect(pageSource).toContain("prisma.student.findMany");
+    expect(pageSource).toContain("id: { in: visibleStudentIds }");
+    expect(pageSource).toContain("studentId: { in: visibleStudentIds }");
+    // El scope del actor se sigue aplicando en ambas consultas dependientes.
+    expect(pageSource).toContain("...studentScopeFor(actor)");
+  });
+});
+
 describe("countStudentsByRisk", () => {
   it("counts students per risk level", () => {
     const items = [

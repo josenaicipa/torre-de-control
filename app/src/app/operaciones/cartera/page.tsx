@@ -18,6 +18,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// Cuántas cards de estudiante renderizamos de entrada. Acota el HTML inicial y
+// los joins pesados a los estudiantes más urgentes; los KPIs/conteos siguen sobre
+// toda la cartera. Se ordena por prioridad antes de cortar.
+const INITIAL_RENDER_LIMIT = 50;
+
 type EstadoFilter = "todas" | "vencidas" | "proximas" | "pendientes";
 
 // Compatibilidad con el searchParams histórico (?estado=vencidas|proximas|pendientes).
@@ -97,27 +102,21 @@ export default async function CarteraPage({
   const sp = await searchParams;
   const estado = normalizeEstado(sp.estado);
 
+  // Consulta liviana para KPIs/resúmenes: solo los campos que necesita el cálculo,
+  // sin relaciones pesadas (student/enrollment/product/cuenta). Esto evita traer
+  // toda la cartera con joins por cada cuota.
   const schedules = await prisma.paymentSchedule.findMany({
     where: {
       status: { notIn: ["PAID", "WAIVED"] },
       student: studentScopeFor(actor) as never,
     },
     orderBy: { dueDate: "asc" },
-    include: {
-      student: {
-        select: {
-          id: true,
-          fullName: true,
-          mentorUser: { select: { name: true, email: true } },
-          closerUser: { select: { name: true, email: true } },
-        },
-      },
-      enrollment: {
-        select: {
-          product: { select: { name: true } },
-          paymentAccount: { select: { displayName: true } },
-        },
-      },
+    select: {
+      studentId: true,
+      amountDue: true,
+      amountPaid: true,
+      dueDate: true,
+      status: true,
     },
   });
 
@@ -131,57 +130,103 @@ export default async function CarteraPage({
     status: s.status,
   }));
 
-  // Metadatos y detalle de cuotas por estudiante para el render de cada card.
-  const metaByStudent = new Map<string, StudentMeta>();
-  for (const s of schedules) {
-    const amountDue = toNum(s.amountDue);
-    const amountPaid = toNum(s.amountPaid);
-    const installment: CarteraInstallment = {
-      studentId: s.studentId,
-      amountDue,
-      amountPaid,
-      dueDate: s.dueDate,
-      status: s.status,
-    };
-    // Solo cuotas con saldo entran en cartera.
-    if (classifyInstallment(installment, today) === null) continue;
-
-    let meta = metaByStudent.get(s.studentId);
-    if (!meta) {
-      meta = {
-        studentName: s.student.fullName,
-        mentor: s.student.mentorUser?.name ?? s.student.mentorUser?.email ?? "—",
-        closer: s.student.closerUser?.name ?? s.student.closerUser?.email ?? "—",
-        installments: [],
-      };
-      metaByStudent.set(s.studentId, meta);
-    }
-    meta.installments.push({
-      id: s.id,
-      installmentNumber: s.installmentNumber,
-      dueDate: s.dueDate,
-      days: daysUntilDue(s.dueDate, today),
-      pendingUsd: installmentPending(installment),
-      displayStatus: deriveScheduleStatus(
-        { amountDue, amountPaid, dueDate: s.dueDate },
-        today,
-      ),
-      productName: s.enrollment?.product?.name ?? "—",
-      paymentAccount: s.enrollment?.paymentAccount?.displayName ?? null,
-    });
-  }
-
   const kpis = summarizeCartera(installments, today);
   const summaries = summarizeStudents(installments, today);
   const riskCounts = countStudentsByRisk(summaries);
 
-  const visibleSummaries = (
+  const filteredSummaries = (
     estado === "todas"
       ? summaries
       : summaries.filter((s) => s.riskLevel === ESTADO_TO_RISK[estado])
   )
     .slice()
     .sort(compareStudentSummary);
+
+  // Solo renderizamos el HTML de los estudiantes más urgentes. Los KPIs y los
+  // conteos de filtros de arriba siguen calculados sobre TODA la cartera liviana;
+  // este límite solo recorta cuántas cards (y sus joins pesados) materializamos.
+  const visibleSummaries = filteredSummaries.slice(0, INITIAL_RENDER_LIMIT);
+  const hiddenCount = filteredSummaries.length - visibleSummaries.length;
+  const visibleStudentIds = visibleSummaries.map((s) => s.studentId);
+
+  // Metadatos pesados (nombre, mentor, closer) y detalle de cuotas/producto/cuenta
+  // solo para los estudiantes visibles, respetando el mismo scope del actor.
+  const metaByStudent = new Map<string, StudentMeta>();
+  if (visibleStudentIds.length > 0) {
+    const [students, detailSchedules] = await Promise.all([
+      prisma.student.findMany({
+        where: { id: { in: visibleStudentIds }, ...studentScopeFor(actor) },
+        select: {
+          id: true,
+          fullName: true,
+          mentorUser: { select: { name: true, email: true } },
+          closerUser: { select: { name: true, email: true } },
+        },
+      }),
+      prisma.paymentSchedule.findMany({
+        where: {
+          studentId: { in: visibleStudentIds },
+          status: { notIn: ["PAID", "WAIVED"] },
+          student: studentScopeFor(actor) as never,
+        },
+        orderBy: { dueDate: "asc" },
+        select: {
+          id: true,
+          studentId: true,
+          installmentNumber: true,
+          amountDue: true,
+          amountPaid: true,
+          dueDate: true,
+          status: true,
+          enrollment: {
+            select: {
+              product: { select: { name: true } },
+              paymentAccount: { select: { displayName: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    for (const student of students) {
+      metaByStudent.set(student.id, {
+        studentName: student.fullName,
+        mentor: student.mentorUser?.name ?? student.mentorUser?.email ?? "—",
+        closer: student.closerUser?.name ?? student.closerUser?.email ?? "—",
+        installments: [],
+      });
+    }
+
+    for (const s of detailSchedules) {
+      const amountDue = toNum(s.amountDue);
+      const amountPaid = toNum(s.amountPaid);
+      const installment: CarteraInstallment = {
+        studentId: s.studentId,
+        amountDue,
+        amountPaid,
+        dueDate: s.dueDate,
+        status: s.status,
+      };
+      // Solo cuotas con saldo entran en cartera.
+      if (classifyInstallment(installment, today) === null) continue;
+
+      const meta = metaByStudent.get(s.studentId);
+      if (!meta) continue;
+      meta.installments.push({
+        id: s.id,
+        installmentNumber: s.installmentNumber,
+        dueDate: s.dueDate,
+        days: daysUntilDue(s.dueDate, today),
+        pendingUsd: installmentPending(installment),
+        displayStatus: deriveScheduleStatus(
+          { amountDue, amountPaid, dueDate: s.dueDate },
+          today,
+        ),
+        productName: s.enrollment?.product?.name ?? "—",
+        paymentAccount: s.enrollment?.paymentAccount?.displayName ?? null,
+      });
+    }
+  }
 
   const filters: { key: EstadoFilter; label: string; count: number }[] = [
     { key: "todas", label: "Todos", count: riskCounts.total },
@@ -278,6 +323,13 @@ export default async function CarteraPage({
         </div>
       ) : (
         <div className="space-y-3">
+          {hiddenCount > 0 && (
+            <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              Mostrando los primeros {visibleSummaries.length} estudiantes por
+              prioridad (en mora y próximos a vencer arriba). Hay {hiddenCount} más
+              en esta vista; usa los filtros de arriba para acotar la lista.
+            </p>
+          )}
           {visibleSummaries.map((s) => {
             const meta = metaByStudent.get(s.studentId);
             if (!meta) return null;
