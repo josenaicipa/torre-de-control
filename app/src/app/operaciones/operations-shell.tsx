@@ -421,6 +421,7 @@ export function OperationsShell({
       {!isEmbedded && mobileMenuOpen && (
         <button
           type="button"
+          data-operations-mobile-overlay
           aria-label="Cerrar menú"
           onClick={closeMobileMenu}
           className="fixed inset-0 z-40 md:hidden"

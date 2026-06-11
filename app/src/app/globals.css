@@ -709,20 +709,27 @@ a:hover {
 
 /* ============================================================
  * Embed mode: la app esta dentro de un iframe del legacy command
- * center. Ocultamos sidebar/mobile nav propios y dejamos que el
- * contenido use todo el espacio. El sidebar legacy ya esta
- * visible afuera del iframe.
+ * center. El script inline del layout marca <html> con .embed-mode
+ * ANTES del primer paint, asi nunca se ve el menu Next replicado.
+ * Ocultamos sidebar desktop, header movil, overlay y drawer, y
+ * dejamos que el contenido use todo el ancho del iframe. El selector
+ * de ancestro va sin etiqueta para servir tanto si la clase cae en
+ * <html> (script inline) como en <body> (fallback de hidratacion).
  * ============================================================ */
-body.embed-mode [data-operations-sidebar],
-body.embed-mode [data-operations-mobile-nav] {
+.embed-mode [data-operations-sidebar],
+.embed-mode [data-operations-mobile-header],
+.embed-mode [data-operations-mobile-overlay],
+.embed-mode [data-operations-mobile-nav],
+.embed-mode #mobile-menu-panel {
   display: none !important;
 }
 
-body.embed-mode [data-operations-main] {
+.embed-mode [data-operations-main] {
   margin-left: 0 !important;
   padding: 16px 24px !important;
 }
 
-body.embed-mode {
+.embed-mode,
+.embed-mode body {
   background: #f6f7f7 !important;
 }
