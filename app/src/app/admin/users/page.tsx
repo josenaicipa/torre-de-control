@@ -10,7 +10,6 @@ import {
   POSITION_LABELS,
   SCOPE_LABELS,
 } from "@/lib/permissions";
-import { PERMISSION_PRESETS } from "@/lib/permission-presets";
 import { prisma } from "@/lib/prisma";
 import { OperationsShell } from "@/app/operaciones/operations-shell";
 import { createUserAction, toggleUserStatusAction, updateOwnProfileAction, updateUserAction } from "./actions";
@@ -201,7 +200,7 @@ export default async function UsersAdminPage() {
 
       <section className="card admin-section">
         <h2>Crear usuario</h2>
-        <p className="muted">Crea el acceso desde una plantilla rápida y completa solo los datos operativos necesarios.</p>
+        <p className="muted">Crea el acceso con datos básicos, asignación operativa y permisos iniciales simples.</p>
         <form action={createUserAction} className="admin-form">
           <div className="form-grid">
             <div className="field"><label>Nombre</label><input name="name" placeholder="Nombre completo" /></div>
@@ -209,22 +208,9 @@ export default async function UsersAdminPage() {
             <div className="field"><label>Contraseña temporal</label><input name="password" type="password" required minLength={10} placeholder="mín. 10 caracteres" /></div>
           </div>
 
-          <div className="preset-select-panel">
-            <div>
-              <label htmlFor="permissionPreset">Plantilla de acceso</label>
-              <p className="muted">Usar plantilla rápida aplica rol, cargo, alcance y permisos automáticamente.</p>
-            </div>
-            <select id="permissionPreset" name="permissionPreset" defaultValue="solo-lectura">
-              {PERMISSION_PRESETS.map((preset) => (
-                <option key={preset.id} value={preset.id}>{preset.label} · {preset.description}</option>
-              ))}
-              <option value="manual">Manual avanzado · usar exactamente lo configurado abajo</option>
-            </select>
-          </div>
-
           <fieldset className="permission-group">
             <legend>Asignación operativa</legend>
-            <p className="muted">Estos datos sí se guardan con cualquier plantilla: área, equipo, responsable, GHL y cobro.</p>
+            <p className="muted">Área, equipo, responsable, GHL y cobro del usuario.</p>
             <div className="form-grid">
               <div className="field"><label>Área</label><RelationSelect name="areaId" placeholder="Sin área" options={areaOptions} /></div>
               <div className="field"><label>Equipo</label><RelationSelect name="teamId" placeholder="Sin equipo" options={teamOptions} /></div>
@@ -244,7 +230,7 @@ export default async function UsersAdminPage() {
 
           <details className="manual-advanced-panel">
             <summary>Manual avanzado</summary>
-            <p className="muted">Solo aplica si seleccionas “Manual avanzado” en Plantilla de acceso. Con una plantilla rápida, el servidor ignora estos campos y usa la plantilla.</p>
+            <p className="muted">Opcional: ajusta rol, cargo, alcance y permisos técnicos iniciales si necesitas algo distinto al acceso básico.</p>
             <div className="form-grid">
               <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
               <div className="field"><label>Cargo</label><PositionSelect value="VIEWER" /></div>

@@ -298,8 +298,7 @@ a:hover {
 }
 
 .field select,
-.compact-field select,
-.preset-select-panel select {
+.compact-field select {
   font: inherit;
   padding: var(--space-3);
   border-radius: var(--radius-sm);
@@ -326,25 +325,9 @@ a:hover {
   font-weight: 700;
 }
 
-.preset-select-panel {
-  align-items: end;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  display: grid;
-  gap: var(--space-3);
-  grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1.2fr);
-  padding: var(--space-4);
-}
-
-.preset-select-panel label,
 .manual-advanced-panel summary {
   color: var(--color-text);
   font-weight: 700;
-}
-
-.preset-select-panel p {
-  margin: var(--space-1) 0 0;
 }
 
 .manual-advanced-panel {
@@ -462,7 +445,6 @@ a:hover {
 }
 
 @media (max-width: 860px) {
-  .preset-select-panel,
   .user-summary-line {
     grid-template-columns: 1fr;
   }

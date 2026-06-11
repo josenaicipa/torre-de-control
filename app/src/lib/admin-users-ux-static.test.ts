@@ -8,16 +8,16 @@ const staticDashboardSource = () => readFileSync(resolve(appRoot, "../index.html
 const teamAccessRouteSource = () => readFileSync(resolve(appRoot, "src/app/api/admin/team-access-summary/route.ts"), "utf8");
 
 describe("admin users UX", () => {
-  it("offers practical permission presets as a compact creation shortcut", () => {
+  it("keeps user creation free of access-template complexity", () => {
     const source = usersPageSource();
 
-    expect(source).toContain("PERMISSION_PRESETS");
-    expect(source).toContain("Plantilla de acceso");
-    expect(source).toContain("Usar plantilla rápida");
-    expect(source).toContain('name="permissionPreset"');
+    expect(source).not.toContain("PERMISSION_PRESETS");
+    expect(source).not.toContain("Plantilla de acceso");
+    expect(source).not.toContain("Usar plantilla rápida");
+    expect(source).not.toContain('name="permissionPreset"');
+    expect(source).not.toContain("preset-select-panel");
     expect(source).toContain("Manual avanzado");
     expect(source).toContain("manual-advanced-panel");
-    expect(source).not.toContain("Elige una plantilla. El servidor aplicará rol, cargo, alcance y permisos de forma consistente.");
   });
 
   it("keeps team summary out of user administration", () => {

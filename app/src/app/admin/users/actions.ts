@@ -13,10 +13,6 @@ import {
   parsePosition,
   parseScope,
 } from "@/lib/permissions";
-import {
-  getPermissionPreset,
-  isPermissionPresetId,
-} from "@/lib/permission-presets";
 import { prisma } from "@/lib/prisma";
 import { normalizeAreaForSelectedTeam } from "@/lib/user-scope-normalization";
 
@@ -133,23 +129,14 @@ export async function createUserAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const name = String(formData.get("name") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const presetId = String(formData.get("permissionPreset") ?? "");
-  const preset = isPermissionPresetId(presetId) ? getPermissionPreset(presetId) : null;
-  const role = preset ? preset.role : parseRole(formData.get("role"));
+  const role = parseRole(formData.get("role"));
   let scoped = readScopedFields(formData);
-  if (preset) {
-    scoped = {
-      ...scoped,
-      position: preset.position,
-      dataScope: preset.dataScope,
-    };
-  }
   const selected = normalizePermissions(formData.getAll("permissions"));
 
   if (!email || !email.includes("@")) throw new Error("Correo inválido");
   if (password.length < 10) throw new Error("La contraseña temporal debe tener mínimo 10 caracteres");
   scoped = await normalizeScopedReferences(scoped, null);
-  const permissions = preset ? preset.permissions : resolvedPermissions(role, selected, scoped.position);
+  const permissions = resolvedPermissions(role, selected, scoped.position);
 
   await prisma.$transaction(async (tx) => {
     await assertCollectorAvailable(tx, scoped.isCollector);
@@ -178,7 +165,6 @@ export async function createUserAction(formData: FormData) {
         action: "user.created",
         target: email,
         metadata: {
-          presetId: preset?.id ?? null,
           role,
           permissions,
           position: scoped.position,
