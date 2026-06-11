@@ -537,6 +537,176 @@ a:hover {
   margin-bottom: var(--space-1);
 }
 
+/* ------------------------------------------------------------
+ * Variante compacta de densidad (solo Admin · Usuarios).
+ * Usa los mismos tokens de espaciado y texto; solo reduce padding,
+ * gaps y alturas de control para que quepa mas informacion por
+ * pantalla en uso operativo interno (ver docs/design-lock.md).
+ * ------------------------------------------------------------ */
+.admin-users-surface {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Ritmo de secciones compacto: gana al .space-y-6 de Tailwind
+   (v4 usa margin-bottom en :not(:last-child); v3 usaba margin-top
+   en hermanos). Los margenes verticales colapsan en flujo normal. */
+.admin-users-surface.space-y-6 > :not(:last-child) {
+  margin-block-end: var(--space-4);
+}
+
+.admin-users-surface.space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: var(--space-4);
+  margin-bottom: 0;
+}
+
+/* El margin-top propio de .admin-section duplicaria el gap. */
+.admin-users-surface .admin-section {
+  margin-top: 0;
+}
+
+.admin-users-surface .card {
+  padding: 14px 16px;
+}
+
+.admin-users-surface .admin-section > p.muted,
+.admin-users-surface .card > p.muted {
+  margin: 0 0 var(--space-3);
+}
+
+/* Controles compactos: ~36px de alto, texto legible en --text-sm. */
+.admin-users-surface .field input,
+.admin-users-surface .field select,
+.admin-users-surface .compact-field input,
+.admin-users-surface .compact-field select {
+  padding: 8px 10px;
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  min-height: 36px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-users-surface .field {
+  gap: var(--space-1);
+  margin-bottom: 0;
+}
+
+.admin-users-surface .compact-field {
+  gap: var(--space-1);
+}
+
+.admin-users-surface .admin-form,
+.admin-users-surface .inline-admin-form {
+  gap: var(--space-3);
+}
+
+.admin-users-surface .admin-profile-form {
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-users-surface .admin-profile-form .form-grid {
+  align-items: end;
+}
+
+@media (max-width: 1100px) {
+  .admin-users-surface .admin-profile-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-users-surface .user-list {
+  gap: var(--space-3);
+}
+
+.admin-users-surface .user-detail-body {
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.admin-users-surface .user-summary-line {
+  gap: var(--space-3);
+}
+
+/* Grids sin desborde horizontal: minimos acotados a 100% y items
+   que pueden encoger (min-width: 0). */
+.admin-users-surface .form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.admin-users-surface .compact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.admin-users-surface .menu-access-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.admin-users-surface .form-grid > *,
+.admin-users-surface .compact-grid > *,
+.admin-users-surface .menu-access-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Los fieldset no encogen por debajo de min-content por defecto. */
+.admin-users-surface fieldset {
+  min-inline-size: 0;
+  max-width: 100%;
+  margin: 0;
+}
+
+/* Fieldsets ligeros: menos caja gris, menos espacio muerto. */
+.admin-users-surface .menu-access-section {
+  background: transparent;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.admin-users-surface .menu-access-section > p.muted {
+  margin: var(--space-1) 0 0;
+}
+
+.admin-users-surface .menu-access-group {
+  padding: var(--space-2);
+  gap: var(--space-1);
+}
+
+.admin-users-surface .menu-access-section > legend,
+.admin-users-surface .menu-access-group > legend {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.admin-users-surface .menu-access-row {
+  padding: 7px 9px;
+  gap: var(--space-2);
+}
+
+.admin-users-surface .menu-access-row small {
+  line-height: 1.25;
+}
+
+/* Botones compactos; los items de grid no se estiran al ancho de
+   la tarjeta (arregla "Actualizar mi usuario" a ancho completo). */
+.admin-users-surface .btn {
+  padding: var(--space-2) var(--space-4);
+  min-height: 36px;
+  font-size: var(--text-sm);
+  width: auto;
+}
+
+.admin-users-surface .admin-form > .btn,
+.admin-users-surface .inline-admin-form > .btn {
+  justify-self: end;
+}
+
 /* ============================================================
  * Embed mode: la app esta dentro de un iframe del legacy command
  * center. Ocultamos sidebar/mobile nav propios y dejamos que el

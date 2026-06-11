@@ -187,7 +187,7 @@ export default async function UsersAdminPage() {
       <section className="card admin-section">
         <h2>Mi usuario</h2>
         <p className="muted">Usa el correo corporativo de Naicipa para iniciar sesión y administrar accesos. Puedes mapear tu propia identidad de GHL aquí.</p>
-        <form action={updateOwnProfileAction} className="admin-form">
+        <form action={updateOwnProfileAction} className="admin-form admin-profile-form">
           <div className="form-grid">
             <div className="field"><label>Nombre</label><input name="name" defaultValue={actor.name ?? ""} placeholder="Nombre completo" /></div>
             <div className="field"><label>Correo</label><input name="email" type="email" required defaultValue={actor.email} placeholder="jose@naicipa.com" /></div>

@@ -34,7 +34,11 @@ estático `app/src/lib/brand-design-guard.test.ts`, que corre en CI
   `prefers-color-scheme: dark`, hasta que exista un tema oscuro global
   diseñado y aprobado. Admin hereda el ritmo, espaciado y tamaños de fuente
   base del dashboard (`.card`, `--space-*`, `--text-*`); no define una escala
-  de layout propia.
+  de tokens propia. Sí aplica una **variante compacta de densidad** con
+  alcance local (reglas bajo `.admin-users-surface` en `globals.css`) que
+  reduce padding, gaps y alturas de control usando los mismos tokens, para
+  que quepa más información operativa por pantalla. El texto se mantiene en
+  `--text-sm` o mayor; no se reduce tipografía por debajo de la base.
 
 ## Regresiones prohibidas
 
