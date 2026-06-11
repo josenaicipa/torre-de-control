@@ -364,25 +364,6 @@ a:hover {
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 }
 
-.manual-advanced-panel summary {
-  color: var(--color-text);
-  font-weight: 700;
-}
-
-.manual-advanced-panel {
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-}
-
-.manual-advanced-panel summary {
-  cursor: pointer;
-}
-
-.manual-advanced-panel[open] summary {
-  margin-bottom: var(--space-3);
-}
-
 .checkbox-row {
   display: flex;
   align-items: center;

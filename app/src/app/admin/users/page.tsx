@@ -215,6 +215,9 @@ export default async function UsersAdminPage() {
             <legend>Asignación operativa</legend>
             <p className="muted">Área, equipo, responsable, GHL y cobro del usuario.</p>
             <div className="form-grid">
+              <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+              <div className="field"><label>Cargo</label><PositionSelect value="VIEWER" /></div>
+              <div className="field"><label>Alcance</label><ScopeSelect value="OWN" /></div>
               <div className="field"><label>Área</label><RelationSelect name="areaId" placeholder="Sin área" options={areaOptions} /></div>
               <div className="field"><label>Equipo</label><RelationSelect name="teamId" placeholder="Sin equipo" options={teamOptions} /></div>
               <div className="field"><label>Responsable / Director</label><RelationSelect name="managerId" placeholder="Sin responsable" options={managerOptions} /></div>
@@ -236,16 +239,6 @@ export default async function UsersAdminPage() {
             <p className="muted">Acceso visible del menú izquierdo. Marca solo las secciones que este usuario debe poder abrir.</p>
             <MenuAccessCheckboxes selected={[]} />
           </fieldset>
-
-          <details className="manual-advanced-panel">
-            <summary>Manual técnico</summary>
-            <p className="muted">Opcional: ajusta rol, cargo y alcance de datos. Las pestañas marcadas se traducen automáticamente a permisos internos.</p>
-            <div className="form-grid">
-              <div className="field"><label>Rol</label><select name="role" defaultValue="VIEWER">{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-              <div className="field"><label>Cargo</label><PositionSelect value="VIEWER" /></div>
-              <div className="field"><label>Alcance</label><ScopeSelect value="OWN" /></div>
-            </div>
-          </details>
 
           <button className="btn" type="submit">Crear acceso</button>
         </form>

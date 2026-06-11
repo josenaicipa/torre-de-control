@@ -22,8 +22,9 @@ describe("admin users UX", () => {
     expect(source).toContain("Pestañas habilitadas");
     expect(source).toContain("Acceso visible del menú izquierdo");
     expect(source).toContain("deriveMenuAccessFromPermissions");
-    expect(source).toContain("Manual técnico");
-    expect(source).toContain("manual-advanced-panel");
+    expect(source).toContain("Asignación operativa");
+    expect(source).not.toContain("Manual técnico");
+    expect(source).not.toContain("manual-advanced-panel");
   });
 
   it("keeps team summary out of user administration", () => {
