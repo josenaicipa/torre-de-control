@@ -228,7 +228,7 @@ const REPORT_GROUPS={
 const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...ALL_SETTER_COLLABORATORS,...CLOSER_COLLABORATORS];
 const MARKETING_MEMBER_IDS=new Set(MARKETING_COLLABORATORS.map(c=>c.id));
 const SETTER_MEMBER_IDS=new Set(ALL_SETTER_COLLABORATORS.map(c=>c.id));
-const COMMERCIAL_REPORTING_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.filter(c=>!c.legacy||!SETTER_MEMBER_IDS.has(c.legacy)).map(c=>c.id));
+const COMMERCIAL_REPORTING_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.id));
 const COMMERCIAL_LEGACY_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean).filter(id=>!SETTER_MEMBER_IDS.has(id)));
 const COMMERCIAL_MEMBER_IDS=new Set([
   ...COMMERCIAL_COLLABORATORS.map(c=>c.id),
@@ -265,12 +265,14 @@ const fX=(v,d=2)=>{const x=nv(v);if(x==null)return"—";return x.toFixed(d)+"x"}
 const fN=v=>{const x=nv(v);if(x==null)return"—";return Math.round(x).toLocaleString()};
 const sumF=(arr,k)=>arr.reduce((s,r)=>s+(nv(r[k])||0),0);
 const commercialPrimaryEntry=entries=>(entries||[]).find(e=>e&&isAdminMember(e.member))||null;
-const commercialDayHasPrimary=(date,entries)=>areaComercialHasPriority(date)&&!!commercialPrimaryEntry(entries);
-const commercialDayValue=(date,entries,field)=>commercialDayHasPrimary(date,entries)?nv(commercialPrimaryEntry(entries)[field]):sumF(entries,field);
+// Desde junio 1 el Área Comercial por colaborador es la fuente oficial:
+// Admin/Valentina + closers se suman; Admin ya no reemplaza a los closers.
+const commercialDayHasPrimary=(date,entries)=>false;
+const commercialDayValue=(date,entries,field)=>sumF(entries,field);
 const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
 const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-const AREA_COMERCIAL_PRIORITY_START="2026-06-08";
+const AREA_COMERCIAL_PRIORITY_START="2026-06-01";
 const areaComercialHasPriority=date=>date>=AREA_COMERCIAL_PRIORITY_START;
 const isJune2026=date=>date>="2026-06-01"&&date<="2026-06-30";
 const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_REPORTING_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);
@@ -1082,16 +1084,24 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     ...Object.keys(ledgerReservasByDay).filter(k=>k.startsWith(prefix)),
   ])];
   const monthlyCommercialMoneyDay=(date,closerRow)=>{
-    const hasPrimary=commercialDayHasPrimary(date,commercialEntriesByDay[date]||[]);
+    if(areaComercialHasPriority(date)){
+      return {
+        valorHT:commercialValorHTByDay[date]||0,
+        cashHT:commercialCashByDay[date]||0,
+        recurring:commercialRecurringByDay[date]||0,
+        lowTicket:commercialLowTicketByDay[date]||0,
+        reservas:commercialReservasByDay[date]||0,
+      };
+    }
     return {
-      valorHT:hasPrimary?commercialValueByDay(date,"valorVentaHT"):areaComercialHasPriority(date)?commercialValorHTByDay[date]||((closerRow&&closerRow.valor_venta_ht)||0):((closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0),
-      cashHT:hasPrimary?(commercialValueByDay(date,"cashCollected")||commercialValueByDay(date,"upfrontCash")):areaComercialHasPriority(date)?commercialCashByDay[date]||((closerRow&&closerRow.ventas_cash)||ledgerHTByDay[date]||0):((closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0),
-      recurring:hasPrimary?commercialValueByDay(date,"recurringCash"):areaComercialHasPriority(date)?commercialRecurringByDay[date]||((closerRow&&closerRow.recurring_cash)||0):((closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0),
-      lowTicket:hasPrimary?commercialValueByDay(date,"valorVentaLT"):areaComercialHasPriority(date)?commercialLowTicketByDay[date]||((closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0):((closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0),
-      reservas:hasPrimary?commercialValueByDay(date,"cashReservas"):areaComercialHasPriority(date)?commercialReservasByDay[date]||((closerRow&&closerRow.cash_reservas)||ledgerReservasByDay[date]||0):((closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0),
+      valorHT:(closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0,
+      cashHT:(closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0,
+      recurring:(closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0,
+      lowTicket:(closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0,
+      reservas:(closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0,
     };
   };
-  const monthlyCommercialSalesDay=(date,closerRow)=>commercialDayHasPrimary(date,commercialEntriesByDay[date]||[])?commercialValueByDay(date,"ventasHT"):(commercialValueByDay(date,"ventasHT")||((closerRow&&closerRow.q_ventas_ht)||0));
+  const monthlyCommercialSalesDay=(date,closerRow)=>areaComercialHasPriority(date)?commercialValueByDay(date,"ventasHT"):(commercialValueByDay(date,"ventasHT")||((closerRow&&closerRow.q_ventas_ht)||0));
   const totalVentas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialSalesDay(date,allCloser[date]),0);
   const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);
   const dispCash=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).cashHT,0)||(cashApi?cashApi.highTicket:0);
@@ -2043,7 +2053,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mGastoTikTok=hasHistoricalGasto?mHistoricalGastoTikTok:mDailyGastoTikTok;
   const mGastoOtros=hasHistoricalGasto?mHistoricalGastoOtros:mDailyGastoOtros;
   const mGastoTotal=mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros;
-  const cv=(d,closerField,entryField)=>d.hasPrimaryCommercial?d.sdCommercial(entryField):areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;
+  const cv=(d,closerField,entryField)=>areaComercialHasPriority(d.d)?d.sdCommercial(entryField):d.closer[closerField]||d.sdCommercial(entryField)||0;
   const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");
   const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");
   const manualShowUps=d=>d.sdHighTicketCloser("showUps");
@@ -2061,11 +2071,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mHoyTotal=dayData.reduce((s,d)=>s+manualAgendasHoy(d),0);
   const mShows=dayData.reduce((s,d)=>s+manualShowUps(d),0);
   const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);
-  const valorHTDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaHT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT")||d.closer.valor_venta_ht||0:d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;
-  const cashHTDay=d=>d.hasPrimaryCommercial?(d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")):areaComercialHasPriority(d.d)?d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.closer.ventas_cash||d.ledger.highTicket||0:d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
-  const recurringDay=d=>d.hasPrimaryCommercial?d.sdCommercial("recurringCash"):areaComercialHasPriority(d.d)?d.sdCommercial("recurringCash")||d.closer.recurring_cash||0:d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;
-  const cashLowTicketDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaLT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaLT")||d.closer.valor_venta_lt||d.ledger.lowTicket||0:d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;
-  const cashReservasDay=d=>d.hasPrimaryCommercial?d.sdCommercial("cashReservas"):areaComercialHasPriority(d.d)?d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||0:d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;
+  const valorHTDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT"):d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;
+  const cashHTDay=d=>areaComercialHasPriority(d.d)?(d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")):d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
+  const recurringDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("recurringCash"):d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;
+  const cashLowTicketDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaLT"):d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;
+  const cashReservasDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("cashReservas"):d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;
   const mValorHT=dayData.reduce((s,d)=>s+valorHTDay(d),0);
   const mLedgerCash=dayData.reduce((s,d)=>s+(d.ledger.cashCollected||0),0);
   const mLedgerHT=dayData.reduce((s,d)=>s+(d.ledger.highTicket||0),0);
