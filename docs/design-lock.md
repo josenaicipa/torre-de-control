@@ -32,7 +32,9 @@ estático `app/src/lib/brand-design-guard.test.ts`, que corre en CI
   CSS con alcance local. Admin no puede volver a ser un "mundo oscuro"
   separado aunque el sistema operativo del usuario esté en
   `prefers-color-scheme: dark`, hasta que exista un tema oscuro global
-  diseñado y aprobado.
+  diseñado y aprobado. Admin hereda el ritmo, espaciado y tamaños de fuente
+  base del dashboard (`.card`, `--space-*`, `--text-*`); no define una escala
+  de layout propia.
 
 ## Regresiones prohibidas
 
