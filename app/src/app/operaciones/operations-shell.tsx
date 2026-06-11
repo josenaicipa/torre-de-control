@@ -251,8 +251,9 @@ export function OperationsShell({
     actor.role === "ADMIN" || navItems.some((item) => item.href === "/admin/users");
   const showMentor = actor.role === "MENTOR";
 
-  // Si la app está embebida en iframe (shell legacy), no renderizamos el header
-  // móvil para evitar una cabecera duplicada dentro del iframe.
+  // Si la app está embebida en iframe (shell legacy), el menú global es el dueño
+  // de la navegación: ocultamos sidebar desktop, header móvil y drawer, y quitamos
+  // el margen izquierdo para evitar el menú duplicado y el desplazamiento fantasma.
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -336,28 +337,30 @@ export function OperationsShell({
 
   return (
     <div className="flex min-h-screen bg-[#f6f7f7]" style={{ color: TXT }}>
-      <aside
-        data-operations-sidebar
-        className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col overflow-y-auto md:flex"
-        style={{ backgroundColor: SURFACE, borderRight: `1px solid ${BORDER}` }}
-      >
-        <div style={{ padding: "20px 18px 16px", borderBottom: `1px solid ${BORDER}` }}>
-          {brandBlock}
-        </div>
+      {!isEmbedded && (
+        <aside
+          data-operations-sidebar
+          className="fixed inset-y-0 left-0 z-40 hidden w-[220px] flex-col overflow-y-auto md:flex"
+          style={{ backgroundColor: SURFACE, borderRight: `1px solid ${BORDER}` }}
+        >
+          <div style={{ padding: "20px 18px 16px", borderBottom: `1px solid ${BORDER}` }}>
+            {brandBlock}
+          </div>
 
-        <NavigationContent
-          pathname={pathname}
-          operationItems={operationItems}
-          operationsExpanded={operationsExpanded}
-          onToggleOperations={toggleOperations}
-          operationsActive={operationsActive}
-          comunidadDropiActive={comunidadDropiActive}
-          showMentor={showMentor}
-          showAdmin={showAdmin}
-        />
+          <NavigationContent
+            pathname={pathname}
+            operationItems={operationItems}
+            operationsExpanded={operationsExpanded}
+            onToggleOperations={toggleOperations}
+            operationsActive={operationsActive}
+            comunidadDropiActive={comunidadDropiActive}
+            showMentor={showMentor}
+            showAdmin={showAdmin}
+          />
 
-        {accountBlock}
-      </aside>
+          {accountBlock}
+        </aside>
+      )}
 
       {!isEmbedded && (
         <header
@@ -415,7 +418,7 @@ export function OperationsShell({
         </header>
       )}
 
-      {mobileMenuOpen && (
+      {!isEmbedded && mobileMenuOpen && (
         <button
           type="button"
           aria-label="Cerrar menú"
@@ -430,73 +433,75 @@ export function OperationsShell({
         />
       )}
 
-      <aside
-        id="mobile-menu-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Menú de navegación"
-        aria-hidden={!mobileMenuOpen}
-        className="fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto md:hidden"
-        style={{
-          backgroundColor: SURFACE,
-          borderRight: `1px solid ${BORDER}`,
-          transform: mobileMenuOpen ? "translateX(0)" : "translateX(-100%)",
-          transition: "transform 200ms ease-out",
-          visibility: mobileMenuOpen ? "visible" : "hidden",
-        }}
-      >
-        <div
+      {!isEmbedded && (
+        <aside
+          id="mobile-menu-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menú de navegación"
+          aria-hidden={!mobileMenuOpen}
+          className="fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto md:hidden"
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "14px 16px",
-            borderBottom: `1px solid ${BORDER}`,
+            backgroundColor: SURFACE,
+            borderRight: `1px solid ${BORDER}`,
+            transform: mobileMenuOpen ? "translateX(0)" : "translateX(-100%)",
+            transition: "transform 200ms ease-out",
+            visibility: mobileMenuOpen ? "visible" : "hidden",
           }}
         >
-          {brandBlock}
-          <button
-            type="button"
-            aria-label="Cerrar menú"
-            onClick={closeMobileMenu}
+          <div
             style={{
-              display: "inline-flex",
+              display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              width: 36,
-              height: 36,
-              border: "none",
-              borderRadius: 8,
-              backgroundColor: "transparent",
-              color: TXT2,
-              cursor: "pointer",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "14px 16px",
+              borderBottom: `1px solid ${BORDER}`,
             }}
           >
-            <X size={18} />
-          </button>
-        </div>
+            {brandBlock}
+            <button
+              type="button"
+              aria-label="Cerrar menú"
+              onClick={closeMobileMenu}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 36,
+                height: 36,
+                border: "none",
+                borderRadius: 8,
+                backgroundColor: "transparent",
+                color: TXT2,
+                cursor: "pointer",
+              }}
+            >
+              <X size={18} />
+            </button>
+          </div>
 
-        <NavigationContent
-          pathname={pathname}
-          operationItems={operationItems}
-          operationsExpanded={operationsExpanded}
-          onToggleOperations={toggleOperations}
-          operationsActive={operationsActive}
-          comunidadDropiActive={comunidadDropiActive}
-          showMentor={showMentor}
-          showAdmin={showAdmin}
-          onItemClick={closeMobileMenu}
-        />
+          <NavigationContent
+            pathname={pathname}
+            operationItems={operationItems}
+            operationsExpanded={operationsExpanded}
+            onToggleOperations={toggleOperations}
+            operationsActive={operationsActive}
+            comunidadDropiActive={comunidadDropiActive}
+            showMentor={showMentor}
+            showAdmin={showAdmin}
+            onItemClick={closeMobileMenu}
+          />
 
-        {accountBlock}
-      </aside>
+          {accountBlock}
+        </aside>
+      )}
 
       <main
         data-operations-main
         className={`min-h-screen flex-1 overflow-x-auto bg-[#f6f7f7] p-4 ${
-          isEmbedded ? "" : "pt-20"
-        } md:ml-[220px] md:p-8`}
+          isEmbedded ? "" : "pt-20 md:ml-[220px]"
+        } md:p-8`}
       >
         {children}
       </main>
