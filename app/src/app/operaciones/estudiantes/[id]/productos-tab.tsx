@@ -82,6 +82,18 @@ interface Enrollment {
   paymentAccount: PaymentAccount | null;
   accessStatus: "PENDING" | "ACTIVE" | "SUSPENDED" | "REVOKED" | "SYNC_ERROR";
   accessGrantedAt: string | null;
+  contractStatus:
+    | "DRAFT"
+    | "PENDING_SIGNATURE"
+    | "SIGNED"
+    | "PENDING_APPROVAL"
+    | "APPROVED"
+    | "REJECTED";
+  contractUrl: string | null;
+  contractSignedAt: string | null;
+  contractApprovedAt: string | null;
+  contractRejectedAt: string | null;
+  contractRejectionReason: string | null;
   learnWorldsSyncStatus: string;
   learnWorldsSyncError: string | null;
   notes: string | null;
@@ -133,6 +145,15 @@ const ACCESS_STATUS_LABEL: Record<Enrollment["accessStatus"], [string, string]> 
   SUSPENDED: ["Suspendido", "bg-amber-100 text-amber-700"],
   REVOKED: ["Revocado", "bg-rose-100 text-rose-700"],
   SYNC_ERROR: ["Error LW", "bg-rose-100 text-rose-700"],
+};
+
+const CONTRACT_STATUS_LABEL: Record<Enrollment["contractStatus"], [string, string]> = {
+  DRAFT: ["Borrador", "bg-slate-100 text-slate-700"],
+  PENDING_SIGNATURE: ["Pendiente de firma", "bg-amber-100 text-amber-700"],
+  SIGNED: ["Firmado", "bg-sky-100 text-sky-700"],
+  PENDING_APPROVAL: ["Pendiente aprobación", "bg-amber-100 text-amber-700"],
+  APPROVED: ["Aprobado", "bg-emerald-100 text-emerald-700"],
+  REJECTED: ["Rechazado", "bg-rose-100 text-rose-700"],
 };
 
 const SCHEDULE_STATUS_LABEL: Record<EnrollmentSchedule["status"], [string, string]> = {
@@ -235,7 +256,13 @@ export function ProductosTab({
       ) : (
         <div className="space-y-4">
           {enrollments.map((enrollment) => (
-            <EnrollmentCard key={enrollment.id} enrollment={enrollment} />
+            <EnrollmentCard
+              key={enrollment.id}
+              enrollment={enrollment}
+              studentId={studentId}
+              canWrite={canWrite}
+              onChanged={() => void reload()}
+            />
           ))}
         </div>
       )}
@@ -256,22 +283,70 @@ export function ProductosTab({
   );
 }
 
-function EnrollmentCard({ enrollment }: { enrollment: Enrollment }) {
+function EnrollmentCard({
+  enrollment,
+  studentId,
+  canWrite,
+  onChanged,
+}: {
+  enrollment: Enrollment;
+  studentId: string;
+  canWrite: boolean;
+  onChanged: () => void;
+}) {
   const [enrollmentStatusLabel, enrollmentStatusTone] = ENROLLMENT_STATUS_LABEL[enrollment.status];
   const [accessStatusLabel, accessStatusTone] = ACCESS_STATUS_LABEL[enrollment.accessStatus];
+  const [contractStatusLabel, contractStatusTone] =
+    CONTRACT_STATUS_LABEL[enrollment.contractStatus];
   const initialPayments = enrollment.payments.filter((p) => p.isInitialPayment);
+
+  const [actionLoading, setActionLoading] = useState<"approve" | "retry-lw" | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function runAction(action: "approve" | "retry-lw") {
+    setActionError(null);
+    setActionLoading(action);
+    try {
+      const response = await fetch(
+        `/api/operaciones/students/${studentId}/products/${enrollment.id}/${action}`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        setActionError(
+          json.error ??
+            (action === "approve"
+              ? "No se pudo aprobar el contrato"
+              : "No se pudo reintentar la sincronización con LearnWorlds"),
+        );
+        return;
+      }
+      onChanged();
+    } catch {
+      setActionError("Error de red al ejecutar la acción");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  const canApprove = canWrite && enrollment.contractStatus !== "APPROVED";
+  const canRetryLw =
+    canWrite &&
+    (enrollment.accessStatus === "SYNC_ERROR" ||
+      (enrollment.contractStatus === "APPROVED" && enrollment.accessStatus !== "ACTIVE"));
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h4 className="text-base font-semibold text-slate-900">{enrollment.product.name}</h4>
             {enrollment.product.isMainProduct && (
               <Badge tone="bg-indigo-100 text-indigo-700">Principal</Badge>
             )}
             <Badge tone={enrollmentStatusTone}>{enrollmentStatusLabel}</Badge>
             <Badge tone={accessStatusTone}>Acceso: {accessStatusLabel}</Badge>
+            <Badge tone={contractStatusTone}>Contrato: {contractStatusLabel}</Badge>
           </div>
           <p className="mt-1 text-xs text-slate-500">
             Inicio: {enrollment.startedAt.slice(0, 10)}
@@ -280,12 +355,74 @@ function EnrollmentCard({ enrollment }: { enrollment: Enrollment }) {
               ? ` · Cuenta: ${enrollment.paymentAccount.displayName}`
               : ""}
           </p>
+          {(enrollment.contractSignedAt ||
+            enrollment.contractApprovedAt ||
+            enrollment.contractRejectedAt ||
+            enrollment.contractUrl) && (
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              {enrollment.contractSignedAt && (
+                <span>Firmado: {enrollment.contractSignedAt.slice(0, 10)}</span>
+              )}
+              {enrollment.contractApprovedAt && (
+                <span>Aprobado: {enrollment.contractApprovedAt.slice(0, 10)}</span>
+              )}
+              {enrollment.contractRejectedAt && (
+                <span>Rechazado: {enrollment.contractRejectedAt.slice(0, 10)}</span>
+              )}
+              {enrollment.contractUrl && (
+                <a
+                  href={enrollment.contractUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                >
+                  Ver contrato
+                </a>
+              )}
+            </p>
+          )}
+          {enrollment.contractRejectionReason && (
+            <p className="mt-1 text-xs text-rose-600">
+              Motivo de rechazo: {enrollment.contractRejectionReason}
+            </p>
+          )}
         </div>
         <div className="text-right text-sm">
           <p className="text-slate-500">Total</p>
           <p className="font-semibold text-slate-900">{formatUsd(enrollment.totalAmountUsd)}</p>
         </div>
       </div>
+
+      {(canApprove || canRetryLw) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {canApprove && (
+            <button
+              type="button"
+              onClick={() => void runAction("approve")}
+              disabled={actionLoading !== null}
+              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {actionLoading === "approve"
+                ? "Aprobando..."
+                : "Aprobar contrato y liberar acceso"}
+            </button>
+          )}
+          {canRetryLw && (
+            <button
+              type="button"
+              onClick={() => void runAction("retry-lw")}
+              disabled={actionLoading !== null}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {actionLoading === "retry-lw" ? "Reintentando..." : "Reintentar sync LW"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {actionError && (
+        <p className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{actionError}</p>
+      )}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <Metric label="Pago inicial" value={formatUsd(enrollment.initialPaymentUsd ?? 0)} />

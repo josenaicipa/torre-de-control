@@ -114,6 +114,7 @@ model User {
   dropiFollowUpsAssigned DropiFollowUp[]        @relation("DropiFollowUpAssignee")
   dropiFollowUpsCreated  DropiFollowUp[]        @relation("DropiFollowUpCreator")
   dropiLinkAuditActions  DropiStudentLinkAudit[] @relation("DropiLinkAuditActor")
+  enrollmentsApproved    StudentProductEnrollment[] @relation("EnrollmentApprover")
 
   @@index([role])
   @@index([position])
@@ -731,6 +732,24 @@ enum MentorshipStatus {
   FINISHED
 }
 
+// Lifecycle of the commercial contract behind an enrollment. Torre de Control
+// is the source of truth: a paid enrollment is NOT access. Access to
+// LearnWorlds is granted only after the contract is APPROVED from Torre.
+// - DRAFT / PENDING_SIGNATURE / SIGNED model the signing pipeline (data may
+//   arrive from GHL/n8n in later blocks).
+// - PENDING_APPROVAL is the state a new enrollment lands in: it waits for an
+//   operator/admin to approve from Torre.
+// - APPROVED is the only state that triggers LearnWorlds provisioning.
+// - REJECTED records an explicit denial with a reason.
+enum ContractStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  SIGNED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
 enum TagAssignmentSource {
   AUTOMATIC
   MANUAL
@@ -824,6 +843,17 @@ model StudentProductEnrollment {
   accessGrantedAt        DateTime?
   learnWorldsSyncStatus  String           @default("pending")
   learnWorldsSyncError   String?
+  // Contract / approval state. Torre de Control owns the decision to grant
+  // access: a new enrollment lands in PENDING_APPROVAL and access stays
+  // PENDING until an operator approves the contract from Torre.
+  contractStatus         ContractStatus   @default(PENDING_APPROVAL)
+  contractUrl            String?
+  contractSignedAt       DateTime?
+  contractApprovedAt     DateTime?
+  contractApprovedById   String?
+  contractApprovedBy     User?            @relation("EnrollmentApprover", fields: [contractApprovedById], references: [id], onDelete: SetNull)
+  contractRejectedAt     DateTime?
+  contractRejectionReason String?
   notes                  String?
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
@@ -837,6 +867,8 @@ model StudentProductEnrollment {
   @@index([status])
   @@index([paymentAccountId])
   @@index([accessStatus])
+  @@index([contractStatus])
+  @@index([contractApprovedById])
 }
 
 // Where money actually lands (Stripe US, Hotmart BR, Wise EUR, etc.). Keeping

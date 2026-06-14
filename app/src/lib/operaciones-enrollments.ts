@@ -330,10 +330,8 @@ export async function createValidatedEnrollmentInTx(
     scheduleRows,
     commissionBaseUsd,
     commissionPercent,
-    grantAccess,
   } = validated;
 
-  const now = new Date();
   const enrollment = await tx.studentProductEnrollment.create({
     data: {
       studentId,
@@ -353,8 +351,11 @@ export async function createValidatedEnrollmentInTx(
       commissionPercent,
       currency: body.currency,
       paymentAccountId: body.paymentAccountId ?? null,
-      accessStatus: grantAccess ? "ACTIVE" : "PENDING",
-      accessGrantedAt: grantAccess ? now : null,
+      // A new enrollment never grants real access: Torre de Control owns the
+      // decision. Access stays PENDING until the contract is approved and
+      // LearnWorlds is provisioned. grantAccessNow is ignored on purpose.
+      accessStatus: "PENDING",
+      accessGrantedAt: null,
       learnWorldsSyncStatus: "pending",
       notes: body.notes ?? null,
     },
