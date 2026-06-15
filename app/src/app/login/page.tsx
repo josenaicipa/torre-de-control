@@ -50,6 +50,22 @@ export default async function LoginPage() {
           </p>
         </div>
         <LoginForm />
+        <div
+          className="card"
+          style={{
+            marginTop: "1rem",
+            padding: "0.875rem 1rem",
+            background: "rgba(15, 23, 42, 0.03)",
+            borderColor: "rgba(15, 23, 42, 0.08)",
+          }}
+        >
+          <p style={{ margin: 0, fontWeight: 800, color: "var(--color-text)" }}>
+            ¿No puedes ingresar?
+          </p>
+          <p className="muted" style={{ margin: "0.375rem 0 0", lineHeight: 1.45 }}>
+            Contacta al administrador de la Torre de Control para que restablezca tu acceso.
+          </p>
+        </div>
       </div>
     </main>
   );

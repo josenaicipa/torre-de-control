@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const appRoot = resolve(__dirname, "../..");
 const usersPageSource = () => readFileSync(resolve(appRoot, "src/app/admin/users/page.tsx"), "utf8");
+const loginPageSource = () => readFileSync(resolve(appRoot, "src/app/login/page.tsx"), "utf8");
 const staticDashboardSource = () => readFileSync(resolve(appRoot, "../index.html"), "utf8");
 const teamAccessRouteSource = () => readFileSync(resolve(appRoot, "src/app/api/admin/team-access-summary/route.ts"), "utf8");
 
@@ -60,6 +61,14 @@ describe("admin users UX", () => {
     expect(actions).toContain('const passwordConfirm = String(formData.get("passwordConfirm") ?? "");');
     expect(actions).toContain('...(password ? { passwordHash: hashPassword(password) } : {})');
     expect(actions).toContain('action: password ? "user.access_updated" : "user.profile_updated"');
+  });
+
+  it("shows manual recovery guidance on the login screen", () => {
+    const loginPage = loginPageSource();
+
+    expect(loginPage).toContain("¿No puedes ingresar?");
+    expect(loginPage).toContain("Contacta al administrador de la Torre de Control");
+    expect(loginPage).toContain("restablezca tu acceso");
   });
 
   it("adds logout to the legacy dashboard shell", () => {
