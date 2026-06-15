@@ -4094,6 +4094,12 @@ function App(){
         .sidebar-item:hover{background:${SURFACE2}!important;color:${TXT}!important}
         .sidebar-item.active{background:${BRAND}18!important;color:${BRAND}!important;border-left:2px solid ${BRAND}!important}
         .tab-btn:hover{background:${SURFACE2}!important}
+        /* iOS Safari dynamic-viewport fix: size the app shell to the *visible*
+           viewport (100dvh) so the fixed mobile bottom nav and the Safari bottom
+           toolbar never cover scrollable content (e.g. the closer report
+           "Guardar" button). 100vh stays as the fallback for engines without dvh
+           support; on desktop dvh === vh, so the layout is unchanged. */
+        .main-content{height:100vh!important;height:100dvh!important}
         @media (max-width:767px){
           .sidebar{display:none!important}
           .main-content{margin-left:0!important}
@@ -4103,7 +4109,7 @@ function App(){
           .mobile-bottom-nav{display:flex!important}
           .mobile-ops-drawer{display:flex!important}
           .mobile-ops-overlay{display:block!important}
-          .page-content{padding:12px 12px calc(108px + env(safe-area-inset-bottom,0px))!important}
+          .page-content{padding:12px 12px calc(108px + env(safe-area-inset-bottom,0px))!important;scroll-padding-bottom:calc(108px + env(safe-area-inset-bottom,0px))!important}
           .cc-control{gap:10px!important}
           .cc-control > div{border-radius:14px!important;padding:14px!important}
           .cc-controls-bar{align-items:stretch!important;gap:12px!important}
