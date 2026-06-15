@@ -11,6 +11,7 @@ import {
   Globe,
   History,
   Home,
+  LogOut,
   Megaphone,
   Menu,
   Settings,
@@ -20,7 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 interface OperationsNavItem {
@@ -239,6 +240,7 @@ export function OperationsShell({
   navItems,
 }: OperationsShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [operationsExpanded, setOperationsExpanded] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isEmbedded, setIsEmbedded] = useState(false);
@@ -281,6 +283,10 @@ export function OperationsShell({
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
   const toggleOperations = () => setOperationsExpanded((prev) => !prev);
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+  };
 
   const brandBlock = (
     <Link
@@ -332,6 +338,30 @@ export function OperationsShell({
       <p style={{ margin: 0, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
         {actor.role}
       </p>
+      <button
+        type="button"
+        onClick={handleLogout}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          width: "100%",
+          marginTop: 10,
+          padding: "8px 10px",
+          backgroundColor: SURFACE,
+          border: `1px solid ${BORDER}`,
+          borderRadius: 8,
+          color: TXT2,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          fontSize: 12,
+          fontWeight: 700,
+        }}
+      >
+        <LogOut size={14} />
+        <span>Cerrar sesión</span>
+      </button>
     </div>
   );
 

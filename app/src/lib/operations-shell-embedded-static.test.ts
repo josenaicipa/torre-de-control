@@ -31,6 +31,14 @@ describe("operations shell embedded mode", () => {
     const source = shellSource();
     expect(source).toContain("data-operations-mobile-overlay");
   });
+
+  it("muestra cerrar sesión en el bloque de cuenta y usa el endpoint existente", () => {
+    const source = shellSource();
+    expect(source).toContain("LogOut");
+    expect(source).toContain("Cerrar sesión");
+    expect(source).toContain('fetch("/api/auth/logout", { method: "POST" })');
+    expect(source).toContain('router.replace("/login")');
+  });
 });
 
 describe("detección embebida temprana (antes del primer paint)", () => {

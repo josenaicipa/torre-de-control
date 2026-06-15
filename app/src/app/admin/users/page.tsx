@@ -275,6 +275,10 @@ export default async function UsersAdminPage() {
                 <form action={updateUserAction} className="inline-admin-form">
                   <input type="hidden" name="id" value={user.id} />
                   <div className="compact-grid">
+                    <label className="compact-field">Nombre<input name="name" defaultValue={user.name ?? ""} placeholder="Nombre completo" /></label>
+                    <label className="compact-field">Correo<input name="email" type="email" required defaultValue={user.email} placeholder="usuario@naicipa.com" /></label>
+                    <label className="compact-field">Nueva contraseña<input name="password" type="password" minLength={10} autoComplete="new-password" placeholder="vacío = no cambiar" /></label>
+                    <label className="compact-field">Confirmar contraseña<input name="passwordConfirm" type="password" minLength={10} autoComplete="new-password" placeholder="repite si cambias" /></label>
                     <label className="compact-field">Rol<select name="role" defaultValue={user.role}>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                     <label className="compact-field">Cargo<PositionSelect value={user.position} /></label>
                     <label className="compact-field">Alcance<ScopeSelect value={user.dataScope} /></label>

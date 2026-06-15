@@ -45,6 +45,31 @@ describe("admin users UX", () => {
     expect(source).not.toContain("<article className={`card user-row");
   });
 
+  it("lets admins edit identity and reset temporary passwords for existing users", () => {
+    const page = usersPageSource();
+    const actions = readFileSync(resolve(appRoot, "src/app/admin/users/actions.ts"), "utf8");
+
+    expect(page).toContain('name="name" defaultValue={user.name ?? ""}');
+    expect(page).toContain('name="email" type="email" required defaultValue={user.email}');
+    expect(page).toContain('name="password" type="password" minLength={10}');
+    expect(page).toContain('name="passwordConfirm" type="password" minLength={10}');
+
+    expect(actions).toContain('const email = String(formData.get("email") ?? "").trim().toLowerCase();');
+    expect(actions).toContain('const name = String(formData.get("name") ?? "").trim();');
+    expect(actions).toContain('const password = String(formData.get("password") ?? "");');
+    expect(actions).toContain('const passwordConfirm = String(formData.get("passwordConfirm") ?? "");');
+    expect(actions).toContain('...(password ? { passwordHash: hashPassword(password) } : {})');
+    expect(actions).toContain('action: password ? "user.access_updated" : "user.profile_updated"');
+  });
+
+  it("adds logout to the legacy dashboard shell", () => {
+    const dashboard = staticDashboardSource();
+
+    expect(dashboard).toContain("Cerrar sesión");
+    expect(dashboard).toContain('fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"})');
+    expect(dashboard).toContain('window.location.href="/login"');
+  });
+
   it("keeps access-user administration out of Resumen Equipo", () => {
     const dashboard = staticDashboardSource();
     const route = teamAccessRouteSource();

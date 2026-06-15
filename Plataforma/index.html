@@ -473,6 +473,7 @@ const ICON_PATHS={
   menu:'M3 6h18 M3 12h18 M3 18h18',
   x:'M18 6L6 18 M6 6l12 12',
   briefcase:'M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16',
+  logout:'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4 M16 17l5-5-5-5 M21 12H9',
 };
 const Icon=({name,size=16,color="currentColor",strokeWidth=1.8})=>(
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -3779,6 +3780,10 @@ function App(){
   },[]);
 
   const canManage=!!(me&&me.canManageUsers);
+  const handleLogout=async()=>{
+    try{await fetch("/api/auth/logout",{method:"POST",credentials:"same-origin"});}
+    finally{window.location.href="/login";}
+  };
   const caps=(me&&me.capabilities)||null;
   const scopeLimited=!!(caps&&!caps.isGlobalData);
   const menuAccess=new Set((me&&Array.isArray(me.menuAccess))?me.menuAccess:[]);
@@ -4249,6 +4254,14 @@ function App(){
               transition:"all .15s"}}>
               <Icon name={isDark?"trendUp":"barChart"} size={13} color={TXT3}/>
               {isDark?"Modo Claro":"Modo Oscuro"}
+            </button>
+            <button onClick={handleLogout} style={{
+              width:"100%",marginTop:8,background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:8,
+              padding:"8px 10px",cursor:"pointer",color:TXT2,fontSize:11,fontWeight:700,
+              fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+              transition:"all .15s"}}>
+              <Icon name="logout" size={13} color={TXT3}/>
+              Cerrar sesión
             </button>
           </div>
         </div>

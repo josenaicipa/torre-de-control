@@ -228,6 +228,10 @@ export async function updateOwnProfileAction(formData: FormData) {
 export async function updateUserAction(formData: FormData) {
   const actor = await requireUserAdmin();
   const id = String(formData.get("id") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const name = String(formData.get("name") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const passwordConfirm = String(formData.get("passwordConfirm") ?? "");
   const role = parseRole(formData.get("role"));
   let scoped = readScopedFields(formData);
   const permissions = resolvedPermissions(
@@ -235,6 +239,11 @@ export async function updateUserAction(formData: FormData) {
     menuAccessToPermissions(normalizeMenuAccess(formData.getAll("menuAccess"))),
   );
   if (!id || id === actor.id) return;
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Correo inválido");
+  if (password || passwordConfirm) {
+    if (password.length < 10) throw new Error("La nueva contraseña debe tener mínimo 10 caracteres");
+    if (password !== passwordConfirm) throw new Error("Las contraseñas no coinciden");
+  }
   scoped = await normalizeScopedReferences(scoped, id);
   const effectivePermissions = permissions;
 
@@ -243,6 +252,8 @@ export async function updateUserAction(formData: FormData) {
     const target = await tx.user.update({
       where: { id },
       data: {
+        email,
+        name: name || null,
         role,
         permissions: effectivePermissions,
         position: scoped.position,
@@ -254,13 +265,14 @@ export async function updateUserAction(formData: FormData) {
         ghlUserEmail: scoped.ghlUserEmail,
         ghlUserName: scoped.ghlUserName,
         isCollector: scoped.isCollector,
+        ...(password ? { passwordHash: hashPassword(password) } : {}),
       },
       select: { email: true },
     });
     await tx.auditEvent.create({
       data: {
         actorId: actor.id,
-        action: "user.permissions_updated",
+        action: password ? "user.access_updated" : "user.profile_updated",
         target: target.email,
         metadata: {
           role,
