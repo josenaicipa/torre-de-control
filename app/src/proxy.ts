@@ -18,9 +18,18 @@ const PUBLIC_API = new Set<string>([
   "/api/auth/logout",
 ]);
 
-function isPublic(pathname: string): boolean {
+// Public API prefixes for dynamic routes. The token in the URL is the
+// authorization, so these must be reachable without a session.
+const PUBLIC_API_PREFIXES = [
+  "/api/contratos/firmar/",
+];
+
+export function isPublic(pathname: string): boolean {
   if (pathname === "/login") return true;
-  if (pathname.startsWith("/api/")) return PUBLIC_API.has(pathname);
+  if (pathname.startsWith("/api/")) {
+    if (PUBLIC_API.has(pathname)) return true;
+    return PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  }
   return false;
 }
 
