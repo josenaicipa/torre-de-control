@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     const redirectTo =
       user.role === "MENTOR" && user.position !== "ADMIN"
         ? "/operaciones/mis-estudiantes"
-        : "/";
+        : "/operaciones";
 
     const res = NextResponse.json({
       ok: true,
