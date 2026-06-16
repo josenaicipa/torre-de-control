@@ -1,0 +1,88 @@
+import { randomBytes } from "node:crypto";
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import {
+  ForbiddenError,
+  getActor,
+  requireActor,
+  requireOperatorOrAdmin,
+} from "@/lib/actor";
+import { canAccessStudent } from "@/lib/access";
+import { handleApiError, jsonError } from "@/lib/api-helpers";
+import { writeAudit } from "@/lib/audit";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+interface Params {
+  params: Promise<{ id: string; enrollmentId: string }>;
+}
+
+// Crea (o regenera) un contrato de prueba firmable internamente en Torre.
+// No integra GHL Documents: solo deja la inscripción en PENDING_SIGNATURE con
+// un token seguro y una URL pública /contratos/firmar/<token>.
+export async function POST(_req: Request, { params }: Params) {
+  try {
+    const actor = await getActor();
+    requireActor(actor);
+    requireOperatorOrAdmin(actor);
+    const { id, enrollmentId } = await params;
+
+    const student = await prisma.student.findUnique({
+      where: { id },
+      select: { id: true, mentorUserId: true },
+    });
+    if (!student) return jsonError(404, "Estudiante no encontrado");
+    if (!canAccessStudent(actor, student.mentorUserId)) {
+      throw new ForbiddenError("Sin acceso a este estudiante");
+    }
+
+    const enrollment = await prisma.studentProductEnrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { id: true, studentId: true, contractStatus: true },
+    });
+    if (!enrollment || enrollment.studentId !== id) {
+      return jsonError(404, "Inscripción no encontrada para este estudiante");
+    }
+    if (enrollment.contractStatus === "APPROVED") {
+      return jsonError(
+        400,
+        "El contrato ya está aprobado; no se puede regenerar el link de firma",
+      );
+    }
+
+    const token = randomBytes(32).toString("hex");
+    const contractUrl = `/contratos/firmar/${token}`;
+
+    await prisma.studentProductEnrollment.update({
+      where: { id: enrollment.id },
+      data: {
+        contractStatus: "PENDING_SIGNATURE",
+        contractSignatureToken: token,
+        contractSignatureTokenCreatedAt: new Date(),
+        contractUrl,
+        // Regenerar limpia firma previa y cualquier rechazo.
+        contractSignedAt: null,
+        contractSignerName: null,
+        contractSignedIp: null,
+        contractRejectedAt: null,
+        contractRejectionReason: null,
+      },
+    });
+
+    await writeAudit({
+      actorId: actor.userId,
+      action: "operaciones.student_product_enrollment.create_test_contract",
+      target: enrollment.id,
+      metadata: {
+        studentId: id,
+        contractStatus: "PENDING_SIGNATURE",
+        regenerated: enrollment.contractStatus === "PENDING_SIGNATURE",
+      },
+    });
+
+    return NextResponse.json({ contractUrl, contractStatus: "PENDING_SIGNATURE" });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}

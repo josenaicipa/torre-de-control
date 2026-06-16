@@ -90,6 +90,7 @@ interface Enrollment {
     | "APPROVED"
     | "REJECTED";
   contractUrl: string | null;
+  contractSignerName: string | null;
   contractSignedAt: string | null;
   contractApprovedAt: string | null;
   contractRejectedAt: string | null;
@@ -300,10 +301,19 @@ function EnrollmentCard({
     CONTRACT_STATUS_LABEL[enrollment.contractStatus];
   const initialPayments = enrollment.payments.filter((p) => p.isInitialPayment);
 
-  const [actionLoading, setActionLoading] = useState<"approve" | "retry-lw" | null>(null);
+  const [actionLoading, setActionLoading] = useState<
+    "approve" | "retry-lw" | "contract-test" | null
+  >(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  async function runAction(action: "approve" | "retry-lw") {
+  const ACTION_ERROR_LABEL: Record<"approve" | "retry-lw" | "contract-test", string> = {
+    approve: "No se pudo aprobar el contrato",
+    "retry-lw": "No se pudo reintentar la sincronización con LearnWorlds",
+    "contract-test": "No se pudo crear el contrato de prueba",
+  };
+
+  async function runAction(action: "approve" | "retry-lw" | "contract-test") {
     setActionError(null);
     setActionLoading(action);
     try {
@@ -313,12 +323,7 @@ function EnrollmentCard({
       );
       if (!response.ok) {
         const json = await response.json().catch(() => ({}));
-        setActionError(
-          json.error ??
-            (action === "approve"
-              ? "No se pudo aprobar el contrato"
-              : "No se pudo reintentar la sincronización con LearnWorlds"),
-        );
+        setActionError(json.error ?? ACTION_ERROR_LABEL[action]);
         return;
       }
       onChanged();
@@ -329,11 +334,34 @@ function EnrollmentCard({
     }
   }
 
-  const canApprove = canWrite && enrollment.contractStatus !== "APPROVED";
+  function signUrl(): string {
+    if (!enrollment.contractUrl) return "";
+    if (typeof window === "undefined" || enrollment.contractUrl.startsWith("http")) {
+      return enrollment.contractUrl;
+    }
+    return `${window.location.origin}${enrollment.contractUrl}`;
+  }
+
+  async function copySignLink() {
+    try {
+      await navigator.clipboard.writeText(signUrl());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setActionError("No se pudo copiar el link de firma");
+    }
+  }
+
+  const canApprove =
+    canWrite &&
+    (enrollment.contractStatus === "SIGNED" ||
+      enrollment.contractStatus === "PENDING_APPROVAL");
   const canRetryLw =
     canWrite &&
     (enrollment.accessStatus === "SYNC_ERROR" ||
       (enrollment.contractStatus === "APPROVED" && enrollment.accessStatus !== "ACTIVE"));
+  const canCreateTestContract = canWrite && enrollment.contractStatus !== "APPROVED";
+  const hasSignLink = Boolean(enrollment.contractUrl);
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5">
@@ -393,8 +421,41 @@ function EnrollmentCard({
         </div>
       </div>
 
-      {(canApprove || canRetryLw) && (
+      {(canApprove || canRetryLw || canCreateTestContract || hasSignLink) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {canCreateTestContract && (
+            <button
+              type="button"
+              onClick={() => void runAction("contract-test")}
+              disabled={actionLoading !== null}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {actionLoading === "contract-test"
+                ? "Generando..."
+                : hasSignLink
+                  ? "Regenerar link de firma"
+                  : "Crear contrato de prueba"}
+            </button>
+          )}
+          {hasSignLink && (
+            <>
+              <button
+                type="button"
+                onClick={() => void copySignLink()}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {copied ? "¡Link copiado!" : "Copiar link de firma"}
+              </button>
+              <a
+                href={enrollment.contractUrl ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Abrir link de firma
+              </a>
+            </>
+          )}
           {canApprove && (
             <button
               type="button"

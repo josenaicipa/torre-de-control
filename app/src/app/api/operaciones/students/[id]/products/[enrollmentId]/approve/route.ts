@@ -41,6 +41,7 @@ export async function POST(_req: Request, { params }: Params) {
         studentId: true,
         balanceUsd: true,
         installmentCount: true,
+        contractStatus: true,
         product: {
           select: { id: true, name: true, requiresInitialPayment: true },
         },
@@ -50,6 +51,16 @@ export async function POST(_req: Request, { params }: Params) {
     });
     if (!enrollment || enrollment.studentId !== id) {
       return jsonError(404, "Inscripción no encontrada para este estudiante");
+    }
+
+    if (
+      enrollment.contractStatus !== "SIGNED" &&
+      enrollment.contractStatus !== "PENDING_APPROVAL"
+    ) {
+      return jsonError(
+        400,
+        "El contrato debe estar firmado o pendiente de aprobación para poder aprobarlo y liberar acceso",
+      );
     }
 
     if (

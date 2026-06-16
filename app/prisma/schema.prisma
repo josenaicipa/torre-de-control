@@ -848,6 +848,14 @@ model StudentProductEnrollment {
   // PENDING until an operator approves the contract from Torre.
   contractStatus         ContractStatus   @default(PENDING_APPROVAL)
   contractUrl            String?
+  // Test signing surface (Torre-internal). A secure token is minted when an
+  // operator creates the test contract link; the public /contratos/firmar
+  // page validates the token, never the login session. This can later be
+  // swapped for a real GHL Documents integration without UI changes.
+  contractSignatureToken          String?   @unique
+  contractSignatureTokenCreatedAt DateTime?
+  contractSignerName              String?
+  contractSignedIp                String?
   contractSignedAt       DateTime?
   contractApprovedAt     DateTime?
   contractApprovedById   String?
