@@ -18,7 +18,13 @@ describe("la raíz sirve el shell legacy según permisos", () => {
   it("respeta resolveDashboardAccess antes de servir el shell", () => {
     const source = rootSource();
     expect(source).toContain("resolveDashboardAccess");
-    expect(source).toContain("access?.canRead");
+    expect(source).toContain("access.canRead");
+  });
+
+  it("también sirve el shell a usuarios que solo tienen operaciones.read", () => {
+    const source = rootSource();
+    expect(source).toContain("canReadDashboardShell");
+    expect(source).toContain('actorResult.actor.permissions.includes("operaciones.read")');
   });
 
   it("no fuerza a /operaciones a los usuarios con dashboard.read", () => {

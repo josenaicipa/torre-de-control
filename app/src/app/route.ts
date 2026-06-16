@@ -21,10 +21,15 @@ function safeAbsoluteUrl(req: Request, path: string): URL {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function canReadDashboardShell(actorResult: Awaited<ReturnType<typeof getDashboardActor>>): boolean {
+  if (!actorResult) return false;
+  const access = resolveDashboardAccess(actorResult.actor);
+  return access.canRead || actorResult.actor.permissions.includes("operaciones.read");
+}
+
 export async function GET(req: Request) {
   const actorResult = await getDashboardActor();
-  const access = actorResult ? resolveDashboardAccess(actorResult.actor) : null;
-  if (!access?.canRead) {
+  if (!canReadDashboardShell(actorResult)) {
     const loginUrl = safeAbsoluteUrl(req, "/login");
     loginUrl.searchParams.set("next", "/");
     return Response.redirect(loginUrl, 302);
