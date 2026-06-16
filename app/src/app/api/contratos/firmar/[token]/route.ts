@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
+import { CONTRACT_ACCEPTANCE_TEXT, CONTRACT_TEMPLATE_VERSION } from "@/lib/operaciones-contract-template";
+import {
+  buildContractInputFromData,
+  computeStudentSignatureHash,
+  contractEnrollmentSelect,
+  findMissingContractFields,
+  namesReasonablyMatch,
+} from "@/lib/operaciones-contract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +25,11 @@ function clientIp(req: Request): string | null {
 }
 
 // Firma pública por token. No requiere login: el token ES la autorización.
-// Solo marca el contrato como SIGNED; NO libera acceso a LearnWorlds (eso
-// ocurre al aprobar desde Torre).
+// Antes de firmar revalida que el contrato siga completo, exige que el nombre
+// firmado coincida razonablemente con el nombre legal/registrado y guarda
+// evidencia de firma electrónica (IP, user-agent, versión, texto aceptado y
+// hash SHA-256 del contrato). Solo marca el contrato como SIGNED; NO libera
+// acceso a LearnWorlds (eso ocurre al aprobar desde Torre).
 export async function POST(req: Request, { params }: Params) {
   try {
     const { token } = await params;
@@ -26,7 +37,7 @@ export async function POST(req: Request, { params }: Params) {
 
     const enrollment = await prisma.studentProductEnrollment.findUnique({
       where: { contractSignatureToken: token },
-      select: { id: true, studentId: true, contractStatus: true },
+      select: { ...contractEnrollmentSelect, studentId: true },
     });
     if (!enrollment) {
       return jsonError(404, "Enlace de firma inválido o vencido");
@@ -59,24 +70,57 @@ export async function POST(req: Request, { params }: Params) {
       return jsonError(400, "Este contrato no está disponible para firma");
     }
 
+    // Revalidar completitud: nunca firmar un contrato con datos incompletos
+    // (los datos pudieron cambiar desde que se generó el link).
+    const missingFields = findMissingContractFields(enrollment);
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "El contrato tiene datos incompletos. Contacta al equipo de Unlocked Academy.",
+          missingFields,
+        },
+        { status: 400 },
+      );
+    }
+
+    const expectedName =
+      enrollment.student.legalName?.trim() || enrollment.student.fullName;
+    if (!namesReasonablyMatch(signerName, expectedName)) {
+      return jsonError(
+        400,
+        "El nombre firmado no coincide con el nombre registrado en el contrato. Usa tu nombre legal completo.",
+      );
+    }
+
+    const signedAt = new Date();
+    const contractInput = buildContractInputFromData(enrollment, signedAt);
+    const signatureHash = computeStudentSignatureHash(contractInput, signerName);
+
     await prisma.studentProductEnrollment.update({
       where: { id: enrollment.id },
       data: {
         contractStatus: "SIGNED",
-        contractSignedAt: new Date(),
+        contractSignedAt: signedAt,
         contractSignerName: signerName,
         contractSignedIp: clientIp(req),
+        contractSignedUserAgent: req.headers.get("user-agent"),
+        contractTemplateVersion: CONTRACT_TEMPLATE_VERSION,
+        contractAcceptanceText: CONTRACT_ACCEPTANCE_TEXT,
+        contractStudentSignatureHash: signatureHash,
       },
     });
 
     await writeAudit({
       actorId: null,
-      action: "operaciones.student_product_enrollment.sign_test_contract",
+      action: "operaciones.student_product_enrollment.sign_contract",
       target: enrollment.id,
       metadata: {
         studentId: enrollment.studentId,
         signerName,
         contractStatus: "SIGNED",
+        templateVersion: CONTRACT_TEMPLATE_VERSION,
+        signatureHash,
       },
     });
 

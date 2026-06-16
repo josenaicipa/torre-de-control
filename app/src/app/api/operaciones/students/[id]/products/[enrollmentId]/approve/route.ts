@@ -10,6 +10,12 @@ import { canAccessStudent } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
 import { enrollEnrollmentInLearnWorlds } from "@/lib/lw-client";
+import { COMPANY } from "@/lib/operaciones-contract-template";
+import {
+  computeCeoSignatureHash,
+  contractEnrollmentSelect,
+  findMissingContractFields,
+} from "@/lib/operaciones-contract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +24,10 @@ interface Params {
   params: Promise<{ id: string; enrollmentId: string }>;
 }
 
+// Aprueba el contrato desde Torre: registra la firma del CEO (Jose David
+// Naicipa Jiménez) y libera el acceso en LearnWorlds. Solo aprueba contratos
+// realmente FIRMADOS con evidencia de firma electrónica del estudiante (hash y
+// fecha) y con todos los datos legales/comerciales completos.
 export async function POST(_req: Request, { params }: Params) {
   try {
     const actor = await getActor();
@@ -37,11 +47,9 @@ export async function POST(_req: Request, { params }: Params) {
     const enrollment = await prisma.studentProductEnrollment.findUnique({
       where: { id: enrollmentId },
       select: {
-        id: true,
+        ...contractEnrollmentSelect,
         studentId: true,
-        balanceUsd: true,
         installmentCount: true,
-        contractStatus: true,
         product: {
           select: { id: true, name: true, requiresInitialPayment: true },
         },
@@ -53,13 +61,31 @@ export async function POST(_req: Request, { params }: Params) {
       return jsonError(404, "Inscripción no encontrada para este estudiante");
     }
 
-    if (
-      enrollment.contractStatus !== "SIGNED" &&
-      enrollment.contractStatus !== "PENDING_APPROVAL"
-    ) {
+    if (enrollment.contractStatus !== "SIGNED") {
       return jsonError(
         400,
-        "El contrato debe estar firmado o pendiente de aprobación para poder aprobarlo y liberar acceso",
+        "El contrato debe estar firmado por el estudiante para poder aprobarlo y liberar acceso",
+      );
+    }
+
+    // No aprobar un contrato con datos legales/comerciales incompletos: los
+    // datos pudieron cambiar desde que se firmó.
+    const missingFields = findMissingContractFields(enrollment);
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "El contrato tiene datos incompletos y no puede aprobarse. Completa los datos y regenera la firma.",
+          missingFields,
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!enrollment.contractStudentSignatureHash || !enrollment.contractSignedAt) {
+      return jsonError(
+        400,
+        "Falta la evidencia de firma electrónica del estudiante; no se puede aprobar",
       );
     }
 
@@ -86,12 +112,24 @@ export async function POST(_req: Request, { params }: Params) {
       );
     }
 
+    const now = new Date();
+    const ceoName = COMPANY.ceoName;
+    const ceoHash = computeCeoSignatureHash(
+      enrollment.contractStudentSignatureHash,
+      ceoName,
+      now,
+    );
+
     await prisma.studentProductEnrollment.update({
       where: { id: enrollment.id },
       data: {
         contractStatus: "APPROVED",
-        contractApprovedAt: new Date(),
+        contractApprovedAt: now,
         contractApprovedById: actor.userId,
+        contractCeoSignerName: ceoName,
+        contractCeoSignedAt: now,
+        contractCeoSignedById: actor.userId,
+        contractCeoSignatureHash: ceoHash,
         contractRejectedAt: null,
         contractRejectionReason: null,
       },

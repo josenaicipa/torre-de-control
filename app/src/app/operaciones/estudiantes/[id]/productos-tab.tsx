@@ -310,7 +310,7 @@ function EnrollmentCard({
   const ACTION_ERROR_LABEL: Record<"approve" | "retry-lw" | "contract-test", string> = {
     approve: "No se pudo aprobar el contrato",
     "retry-lw": "No se pudo reintentar la sincronización con LearnWorlds",
-    "contract-test": "No se pudo crear el contrato de prueba",
+    "contract-test": "No se pudo crear el contrato",
   };
 
   async function runAction(action: "approve" | "retry-lw" | "contract-test") {
@@ -323,7 +323,16 @@ function EnrollmentCard({
       );
       if (!response.ok) {
         const json = await response.json().catch(() => ({}));
-        setActionError(json.error ?? ACTION_ERROR_LABEL[action]);
+        const baseMessage = json.error ?? ACTION_ERROR_LABEL[action];
+        if (Array.isArray(json.missingFields) && json.missingFields.length > 0) {
+          const labels = json.missingFields
+            .map((f: { label?: string }) => f.label)
+            .filter(Boolean)
+            .join(", ");
+          setActionError(`${baseMessage} Faltan: ${labels}`);
+        } else {
+          setActionError(baseMessage);
+        }
         return;
       }
       onChanged();
@@ -362,6 +371,8 @@ function EnrollmentCard({
       (enrollment.contractStatus === "APPROVED" && enrollment.accessStatus !== "ACTIVE"));
   const canCreateTestContract = canWrite && enrollment.contractStatus !== "APPROVED";
   const hasSignLink = Boolean(enrollment.contractUrl);
+  const canDownloadPdf = enrollment.contractStatus === "APPROVED";
+  const pdfUrl = `/api/operaciones/students/${studentId}/products/${enrollment.id}/contract-pdf`;
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5">
@@ -421,7 +432,7 @@ function EnrollmentCard({
         </div>
       </div>
 
-      {(canApprove || canRetryLw || canCreateTestContract || hasSignLink) && (
+      {(canApprove || canRetryLw || canCreateTestContract || hasSignLink || canDownloadPdf) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {canCreateTestContract && (
             <button
@@ -434,7 +445,7 @@ function EnrollmentCard({
                 ? "Generando..."
                 : hasSignLink
                   ? "Regenerar link de firma"
-                  : "Crear contrato de prueba"}
+                  : "Crear contrato"}
             </button>
           )}
           {hasSignLink && (
@@ -477,6 +488,16 @@ function EnrollmentCard({
             >
               {actionLoading === "retry-lw" ? "Reintentando..." : "Reintentar sync LW"}
             </button>
+          )}
+          {canDownloadPdf && (
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Descargar PDF firmado
+            </a>
           )}
         </div>
       )}

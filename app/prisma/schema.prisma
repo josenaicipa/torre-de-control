@@ -115,6 +115,7 @@ model User {
   dropiFollowUpsCreated  DropiFollowUp[]        @relation("DropiFollowUpCreator")
   dropiLinkAuditActions  DropiStudentLinkAudit[] @relation("DropiLinkAuditActor")
   enrollmentsApproved    StudentProductEnrollment[] @relation("EnrollmentApprover")
+  enrollmentsCeoSigned   StudentProductEnrollment[] @relation("EnrollmentCeoSigner")
 
   @@index([role])
   @@index([position])
@@ -435,6 +436,14 @@ model Student {
   currentBottleneck    String?
   personality          String?
   legalName            String?
+  // Datos legales mínimos para emitir el contrato de inscripción real. Todos
+  // opcionales para no romper importadores ni datos existentes; el flujo de
+  // contrato exige completarlos antes de generar el link de firma.
+  documentType         String?
+  documentNumber       String?
+  legalAddress         String?
+  legalCity            String?
+  legalCountry         String?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
@@ -856,7 +865,22 @@ model StudentProductEnrollment {
   contractSignatureTokenCreatedAt DateTime?
   contractSignerName              String?
   contractSignedIp                String?
+  contractSignedUserAgent         String?
+  // Evidencia de firma electrónica del estudiante: versión de plantilla y
+  // texto de aceptación congelados al firmar, más el hash SHA-256 del
+  // contrato firmado (contenido + datos + firmante) para verificación.
+  contractTemplateVersion         String?
+  contractAcceptanceText          String?
+  contractStudentSignatureHash    String?
   contractSignedAt       DateTime?
+  // Firma del CEO (Jose David Naicipa Jiménez) registrada al aprobar desde
+  // Torre. El hash CEO encadena el hash del estudiante con la identidad y la
+  // fecha de aprobación.
+  contractCeoSignerName  String?
+  contractCeoSignedAt    DateTime?
+  contractCeoSignedById  String?
+  contractCeoSignedBy    User?            @relation("EnrollmentCeoSigner", fields: [contractCeoSignedById], references: [id], onDelete: SetNull)
+  contractCeoSignatureHash String?
   contractApprovedAt     DateTime?
   contractApprovedById   String?
   contractApprovedBy     User?            @relation("EnrollmentApprover", fields: [contractApprovedById], references: [id], onDelete: SetNull)
@@ -877,6 +901,7 @@ model StudentProductEnrollment {
   @@index([accessStatus])
   @@index([contractStatus])
   @@index([contractApprovedById])
+  @@index([contractCeoSignedById])
 }
 
 // Where money actually lands (Stripe US, Hotmart BR, Wise EUR, etc.). Keeping

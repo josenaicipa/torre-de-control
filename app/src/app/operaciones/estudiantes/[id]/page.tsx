@@ -9,6 +9,7 @@ import { PagosTab } from "./pagos-tab";
 import { MetricasTab } from "./metricas-tab";
 import { ProductosTab } from "./productos-tab";
 import { DeleteStudentButton } from "../delete-student-button";
+import { LegalDataForm } from "./legal-data-form";
 import { studentStatusLabel } from "@/lib/student-status";
 
 export const dynamic = "force-dynamic";
@@ -130,7 +131,9 @@ export default async function StudentDetailPage({
         <ProductosTab studentId={student.id} canWrite={canWritePayments} />
       ) : (
         <div className="rounded-lg border border-slate-200 bg-white p-6">
-          {activeTab === "info" && <InfoTab student={student} />}
+          {activeTab === "info" && (
+            <InfoTab student={student} canWriteLegal={canWritePayments} />
+          )}
           {activeTab !== "info" && (
           <p className="text-sm text-slate-500">
             Esta pestaña se implementa en Sprint 2.
@@ -142,45 +145,105 @@ export default async function StudentDetailPage({
   );
 }
 
-function InfoTab({ student }: { student: { fullName: string; email: string; phone: string | null; durationMonths: number; status: string; legalName: string | null; notes: string | null; personality: string | null; ghlContactId: string | null; closerUser: { name: string | null; email: string } | null } }) {
+function InfoTab({
+  student,
+  canWriteLegal,
+}: {
+  student: {
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string | null;
+    durationMonths: number;
+    status: string;
+    legalName: string | null;
+    documentType: string | null;
+    documentNumber: string | null;
+    legalAddress: string | null;
+    legalCity: string | null;
+    legalCountry: string | null;
+    notes: string | null;
+    personality: string | null;
+    ghlContactId: string | null;
+    closerUser: { name: string | null; email: string } | null;
+  };
+  canWriteLegal: boolean;
+}) {
   return (
-    <dl className="grid grid-cols-2 gap-4 text-sm">
-      <div>
-        <dt className="font-medium text-slate-500">Nombre legal</dt>
-        <dd className="text-slate-900">{student.legalName ?? "—"}</dd>
-      </div>
-      <div>
-        <dt className="font-medium text-slate-500">Teléfono</dt>
-        <dd className="text-slate-900">{student.phone ?? "—"}</dd>
-      </div>
-      <div>
-        <dt className="font-medium text-slate-500">Programa</dt>
-        <dd className="text-slate-900">Nivel 5 + Clases Avanzadas</dd>
-      </div>
-      <div>
-        <dt className="font-medium text-slate-500">Duración</dt>
-        <dd className="text-slate-900">{student.durationMonths} meses</dd>
-      </div>
-      <div>
-        <dt className="font-medium text-slate-500">Estado</dt>
-        <dd className="text-slate-900">{studentStatusLabel(student.status)}</dd>
-      </div>
-      <div>
-        <dt className="font-medium text-slate-500">Closer</dt>
-        <dd className="text-slate-900">{student.closerUser?.name ?? student.closerUser?.email ?? "—"}</dd>
-      </div>
-      <div>
-        <dt className="font-medium text-slate-500">ID contacto GHL</dt>
-        <dd className="text-slate-900">{student.ghlContactId ?? "—"}</dd>
-      </div>
-      <div className="col-span-2">
-        <dt className="font-medium text-slate-500">Personalidad</dt>
-        <dd className="text-slate-900">{student.personality ?? "—"}</dd>
-      </div>
-      <div className="col-span-2">
-        <dt className="font-medium text-slate-500">Notas</dt>
-        <dd className="whitespace-pre-wrap text-slate-900">{student.notes ?? "—"}</dd>
-      </div>
-    </dl>
+    <>
+      <dl className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <dt className="font-medium text-slate-500">Nombre legal</dt>
+          <dd className="text-slate-900">{student.legalName ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Teléfono</dt>
+          <dd className="text-slate-900">{student.phone ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Tipo de documento</dt>
+          <dd className="text-slate-900">{student.documentType ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Número de documento</dt>
+          <dd className="text-slate-900">{student.documentNumber ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Dirección / domicilio</dt>
+          <dd className="text-slate-900">{student.legalAddress ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Ciudad</dt>
+          <dd className="text-slate-900">{student.legalCity ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">País</dt>
+          <dd className="text-slate-900">{student.legalCountry ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Programa</dt>
+          <dd className="text-slate-900">Nivel 5 + Clases Avanzadas</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Duración</dt>
+          <dd className="text-slate-900">{student.durationMonths} meses</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Estado</dt>
+          <dd className="text-slate-900">{studentStatusLabel(student.status)}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Closer</dt>
+          <dd className="text-slate-900">{student.closerUser?.name ?? student.closerUser?.email ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">ID contacto GHL</dt>
+          <dd className="text-slate-900">{student.ghlContactId ?? "—"}</dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="font-medium text-slate-500">Personalidad</dt>
+          <dd className="text-slate-900">{student.personality ?? "—"}</dd>
+        </div>
+        <div className="col-span-2">
+          <dt className="font-medium text-slate-500">Notas</dt>
+          <dd className="whitespace-pre-wrap text-slate-900">{student.notes ?? "—"}</dd>
+        </div>
+      </dl>
+
+      {canWriteLegal && (
+        <LegalDataForm
+          studentId={student.id}
+          initial={{
+            legalName: student.legalName,
+            phone: student.phone,
+            documentType: student.documentType,
+            documentNumber: student.documentNumber,
+            legalAddress: student.legalAddress,
+            legalCity: student.legalCity,
+            legalCountry: student.legalCountry,
+          }}
+        />
+      )}
+    </>
   );
 }

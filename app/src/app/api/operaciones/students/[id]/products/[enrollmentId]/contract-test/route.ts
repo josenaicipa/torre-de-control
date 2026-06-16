@@ -10,6 +10,10 @@ import {
 import { canAccessStudent } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
+import {
+  contractEnrollmentSelect,
+  findMissingContractFields,
+} from "@/lib/operaciones-contract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,9 +22,11 @@ interface Params {
   params: Promise<{ id: string; enrollmentId: string }>;
 }
 
-// Crea (o regenera) un contrato de prueba firmable internamente en Torre.
-// No integra GHL Documents: solo deja la inscripción en PENDING_SIGNATURE con
-// un token seguro y una URL pública /contratos/firmar/<token>.
+// Crea (o regenera) el link de firma del contrato de inscripción en Torre.
+// Antes de mintear el token valida que existan TODOS los datos legales y
+// comerciales obligatorios; si falta cualquiera responde 400 con la lista de
+// `missingFields` y NO genera token. No integra GHL Documents: deja la
+// inscripción en PENDING_SIGNATURE con una URL pública /contratos/firmar/<token>.
 export async function POST(_req: Request, { params }: Params) {
   try {
     const actor = await getActor();
@@ -39,7 +45,7 @@ export async function POST(_req: Request, { params }: Params) {
 
     const enrollment = await prisma.studentProductEnrollment.findUnique({
       where: { id: enrollmentId },
-      select: { id: true, studentId: true, contractStatus: true },
+      select: { ...contractEnrollmentSelect, studentId: true },
     });
     if (!enrollment || enrollment.studentId !== id) {
       return jsonError(404, "Inscripción no encontrada para este estudiante");
@@ -48,6 +54,17 @@ export async function POST(_req: Request, { params }: Params) {
       return jsonError(
         400,
         "El contrato ya está aprobado; no se puede regenerar el link de firma",
+      );
+    }
+
+    const missingFields = findMissingContractFields(enrollment);
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Faltan datos para generar el contrato",
+          missingFields,
+        },
+        { status: 400 },
       );
     }
 
@@ -61,10 +78,14 @@ export async function POST(_req: Request, { params }: Params) {
         contractSignatureToken: token,
         contractSignatureTokenCreatedAt: new Date(),
         contractUrl,
-        // Regenerar limpia firma previa y cualquier rechazo.
+        // Regenerar limpia firma previa, su evidencia y cualquier rechazo.
         contractSignedAt: null,
         contractSignerName: null,
         contractSignedIp: null,
+        contractSignedUserAgent: null,
+        contractTemplateVersion: null,
+        contractAcceptanceText: null,
+        contractStudentSignatureHash: null,
         contractRejectedAt: null,
         contractRejectionReason: null,
       },
@@ -72,7 +93,7 @@ export async function POST(_req: Request, { params }: Params) {
 
     await writeAudit({
       actorId: actor.userId,
-      action: "operaciones.student_product_enrollment.create_test_contract",
+      action: "operaciones.student_product_enrollment.create_contract_link",
       target: enrollment.id,
       metadata: {
         studentId: id,

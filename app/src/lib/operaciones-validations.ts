@@ -30,6 +30,11 @@ export const createStudentSchema = z.object({
   notes: z.string().max(5000).optional().nullable(),
   personality: z.string().max(500).optional().nullable(),
   legalName: z.string().max(200).optional().nullable(),
+  documentType: z.string().trim().max(50).optional().nullable(),
+  documentNumber: z.string().trim().max(100).optional().nullable(),
+  legalAddress: z.string().trim().max(300).optional().nullable(),
+  legalCity: z.string().trim().max(120).optional().nullable(),
+  legalCountry: z.string().trim().max(120).optional().nullable(),
 });
 
 export const updateStudentSchema = createStudentSchema.partial().extend({

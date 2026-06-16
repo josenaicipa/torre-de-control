@@ -14,6 +14,20 @@ export const CONTRACT_TITLE =
   "CONTRATO DE PRESTACIÓN DE SERVICIOS DE CONSULTORÍA";
 export const CONTRACT_SUBTITLE = "Unlocked Academy";
 
+// Versión de la plantilla aceptada por el estudiante. Se congela en la
+// inscripción al firmar para tener evidencia de QUÉ texto se aceptó. Súbela
+// cuando cambie el contenido legal del contrato.
+export const CONTRACT_TEMPLATE_VERSION = "2026-06-unlocked-v1";
+
+// Texto exacto de la declaración de aceptación que firma el estudiante. Se
+// guarda junto a la firma como evidencia de consentimiento informado.
+export const CONTRACT_ACCEPTANCE_TEXT =
+  "Declaro que he leído, entiendo y acepto en su totalidad las cláusulas del " +
+  "presente Contrato de Prestación de Servicios de Consultoría «Unlocked " +
+  "Academy», incluyendo el valor total, el pago inicial y el calendario de " +
+  "pagos descritos. Esta firma electrónica confirma mi voluntad de obligarme " +
+  "conforme a sus términos.";
+
 // Datos de LA EMPRESA tal como aparecen en el contrato oficial.
 export const COMPANY = {
   legalName: "Kaupi LLC",
