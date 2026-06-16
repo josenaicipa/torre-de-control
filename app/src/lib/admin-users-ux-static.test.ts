@@ -111,4 +111,13 @@ describe("admin users UX", () => {
     expect(dashboard).not.toContain("onOpenUsers");
     expect(dashboard).not.toContain('href="/admin/users" style={{display:"inline-flex"');
   });
+
+  it("falls back to the first routable child when a user only has an Operaciones menu group", () => {
+    const dashboard = staticDashboardSource();
+
+    expect(dashboard).toContain("const openFirstVisibleRoute=(fallback)=>");
+    expect(dashboard).toContain("else if(fallback.children&&fallback.children[0]?.href)openEmbeddedRoute(fallback.children[0].href,fallback.id)");
+    expect(dashboard).toContain("if(current?.children?.length&&!embedUrl)");
+    expect(dashboard).toContain("visibleTabs.find(t=>t.href)||visibleTabs.find(t=>t.children&&t.children[0]?.href)");
+  });
 });

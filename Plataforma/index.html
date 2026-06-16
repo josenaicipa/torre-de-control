@@ -3799,16 +3799,23 @@ function App(){
   };
   const visibleTabs=TABS.map(filterMenuTab).filter(Boolean);
   const visibleMobileTabs=MOBILE_TABS.map(filterMenuTab).filter(Boolean);
+  const openFirstVisibleRoute=(fallback)=>{
+    if(!fallback)return;
+    if(fallback.href)openEmbeddedRoute(fallback.href,fallback.id);
+    else if(fallback.children&&fallback.children[0]?.href)openEmbeddedRoute(fallback.children[0].href,fallback.id);
+    else changeTab(fallback.id);
+  };
   // If the user landed on a now-hidden tab, fall back to the first visible view.
   useEffect(()=>{
     if(!me)return;
-    const currentVisible=visibleTabs.some(t=>t.id===tab);
-    if(!currentVisible){
-      const fallback=visibleTabs.find(t=>!t.href&&!t.children)||visibleTabs[0];
-      if(fallback){
-        if(fallback.href)openEmbeddedRoute(fallback.href,fallback.id);
-        else changeTab(fallback.id);
-      }
+    const current=visibleTabs.find(t=>t.id===tab);
+    if(current?.children?.length&&!embedUrl){
+      openFirstVisibleRoute(current);
+      return;
+    }
+    if(!current){
+      const fallback=visibleTabs.find(t=>!t.href&&!t.children)||visibleTabs.find(t=>t.href)||visibleTabs.find(t=>t.children&&t.children[0]?.href)||visibleTabs[0];
+      openFirstVisibleRoute(fallback);
       return;
     }
     if(tab==="admin"&&canManage&&!embedUrl)openEmbeddedRoute("/admin/users","admin");
