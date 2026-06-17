@@ -1,11 +1,64 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import PDFDocument from "pdfkit";
 import {
   buildContractView,
+  buildPartiesSegments,
+  formatContractUsd,
   isContractBullet,
   contractBulletText,
   type ContractInput,
 } from "./operaciones-contract-template";
 import { validateSignatureImage } from "./operaciones-contract";
+
+// Fuentes Unicode (DejaVu) para que ñ, tildes, viñetas «»°— y demás caracteres
+// españoles no se rompan en el PDF. Se empaquetan en public/fonts y, como
+// salvaguarda, también se buscan en las rutas del sistema. Si no se encuentran,
+// se cae a las fuentes estándar de PDFKit (Helvetica), que cubren Latin-1.
+const FONT_CANDIDATES: Record<"regular" | "bold", string[]> = {
+  regular: [
+    path.join(process.cwd(), "public", "fonts", "DejaVuSans.ttf"),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+  ],
+  bold: [
+    path.join(process.cwd(), "public", "fonts", "DejaVuSans-Bold.ttf"),
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+  ],
+};
+
+interface ContractFonts {
+  regular: string;
+  bold: string;
+}
+
+function firstExistingFont(candidates: string[]): string | null {
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate)) return candidate;
+    } catch {
+      // Ignorar rutas inaccesibles y seguir con el siguiente candidato.
+    }
+  }
+  return null;
+}
+
+// Registra las fuentes Unicode en el documento y devuelve los nombres a usar.
+// Solo registra si AMBAS variantes (regular y bold) existen, para no mezclar
+// DejaVu regular con Helvetica bold; ante cualquier fallo cae a Helvetica.
+function registerContractFonts(doc: PDFKit.PDFDocument): ContractFonts {
+  const regularPath = firstExistingFont(FONT_CANDIDATES.regular);
+  const boldPath = firstExistingFont(FONT_CANDIDATES.bold);
+  if (regularPath && boldPath) {
+    try {
+      doc.registerFont("ContractSans", regularPath);
+      doc.registerFont("ContractSans-Bold", boldPath);
+      return { regular: "ContractSans", bold: "ContractSans-Bold" };
+    } catch {
+      // Si PDFKit no puede parsear el TTF, usamos las fuentes estándar.
+    }
+  }
+  return { regular: "Helvetica", bold: "Helvetica-Bold" };
+}
 
 // Genera el PDF del contrato firmado a partir del ContractInput canónico y la
 // evidencia de firma electrónica (estudiante + CEO). El cuerpo legal se toma de
@@ -48,51 +101,71 @@ export function generateSignedContractPdf({
 
   return new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 56 });
+    const fonts = registerContractFonts(doc);
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
+    // Escribe un par etiqueta/valor con el valor en negrita.
+    const labeledValue = (label: string, value: string) => {
+      doc.font(fonts.regular).fontSize(10).text(`${label}: `, { continued: true });
+      doc.font(fonts.bold).text(value);
+    };
+
     // Título
-    doc.fontSize(16).font("Helvetica-Bold").text(view.title, { align: "center" });
+    doc.fontSize(16).font(fonts.bold).text(view.title, { align: "center" });
     doc.moveDown(0.3);
-    doc.fontSize(11).font("Helvetica").text(view.subtitle, { align: "center" });
+    doc.fontSize(11).font(fonts.regular).text(view.subtitle, { align: "center" });
     doc.moveDown(1);
 
-    // Partes
-    doc.fontSize(10).font("Helvetica-Bold").text("REUNIDOS");
+    // Partes: datos variables (empresa, EIN, dirección, cliente, documento y
+    // domicilio) resaltados en negrita mediante segmentos.
+    doc.fontSize(10).font(fonts.bold).text("REUNIDOS");
     doc.moveDown(0.2);
-    doc.font("Helvetica").text(view.parties, { align: "justify" });
+    const partySegments = buildPartiesSegments(input);
+    doc.fontSize(10);
+    partySegments.forEach((segment, index) => {
+      doc.font(segment.bold ? fonts.bold : fonts.regular).text(segment.text, {
+        align: "justify",
+        continued: index < partySegments.length - 1,
+      });
+    });
     doc.moveDown(0.6);
 
     // Exponen
-    doc.font("Helvetica-Bold").text("EXPONEN");
+    doc.font(fonts.bold).text("EXPONEN");
     doc.moveDown(0.2);
-    doc.font("Helvetica").text(view.exponen, { align: "justify" });
+    doc.font(fonts.regular).text(view.exponen, { align: "justify" });
     doc.moveDown(0.6);
 
     // Datos de EL CLIENTE con los campos dinámicos en negrita.
-    doc.font("Helvetica-Bold").fontSize(10).text("DATOS DE EL CLIENTE");
+    doc.font(fonts.bold).fontSize(10).text("DATOS DE EL CLIENTE");
     doc.moveDown(0.2);
-    const clientFields: Array<[string, string]> = [
-      ["Nombre", input.clientName],
-      ["Documento", input.clientDocument?.trim() || "—"],
-      ["Domicilio", input.clientAddress?.trim() || "—"],
-    ];
-    for (const [label, value] of clientFields) {
-      doc.font("Helvetica").fontSize(10).text(`${label}: `, { continued: true });
-      doc.font("Helvetica-Bold").text(value);
-    }
+    labeledValue("Nombre", input.clientName);
+    labeledValue("Documento", input.clientDocument?.trim() || "—");
+    labeledValue("Domicilio", input.clientAddress?.trim() || "—");
     doc.moveDown(0.6);
 
-    doc.font("Helvetica-Bold").text("CLÁUSULAS");
+    // Resumen económico con montos y fechas principales en negrita.
+    doc.font(fonts.bold).fontSize(10).text("RESUMEN ECONÓMICO");
+    doc.moveDown(0.2);
+    labeledValue("Producto", input.productName);
+    labeledValue("Valor total", formatContractUsd(input.totalAmountUsd));
+    labeledValue("Pago inicial", formatContractUsd(input.initialPaymentUsd));
+    labeledValue("Saldo pendiente", formatContractUsd(input.balanceUsd));
+    labeledValue("Fecha de acuerdo", view.signature.agreementDateLabel);
+    labeledValue("Fecha de finalización", view.signature.endDateLabel);
+    doc.moveDown(0.6);
+
+    doc.font(fonts.bold).text("CLÁUSULAS");
     doc.moveDown(0.3);
 
     // Cláusulas
     for (const section of view.sections) {
-      doc.font("Helvetica-Bold").fontSize(10).text(section.heading);
+      doc.font(fonts.bold).fontSize(10).text(section.heading);
       doc.moveDown(0.15);
-      doc.font("Helvetica").fontSize(10);
+      doc.font(fonts.regular).fontSize(10);
       for (const paragraph of section.paragraphs) {
         if (isContractBullet(paragraph)) {
           doc.text(`•  ${contractBulletText(paragraph)}`, {
@@ -109,17 +182,17 @@ export function generateSignedContractPdf({
 
     // Fechas de acuerdo
     doc.moveDown(0.4);
-    doc.font("Helvetica").fontSize(10);
-    doc.text(`Fecha de acuerdo: ${view.signature.agreementDateLabel}`);
-    doc.text(`Fecha de finalización: ${view.signature.endDateLabel}`);
+    doc.font(fonts.regular).fontSize(10);
+    labeledValue("Fecha de acuerdo", view.signature.agreementDateLabel);
+    labeledValue("Fecha de finalización", view.signature.endDateLabel);
 
     // Bloque de evidencia de firma electrónica
     doc.moveDown(1);
-    doc.font("Helvetica-Bold").fontSize(11).text("EVIDENCIA DE FIRMA ELECTRÓNICA");
+    doc.font(fonts.bold).fontSize(11).text("EVIDENCIA DE FIRMA ELECTRÓNICA");
     doc.moveDown(0.4);
 
-    doc.font("Helvetica-Bold").fontSize(10).text("EL CLIENTE");
-    doc.font("Helvetica").fontSize(10);
+    doc.font(fonts.bold).fontSize(10).text("EL CLIENTE");
+    doc.font(fonts.regular).fontSize(10);
     doc.text(`Nombre: ${evidence.studentSignerName ?? view.signature.clientName}`);
     doc.text(`Fecha de firma: ${formatDateTime(evidence.studentSignedAt)}`);
     doc.text(`IP de firma: ${evidence.studentSignedIp ?? "—"}`);
@@ -140,15 +213,15 @@ export function generateSignedContractPdf({
     }
     doc.moveDown(0.5);
 
-    doc.font("Helvetica-Bold").fontSize(10).text("LA EMPRESA");
-    doc.font("Helvetica").fontSize(10);
+    doc.font(fonts.bold).fontSize(10).text("LA EMPRESA");
+    doc.font(fonts.regular).fontSize(10);
     doc.text(`Nombre: ${evidence.ceoSignerName ?? view.signature.ceoName}`);
     doc.text(`Fecha de firma: ${formatDateTime(evidence.ceoSignedAt)}`);
     doc.text(`Hash de firma: ${shortHash(evidence.ceoSignatureHash)}`);
     doc.moveDown(0.6);
 
     doc
-      .font("Helvetica")
+      .font(fonts.regular)
       .fontSize(8)
       .fillColor("#555555")
       .text(`Versión de plantilla: ${evidence.templateVersion ?? "—"}`);

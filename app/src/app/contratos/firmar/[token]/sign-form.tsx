@@ -123,20 +123,24 @@ export function SignForm({
         />
       </label>
 
-      <label className="block">
-        <span className="text-sm font-medium text-slate-700">Foto de tu firma</span>
-        <span className="mt-1 block text-xs text-slate-500">
-          Sube una foto clara de tu firma manuscrita (PNG o JPG, máximo 1 MB).
-          Firma en una hoja blanca y tómale una foto bien iluminada.
-        </span>
-        <input
-          type="file"
-          accept="image/png,image/jpeg"
-          onChange={onFileChange}
-          required
-          className="mt-2 block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
-        />
-      </label>
+      <div className="rounded-md border-2 border-dashed border-indigo-300 bg-white p-4">
+        <label className="block">
+          <span className="text-sm font-bold text-indigo-900">
+            Subir imagen de firma (PNG/JPG)
+          </span>
+          <span className="mt-1 block text-xs text-slate-600">
+            Sube una foto clara de tu firma manuscrita (PNG o JPG, máximo 1 MB).
+            Firma en una hoja blanca y tómale una foto bien iluminada.
+          </span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={onFileChange}
+            required
+            className="mt-2 block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-indigo-700"
+          />
+        </label>
+      </div>
 
       {signatureImage && (
         <div className="rounded-md border border-slate-200 bg-slate-50 p-3">

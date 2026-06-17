@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildContractView,
+  buildPartiesSegments,
   isContractBullet,
+  segmentsToText,
+  COMPANY,
   INCOMPLETE_LEGAL_DATA,
   type ContractInput,
 } from "./operaciones-contract-template";
@@ -152,5 +155,51 @@ describe("plantilla dinamiza honorarios, fechas y partes", () => {
   it("muestra guion cuando no hay fecha de finalización disponible", () => {
     const view = buildContractView({ ...baseInput, endDate: null });
     expect(view.signature.endDateLabel).toBe("—");
+  });
+});
+
+describe("segmentos de la cláusula Reunidos con negritas", () => {
+  it("la concatenación de segmentos coincide con view.parties (datos completos)", () => {
+    const completo: ContractInput = {
+      ...baseInput,
+      clientDocument: "Cédula de Ciudadanía N° 1.040.046.608",
+      clientAddress: "Carrera 27 # 7b - 145, Medellín, Antioquia, Colombia",
+    };
+    const view = buildContractView(completo);
+    expect(segmentsToText(buildPartiesSegments(completo))).toBe(view.parties);
+  });
+
+  it("la concatenación de segmentos coincide con view.parties (datos incompletos)", () => {
+    const view = buildContractView(baseInput);
+    expect(segmentsToText(buildPartiesSegments(baseInput))).toBe(view.parties);
+    // Sin documento/domicilio reales, los segmentos en negrita usan el marcador.
+    const bold = buildPartiesSegments(baseInput)
+      .filter((s) => s.bold)
+      .map((s) => s.text);
+    expect(bold).toContain(INCOMPLETE_LEGAL_DATA);
+  });
+
+  it("resalta en negrita empresa, EIN, dirección, cliente, documento y domicilio", () => {
+    const completo: ContractInput = {
+      ...baseInput,
+      clientDocument: "Cédula de Ciudadanía N° 1.040.046.608",
+      clientAddress: "Carrera 27 # 7b - 145, Medellín, Antioquia, Colombia",
+    };
+    const bold = buildPartiesSegments(completo)
+      .filter((s) => s.bold)
+      .map((s) => s.text);
+    expect(bold).toContain(COMPANY.legalName);
+    expect(bold).toContain(COMPANY.ein);
+    expect(bold).toContain(COMPANY.address);
+    expect(bold).toContain("Andrés Toro Sierra");
+    expect(bold).toContain("Cédula de Ciudadanía N° 1.040.046.608");
+    expect(bold).toContain("Carrera 27 # 7b - 145, Medellín, Antioquia, Colombia");
+    // Los conectores en minúscula no deben ir en negrita.
+    const normal = buildPartiesSegments(completo)
+      .filter((s) => !s.bold)
+      .map((s) => s.text)
+      .join("");
+    expect(normal).toContain("De una parte, ");
+    expect(normal).toContain("Y, de otra parte, ");
   });
 });

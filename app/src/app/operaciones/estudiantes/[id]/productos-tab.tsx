@@ -372,6 +372,10 @@ function EnrollmentCard({
   const canCreateTestContract = canWrite && enrollment.contractStatus !== "APPROVED";
   const hasSignLink = Boolean(enrollment.contractUrl);
   const canDownloadPdf = enrollment.contractStatus === "APPROVED";
+  // El estudiante ya firmó pero falta la firma de Jose Naicipa (aprobación).
+  const pdfPendingJoseSignature =
+    enrollment.contractStatus === "SIGNED" ||
+    enrollment.contractStatus === "PENDING_APPROVAL";
   const pdfUrl = `/api/operaciones/students/${studentId}/products/${enrollment.id}/contract-pdf`;
 
   return (
@@ -405,6 +409,11 @@ function EnrollmentCard({
               {enrollment.contractApprovedAt && (
                 <span>Aprobado: {enrollment.contractApprovedAt.slice(0, 10)}</span>
               )}
+              {enrollment.contractStatus === "APPROVED" && (
+                <span className="font-semibold text-emerald-700">
+                  Firmado por Jose Naicipa
+                </span>
+              )}
               {enrollment.contractRejectedAt && (
                 <span>Rechazado: {enrollment.contractRejectedAt.slice(0, 10)}</span>
               )}
@@ -432,7 +441,12 @@ function EnrollmentCard({
         </div>
       </div>
 
-      {(canApprove || canRetryLw || canCreateTestContract || hasSignLink || canDownloadPdf) && (
+      {(canApprove ||
+        canRetryLw ||
+        canCreateTestContract ||
+        hasSignLink ||
+        canDownloadPdf ||
+        pdfPendingJoseSignature) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {canCreateTestContract && (
             <button
@@ -475,8 +489,8 @@ function EnrollmentCard({
               className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
             >
               {actionLoading === "approve"
-                ? "Aprobando..."
-                : "Aprobar contrato y liberar acceso"}
+                ? "Firmando y aprobando..."
+                : "Firmar como Jose Naicipa y aprobar contrato"}
             </button>
           )}
           {canRetryLw && (
@@ -496,8 +510,18 @@ function EnrollmentCard({
               rel="noopener noreferrer"
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              Descargar PDF firmado
+              Descargar PDF del contrato firmado
             </a>
+          )}
+          {pdfPendingJoseSignature && (
+            <button
+              type="button"
+              disabled
+              title="El PDF del contrato firmado se habilita cuando Jose Naicipa firma y aprueba el contrato."
+              className="cursor-not-allowed rounded-md border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-400"
+            >
+              PDF disponible después de la firma de Jose Naicipa
+            </button>
           )}
         </div>
       )}

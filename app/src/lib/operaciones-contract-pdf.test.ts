@@ -59,4 +59,21 @@ describe("generateSignedContractPdf", () => {
     });
     expect(imagenInvalida.subarray(0, 4).toString("latin1")).toBe("%PDF");
   });
+
+  it("no explota con caracteres Unicode españoles (ñ, tildes, «», °, —, viñetas)", async () => {
+    const unicodeInput: ContractInput = {
+      ...input,
+      clientName: "Begoña Muñoz Peñaranda Ñández",
+      clientDocument: "Cédula N° 1.234.567 — categoría «única»",
+      clientAddress: "Calle Ñuñoa 123°, Bogotá, Cundinamarca",
+      productName: "Mentoría «Unlocked» — Dropshipping ñ áéíóú",
+    };
+    const pdf = await generateSignedContractPdf({
+      input: unicodeInput,
+      evidence: baseEvidence(TINY_PNG),
+    });
+    expect(Buffer.isBuffer(pdf)).toBe(true);
+    expect(pdf.length).toBeGreaterThan(0);
+    expect(pdf.subarray(0, 4).toString("latin1")).toBe("%PDF");
+  });
 });

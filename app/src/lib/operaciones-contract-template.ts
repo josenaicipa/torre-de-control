@@ -85,6 +85,58 @@ export interface ContractSection {
   paragraphs: string[];
 }
 
+// Fragmento de texto con marca de negrita. Se usa para resaltar los datos
+// variables (empresa, EIN, dirección, nombre del cliente, documento y
+// domicilio) tanto en la vista web (<strong>) como en el PDF (fuente bold),
+// sin alterar el string `parties` que entra al hash de la firma.
+export interface ContractTextSegment {
+  text: string;
+  bold: boolean;
+}
+
+// Une los segmentos en el string plano equivalente. La concatenación de los
+// segmentos de `buildPartiesSegments` debe coincidir exactamente con
+// `view.parties` (verificado en tests) para no romper el contenido firmado.
+export function segmentsToText(segments: ContractTextSegment[]): string {
+  return segments.map((s) => s.text).join("");
+}
+
+// Construye los segmentos de la cláusula "Reunidos" resaltando en negrita los
+// datos variables del contrato. Es la fuente de verdad de la que se deriva el
+// string `parties` en buildContractView, garantizando que web, PDF y hash
+// usen el mismo texto.
+export function buildPartiesSegments(input: ContractInput): ContractTextSegment[] {
+  const hasDocument = Boolean(input.clientDocument?.trim());
+  const documentValue = hasDocument
+    ? input.clientDocument!.trim()
+    : INCOMPLETE_LEGAL_DATA;
+  const hasAddress = Boolean(input.clientAddress?.trim());
+  const addressValue = hasAddress
+    ? input.clientAddress!.trim()
+    : INCOMPLETE_LEGAL_DATA;
+
+  return [
+    { text: "De una parte, ", bold: false },
+    { text: COMPANY.legalName, bold: true },
+    { text: " con EIN ", bold: false },
+    { text: COMPANY.ein, bold: true },
+    { text: ", con domicilio a efectos de notificaciones en ", bold: false },
+    { text: COMPANY.address, bold: true },
+    { text: ". Y, de otra parte, ", bold: false },
+    { text: input.clientName, bold: true },
+    { text: " identificado con ", bold: false },
+    { text: documentValue, bold: true },
+    {
+      text: hasAddress
+        ? ", con domicilio a efectos de notificaciones en "
+        : ", con domicilio a efectos de notificaciones ",
+      bold: false,
+    },
+    { text: addressValue, bold: true },
+    { text: ".", bold: false },
+  ];
+}
+
 export interface ContractView {
   title: string;
   subtitle: string;
@@ -207,17 +259,7 @@ function buildPaymentParagraphs(input: ContractInput): string[] {
 }
 
 export function buildContractView(input: ContractInput): ContractView {
-  const clientDocument = input.clientDocument?.trim()
-    ? `identificado con ${input.clientDocument.trim()}`
-    : `identificado con ${INCOMPLETE_LEGAL_DATA}`;
-  const clientAddress = input.clientAddress?.trim()
-    ? `con domicilio a efectos de notificaciones en ${input.clientAddress.trim()}`
-    : `con domicilio a efectos de notificaciones ${INCOMPLETE_LEGAL_DATA}`;
-
-  const parties =
-    `De una parte, ${COMPANY.legalName} con EIN ${COMPANY.ein}, con domicilio a ` +
-    `efectos de notificaciones en ${COMPANY.address}. Y, de otra parte, ` +
-    `${input.clientName} ${clientDocument}, ${clientAddress}.`;
+  const parties = segmentsToText(buildPartiesSegments(input));
 
   const exponen =
     `${input.clientName} (en adelante EL CLIENTE) está interesado en la ` +

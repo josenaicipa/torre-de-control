@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   buildContractView,
+  buildPartiesSegments,
   contractBulletText,
   formatContractDate,
   formatContractUsd,
@@ -69,6 +70,25 @@ function SectionParagraphs({ paragraphs }: { paragraphs: string[] }) {
   return <div className="mt-2 space-y-2 text-sm leading-relaxed text-slate-700">{blocks}</div>;
 }
 
+// Renderiza la cláusula "Reunidos" resaltando en negrita los datos variables
+// (empresa, EIN, dirección, nombre del cliente, documento y domicilio).
+function PartiesText({ input }: { input: Parameters<typeof buildPartiesSegments>[0] }) {
+  const segments = buildPartiesSegments(input);
+  return (
+    <p className="mt-1">
+      {segments.map((segment, idx) =>
+        segment.bold ? (
+          <strong key={idx} className="font-semibold text-slate-900">
+            {segment.text}
+          </strong>
+        ) : (
+          <span key={idx}>{segment.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
 export default async function FirmarContratoPage({ params }: PageProps) {
   const { token } = await params;
   if (!token) return <InvalidLink />;
@@ -109,10 +129,56 @@ export default async function FirmarContratoPage({ params }: PageProps) {
           </h1>
         </header>
 
+        {isSigned ? (
+          <div className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+            <p className="text-base font-bold text-emerald-900">Contrato firmado</p>
+            {enrollment.contractSignerName && (
+              <p className="mt-1">Firmante: {enrollment.contractSignerName}</p>
+            )}
+            {enrollment.contractSignedAt && (
+              <p className="mt-1">
+                Fecha de firma: {formatContractDate(isoDate(enrollment.contractSignedAt))}
+              </p>
+            )}
+            {signatureImage ? (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-emerald-700">Firma manuscrita</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={signatureImage}
+                  alt={`Firma de ${enrollment.contractSignerName ?? clientName}`}
+                  className="mt-1 max-h-28 w-auto rounded bg-white object-contain"
+                />
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-emerald-700">
+                Firma registrada electrónicamente (sin imagen manuscrita adjunta).
+              </p>
+            )}
+          </div>
+        ) : (
+          <section className="mt-6 rounded-lg border-2 border-indigo-300 bg-indigo-50 p-5 shadow-sm">
+            <h2 className="text-base font-bold text-indigo-900">
+              Paso final: sube la foto de tu firma y firma el contrato
+            </h2>
+            <p className="mt-1 text-sm text-indigo-800">
+              Revisa los datos y el contrato más abajo. Para completar tu inscripción,
+              sube una foto clara de tu firma manuscrita y confirma la firma electrónica.
+            </p>
+            <div className="mt-4 rounded-md bg-white/70 px-4 py-3 text-sm leading-relaxed text-slate-700">
+              Declaro que he leído, entiendo y acepto en su totalidad las cláusulas del
+              presente Contrato de Prestación de Servicios de Consultoría «Unlocked Academy»,
+              incluyendo el valor total, el pago inicial y el calendario de pagos descritos.
+              Esta firma electrónica confirma mi voluntad de obligarme conforme a sus términos.
+            </div>
+            <SignForm token={token} defaultName={clientName} />
+          </section>
+        )}
+
         <section className="mt-6 space-y-4 text-sm leading-relaxed text-slate-700">
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Reunidos</h2>
-            <p className="mt-1">{contract.parties}</p>
+            <PartiesText input={input} />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-900">Exponen</h2>
@@ -178,44 +244,6 @@ export default async function FirmarContratoPage({ params }: PageProps) {
           </p>
         </div>
 
-        {isSigned ? (
-          <div className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            <p className="font-semibold">Contrato firmado</p>
-            {enrollment.contractSignerName && (
-              <p className="mt-1">Firmante: {enrollment.contractSignerName}</p>
-            )}
-            {enrollment.contractSignedAt && (
-              <p className="mt-1">
-                Fecha de firma: {formatContractDate(isoDate(enrollment.contractSignedAt))}
-              </p>
-            )}
-            {signatureImage ? (
-              <div className="mt-3">
-                <p className="text-xs font-medium text-emerald-600">Firma manuscrita</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={signatureImage}
-                  alt={`Firma de ${enrollment.contractSignerName ?? clientName}`}
-                  className="mt-1 max-h-28 w-auto rounded bg-white object-contain"
-                />
-              </div>
-            ) : (
-              <p className="mt-3 text-xs text-emerald-600">
-                Firma registrada electrónicamente (sin imagen manuscrita adjunta).
-              </p>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="mt-6 rounded-md bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700">
-              Declaro que he leído, entiendo y acepto en su totalidad las cláusulas del
-              presente Contrato de Prestación de Servicios de Consultoría «Unlocked Academy»,
-              incluyendo el valor total, el pago inicial y el calendario de pagos descritos.
-              Esta firma electrónica confirma mi voluntad de obligarme conforme a sus términos.
-            </div>
-            <SignForm token={token} defaultName={clientName} />
-          </>
-        )}
       </article>
     </main>
   );
