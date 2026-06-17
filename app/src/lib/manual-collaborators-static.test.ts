@@ -16,7 +16,8 @@ describe("manual collaborator labels", () => {
 
     expect(html).toContain('const isValentina=collabId==="Admin";');
     expect(html).toContain('Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>');
-    expect(html).toContain('const existing=allDaily[`${date}:${collabId}`]||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);');
+    expect(html).toContain('const existing=resolveDailyEntry(allDaily,date,collabId)||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);');
+    expect(html).toContain('setForm(existing?{...blankEntry(),...existing,member:collabId,date}:blankEntry());');
     expect(html).toContain('<DetalleColaborador allDaily={daily} allCloser={closerData} year={year} month={month} onSave={saveEntry} onSaveCloser={saveCloserEntry}/>');
     expect(html).not.toContain('<CloserEntryForm year={year} month={month} allCloser={allCloser} onSave={onSaveCloser} selectedDate={date}/>');
 
@@ -103,7 +104,7 @@ describe("manual collaborator labels", () => {
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
     const detalleBlock = html.slice(html.indexOf('const DetalleView='), html.indexOf('const HDR_BG=IS_DARK?'));
 
-    expect(html).toContain('gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),');
+    expect(html).toContain('gasto_otros:isCommercialMember(canonicalEntry.member)?(canonicalEntry.cashReservas||0):(canonicalEntry.gastoOtros||0),');
     expect(html).toContain('cashReservas:isCommercialMember(row.member)?(row.gasto_otros||0):0,');
     expect(torreBlock).toContain('const allowCommercialFallback=year>2026||(year===2026&&month>=5);');
     expect(torreBlock).toContain('const collabCommercialEntries=allowCommercialFallback?dailyEntries.filter(e=>e&&isCommercialReportingMember(e.member,e.date)):[];');
@@ -244,11 +245,11 @@ describe("manual collaborator labels", () => {
     expect(detalleBlock).toContain('const mktEntries=entries.filter(e=>e&&isMarketingActivityMember(e.member));');
     expect(detalleBlock).toContain('{title:"Actividad Marketing",bg:"#6d28d9",rows:[');
     expect(detalleBlock).toContain('{l:"# IG Seguidores",fn:d=>d.sdMkt("igFollowers")||null,fmt:"n"}');
-    expect(saveEntryBlock).toContain('const writesMarketingActivity=isMarketingActivityMember(entry.member);');
-    expect(saveEntryBlock).toContain('ig_followers:writesMarketingActivity?(entry.igFollowers||0):isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):0,');
-    expect(saveEntryBlock).toContain('posts:writesMarketingActivity?(entry.posts||0):isAdminMember(entry.member)?(entry.valorVentaLT||0):isCommercialMember(entry.member)?(entry.outboundContactados||0):0,');
-    expect(saveEntryBlock).toContain('mensajes:writesMarketingActivity?(entry.mensajes||0):isAdminMember(entry.member)?(entry.refunds||0):isCommercialMember(entry.member)?(entry.outboundAgendados||0):0,');
-    expect(saveEntryBlock).toContain('bk_offers:writesMarketingActivity?(entry.bkOffers||0):isAdminMember(entry.member)?(entry.refundValue||0):isCommercialMember(entry.member)?(entry.hotLeads||0):0,');
+    expect(saveEntryBlock).toContain('const writesMarketingActivity=isMarketingActivityMember(canonicalEntry.member);');
+    expect(saveEntryBlock).toContain('ig_followers:writesMarketingActivity?(canonicalEntry.igFollowers||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.ventasLT||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.callsScheduled||0):0,');
+    expect(saveEntryBlock).toContain('posts:writesMarketingActivity?(canonicalEntry.posts||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.valorVentaLT||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.outboundContactados||0):0,');
+    expect(saveEntryBlock).toContain('mensajes:writesMarketingActivity?(canonicalEntry.mensajes||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.refunds||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.outboundAgendados||0):0,');
+    expect(saveEntryBlock).toContain('bk_offers:writesMarketingActivity?(canonicalEntry.bkOffers||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.refundValue||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.hotLeads||0):0,');
     expect(detalleBlock).not.toContain('const mktEntries=entries.filter(e=>e&&!isCommercialMember(e.member)&&!isSetterMember(e.member));');
     expect(llenarBlock).not.toContain('{role==="setter"&&(\n        <>\n          <Card>\n            <STit icon="📱" title="Actividad del día"/>');
   });
@@ -335,11 +336,11 @@ describe("manual collaborator labels", () => {
     expect(lowTicketBlock).toContain('{l:"# Agendas hoy",fn:d=>d.sdLowTicket("lowTicketAgendasHoy")||null,fmt:"n"}');
     expect(lowTicketBlock).toContain('{l:"# Show Ups",fn:d=>d.sdLowTicket("lowTicketShowUps")||null,fmt:"n"}');
     expect(lowTicketBlock).toContain('{l:"# Follow Ups contactados",fn:d=>d.sdLowTicket("lowTicketFollowUps")||null,fmt:"n"}');
-    expect(saveEntryBlock).toContain('const writesLowTicketActivity=isLowTicketSetter(entry.member);');
-    expect(saveEntryBlock).toContain('revenue_organic:writesLowTicketActivity?(entry.lowTicketVentas||0):(entry.valorVentaHT||0),');
-    expect(saveEntryBlock).toContain('cash_organic:writesLowTicketActivity?(entry.lowTicketAgendasHoy||0):(entry.cashCollected||entry.upfrontCash||0),');
-    expect(saveEntryBlock).toContain('recurring_organic:writesLowTicketActivity?(entry.lowTicketShowUps||0):(entry.recurringCash||0),');
-    expect(saveEntryBlock).toContain('pitches_paid:writesLowTicketActivity?(entry.lowTicketFollowUps||0):(entry.pendAcumulados||0),');
+    expect(saveEntryBlock).toContain('const writesLowTicketActivity=isLowTicketSetter(canonicalEntry.member);');
+    expect(saveEntryBlock).toContain('revenue_organic:writesLowTicketActivity?(canonicalEntry.lowTicketVentas||0):(canonicalEntry.valorVentaHT||0),');
+    expect(saveEntryBlock).toContain('cash_organic:writesLowTicketActivity?(canonicalEntry.lowTicketAgendasHoy||0):(canonicalEntry.cashCollected||canonicalEntry.upfrontCash||0),');
+    expect(saveEntryBlock).toContain('recurring_organic:writesLowTicketActivity?(canonicalEntry.lowTicketShowUps||0):(canonicalEntry.recurringCash||0),');
+    expect(saveEntryBlock).toContain('pitches_paid:writesLowTicketActivity?(canonicalEntry.lowTicketFollowUps||0):(canonicalEntry.pendAcumulados||0),');
   });
 
   it("splits Area Comercial report entry into Admin, active Setters, and Closers sub-tabs", () => {

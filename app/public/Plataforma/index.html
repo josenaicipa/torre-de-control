@@ -2307,6 +2307,18 @@ const closerCanonId=m=>{
   const cl=COMMERCIAL_COLLABORATORS.find(c=>c.legacy===m);
   return cl?cl.id:m;
 };
+const commercialEntryAliases=m=>{
+  const cl=COMMERCIAL_COLLABORATORS.find(c=>c.id===m||c.legacy===m);
+  return cl?[cl.id,cl.legacy].filter(Boolean):[m].filter(Boolean);
+};
+const resolveDailyEntry=(allDaily,date,member)=>{
+  const ids=commercialEntryAliases(member);
+  for(const id of ids){
+    const entry=allDaily[`${date}:${id}`];
+    if(entry)return entry;
+  }
+  return null;
+};
 
 const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>{
   const [view,setView]=useState("llenar"); // llenar | tabla | dia
@@ -2393,8 +2405,8 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   const [saved,setSaved]=useState(false);
 
   useEffect(()=>{
-    const existing=allDaily[`${date}:${collabId}`]||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);
-    setForm(existing?{...blankEntry(),...existing}:blankEntry());
+    const existing=resolveDailyEntry(allDaily,date,collabId)||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);
+    setForm(existing?{...blankEntry(),...existing,member:collabId,date}:blankEntry());
     setSaved(false);
   },[collabId,date,allDaily,allCloser]);
 
@@ -3939,46 +3951,78 @@ function App(){
     },{onConflict:"year,month"});
   };
 
+  const syncCommercialCloserAggregate=async(date,entries)=>{
+    if(!areaComercialHasPriority(date))return;
+    const dayEntries=Object.values(entries).filter(e=>e&&e.date===date&&isHighTicketCloserReportingMember(closerCanonId(e.member),date));
+    const ventas_cash=sumF(dayEntries,"cashCollected")||sumF(dayEntries,"upfrontCash");
+    const payload={
+      date,
+      q_ventas_ht:sumF(dayEntries,"ventasHT"),
+      valor_venta_ht:sumF(dayEntries,"valorVentaHT"),
+      upfront_cash_ht:sumF(dayEntries,"upfrontCash"),
+      ventas_cash,
+      recurring_cash:sumF(dayEntries,"recurringCash"),
+    };
+    setCloserData(prev=>({...prev,[date]:{...(prev[date]||blankCloser()),...payload}}));
+    const {error}=await db.from("daily_closer").upsert(payload,{onConflict:"date"});
+    if(error)throw error;
+  };
+
   const saveEntry=async(key,entry)=>{
-    const nd={...daily,[key]:entry};
+    const canonicalMember=closerCanonId(entry.member);
+    const canonicalEntry={...entry,member:canonicalMember};
+    const canonicalKey=`${canonicalEntry.date}:${canonicalMember}`;
+    const legacyKeys=commercialEntryAliases(canonicalMember)
+      .filter(id=>id!==canonicalMember)
+      .map(id=>`${canonicalEntry.date}:${id}`);
+    const nd={...daily,[canonicalKey]:canonicalEntry};
+    legacyKeys.forEach(k=>{delete nd[k];});
     setDaily(nd);
     // Marketing activity columns are writable only by Lucas Soria. Commercial
     // collaborators still reuse these physical columns for their own mapped fields.
-    const writesMarketingActivity=isMarketingActivityMember(entry.member);
-    const writesLowTicketActivity=isLowTicketSetter(entry.member);
+    const writesMarketingActivity=isMarketingActivityMember(canonicalEntry.member);
+    const writesLowTicketActivity=isLowTicketSetter(canonicalEntry.member);
     const {error}=await db.from("daily_entries").upsert({
-      date:entry.date,member:entry.member,
-      ig_followers:writesMarketingActivity?(entry.igFollowers||0):isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):0,
-      posts:writesMarketingActivity?(entry.posts||0):isAdminMember(entry.member)?(entry.valorVentaLT||0):isCommercialMember(entry.member)?(entry.outboundContactados||0):0,
-      mensajes:writesMarketingActivity?(entry.mensajes||0):isAdminMember(entry.member)?(entry.refunds||0):isCommercialMember(entry.member)?(entry.outboundAgendados||0):0,
-      follow_ups:entry.followUps||0,
-      bk_offers:writesMarketingActivity?(entry.bkOffers||0):isAdminMember(entry.member)?(entry.refundValue||0):isCommercialMember(entry.member)?(entry.hotLeads||0):0,
-      setter_new_conversations:entry.setterNewConversations||0,
-      setter_new_inbound:entry.setterNewInbound||0,
-      setter_new_outbound:entry.setterNewOutbound||0,
-      setter_outbound_replies:entry.setterOutboundReplies||0,
-      setter_calls_proposed:entry.setterCallsProposed||0,
-      setter_links_sent:entry.setterLinksSent||0,
-      gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
-      gasto_tiktok:entry.gastoTikTok||0,
-      gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),
-      new_bk_organic:isSetterMember(entry.member)?(entry.setterLeadsContacted||0):(entry.agendas||0),
-      qual_bk_organic:isSetterMember(entry.member)?(entry.setterConfirmedAgendas||0):(entry.calificadas||0),
-      today_bk_organic:isSetterMember(entry.member)?(entry.setterCallsToLeads||0):(entry.agendasHoy||0),
-      show_organic:isSetterMember(entry.member)?(entry.setterMessagesSent||0):(entry.showUps||0),
-      sales_organic:isSetterMember(entry.member)?(entry.setterOrganicLeads||0):(entry.ventasHT||0),
-      revenue_organic:writesLowTicketActivity?(entry.lowTicketVentas||0):(entry.valorVentaHT||0),
-      cash_organic:writesLowTicketActivity?(entry.lowTicketAgendasHoy||0):(entry.cashCollected||entry.upfrontCash||0),
-      recurring_organic:writesLowTicketActivity?(entry.lowTicketShowUps||0):(entry.recurringCash||0),
-      pitches_organic:isAdminMember(entry.member)?(entry.activeClients||0):isSetterMember(entry.member)?(entry.setterAdsLeads||0):(entry.pendDiaAnterior||0),
-      pitches_paid:writesLowTicketActivity?(entry.lowTicketFollowUps||0):(entry.pendAcumulados||0),
-      reservas_organic:entry.reservas||0,
-      showup_notes:entry.showupNotes||"",
-      hot_leads_evidence:entry.hotLeadsEvidence||"",
-      blockers:entry.blockers||"",
-      setter_findings:entry.setterFindings||"",
+      date:canonicalEntry.date,member:canonicalEntry.member,
+      ig_followers:writesMarketingActivity?(canonicalEntry.igFollowers||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.ventasLT||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.callsScheduled||0):0,
+      posts:writesMarketingActivity?(canonicalEntry.posts||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.valorVentaLT||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.outboundContactados||0):0,
+      mensajes:writesMarketingActivity?(canonicalEntry.mensajes||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.refunds||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.outboundAgendados||0):0,
+      follow_ups:canonicalEntry.followUps||0,
+      bk_offers:writesMarketingActivity?(canonicalEntry.bkOffers||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.refundValue||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.hotLeads||0):0,
+      setter_new_conversations:canonicalEntry.setterNewConversations||0,
+      setter_new_inbound:canonicalEntry.setterNewInbound||0,
+      setter_new_outbound:canonicalEntry.setterNewOutbound||0,
+      setter_outbound_replies:canonicalEntry.setterOutboundReplies||0,
+      setter_calls_proposed:canonicalEntry.setterCallsProposed||0,
+      setter_links_sent:canonicalEntry.setterLinksSent||0,
+      gasto_meta:canonicalEntry.gastoMeta||0,gasto_google:canonicalEntry.gastoGoogle||0,
+      gasto_tiktok:canonicalEntry.gastoTikTok||0,
+      gasto_otros:isCommercialMember(canonicalEntry.member)?(canonicalEntry.cashReservas||0):(canonicalEntry.gastoOtros||0),
+      new_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterLeadsContacted||0):(canonicalEntry.agendas||0),
+      qual_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterConfirmedAgendas||0):(canonicalEntry.calificadas||0),
+      today_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterCallsToLeads||0):(canonicalEntry.agendasHoy||0),
+      show_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterMessagesSent||0):(canonicalEntry.showUps||0),
+      sales_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterOrganicLeads||0):(canonicalEntry.ventasHT||0),
+      revenue_organic:writesLowTicketActivity?(canonicalEntry.lowTicketVentas||0):(canonicalEntry.valorVentaHT||0),
+      cash_organic:writesLowTicketActivity?(canonicalEntry.lowTicketAgendasHoy||0):(canonicalEntry.cashCollected||canonicalEntry.upfrontCash||0),
+      recurring_organic:writesLowTicketActivity?(canonicalEntry.lowTicketShowUps||0):(canonicalEntry.recurringCash||0),
+      pitches_organic:isAdminMember(canonicalEntry.member)?(canonicalEntry.activeClients||0):isSetterMember(canonicalEntry.member)?(canonicalEntry.setterAdsLeads||0):(canonicalEntry.pendDiaAnterior||0),
+      pitches_paid:writesLowTicketActivity?(canonicalEntry.lowTicketFollowUps||0):(canonicalEntry.pendAcumulados||0),
+      reservas_organic:canonicalEntry.reservas||0,
+      showup_notes:canonicalEntry.showupNotes||"",
+      hot_leads_evidence:canonicalEntry.hotLeadsEvidence||"",
+      blockers:canonicalEntry.blockers||"",
+      setter_findings:canonicalEntry.setterFindings||"",
     },{onConflict:"date,member"});
     if(error){alert("Error guardando: "+error.message);return false;}
+    for(const legacyKey of legacyKeys){
+      const legacyMember=legacyKey.split(":").slice(1).join(":");
+      if(daily[legacyKey])await db.from("daily_entries").delete().match({date:canonicalEntry.date,member:legacyMember});
+    }
+    if(isHighTicketCloserReportingMember(canonicalEntry.member,canonicalEntry.date)){
+      try{await syncCommercialCloserAggregate(canonicalEntry.date,nd);}
+      catch(e){alert("Guardado en colaborador, pero no se pudo actualizar el total diario: "+(e.message||e));return false;}
+    }
     return true;
   };
 
@@ -4056,11 +4100,18 @@ function App(){
   };
 
   const deleteEntry=async(date,member)=>{
-    await db.from("daily_entries").delete().match({date,member});
-    const key=`${date}:${member}`;
+    const canonicalMember=closerCanonId(member);
+    const members=commercialEntryAliases(canonicalMember);
+    for(const id of members){
+      await db.from("daily_entries").delete().match({date,member:id});
+    }
     const nd={...daily};
-    delete nd[key];
+    members.forEach(id=>{delete nd[`${date}:${id}`];});
     setDaily(nd);
+    if(isHighTicketCloserReportingMember(canonicalMember,date)){
+      try{await syncCommercialCloserAggregate(date,nd);}
+      catch(e){alert("Entrada eliminada, pero no se pudo actualizar el total diario: "+(e.message||e));}
+    }
   };
 
   const allKpi=Object.fromEntries(Object.entries(kpiData).filter(([k])=>k.startsWith("kpi:")));
