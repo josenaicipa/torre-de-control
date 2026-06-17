@@ -1,6 +1,6 @@
 import type { Role } from "@prisma/client";
 import type { PermissionId } from "./permissions";
-import { ALL_PERMISSIONS } from "./permissions";
+import { ALL_PERMISSIONS, defaultPermissionsForRole } from "./permissions";
 
 export interface MenuAccessItem {
   id: string;
@@ -52,6 +52,24 @@ export function menuAccessToPermissions(ids: readonly string[]): PermissionId[] 
   return uniqPermissions(
     MENU_ACCESS_ITEMS.filter((item) => selected.has(item.id)).flatMap((item) => item.permissions),
   );
+}
+
+// Turn the menu tabs an admin checked into the permissions to store on the user.
+// When no tab is selected we fall back to the role defaults instead of leaving
+// the account with zero permissions, which would lock it out of every menu
+// (the source of the "solo entra a operaciones / nada carga" reports). MENTOR is
+// always clamped to its operaciones-only scope.
+export function resolveUserPermissions(
+  role: Role,
+  selectedMenuPermissions: readonly PermissionId[],
+): PermissionId[] {
+  if (role === "MENTOR") {
+    const ops = selectedMenuPermissions.filter((permission) => permission.startsWith("operaciones."));
+    return ops.length > 0 ? (ops as PermissionId[]) : defaultPermissionsForRole(role);
+  }
+  return selectedMenuPermissions.length > 0
+    ? [...selectedMenuPermissions]
+    : defaultPermissionsForRole(role);
 }
 
 export function deriveMenuAccessFromPermissions(role: Role | string, permissions: readonly string[]): MenuAccessId[] {

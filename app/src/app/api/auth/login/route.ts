@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyPassword } from "@/lib/password";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/session";
 import { sessionCookieOptions } from "@/lib/auth";
+import { resolveLandingPath } from "@/lib/post-login-redirect";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -96,10 +97,14 @@ export async function POST(req: NextRequest) {
       data: { lastLoginAt: new Date() },
     });
 
-    const redirectTo =
-      user.role === "MENTOR" && user.position !== "ADMIN"
-        ? "/operaciones/mis-estudiantes"
-        : "/";
+    // Land the user where their stored permissions actually let them read, so an
+    // operaciones-only account is sent to Operaciones instead of bouncing off the
+    // Torre shell back to /login.
+    const redirectTo = resolveLandingPath({
+      role: user.role,
+      position: user.position,
+      permissions: user.permissions,
+    });
 
     const res = NextResponse.json({
       ok: true,

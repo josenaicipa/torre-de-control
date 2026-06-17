@@ -34,24 +34,32 @@ describe("la raíz sirve el shell legacy según permisos", () => {
     expect(source).not.toContain('safeAbsoluteUrl(req, "/operaciones")');
   });
 
-  it("manda a /login?next=/ a quien no tiene acceso", () => {
+  it("manda a /login?next=/ solo cuando no hay sesión", () => {
     const source = rootSource();
+    expect(source).toContain("if (!actorResult)");
     expect(source).toContain('safeAbsoluteUrl(req, "/login")');
     expect(source).toContain('loginUrl.searchParams.set("next", "/")');
+  });
+
+  it("manda a las cuentas sin acceso al shell a su superficie permitida, no a /login", () => {
+    // Regresión: una cuenta autenticada sin dashboard.read ni operaciones.read
+    // quedaba con sesión válida pero rebotaba a /login. Ahora la lleva
+    // resolveLandingPath (admin de usuarios o fail-safe) sin volver al login.
+    // Las cuentas con operaciones.read sí cargan el shell (ver test anterior).
+    const source = rootSource();
+    expect(source).toContain("if (!canReadDashboardShell(actorResult))");
+    expect(source).toContain("resolveLandingPath(actorResult.actor)");
+    expect(source).toContain("safeAbsoluteUrl(req, target)");
   });
 });
 
 describe("login respeta los permisos en el redirect", () => {
-  it("manda a los no-MENTOR a la raíz para que el menú respete los permisos", () => {
+  it("calcula el destino con resolveLandingPath en vez de hardcodearlo", () => {
     const source = loginSource();
-    expect(source).toContain(': "/";');
-    // El bug forzaba /operaciones como destino por defecto: no debe volver.
+    expect(source).toContain("resolveLandingPath");
+    expect(source).toContain("permissions: user.permissions");
+    // El bug forzaba un destino fijo (todos a "/" o todos a "/operaciones").
+    expect(source).not.toContain(': "/";');
     expect(source).not.toContain(': "/operaciones";');
-  });
-
-  it("mantiene a los MENTOR (no ADMIN) en /operaciones/mis-estudiantes", () => {
-    const source = loginSource();
-    expect(source).toContain('"/operaciones/mis-estudiantes"');
-    expect(source).toContain('user.role === "MENTOR" && user.position !== "ADMIN"');
   });
 });

@@ -7,11 +7,10 @@ import { getSession } from "@/lib/auth";
 import { hashPassword } from "@/lib/password";
 import {
   canManageUsers,
-  defaultPermissionsForRole,
   parsePosition,
   parseScope,
 } from "@/lib/permissions";
-import { menuAccessToPermissions, normalizeMenuAccess } from "@/lib/menu-access";
+import { menuAccessToPermissions, normalizeMenuAccess, resolveUserPermissions } from "@/lib/menu-access";
 import { prisma } from "@/lib/prisma";
 import { normalizeAreaForSelectedTeam } from "@/lib/user-scope-normalization";
 
@@ -81,15 +80,6 @@ async function normalizeScopedReferences(fields: ScopedFields, selfId: string | 
   return normalized;
 }
 
-function resolvedPermissions(
-  role: Role,
-  selected: ReturnType<typeof menuAccessToPermissions>,
-) {
-  if (role === "ADMIN") return selected.length > 0 ? selected : defaultPermissionsForRole(role);
-  if (role === "MENTOR") return selected.filter((permission) => permission.startsWith("operaciones."));
-  return selected;
-}
-
 async function assertCollectorAvailable(
   tx: Prisma.TransactionClient,
   isCollector: boolean,
@@ -132,7 +122,7 @@ export async function createUserAction(formData: FormData) {
   if (!email || !email.includes("@")) throw new Error("Correo inválido");
   if (password.length < 10) throw new Error("La contraseña temporal debe tener mínimo 10 caracteres");
   scoped = await normalizeScopedReferences(scoped, null);
-  const permissions = resolvedPermissions(role, selected);
+  const permissions = resolveUserPermissions(role, selected);
 
   await prisma.$transaction(async (tx) => {
     await assertCollectorAvailable(tx, scoped.isCollector);
@@ -234,7 +224,7 @@ export async function updateUserAction(formData: FormData) {
   const passwordConfirm = String(formData.get("passwordConfirm") ?? "");
   const role = parseRole(formData.get("role"));
   let scoped = readScopedFields(formData);
-  const permissions = resolvedPermissions(
+  const permissions = resolveUserPermissions(
     role,
     menuAccessToPermissions(normalizeMenuAccess(formData.getAll("menuAccess"))),
   );

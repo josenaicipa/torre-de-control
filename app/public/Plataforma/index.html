@@ -3788,6 +3788,7 @@ function App(){
   const [closerData,setCloserData]=useState({});
   const [error,setError]=useState(null);
   const [me,setMe]=useState(null);
+  const [meLoaded,setMeLoaded]=useState(false);
 
   // Identity + capabilities (drives the admin link and the scope banner). The
   // server is the real authorization boundary; this only shapes the UI.
@@ -3796,7 +3797,8 @@ function App(){
     fetch("/api/auth/me",{credentials:"same-origin"})
       .then(r=>r.ok?r.json():null)
       .then(d=>{if(alive&&d&&d.user)setMe(d.user);})
-      .catch(()=>{});
+      .catch(()=>{})
+      .finally(()=>{if(alive)setMeLoaded(true);});
     return()=>{alive=false;};
   },[]);
 
@@ -3843,6 +3845,15 @@ function App(){
   },[me,canManage,tab,embedUrl,visibleTabs.length]);
 
   useEffect(()=>{
+    // Wait for identity before touching commercial data. Operaciones-only users
+    // (capabilities.canRead===false) must not call /api/dashboard/select: the
+    // server would reject it and we'd flash a permission error on a screen that
+    // only ever shows them their allowed Operaciones menu. When /api/auth/me
+    // could not load (me===null) we keep the old behavior and try to read, since
+    // the root route only serves this shell to dashboard readers anyway.
+    if(!meLoaded)return;
+    const canReadDash=!me||!me.capabilities||me.capabilities.canRead!==false;
+    if(!canReadDash){setReady(true);return;}
     (async()=>{
       try{
         await syncAutoAdSpend();
@@ -3893,7 +3904,7 @@ function App(){
       }
       setReady(true);
     })();
-  },[]);
+  },[meLoaded,me]);
 
   const kk=`kpi:${year}-${month}`;
   const kpi=kpiData[kk]||{funnel:{revenue:"",adSpend:"",leads:"",agendas:"",shows:"",cierres:""},meta:{revenue:"150000"},day:new Date().getDate(),ads:[]};
