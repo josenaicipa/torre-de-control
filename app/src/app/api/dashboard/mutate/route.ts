@@ -25,8 +25,10 @@ import {
   dashboardInsert,
   dashboardSelect,
   dashboardUpsert,
+  recomputeCommercialCloserAggregate,
   DashboardStoreError,
 } from "@/lib/dashboard-store";
+import { shouldRecomputeCommercialCloser } from "@/lib/commercial-closer-aggregate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +97,36 @@ function sanitizeMatch(
   return Object.keys(out).length > 0 ? out : null;
 }
 
+type AggregateSyncResult = "recomputed" | "skipped" | "deferred";
+
+// After an authorized daily_entries upsert/delete, derive the high-ticket
+// commercial aggregate (daily_closer) server-side. This replaces the legacy
+// browser-side daily_closer upsert that a scoped closer was (correctly) forbidden
+// from making — it keeps the aggregate fresh WITHOUT granting the user a direct
+// aggregate write. A recompute failure must not fail the user's own report save:
+// the primary daily_entries write already succeeded and the derive is idempotent
+// (it self-heals on the next save), so we log and report it as deferred.
+async function syncCommercialCloserAfterEntryWrite(
+  table: DashboardTable,
+  record: Record<string, unknown>,
+): Promise<AggregateSyncResult> {
+  if (table !== "daily_entries") return "skipped";
+  const date = typeof record.date === "string" ? record.date : null;
+  const member = typeof record.member === "string" ? record.member : null;
+  if (!date || !member) return "skipped";
+  if (!shouldRecomputeCommercialCloser(member, date)) return "skipped";
+  try {
+    const recomputed = await recomputeCommercialCloserAggregate(date);
+    return recomputed ? "recomputed" : "skipped";
+  } catch (error) {
+    console.error("dashboard.daily_closer.recompute_failed", {
+      date,
+      status: error instanceof DashboardStoreError ? error.status : "unknown",
+    });
+    return "deferred";
+  }
+}
+
 export async function POST(req: NextRequest) {
   const result = await getDashboardActor();
   if (!result) {
@@ -152,7 +184,8 @@ export async function POST(req: NextRequest) {
       const previousRow = await previousDashboardAuditRow(table, match, auditMembers);
       await dashboardDelete(table, match);
       await writeDashboardMutationAudit(body.op, table, match, result.userId, result.actor, previousRow);
-      return NextResponse.json({ ok: true });
+      const aggregate = await syncCommercialCloserAfterEntryWrite(table, match);
+      return NextResponse.json({ ok: true, aggregate });
     }
 
     // upsert / insert
@@ -170,7 +203,8 @@ export async function POST(req: NextRequest) {
     if (body.op === "upsert") {
       await dashboardUpsert(table, values);
       await writeDashboardMutationAudit(body.op, table, values, result.userId, result.actor, previousRow);
-      return NextResponse.json({ ok: true });
+      const aggregate = await syncCommercialCloserAfterEntryWrite(table, values);
+      return NextResponse.json({ ok: true, aggregate });
     }
 
     // insert returns the inserted row(s) (ads_entries needs the new id)

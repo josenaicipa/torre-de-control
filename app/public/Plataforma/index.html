@@ -3964,9 +3964,14 @@ function App(){
       ventas_cash,
       recurring_cash:sumF(dayEntries,"recurringCash"),
     };
+    // daily_closer is an aggregate table (no member column). Scoped closers
+    // (DataScope OWN) are correctly forbidden from writing it directly, so the
+    // browser must NOT upsert daily_closer here — that second write returned
+    // HTTP 403 ("no se pudo actualizar el total diario"). The server now derives
+    // and persists this aggregate from the allowed daily_entries write (see
+    // /api/dashboard/mutate + lib/commercial-closer-aggregate). We keep only the
+    // optimistic local update so Detalle Diario reflects the change instantly.
     setCloserData(prev=>({...prev,[date]:{...(prev[date]||blankCloser()),...payload}}));
-    const {error}=await db.from("daily_closer").upsert(payload,{onConflict:"date"});
-    if(error)throw error;
   };
 
   const saveEntry=async(key,entry)=>{
@@ -4021,8 +4026,9 @@ function App(){
       if(daily[legacyKey])await db.from("daily_entries").delete().match({date:canonicalEntry.date,member:legacyMember});
     }
     if(isHighTicketCloserReportingMember(canonicalEntry.member,canonicalEntry.date)){
-      try{await syncCommercialCloserAggregate(canonicalEntry.date,nd);}
-      catch(e){alert("Guardado en colaborador, pero no se pudo actualizar el total diario: "+(e.message||e));return false;}
+      // Aggregate (daily_closer) is derived + persisted server-side from the
+      // daily_entries upsert above; here we only refresh local state.
+      syncCommercialCloserAggregate(canonicalEntry.date,nd);
     }
     return true;
   };
@@ -4110,8 +4116,9 @@ function App(){
     members.forEach(id=>{delete nd[`${date}:${id}`];});
     setDaily(nd);
     if(isHighTicketCloserReportingMember(canonicalMember,date)){
-      try{await syncCommercialCloserAggregate(date,nd);}
-      catch(e){alert("Entrada eliminada, pero no se pudo actualizar el total diario: "+(e.message||e));}
+      // Aggregate (daily_closer) is derived + persisted server-side from the
+      // daily_entries delete above; here we only refresh local state.
+      syncCommercialCloserAggregate(date,nd);
     }
   };
 

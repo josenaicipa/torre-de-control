@@ -26,6 +26,10 @@ import {
   prepareValues,
   quoteIdent,
 } from "./dashboard-sql";
+import {
+  deriveCommercialCloserAggregate,
+  type DailyEntryRow,
+} from "./commercial-closer-aggregate";
 
 type Row = Record<string, unknown>;
 
@@ -101,6 +105,31 @@ export async function dashboardDelete(
   const params = columns.map((c) => coerceInputValue(columnKind(table, c), match[c]));
   const prisma = await db();
   await prisma.$executeRawUnsafe(sql, ...params);
+}
+
+// ─── Derived commercial aggregate (daily_closer) ─────────────────────────────
+
+/**
+ * Recompute the high-ticket commercial aggregate (`daily_closer`) for `date`
+ * from the current `daily_entries` rows and persist it.
+ *
+ * This is the RBAC-safe replacement for the legacy browser-side `daily_closer`
+ * upsert: it runs server-side *after* an already-authorized `daily_entries`
+ * write, so a scoped closer never writes the aggregate table directly. The
+ * upsert touches only the 5 derived columns, so a partial merge on `date`
+ * preserves every other (manually-managed) `daily_closer` column.
+ *
+ * Returns `true` when the aggregate was recomputed, `false` when the date is
+ * outside the commercial-priority period (nothing to derive). Throws
+ * `DashboardStoreError` only on a real store failure — callers decide whether a
+ * failed derive should fail the primary write (it should not).
+ */
+export async function recomputeCommercialCloserAggregate(date: string): Promise<boolean> {
+  const rows = (await dashboardSelect("daily_entries")) as DailyEntryRow[];
+  const payload = deriveCommercialCloserAggregate(date, rows);
+  if (!payload) return false;
+  await dashboardUpsert("daily_closer", { ...payload });
+  return true;
 }
 
 // ─── Backfill import ─────────────────────────────────────────────────────────

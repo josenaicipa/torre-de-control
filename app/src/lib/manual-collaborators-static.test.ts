@@ -550,6 +550,10 @@ describe("manual collaborator labels", () => {
 
   it("keeps Agendas / Leads as a manual-only daily_closer entry screen", () => {
     const loadBlock = html.slice(html.indexOf('const [{data:kpiRows'), html.indexOf('const kk=`kpi:${year}-${month}`'));
+    const syncCommercialCloserAggregateBlock = html.slice(
+      html.indexOf('const syncCommercialCloserAggregate=async'),
+      html.indexOf('const saveEntry=async'),
+    );
     const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
     const saveCloserBlock = html.slice(html.indexOf('const saveCloserEntry=async'), html.indexOf('const saveKpiConfig=async'));
     const torreBlock = html.slice(html.indexOf("const Torre="), html.indexOf("const handleSaveCfg=async"));
@@ -562,6 +566,10 @@ describe("manual collaborator labels", () => {
     expect(saveCloserBlock).not.toContain('setCloserData(applyGhlCaptacionAgendasLeads(nd));');
     expect(saveCloserBlock).toContain('await db.from("daily_closer").upsert({');
     expect(saveCloserBlock).toContain('{onConflict:"date"}');
+    expect(syncCommercialCloserAggregateBlock).toContain('setCloserData(prev=>');
+    expect(syncCommercialCloserAggregateBlock).not.toContain('db.from("daily_closer").upsert');
+    expect(saveEntryBlock).toContain('syncCommercialCloserAggregate(canonicalEntry.date,nd);');
+    expect(saveEntryBlock).not.toContain('no se pudo actualizar el total diario');
     expect(saveEntryBlock).not.toContain('aggregateCommercialEntriesForCloser');
     expect(saveEntryBlock).not.toContain('saveCloserEntry(entry.date');
     expect(torreBlock).toContain('const closerEntries=Object.entries(allCloser).filter(([k])=>k.startsWith(prefix)).map(([,v])=>v);');
