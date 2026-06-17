@@ -23,7 +23,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#FCFCFC;color:#17191A;font-family:Arial,sans-serif"><div style="text-align:center"><div style="font-weight:800;font-size:14px;letter-spacing:.08em">UNLOCKED ECOM</div><div style="margin-top:8px;color:#667;font-size:13px">Cargando Torre de Control…</div></div></div></div>
@@ -185,10 +185,11 @@ const COMERCIAL_BUCKETS=[
   {k:"perdido",     label:"Perdido",     c:"#64748B"},
 ];
 
-const BRAND="#E03A18",BRAND2="#C82A0A"; // Unlocked brand red
+const BRAND="#F23005",BRAND2="#D72B04"; // Unlocked brand red
+const FOCUS="#FB835E"; // focus ring (handoff token)
 const THEMES={
   dark:{BG:"#07090F",SURFACE:"#0E1117",SURFACE2:"#141925",BORDER:"#1C2333",BORDER2:"#222B3A",TXT:"#F1F5F9",TXT2:"#94A3B8",TXT3:"#475569"},
-  light:{BG:"#F7F7F5",SURFACE:"#ffffff",SURFACE2:"#F4F4F2",BORDER:"#E5E4DF",BORDER2:"#EDECE8",TXT:"#111110",TXT2:"#5C5C52",TXT3:"#9C9B93"},
+  light:{BG:"#FCFCFC",SURFACE:"#ffffff",SURFACE2:"#F6F7F7",BORDER:"#ECEEEE",BORDER2:"#F1F3F3",TXT:"#17191A",TXT2:"#4E5657",TXT3:"#757D7E"},
 };
 let BG,SURFACE,SURFACE2,BORDER,BORDER2,TXT,TXT2,TXT3,IS_DARK=false;
 const applyTheme=isDark=>{IS_DARK=isDark;const t=THEMES[isDark?"dark":"light"];BG=t.BG;SURFACE=t.SURFACE;SURFACE2=t.SURFACE2;BORDER=t.BORDER;BORDER2=t.BORDER2;TXT=t.TXT;TXT2=t.TXT2;TXT3=t.TXT3;};
@@ -238,7 +239,7 @@ const REPORT_GROUPS={
 const MANUAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...ALL_SETTER_COLLABORATORS,...CLOSER_COLLABORATORS];
 const MARKETING_MEMBER_IDS=new Set(MARKETING_COLLABORATORS.map(c=>c.id));
 const SETTER_MEMBER_IDS=new Set(ALL_SETTER_COLLABORATORS.map(c=>c.id));
-const COMMERCIAL_REPORTING_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.filter(c=>!c.legacy||!SETTER_MEMBER_IDS.has(c.legacy)).map(c=>c.id));
+const COMMERCIAL_REPORTING_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.id));
 const COMMERCIAL_LEGACY_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean).filter(id=>!SETTER_MEMBER_IDS.has(id)));
 const COMMERCIAL_MEMBER_IDS=new Set([
   ...COMMERCIAL_COLLABORATORS.map(c=>c.id),
@@ -275,12 +276,14 @@ const fX=(v,d=2)=>{const x=nv(v);if(x==null)return"—";return x.toFixed(d)+"x"}
 const fN=v=>{const x=nv(v);if(x==null)return"—";return Math.round(x).toLocaleString()};
 const sumF=(arr,k)=>arr.reduce((s,r)=>s+(nv(r[k])||0),0);
 const commercialPrimaryEntry=entries=>(entries||[]).find(e=>e&&isAdminMember(e.member))||null;
-const commercialDayHasPrimary=(date,entries)=>areaComercialHasPriority(date)&&!!commercialPrimaryEntry(entries);
-const commercialDayValue=(date,entries,field)=>commercialDayHasPrimary(date,entries)?nv(commercialPrimaryEntry(entries)[field]):sumF(entries,field);
+// Desde junio 1 el Área Comercial por colaborador es la fuente oficial:
+// Admin/Valentina + closers se suman; Admin ya no reemplaza a los closers.
+const commercialDayHasPrimary=(date,entries)=>false;
+const commercialDayValue=(date,entries,field)=>sumF(entries,field);
 const cH=(v,g,w)=>v==null?TXT3:v>=g?C.green:v>=w?C.amber:C.red;
 const cL=(v,g,w)=>v==null?TXT3:v<=g?C.green:v<=w?C.amber:C.red;
 const today=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-const AREA_COMERCIAL_PRIORITY_START="2026-06-08";
+const AREA_COMERCIAL_PRIORITY_START="2026-06-01";
 const areaComercialHasPriority=date=>date>=AREA_COMERCIAL_PRIORITY_START;
 const isJune2026=date=>date>="2026-06-01"&&date<="2026-06-30";
 const isCommercialReportingMember=(m,date)=>areaComercialHasPriority(date)?COMMERCIAL_REPORTING_MEMBER_IDS.has(m):COMMERCIAL_MEMBER_IDS.has(m);
@@ -497,12 +500,12 @@ const Icon=({name,size=16,color="currentColor",strokeWidth=1.8})=>(
 
 // ─── UI ATOMS ─────────────────────────────────────────────────────────────────
 const Card=({children,style={}})=>(
-  <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:16,
-    padding:"20px 22px",boxShadow:"0 4px 24px rgba(0,0,0,.35)",...style}}>{children}</div>
+  <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:14,
+    padding:"20px 22px",boxShadow:"0 1px 2px rgba(17,25,26,.04)",...style}}>{children}</div>
 );
 const Lbl=({children,style={}})=>(
   <div style={{fontSize:9,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
-    fontFamily:"'Inter',sans-serif",fontWeight:600,marginBottom:5,...style}}>{children}</div>
+    fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600,marginBottom:5,...style}}>{children}</div>
 );
 const Stat=({label,value,sub,color=C.gold,size="md"})=>(
   <div style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:12,
@@ -513,8 +516,8 @@ const Stat=({label,value,sub,color=C.gold,size="md"})=>(
     <div style={{paddingLeft:10}}>
       <Lbl style={{marginBottom:4}}>{label}</Lbl>
       <div style={{fontSize:size==="lg"?28:20,fontWeight:800,color,
-        fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.03em"}}>{value}</div>
-      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:4,fontFamily:"'Inter',sans-serif"}}>{sub}</div>}
+        fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1,letterSpacing:"-0.03em"}}>{value}</div>
+      {sub&&<div style={{fontSize:10,color:TXT3,marginTop:4,fontFamily:"'Hanken Grotesk',sans-serif"}}>{sub}</div>}
     </div>
   </div>
 );
@@ -524,7 +527,7 @@ const Barz=({value,max,color=C.gold,h=6,label,right})=>{
     <div>
       {(label||right)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
         {label&&<span style={{fontSize:11,color:TXT2,fontWeight:500}}>{label}</span>}
-        {right&&<span style={{fontSize:11,color,fontFamily:"'Inter',sans-serif",fontWeight:600}}>{right}</span>}
+        {right&&<span style={{fontSize:11,color,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600}}>{right}</span>}
       </div>}
       <div style={{background:BORDER2,borderRadius:100,height:h,overflow:"hidden"}}>
         <div style={{width:p+"%",height:"100%",background:color,borderRadius:100,
@@ -538,12 +541,12 @@ const Inp=({label,value,onChange,prefix,hint,type="number"})=>(
     <Lbl>{label}</Lbl>
     <div style={{display:"flex",alignItems:"center",background:SURFACE2,
       border:`1px solid ${BORDER}`,borderRadius:9,overflow:"hidden",height:38}}>
-      {prefix&&<span style={{padding:"0 10px",color:TXT3,fontSize:12,fontFamily:"'Inter',sans-serif",
+      {prefix&&<span style={{padding:"0 10px",color:TXT3,fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif",
         borderRight:`1px solid ${BORDER}`,height:"100%",display:"flex",alignItems:"center",
         background:BG,fontWeight:500}}>{prefix}</span>}
       <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder="0"
         style={{flex:1,background:"transparent",border:"none",outline:"none",color:TXT,
-          fontSize:13,padding:"0 11px",fontFamily:"'Inter',sans-serif",fontWeight:500}}/>
+          fontSize:13,padding:"0 11px",fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:500}}/>
     </div>
     {hint&&<div style={{fontSize:10,color:TXT3}}>{hint}</div>}
   </div>
@@ -554,7 +557,7 @@ const CalcBox=({label,value,color=C.red,hint="Automático"})=>(
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
       background:SURFACE2,border:`1px solid ${color}55`,borderRadius:9,
       overflow:"hidden",height:38,padding:"0 11px",boxShadow:`inset 3px 0 0 ${color}`}}>
-      <span style={{color,fontSize:13,fontFamily:"'Inter',sans-serif",fontWeight:800}}>{value}</span>
+      <span style={{color,fontSize:13,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:800}}>{value}</span>
       <span style={{fontSize:9,color:TXT3,textTransform:"uppercase",letterSpacing:"0.09em",fontWeight:700}}>{hint}</span>
     </div>
   </div>
@@ -565,7 +568,7 @@ const Txt=({label,value,onChange,placeholder})=>(
     <textarea value={value||""} onChange={e=>onChange(e.target.value)} placeholder={placeholder||""} rows={3}
       style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
         color:TXT,padding:"10px 11px",fontSize:13,outline:"none",
-        fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:76,width:"100%"}}/>
+        fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:500,resize:"vertical",minHeight:76,width:"100%"}}/>
   </div>
 );
 const STit=({icon,title,sub,right})=>(
@@ -586,7 +589,7 @@ const MemberBadge=({name,size="sm"})=>{
     <div style={{display:"inline-flex",alignItems:"center",gap:6,background:col+"18",
       border:`1px solid ${col}35`,borderRadius:7,padding:size==="lg"?"7px 13px":"4px 10px"}}>
       <div style={{width:size==="lg"?8:6,height:size==="lg"?8:6,borderRadius:100,background:col}}/>
-      <span style={{fontSize:size==="lg"?12:10,color:col,fontFamily:"'Inter',sans-serif",fontWeight:600,letterSpacing:"0.01em"}}>{name}</span>
+      <span style={{fontSize:size==="lg"?12:10,color:col,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600,letterSpacing:"0.01em"}}>{name}</span>
     </div>
   );
 };
@@ -630,7 +633,7 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
                 return(<button key={m} onClick={()=>setMember(m)} style={{
                   background:sel?col+"15":SURFACE2,border:`1.5px solid ${sel?col:BORDER}`,
                   borderRadius:8,padding:"7px 15px",cursor:"pointer",color:sel?col:TXT2,
-                  fontSize:12,fontFamily:"'Epilogue',sans-serif",fontWeight:sel?700:500,
+                  fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:sel?700:500,
                   transition:"all .15s"}}>{m}</button>);
               })}
             </div>
@@ -639,10 +642,10 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
             <Lbl>Fecha</Lbl>
             <input type="date" value={date} onChange={e=>setDate(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk',sans-serif"}}/>
           </div>
           {allDaily[`${date}:${member}`]&&(
-            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'Hanken Grotesk',sans-serif",
               paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
               Editando entrada existente
@@ -686,12 +689,12 @@ const DailyEntryForm=({year,month,allDaily,onSave})=>{
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${member} · ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600}}>
           Marketing guardado ✓
         </div>}
       </div>
@@ -729,7 +732,7 @@ const ResumenEquipo=({year,month,allDaily})=>{
   const sortedDates=Object.keys(byDate).sort().reverse();
   const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
     borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
-    fontSize:11,fontFamily:"'Epilogue',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+    fontSize:11,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:view===v?700:400,outline:"none"});
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -741,7 +744,7 @@ const ResumenEquipo=({year,month,allDaily})=>{
 
 
       {entries.length===0&&(
-        <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
+        <Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif"}}>
           Sin entradas para {MONTHS[month]} {year}.<br/>
           <span style={{fontSize:10,marginTop:6,display:"block"}}>El equipo debe usar "Entrada Diaria" para registrar.</span>
         </div></Card>
@@ -793,13 +796,13 @@ const ResumenEquipo=({year,month,allDaily})=>{
               <Card key={m.member} style={{padding:"14px 16px",cursor:"pointer"}} onClick={()=>setView("miembro")}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                   <MemberBadge name={m.member} size="lg"/>
-                  <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días</span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif"}}>{m.days} días</span>
                 </div>
                 {[["New Bk",fN(m.newBk),C.purple],["Quality Bk",fN(m.qualBk),C.teal],
                   ["Shows",fN(m.shows),C.green],["Show %",fP(m.showRate),cH(m.showRate,60,40)]].map(([l,v,c])=>(
                   <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                     <span style={{fontSize:10,color:TXT2}}>{l}</span>
-                    <span style={{fontSize:11,color:c,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{v}</span>
+                    <span style={{fontSize:11,color:c,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600}}>{v}</span>
                   </div>
                 ))}
               </Card>
@@ -814,7 +817,7 @@ const ResumenEquipo=({year,month,allDaily})=>{
             <Card key={m.member}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <MemberBadge name={m.member} size="lg"/>
-                <span style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace"}}>{m.days} días / {dm} del mes</span>
+                <span style={{fontSize:9,color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif"}}>{m.days} días / {dm} del mes</span>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8,marginBottom:14}}>
                 <Stat label="New Bookings"  value={fN(m.newBk)}    color={C.purple} size="sm"/>
@@ -846,13 +849,13 @@ const ResumenEquipo=({year,month,allDaily})=>{
           {sortedDates.map(date=>(
             <Card key={date} style={{padding:"12px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:9,flexWrap:"wrap"}}>
-                <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'DM Mono',monospace"}}>{date}</span>
+                <span style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif"}}>{date}</span>
                 <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
                   {Object.keys(byDate[date]).map(m=><MemberBadge key={m} name={m}/>)}
                 </div>
               </div>
               <div style={{overflowX:"auto"}}>
-                <table style={{borderCollapse:"collapse",fontSize:11,fontFamily:"'DM Mono',monospace",width:"100%"}}>
+                <table style={{borderCollapse:"collapse",fontSize:11,fontFamily:"'Hanken Grotesk',sans-serif",width:"100%"}}>
                   <thead>
                     <tr style={{borderBottom:`1px solid ${BORDER}`}}>
                       {["Miembro","Mensajes","Follow-ups","Bk Offers","New Bk","Quality Bk","Shows","Show %"].map(h=>(
@@ -895,15 +898,15 @@ const Row2=({label,value,color=TXT,bold=false,bg=null,onClick=null})=>(
     style={{display:"flex",justifyContent:"space-between",alignItems:"center",
     padding:"7px 10px",background:bg||"transparent",borderBottom:`1px solid ${BORDER2}`,
     cursor:onClick?"pointer":"default"}}>
-    <span style={{fontSize:10,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{label}</span>
-    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'DM Mono',monospace",
+    <span style={{fontSize:10,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>{label}</span>
+    <span style={{fontSize:11,color,fontWeight:bold?700:500,fontFamily:"'Hanken Grotesk',sans-serif",
       textDecoration:onClick?"underline dotted":"none",textUnderlineOffset:3}}>{value}{onClick?" ›":""}</span>
   </div>
 );
 const SectionTitle=({children})=>(
-  <div style={{background:"#1e2a4a",color:"#fff",padding:"6px 10px",fontSize:10,
-    fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",
-    fontFamily:"'Inter',sans-serif",borderRadius:"6px 6px 0 0",marginBottom:0}}>{children}</div>
+  <div style={{background:SURFACE,color:TXT3,padding:"9px 12px",fontSize:11,
+    fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
+    fontFamily:"'Hanken Grotesk',sans-serif",borderBottom:`1px solid ${BORDER}`,marginBottom:0}}>{children}</div>
 );
 
 // Spanish labels for the ticket classification returned by /api/payments/summary.
@@ -925,23 +928,23 @@ const PaymentsDrawer=({drill,onClose})=>{
   const cols=["Lead","Monto","Fecha","Fuente","Producto","Clasificación","Revisión"];
   return(
     <div onClick={onClose} role="presentation"
-      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(15,23,42,.55)",display:"flex",justifyContent:"flex-end"}}>
+      style={{position:"fixed",inset:0,zIndex:400,background:"rgba(23,25,26,.45)",display:"flex",justifyContent:"flex-end"}}>
       <div onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-label={drill.title}
-        style={{width:"min(780px,96vw)",height:"100%",background:SURFACE,display:"flex",flexDirection:"column",boxShadow:"-8px 0 30px rgba(0,0,0,.25)"}}>
-        <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        style={{width:"min(780px,96vw)",height:"100%",background:SURFACE,display:"flex",flexDirection:"column",boxShadow:"-8px 0 30px rgba(0,0,0,.12)"}}>
+        <div style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
           <div>
-            <div style={{fontSize:9,color:"#94a3b8",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace"}}>Cash Collected — detalle</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'Inter',sans-serif"}}>{drill.title}</div>
-            <div style={{fontSize:11,color:"#cbd5e1",fontFamily:"'DM Mono',monospace",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
+            <div style={{fontSize:11,color:TXT3,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:700,fontFamily:"'Hanken Grotesk',sans-serif"}}>Cash Collected — detalle</div>
+            <div style={{fontSize:18,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif"}}>{drill.title}</div>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",marginTop:2}}>{rows.length} {rows.length===1?"transacción":"transacciones"} · {fD(total)}</div>
           </div>
           <button onClick={onClose} aria-label="Cerrar"
-            style={{background:"rgba(255,255,255,0.12)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:8,padding:"6px 12px",fontSize:13,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>✕</button>
+            style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:999,padding:"6px 12px",fontSize:13,cursor:"pointer",color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>✕</button>
         </div>
         <div style={{flex:1,overflowY:"auto"}}>
           {rows.length===0?(
-            <div style={{padding:"40px 20px",textAlign:"center",color:TXT3,fontSize:13,fontFamily:"'Inter',sans-serif"}}>Sin transacciones para este periodo.</div>
+            <div style={{padding:"40px 20px",textAlign:"center",color:TXT3,fontSize:13,fontFamily:"'Hanken Grotesk',sans-serif"}}>Sin transacciones para este periodo.</div>
           ):(
-            <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11}}>
               <thead>
                 <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                   {cols.map(h=>(
@@ -951,7 +954,7 @@ const PaymentsDrawer=({drill,onClose})=>{
               </thead>
               <tbody>
                 {rows.map((r,i)=>(
-                  <tr key={i} style={{borderBottom:`1px solid ${BORDER2}`,background:r.reviewRequired?(C.amber+"12"):"transparent"}}>
+                  <tr key={i} style={{borderBottom:`1px solid ${BORDER2}`,background:r.reviewRequired?(C.amber+"12"):(i%2?SURFACE2:"transparent")}}>
                     <td style={{padding:"9px 12px",color:TXT}}>
                       <div style={{fontWeight:600}}>{r.leadName||r.leadEmail||"—"}</div>
                       {r.leadName&&r.leadEmail&&<div style={{fontSize:9,color:TXT3}}>{r.leadEmail}</div>}
@@ -1093,16 +1096,24 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
     ...Object.keys(ledgerReservasByDay).filter(k=>k.startsWith(prefix)),
   ])];
   const monthlyCommercialMoneyDay=(date,closerRow)=>{
-    const hasPrimary=commercialDayHasPrimary(date,commercialEntriesByDay[date]||[]);
+    if(areaComercialHasPriority(date)){
+      return {
+        valorHT:commercialValorHTByDay[date]||0,
+        cashHT:commercialCashByDay[date]||0,
+        recurring:commercialRecurringByDay[date]||0,
+        lowTicket:commercialLowTicketByDay[date]||0,
+        reservas:commercialReservasByDay[date]||0,
+      };
+    }
     return {
-      valorHT:hasPrimary?commercialValueByDay(date,"valorVentaHT"):areaComercialHasPriority(date)?commercialValorHTByDay[date]||((closerRow&&closerRow.valor_venta_ht)||0):((closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0),
-      cashHT:hasPrimary?(commercialValueByDay(date,"cashCollected")||commercialValueByDay(date,"upfrontCash")):areaComercialHasPriority(date)?commercialCashByDay[date]||((closerRow&&closerRow.ventas_cash)||ledgerHTByDay[date]||0):((closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0),
-      recurring:hasPrimary?commercialValueByDay(date,"recurringCash"):areaComercialHasPriority(date)?commercialRecurringByDay[date]||((closerRow&&closerRow.recurring_cash)||0):((closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0),
-      lowTicket:hasPrimary?commercialValueByDay(date,"valorVentaLT"):areaComercialHasPriority(date)?commercialLowTicketByDay[date]||((closerRow&&closerRow.valor_venta_lt)||ledgerLTByDay[date]||0):((closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0),
-      reservas:hasPrimary?commercialValueByDay(date,"cashReservas"):areaComercialHasPriority(date)?commercialReservasByDay[date]||((closerRow&&closerRow.cash_reservas)||ledgerReservasByDay[date]||0):((closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0),
+      valorHT:(closerRow&&closerRow.valor_venta_ht)||commercialValorHTByDay[date]||0,
+      cashHT:(closerRow&&closerRow.ventas_cash)||commercialCashByDay[date]||ledgerHTByDay[date]||0,
+      recurring:(closerRow&&closerRow.recurring_cash)||commercialRecurringByDay[date]||0,
+      lowTicket:(closerRow&&closerRow.valor_venta_lt)||commercialLowTicketByDay[date]||ledgerLTByDay[date]||0,
+      reservas:(closerRow&&closerRow.cash_reservas)||commercialReservasByDay[date]||ledgerReservasByDay[date]||0,
     };
   };
-  const monthlyCommercialSalesDay=(date,closerRow)=>commercialDayHasPrimary(date,commercialEntriesByDay[date]||[])?commercialValueByDay(date,"ventasHT"):(commercialValueByDay(date,"ventasHT")||((closerRow&&closerRow.q_ventas_ht)||0));
+  const monthlyCommercialSalesDay=(date,closerRow)=>areaComercialHasPriority(date)?commercialValueByDay(date,"ventasHT"):(commercialValueByDay(date,"ventasHT")||((closerRow&&closerRow.q_ventas_ht)||0));
   const totalVentas=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialSalesDay(date,allCloser[date]),0);
   const totalValor=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).valorHT,0);
   const dispCash=monthlyCommercialMoneyDates.reduce((s,date)=>s+monthlyCommercialMoneyDay(date,allCloser[date]).cashHT,0)||(cashApi?cashApi.highTicket:0);
@@ -1191,22 +1202,32 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
-      {/* HEADER */}
-      <div style={{background:"linear-gradient(135deg,#1e2a4a,#2d3f6b)",borderRadius:12,padding:"16px 22px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-        <div>
-          <div style={{fontSize:11,color:"#94a3b8",letterSpacing:"0.18em",textTransform:"uppercase",fontFamily:"'DM Mono',monospace",marginBottom:3}}>Torre de Control — Comercial</div>
-          <div style={{fontSize:28,fontWeight:900,color:"#fff",fontFamily:"'Inter',sans-serif",lineHeight:1,letterSpacing:"-0.02em"}}>{MONTHS[month].toUpperCase()} {year}</div>
+      {/* HEADER — flat white ledger header: eyebrow + H1 + chips + KPI strip */}
+      <div style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:14,padding:"18px 22px 0"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+          <div>
+            <div style={{fontSize:11,color:TXT3,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:700,fontFamily:"'Hanken Grotesk',sans-serif",marginBottom:4}}>Torre de Control — Comercial</div>
+            <div style={{fontSize:30,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.05,letterSpacing:"-0.02em"}}>{MONTHS[month]} {year}</div>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:999,padding:"6px 13px",fontSize:11,fontWeight:700,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>
+              {isPast?"Cierre":isFuture?"Futuro":"Día"} {isFuture?"—":day}/{dm}
+            </span>
+            {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:999,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>Config</button>}
+          </div>
         </div>
-        <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>Cash Total</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#34d399",fontFamily:"'DM Mono',monospace"}}>{fD(cashHeaderTotal)}</div>
-          </div>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:8,color:"#94a3b8",fontFamily:"'DM Mono',monospace",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:2}}>{isPast?"Cierre":isFuture?"Futuro":"Día"}</div>
-            <div style={{fontSize:18,fontWeight:800,color:"#fff",fontFamily:"'DM Mono',monospace"}}>{isFuture?"—":day}/{dm}</div>
-          </div>
-          {!editConfig&&<button onClick={()=>setEditConfig(true)} style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",color:"#fff",fontFamily:"'Inter',sans-serif"}}>Config</button>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",marginTop:16,borderTop:`1px solid ${BORDER}`}}>
+          {[
+            {l:"Cash Total",v:fD(cashHeaderTotal),c:C.green},
+            {l:"Venta comprometida",v:fD(totalValor),c:TXT},
+            {l:"% Cumplimiento",v:fP(pctCumpl),c:cH(pctCumpl,85,65)},
+            {l:"Meta mensual",v:fD(metaMensual),c:TXT},
+          ].map((k,i)=>(
+            <div key={k.l} style={{padding:"13px 14px 15px",borderLeft:i>0?`1px solid ${BORDER}`:"none"}}>
+              <div style={{fontSize:10,color:TXT3,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:700,marginBottom:4,fontFamily:"'Hanken Grotesk',sans-serif"}}>{k.l}</div>
+              <div style={{fontSize:19,fontWeight:800,color:k.c,fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"-0.01em"}}>{k.v}</div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1217,11 +1238,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:18}}>📝</span>
             <div>
-              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato comercial principal</div>
-              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>Valentina/Admin y closers registraron datos en Área Comercial. Este cash operativo tiene prioridad; el ledger queda como apoyo para verificación.</div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif"}}>Dato comercial principal</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>Valentina/Admin y closers registraron datos en Área Comercial. Este cash operativo tiene prioridad; el ledger queda como apoyo para verificación.</div>
             </div>
           </div>
-          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>{fD(manualCommercialCash)}</span>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'Hanken Grotesk',sans-serif"}}>{fD(manualCommercialCash)}</span>
         </div>
       )}
 
@@ -1234,11 +1255,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:18}}>⚠️</span>
             <div>
-              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Pagos a revisar</div>
-              <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif"}}>{reviewCount} {reviewCount===1?"pago de fuente no oficial":"pagos de fuente no oficial"} · {fD(reviewAmount)}</div>
+              <div style={{fontSize:13,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif"}}>Pagos a revisar</div>
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>{reviewCount} {reviewCount===1?"pago de fuente no oficial":"pagos de fuente no oficial"} · {fD(reviewAmount)}</div>
             </div>
           </div>
-          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'DM Mono',monospace"}}>Ver detalle ›</span>
+          <span style={{fontSize:12,color:C.amber,fontWeight:700,fontFamily:"'Hanken Grotesk',sans-serif"}}>Ver detalle ›</span>
         </div>
       )}
 
@@ -1248,7 +1269,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <span style={{fontSize:12,fontWeight:700,color:TXT}}>Configuración del mes</span>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={handleSaveCfg} disabled={savingCfg} style={{background:BRAND,color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"'Inter',sans-serif",fontWeight:700,opacity:savingCfg?0.7:1}}>{savingCfg?"...":"✓ Guardar"}</button>
+              <button onClick={handleSaveCfg} disabled={savingCfg} style={{background:BRAND,color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:700,opacity:savingCfg?0.7:1}}>{savingCfg?"...":"✓ Guardar"}</button>
               <button onClick={()=>setEditConfig(false)} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:7,padding:"6px 12px",fontSize:11,cursor:"pointer",color:TXT2}}>Cancelar</button>
             </div>
           </div>
@@ -1344,7 +1365,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
       <div style={block}>
         <SectionTitle>{isPast?`Funnel del mes (cerrado) — Plan vs Real · ${dm}/${dm} días`:isFuture?`Funnel del mes (sin datos aún) — Plan vs Real · Día 0/${dm}`:`Funnel a hoy — Plan vs Real · Día ${day}/${dm} (${fP(pctTranscurrido*100,0)} transcurrido)`}</SectionTitle>
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                 {["Métrica",isCurrent?"Requerido a hoy":isPast?"Requerido mes":"Requerido (mes)",isCurrent?"Real a hoy":isPast?"Real mes":"Real","Gap","Estado"].map(h=>(
@@ -1367,7 +1388,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
                     </td>
                     <td style={{padding:"10px 14px",textAlign:"center"}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
-                        <div style={{background:"#ebe9e3",borderRadius:100,height:5,width:60,overflow:"hidden"}}>
+                        <div style={{background:"#ECEEEE",borderRadius:100,height:5,width:60,overflow:"hidden"}}>
                           <div style={{width:Math.min(100,pctR||0)+"%",height:"100%",background:cH(pctR,90,70)}}/>
                         </div>
                         <span style={{fontSize:10,color:cH(pctR,90,70),fontWeight:600}}>{fP(pctR,0)}</span>
@@ -1386,7 +1407,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
 
         <div style={block}>
           <SectionTitle>Salud del embudo — Meta vs Real · Ticket promedio: {fD(ticketProm)}</SectionTitle>
-          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                 {["Métrica","Meta","Real","Estado"].map(h=>(
@@ -1409,7 +1430,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
                       <span style={{color,fontWeight:700}}>{fP(r.real)}</span>
                     </td>
                     <td style={{padding:"9px 12px",textAlign:"center"}}>
-                      <div style={{background:"#ebe9e3",borderRadius:100,height:5,overflow:"hidden",width:50,margin:"0 auto"}}>
+                      <div style={{background:"#ECEEEE",borderRadius:100,height:5,overflow:"hidden",width:50,margin:"0 auto"}}>
                         <div style={{width:Math.min(100,r.real||0)+"%",height:"100%",background:color}}/>
                       </div>
                     </td>
@@ -1427,7 +1448,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <Row2 label={isCurrent?"Inversión Ads esperada a hoy ($)":isPast?"Inversión Ads esperada total ($)":"Inversión Ads esperada al cierre ($)"} value={fD(invEsperadaHoy)}/>
           <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={gapInversion>500?C.red:gapInversion<-500?C.green:TXT} bg={gapInversion>500?"#fef2f2":gapInversion<-500?"#f0fdf4":"transparent"}/>
           <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
-          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11}}>
             <thead>
               <tr style={{background:SURFACE2}}>
                 {["","Cash Total","Comprometido HT"].map(h=>(
@@ -1470,8 +1491,8 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
             {l:"Ventas requeridas (unidades)",v:ventasUniMeta,fmt:"n"},
           ].map(r=>(
             <div key={r.l} style={{padding:"14px 16px",borderRight:`1px solid ${BORDER}`,textAlign:"center"}}>
-              <div style={{fontSize:9,color:TXT3,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>{r.l}</div>
-              <div style={{fontSize:24,fontWeight:800,color:BRAND,fontFamily:"'DM Mono',monospace"}}>{r.fmt==="$"?fD(r.v):fN(r.v)}</div>
+              <div style={{fontSize:9,color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>{r.l}</div>
+              <div style={{fontSize:24,fontWeight:800,color:BRAND,fontFamily:"'Hanken Grotesk',sans-serif"}}>{r.fmt==="$"?fD(r.v):fN(r.v)}</div>
             </div>
           ))}
         </div>
@@ -1520,7 +1541,7 @@ const FunnelView=({f,onUpdate})=>{
             {stages.map((s,i)=>(
               <div key={s.l} style={{display:"flex",alignItems:"center",gap:5,flex:"1 1 0",minWidth:65}}>
                 <div style={{flex:1,background:`${s.c}10`,border:`1.5px solid ${s.c}30`,borderRadius:10,padding:"11px 7px",textAlign:"center"}}>
-                  <div style={{fontSize:22,fontWeight:800,color:s.c,fontFamily:"'DM Mono',monospace"}}>{s.v!=null?fN(s.v):"—"}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:s.c,fontFamily:"'Hanken Grotesk',sans-serif"}}>{s.v!=null?fN(s.v):"—"}</div>
                   <div style={{fontSize:8,color:TXT3,marginTop:2,textTransform:"uppercase",letterSpacing:"0.1em"}}>{s.l}</div>
                   {i>0&&stages[i-1].v&&s.v&&<div style={{fontSize:8,color:TXT3,marginTop:2}}>{fP(pv(s.v,stages[i-1].v))} conv</div>}
                 </div>
@@ -1555,12 +1576,12 @@ const AdsView=({entries,onAdd,onRemove})=>{
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             <Lbl>Fecha</Lbl>
             <input type="date" value={form.fecha} onChange={e=>sf("fecha",e.target.value)}
-              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk',sans-serif"}}/>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             <Lbl>Canal</Lbl>
             <select value={form.canal} onChange={e=>sf("canal",e.target.value)}
-              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Epilogue',sans-serif",cursor:"pointer",height:36}}>
+              style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,color:TXT,padding:"7px 9px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk',sans-serif",cursor:"pointer",height:36}}>
               {CANALES.map(c=><option key={c}>{c}</option>)}
             </select>
           </div>
@@ -1568,15 +1589,15 @@ const AdsView=({entries,onAdd,onRemove})=>{
             <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
               <Lbl>{l}</Lbl>
               <div style={{display:"flex",alignItems:"center",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:7,overflow:"hidden",height:36}}>
-                {p&&<span style={{padding:"0 7px",color:TXT3,fontSize:11,background:BORDER2,borderRight:`1px solid ${BORDER}`,fontFamily:"'DM Mono',monospace"}}>{p}</span>}
+                {p&&<span style={{padding:"0 7px",color:TXT3,fontSize:11,background:BORDER2,borderRight:`1px solid ${BORDER}`,fontFamily:"'Hanken Grotesk',sans-serif"}}>{p}</span>}
                 <input type="number" value={form[k]} onChange={e=>sf(k,e.target.value)} placeholder="0"
-                  style={{background:"transparent",border:"none",outline:"none",color:TXT,fontSize:12,padding:"0 8px",width:82,fontFamily:"'DM Mono',monospace"}}/>
+                  style={{background:"transparent",border:"none",outline:"none",color:TXT,fontSize:12,padding:"0 8px",width:82,fontFamily:"'Hanken Grotesk',sans-serif"}}/>
               </div>
             </div>
           ))}
           <button onClick={add} disabled={saving} style={{background:C.gold,color:"#fff",border:"none",
             borderRadius:8,padding:"0 16px",height:36,fontWeight:800,fontSize:12,cursor:"pointer",
-            fontFamily:"'Epilogue',sans-serif",boxShadow:`0 2px 6px ${C.gold}40`,opacity:saving?0.7:1}}>
+            fontFamily:"'Hanken Grotesk',sans-serif",boxShadow:`0 2px 6px ${C.gold}40`,opacity:saving?0.7:1}}>
             {saving?"...":"+ Agregar"}
           </button>
         </div>
@@ -1591,7 +1612,7 @@ const AdsView=({entries,onAdd,onRemove})=>{
           </div>
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11}}>
                 <thead>
                   <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                     {["Fecha","Canal","Gasto","Impr","Clicks","CTR","CPC","Revenue","ROAS",""].map(h=>(
@@ -1644,7 +1665,7 @@ const HistoricoView=({allKpi,allDaily})=>{
   const maxRev=Math.max(...rows.map(r=>r.rev||r.meta||0),1);
   return(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {rows.length===0&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'DM Mono',monospace"}}>Sin datos históricos aún.</div></Card>}
+      {rows.length===0&&<Card><div style={{textAlign:"center",padding:"40px 20px",color:TXT3,fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif"}}>Sin datos históricos aún.</div></Card>}
       {rows.length>0&&(
         <>
           <Card>
@@ -1656,7 +1677,7 @@ const HistoricoView=({allKpi,allDaily})=>{
                 const c=cH(pv(r.rev,r.meta),85,60);
                 return(
                   <div key={r.key} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:40}}>
-                    <div style={{fontSize:8,color:c,fontFamily:"'DM Mono',monospace",textAlign:"center"}}>{fD(r.rev)}</div>
+                    <div style={{fontSize:8,color:c,fontFamily:"'Hanken Grotesk',sans-serif",textAlign:"center"}}>{fD(r.rev)}</div>
                     <div style={{width:"100%",display:"flex",alignItems:"flex-end",justifyContent:"center",gap:2}}>
                       {r.meta&&<div style={{width:"38%",height:mH,background:BORDER,borderRadius:"3px 3px 0 0",minHeight:2}}/>}
                       {r.rev&&<div style={{width:"38%",height:rH,background:c,borderRadius:"3px 3px 0 0"}}/>}
@@ -1676,7 +1697,7 @@ const HistoricoView=({allKpi,allDaily})=>{
               <STit icon="🗂" title="Histórico mensual"/>
             </div>
             <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'DM Mono',monospace",fontSize:11}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11}}>
                 <thead>
                   <tr style={{background:SURFACE2,borderBottom:`1px solid ${BORDER}`}}>
                     {["Mes","Meta","Revenue","Cumpl.","Ads","ROAS","New Bk","QB","Shows","Show%","Clients"].map(h=>(
@@ -1694,7 +1715,7 @@ const HistoricoView=({allKpi,allDaily})=>{
                         <td style={{padding:"9px 13px",color:C.gold,fontWeight:700}}>{fD(r.rev)}</td>
                         <td style={{padding:"9px 13px"}}>
                           <div style={{display:"flex",alignItems:"center",gap:5}}>
-                            <div style={{background:"#ebe9e3",borderRadius:100,height:4,width:42,overflow:"hidden"}}>
+                            <div style={{background:"#ECEEEE",borderRadius:100,height:4,width:42,overflow:"hidden"}}>
                               <div style={{width:Math.min(100,pv(r.rev,r.meta)||0)+"%",height:"100%",background:c}}/>
                             </div>
                             <span style={{color:c,fontSize:11}}>{fP(pv(r.rev,r.meta))}</span>
@@ -1762,10 +1783,10 @@ const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
             <Lbl>Fecha</Lbl>
             <input type="date" value={date} onChange={e=>setDate(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk',sans-serif"}}/>
           </div>
           {allCloser[date]&&(
-            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'Hanken Grotesk',sans-serif",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
               Editando entrada existente
             </div>
@@ -1777,8 +1798,8 @@ const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
         <div style={{display:"flex",alignItems:"flex-start",gap:10,background:C.amber+"12",border:`1px dashed ${C.amber}77`,borderRadius:10,padding:"11px 13px"}}>
           <span style={{fontSize:18,lineHeight:1}}>📝</span>
           <div>
-            <div style={{fontSize:12,fontWeight:800,color:TXT,fontFamily:"'Inter',sans-serif"}}>Dato manual: verificar contra pagos reales</div>
-            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.45}}>Este dato lo está llenando Valentina manualmente para operación comercial. El Cash Collected oficial sale del ledger Hotmart/Stripe/Manual; antes de tomar decisiones, validar que no esté duplicado o desactualizado.</div>
+            <div style={{fontSize:12,fontWeight:800,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif"}}>Dato manual: verificar contra pagos reales</div>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.45}}>Este dato lo está llenando Valentina manualmente para operación comercial. El Cash Collected oficial sale del ledger Hotmart/Stripe/Manual; antes de tomar decisiones, validar que no esté duplicado o desactualizado.</div>
           </div>
         </div>
       )}
@@ -1839,12 +1860,12 @@ const CloserEntryForm=({year,month,allCloser,onSave,selectedDate})=>{
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Área Comercial guardada ✓</div>}
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600}}>Área Comercial guardada ✓</div>}
       </div>
     </div>
   );
@@ -1890,7 +1911,7 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
         {AG_CANALES.map((canal,i)=>(
           <div key={canal}>
             <div style={{fontSize:9,fontWeight:700,color:AG_CANAL_COLORS[canal],
-              fontFamily:"'Inter',sans-serif",letterSpacing:"0.06em",
+              fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"0.06em",
               textTransform:"uppercase",marginBottom:4}}>{canal}</div>
             <Inp label={`# ${label} ${canal}`} value={form[`${prefix}_${AG_CANAL_KEYS[i]}`]}
               onChange={v=>sf(`${prefix}_${AG_CANAL_KEYS[i]}`,v)}/>
@@ -1909,10 +1930,10 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
             <Lbl>Fecha</Lbl>
             <input type="date" value={date} onChange={e=>setDate(e.target.value)}
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+                color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk',sans-serif"}}/>
           </div>
           {allCloser[date]&&(
-            <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
+            <div style={{fontSize:10,color:C.amber,fontFamily:"'Hanken Grotesk',sans-serif",paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
               Editando entrada existente
             </div>
@@ -1940,12 +1961,12 @@ const AgendasLeadsForm=({allCloser,onSave})=>{
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>Agendas guardadas ✓</div>}
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600}}>Agendas guardadas ✓</div>}
       </div>
     </div>
   );
@@ -2044,7 +2065,7 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mGastoTikTok=hasHistoricalGasto?mHistoricalGastoTikTok:mDailyGastoTikTok;
   const mGastoOtros=hasHistoricalGasto?mHistoricalGastoOtros:mDailyGastoOtros;
   const mGastoTotal=mGastoMeta+mGastoGoogle+mGastoTikTok+mGastoOtros;
-  const cv=(d,closerField,entryField)=>d.hasPrimaryCommercial?d.sdCommercial(entryField):areaComercialHasPriority(d.d)?d.sdCommercial(entryField)||d.closer[closerField]||0:d.closer[closerField]||d.sdCommercial(entryField)||0;
+  const cv=(d,closerField,entryField)=>areaComercialHasPriority(d.d)?d.sdCommercial(entryField):d.closer[closerField]||d.sdCommercial(entryField)||0;
   const manualAgendasHoy=d=>d.sdHighTicketCloser("agendasHoy");
   const manualCalificadas=d=>d.sdHighTicketCloser("calificadas");
   const manualShowUps=d=>d.sdHighTicketCloser("showUps");
@@ -2062,11 +2083,11 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const mHoyTotal=dayData.reduce((s,d)=>s+manualAgendasHoy(d),0);
   const mShows=dayData.reduce((s,d)=>s+manualShowUps(d),0);
   const mVentasHT=dayData.reduce((s,d)=>s+cv(d,"q_ventas_ht","ventasHT"),0);
-  const valorHTDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaHT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT")||d.closer.valor_venta_ht||0:d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;
-  const cashHTDay=d=>d.hasPrimaryCommercial?(d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")):areaComercialHasPriority(d.d)?d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.closer.ventas_cash||d.ledger.highTicket||0:d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
-  const recurringDay=d=>d.hasPrimaryCommercial?d.sdCommercial("recurringCash"):areaComercialHasPriority(d.d)?d.sdCommercial("recurringCash")||d.closer.recurring_cash||0:d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;
-  const cashLowTicketDay=d=>d.hasPrimaryCommercial?d.sdCommercial("valorVentaLT"):areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaLT")||d.closer.valor_venta_lt||d.ledger.lowTicket||0:d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;
-  const cashReservasDay=d=>d.hasPrimaryCommercial?d.sdCommercial("cashReservas"):areaComercialHasPriority(d.d)?d.sdCommercial("cashReservas")||d.closer.cash_reservas||d.ledger.reservas||0:d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;
+  const valorHTDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaHT"):d.closer.valor_venta_ht||d.sdCommercial("valorVentaHT")||0;
+  const cashHTDay=d=>areaComercialHasPriority(d.d)?(d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")):d.closer.ventas_cash||d.sdCommercial("cashCollected")||d.sdCommercial("upfrontCash")||d.ledger.highTicket||0;
+  const recurringDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("recurringCash"):d.closer.recurring_cash||d.sdCommercial("recurringCash")||0;
+  const cashLowTicketDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("valorVentaLT"):d.closer.valor_venta_lt||d.sdCommercial("valorVentaLT")||d.ledger.lowTicket||0;
+  const cashReservasDay=d=>areaComercialHasPriority(d.d)?d.sdCommercial("cashReservas"):d.closer.cash_reservas||d.sdCommercial("cashReservas")||d.ledger.reservas||0;
   const mValorHT=dayData.reduce((s,d)=>s+valorHTDay(d),0);
   const mLedgerCash=dayData.reduce((s,d)=>s+(d.ledger.cashCollected||0),0);
   const mLedgerHT=dayData.reduce((s,d)=>s+(d.ledger.highTicket||0),0);
@@ -2173,18 +2194,18 @@ const DetalleView=({allDaily,allCloser,year,month})=>{
   const WKD_BG=IS_DARK?"#0A1020":SURFACE2;
   const HDR_TXT="#f1f5f9";
   const thBase={padding:"5px 3px",textAlign:"center",fontSize:9,fontWeight:700,
-    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
-  const tdBase={padding:"3px 4px",textAlign:"right",fontSize:9,fontFamily:"'DM Mono',monospace",
+    fontFamily:"'Hanken Grotesk',sans-serif",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"3px 4px",textAlign:"right",fontSize:9,fontFamily:"'Hanken Grotesk',sans-serif",
     borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:21};
   const stickyCol={position:"sticky",left:0,zIndex:2};
 
   return(
     <div>
-      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {MONTHS[month]} {year} · Scroll horizontal para ver todos los días
       </div>
       {cash&&cash.available&&(
-        <div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
+        <div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk',sans-serif",marginBottom:8,padding:"8px 10px",background:C.green+"10",border:`1px solid ${C.green}44`,borderRadius:8}}>
 Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Área Comercial/Valentina; el ledger real de pagos queda como fallback para verificación.
         </div>
       )}
@@ -2217,7 +2238,7 @@ Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Á
                 <tr>
                   <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
                     fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    fontFamily:"'Hanken Grotesk',sans-serif",position:"sticky",left:0,zIndex:3}}>
                     {g.title}
                   </td>
                 </tr>
@@ -2232,7 +2253,7 @@ Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Á
                         fontSize:row.sub?8:9,
                         background:SURFACE,
                         borderRight:`2px solid ${BORDER}`,
-                        fontFamily:"'Inter',sans-serif",
+                        fontFamily:"'Hanken Grotesk',sans-serif",
                         whiteSpace:"nowrap"}}>
                         {row.l}
                       </td>
@@ -2285,6 +2306,18 @@ const closerCanonId=m=>{
   if(!m)return m;
   const cl=COMMERCIAL_COLLABORATORS.find(c=>c.legacy===m);
   return cl?cl.id:m;
+};
+const commercialEntryAliases=m=>{
+  const cl=COMMERCIAL_COLLABORATORS.find(c=>c.id===m||c.legacy===m);
+  return cl?[cl.id,cl.legacy].filter(Boolean):[m].filter(Boolean);
+};
+const resolveDailyEntry=(allDaily,date,member)=>{
+  const ids=commercialEntryAliases(member);
+  for(const id of ids){
+    const entry=allDaily[`${date}:${id}`];
+    if(entry)return entry;
+  }
+  return null;
 };
 
 const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>{
@@ -2346,7 +2379,7 @@ const DetalleColaborador=({allDaily,allCloser,year,month,onSave,onSaveCloser})=>
 
   const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
     borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
-    fontSize:11,fontFamily:"'Inter',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+    fontSize:11,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:view===v?700:400,outline:"none"});
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -2372,8 +2405,8 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   const [saved,setSaved]=useState(false);
 
   useEffect(()=>{
-    const existing=allDaily[`${date}:${collabId}`]||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);
-    setForm(existing?{...blankEntry(),...existing}:blankEntry());
+    const existing=resolveDailyEntry(allDaily,date,collabId)||(collabId==="Admin"&&allCloser[date]?closerToValentinaEntry(date,allCloser[date]):null);
+    setForm(existing?{...blankEntry(),...existing,member:collabId,date}:blankEntry());
     setSaved(false);
   },[collabId,date,allDaily,allCloser]);
 
@@ -2384,6 +2417,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   const canEditMarketingActivity=isMarketingActivityMember(collabId);
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
   const st=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const setCloserCash=v=>setForm(p=>({...p,upfrontCash:Number(v)||0,cashCollected:Number(v)||0}));
 
   const noShowCalc=Math.max(0,(form.calificadas||0)-(form.showUps||0));
   const normalizedCommercialForm=role==="closer"?{...form,agendas:noShowCalc}:form;
@@ -2412,7 +2446,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
                 <button key={key} onClick={()=>{setReportGroup(key);setCollabId(g.collaborators[0].id);}} style={{
                   background:reportGroup===key?BRAND+"18":SURFACE2,border:`1.5px solid ${reportGroup===key?BRAND:BORDER}`,
                   borderRadius:999,padding:"7px 15px",cursor:"pointer",color:reportGroup===key?BRAND:TXT2,
-                  fontSize:12,fontFamily:"'Inter',sans-serif",fontWeight:reportGroup===key?800:600,
+                  fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:reportGroup===key?800:600,
                   transition:"all .15s"}}>{g.label}</button>
               ))}
             </div>
@@ -2425,7 +2459,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
                 return(<button key={c.id} onClick={()=>setCollabId(c.id)} style={{
                   background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
                   borderRadius:8,padding:"7px 13px",cursor:"pointer",color:sel?c.color:TXT2,
-                  fontSize:12,fontFamily:"'Inter',sans-serif",fontWeight:sel?700:500,
+                  fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:sel?700:500,
                   display:"inline-flex",alignItems:"center",gap:7,
                   transition:"all .15s"}}>
                   <span style={{width:7,height:7,borderRadius:100,background:c.color,display:"inline-block"}}/>
@@ -2442,10 +2476,10 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
               <Lbl>Fecha</Lbl>
               <input type="date" value={date} onChange={e=>setDate(e.target.value)}
                 style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
-                  color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'DM Mono',monospace"}}/>
+                  color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk',sans-serif"}}/>
             </div>
             {allDaily[`${date}:${collabId}`]&&(
-              <div style={{fontSize:10,color:C.amber,fontFamily:"'DM Mono',monospace",
+              <div style={{fontSize:10,color:C.amber,fontFamily:"'Hanken Grotesk',sans-serif",
                 paddingBottom:4,display:"flex",alignItems:"center",gap:5}}>
                 <span style={{width:6,height:6,borderRadius:100,background:C.amber,display:"inline-block"}}/>
                 Editando entrada existente
@@ -2456,7 +2490,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
       </Card>
 
       {isValentina&&(
-        <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.55,
+        <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.55,
           background:C.red+"0F",border:`1px solid ${C.red}33`,borderRadius:10,padding:"10px 12px"}}>
           Valentina Sanchez conserva cargo <b style={{color:C.red}}>Admin</b>, pero ahora se guarda como una colaboradora comercial individual y suma al consolidado diario junto con los closers.
         </div>
@@ -2476,7 +2510,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
           </Card>
           <Card>
             <STit icon="📊" title="Gasto Ads (automático)" sub="No se llena manualmente — viene de la sincronización Meta/Google/TikTok"/>
-            <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",lineHeight:1.6,marginBottom:11}}>
+            <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.6,marginBottom:11}}>
               El gasto publicitario y los costos por lead se calculan automáticamente a partir de la integración con cada plataforma. Karen no tiene que registrarlos a mano.
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:9}}>
@@ -2623,7 +2657,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
               <Inp label="# Cierres" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
               <Inp label="$ Venta HT" prefix="$" value={form.valorVentaHT} onChange={v=>sf("valorVentaHT",v)}/>
-              <Inp label="Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
+              <Inp label="Cash Collected $" prefix="$" value={form.cashCollected||form.upfrontCash} onChange={setCloserCash}/>
               <Inp label="Recurring Cash $" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>
               <Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>
               <Inp label="$ Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>
@@ -2652,12 +2686,12 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
         <button onClick={handleSave} disabled={saving} style={{
           background:saved?C.green:BRAND,color:"#fff",border:"none",
           borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
-          cursor:"pointer",fontFamily:"'Inter',sans-serif",letterSpacing:"-0.01em",
+          cursor:"pointer",fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"-0.01em",
           transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
           opacity:saving?0.6:1}}>
           {saving?"Guardando...":saved?"✓ Guardado":`Guardar — ${collab.label} · ${date}`}
         </button>
-        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Inter',sans-serif",fontWeight:600}}>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600}}>
           Reporte guardado ✓
         </div>}
       </div>
@@ -2676,8 +2710,8 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
   const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
   const HDR_TXT="#f1f5f9";
   const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
-    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
-  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'DM Mono',monospace",
+    fontFamily:"'Hanken Grotesk',sans-serif",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'Hanken Grotesk',sans-serif",
     borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:23};
   const stickyCol={position:"sticky",left:0,zIndex:2};
 
@@ -2753,7 +2787,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
 
   return(
     <div>
-      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {MONTHS[month]} {year} · {allCols.length} colaboradores · acumulado mensual manual
       </div>
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
@@ -2791,7 +2825,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                 <tr>
                   <td colSpan={allCols.length+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
                     fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    fontFamily:"'Hanken Grotesk',sans-serif",position:"sticky",left:0,zIndex:3}}>
                     {g.title}
                   </td>
                 </tr>
@@ -2807,7 +2841,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                         fontSize:row.sub?9:10,
                         background:SURFACE,
                         borderRight:`2px solid ${BORDER}`,
-                        fontFamily:"'Inter',sans-serif",
+                        fontFamily:"'Hanken Grotesk',sans-serif",
                         whiteSpace:"nowrap"}}>
                         {row.l}
                       </td>
@@ -2837,7 +2871,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
             <tr>
               <td colSpan={allCols.length+2} style={{background:"#1e40af",color:"#fff",padding:"5px 10px",
                 fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                fontFamily:"'Hanken Grotesk',sans-serif",position:"sticky",left:0,zIndex:3}}>
                 Gasto Publicitario (automático · total mes)
               </td>
             </tr>
@@ -2850,7 +2884,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                   fontSize:row.sub?9:10,
                   background:SURFACE,
                   borderRight:`2px solid ${BORDER}`,
-                  fontFamily:"'Inter',sans-serif",
+                  fontFamily:"'Hanken Grotesk',sans-serif",
                   whiteSpace:"nowrap"}}>
                   {row.l}
                 </td>
@@ -2868,7 +2902,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
             <tr>
               <td colSpan={allCols.length+2} style={{background:"#92400e",color:"#fff",padding:"5px 10px",
                 fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                fontFamily:"'Hanken Grotesk',sans-serif",position:"sticky",left:0,zIndex:3}}>
                 Costos por Lead (automático · total mes)
               </td>
             </tr>
@@ -2879,7 +2913,7 @@ const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
                   color:TXT,fontWeight:600,fontSize:10,
                   background:SURFACE,
                   borderRight:`2px solid ${BORDER}`,
-                  fontFamily:"'Inter',sans-serif",
+                  fontFamily:"'Hanken Grotesk',sans-serif",
                   whiteSpace:"nowrap"}}>
                   {row.l}
                 </td>
@@ -2981,8 +3015,8 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
   const HDR_BG=IS_DARK?"#0D1526":"#1e293b";
   const HDR_TXT="#f1f5f9";
   const thBase={padding:"5px 6px",textAlign:"center",fontSize:9,fontWeight:700,
-    fontFamily:"'DM Mono',monospace",borderRight:`1px solid rgba(255,255,255,0.1)`};
-  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'DM Mono',monospace",
+    fontFamily:"'Hanken Grotesk',sans-serif",borderRight:`1px solid rgba(255,255,255,0.1)`};
+  const tdBase={padding:"4px 8px",textAlign:"right",fontSize:10,fontFamily:"'Hanken Grotesk',sans-serif",
     borderRight:`1px solid ${BORDER2}`,borderBottom:`1px solid ${BORDER2}`,height:23};
   const stickyCol={position:"sticky",left:0,zIndex:2};
 
@@ -2990,13 +3024,13 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
     <div>
       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
         <span style={{fontSize:10,color:TXT3,letterSpacing:"0.13em",textTransform:"uppercase",
-          fontFamily:"'Inter',sans-serif",fontWeight:600,marginRight:4}}>Colaborador</span>
+          fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600,marginRight:4}}>Colaborador</span>
         {MANUAL_COLLABORATORS.map(c=>{
           const sel=picked===c.id;
           return(<button key={c.id} onClick={()=>setPicked(c.id)} style={{
             background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
             borderRadius:8,padding:"5px 12px",cursor:"pointer",color:sel?c.color:TXT2,
-            fontSize:11,fontFamily:"'Inter',sans-serif",fontWeight:sel?700:500,
+            fontSize:11,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:sel?700:500,
             display:"inline-flex",alignItems:"center",gap:7,
             transition:"all .15s"}}>
             <span style={{width:6,height:6,borderRadius:100,background:c.color,display:"inline-block"}}/>
@@ -3004,7 +3038,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
           </button>);
         })}
       </div>
-      <div style={{fontSize:11,color:TXT2,fontFamily:"'Inter',sans-serif",marginBottom:8,padding:"0 2px"}}>
+      <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",marginBottom:8,padding:"0 2px"}}>
         {collab.label} · {MONTHS[month]} {year} · {rowsM.length} días con registro
       </div>
       <div style={{overflow:"auto",borderRadius:10,border:`1px solid ${BORDER}`,background:SURFACE,
@@ -3036,7 +3070,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
                 <tr>
                   <td colSpan={dm+2} style={{background:g.bg,color:"#fff",padding:"5px 10px",
                     fontSize:9,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",
-                    fontFamily:"'Inter',sans-serif",position:"sticky",left:0,zIndex:3}}>
+                    fontFamily:"'Hanken Grotesk',sans-serif",position:"sticky",left:0,zIndex:3}}>
                     {g.title}
                   </td>
                 </tr>
@@ -3049,7 +3083,7 @@ const DetallePorDia=({entriesByCollab,year,month,dm,mp,pad})=>{
                         color:TXT,fontWeight:600,fontSize:10,
                         background:SURFACE,
                         borderRight:`2px solid ${BORDER}`,
-                        fontFamily:"'Inter',sans-serif",
+                        fontFamily:"'Hanken Grotesk',sans-serif",
                         whiteSpace:"nowrap"}}>
                         {row.l}
                       </td>
@@ -3254,7 +3288,7 @@ const ControlComercial=()=>{
 
   const fieldBox={background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
     color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
-    fontFamily:"'Inter',sans-serif",fontWeight:500,height:38,width:"100%"};
+    fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:500,height:38,width:"100%"};
 
   const renderItemCard=(it)=>{
     const meta=bucketMeta(it.bucket);
@@ -3268,7 +3302,7 @@ const ControlComercial=()=>{
         <div className="cc-pipeline-card-rail" style={{position:"absolute",left:0,top:0,bottom:0,width:1,background:meta.c}}/>
         <div className="cc-pipeline-card-head" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:6}}>
           <div className="cc-pipeline-card-headinfo" style={{display:"flex",alignItems:"center",gap:8,minWidth:0,flexWrap:"wrap"}}>
-            <span className="cc-pipeline-time" style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'JetBrains Mono',monospace"}}>{fmtTime(it.appointmentAt)}</span>
+            <span className="cc-pipeline-time" style={{fontSize:12,fontWeight:700,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif"}}>{fmtTime(it.appointmentAt)}</span>
             <span className="cc-pipeline-lead-name" style={{fontSize:13,fontWeight:600,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:180}} title={it.lead}>{it.lead||"—"}</span>
             {tempBadge&&<span style={{fontSize:9,fontWeight:800,letterSpacing:"0.08em",
               color:tempBadge.c,background:tempBadge.c+"18",border:`1px solid ${tempBadge.c}40`,
@@ -3276,12 +3310,12 @@ const ControlComercial=()=>{
           </div>
           <button className="cc-pipeline-card-actualizar" onClick={()=>openUpdate(it)} style={{background:BRAND+"15",
             border:`1px solid ${BRAND}40`,borderRadius:7,padding:"3px 9px",fontSize:10,
-            cursor:"pointer",color:BRAND,fontFamily:"'Inter',sans-serif",fontWeight:700,whiteSpace:"nowrap"}}>
+            cursor:"pointer",color:BRAND,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:700,whiteSpace:"nowrap"}}>
             Actualizar
           </button>
         </div>
         <div className="cc-pipeline-card-meta" style={{display:"flex",alignItems:"center",gap:6,fontSize:10,color:TXT3,marginBottom:6,flexWrap:"wrap"}}>
-          <span style={{fontFamily:"'Inter',sans-serif",fontWeight:600,color:TXT2}}>{it.closer||"Sin asignar"}</span>
+          <span style={{fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600,color:TXT2}}>{it.closer||"Sin asignar"}</span>
           {it.ghlStatus&&<><span>•</span><span>{it.ghlStatus}</span></>}
           {it.stage&&it.stage!==it.ghlStatus&&<><span>•</span><span title={it.stage}>{String(it.stage).slice(0,18)}</span></>}
           {it.automationSource==="manual"&&<><span>•</span><span style={{color:C.amber,fontWeight:700}}>MANUAL</span></>}
@@ -3290,7 +3324,7 @@ const ControlComercial=()=>{
           <div style={{paddingTop:6,borderTop:`1px dashed ${BORDER}`,display:"flex",flexDirection:"column",gap:4}}>
             {it.outcome&&<div style={{fontSize:11,fontWeight:700,color:outcomeColor(it.outcome)}}>{it.outcome}</div>}
             {it.nextAction&&<div style={{fontSize:11,color:TXT}}>→ {it.nextAction}</div>}
-            {it.followUpAt&&<div style={{fontSize:10,color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>Follow-up: {fmtDate(it.followUpAt)}</div>}
+            {it.followUpAt&&<div style={{fontSize:10,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>Follow-up: {fmtDate(it.followUpAt)}</div>}
             {it.note&&<div style={{fontSize:10,color:TXT2,lineHeight:1.45,whiteSpace:"pre-wrap"}}>{it.note}</div>}
           </div>
         )}
@@ -3357,7 +3391,7 @@ const ControlComercial=()=>{
             <button onClick={()=>loadPipeline(date)} disabled={loading} style={{
               background:"transparent",border:`1px solid ${BORDER}`,borderRadius:10,
               padding:"9px 16px",fontWeight:600,fontSize:12,cursor:"pointer",
-              color:TXT2,fontFamily:"'Inter',sans-serif",opacity:loading?0.5:1}}>
+              color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",opacity:loading?0.5:1}}>
               ↻ {loading?"Cargando...":"Refrescar"}
             </button>
             {savedFlag&&<div style={{fontSize:11,color:C.green,fontWeight:700}}>✓ Guardado</div>}
@@ -3367,7 +3401,7 @@ const ControlComercial=()=>{
                 background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
                 border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
                 padding:"6px 10px",borderRadius:8,
-                fontFamily:"'Inter',sans-serif"}}>
+                fontFamily:"'Hanken Grotesk',sans-serif"}}>
                 {syncStatus.msg}
               </div>
             )}
@@ -3400,7 +3434,7 @@ const ControlComercial=()=>{
       {loading&&!loadError&&!pipeline&&(
         <Card>
           <div style={{textAlign:"center",padding:"24px",color:TXT3,fontSize:12,
-            fontFamily:"'Inter',sans-serif"}}>Cargando pipeline...</div>
+            fontFamily:"'Hanken Grotesk',sans-serif"}}>Cargando pipeline...</div>
         </Card>
       )}
 
@@ -3416,7 +3450,7 @@ const ControlComercial=()=>{
                   borderRadius:10,padding:"11px 13px"}}>
                   <div className="cc-closer-head" style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,gap:10}}>
                     <span className="cc-closer-name" style={{fontSize:12,fontWeight:700,color:TXT,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}} title={c.closer}>{c.closer}</span>
-                    <span className="cc-closer-score" style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Inter',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
+                    <span className="cc-closer-score" style={{fontSize:18,fontWeight:800,color:scoreColor,fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"-0.04em"}}>{c.score}</span>
                   </div>
                   <Barz value={c.score} max={100} color={scoreColor} h={5}/>
                   <div className="cc-closer-metrics" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:4,marginTop:8,fontSize:10}}>
@@ -3439,7 +3473,7 @@ const ControlComercial=()=>{
         <Card style={{borderColor:BRAND+"55"}}>
           <STit title="Actualizar registro" sub="Muestra datos de GHL para identificar el contacto. Se guarda en el panel interno y, si está activado, sincroniza con GHL."
             right={<button onClick={closeUpdate} style={{background:"transparent",border:`1px solid ${BORDER}`,borderRadius:8,
-              padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>Cerrar</button>}/>
+              padding:"4px 10px",fontSize:11,color:TXT2,cursor:"pointer",fontFamily:"'Hanken Grotesk',sans-serif"}}>Cerrar</button>}/>
           {activeItem&&(
             <div className="cc-ghl-readonly" style={{background:SURFACE2,border:`1px solid ${BORDER}`,
               borderRadius:10,padding:"10px 12px",marginBottom:10,display:"flex",flexDirection:"column",gap:6}}>
@@ -3448,7 +3482,7 @@ const ControlComercial=()=>{
                   background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 7px",borderRadius:6}}>
                   DATOS GHL
                 </span>
-                <span style={{fontSize:10,color:TXT3,fontFamily:"'Inter',sans-serif"}}>
+                <span style={{fontSize:10,color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif"}}>
                   solo lectura · para ubicar el contacto en GHL
                 </span>
               </div>
@@ -3456,13 +3490,13 @@ const ControlComercial=()=>{
                 gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:8}}>
                 <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
                   <Lbl>Email</Lbl>
-                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif",
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
                     title={activeItem.email||""}>{activeItem.email||"—"}</div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:2,minWidth:0}}>
                   <Lbl>Teléfono</Lbl>
-                  <div style={{fontSize:12,color:TXT,fontFamily:"'JetBrains Mono',monospace",
+                  <div style={{fontSize:12,color:TXT,fontFamily:"'Hanken Grotesk',sans-serif",
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",userSelect:"all"}}
                     title={activeItem.phone||""}>{activeItem.phone||"—"}</div>
                 </div>
@@ -3475,7 +3509,7 @@ const ControlComercial=()=>{
               </div>
               {(activeItem.contactId||activeItem.opportunityId)&&(
                 <div style={{display:"flex",gap:10,flexWrap:"wrap",fontSize:10,color:TXT3,
-                  fontFamily:"'JetBrains Mono',monospace",paddingTop:4,borderTop:`1px dashed ${BORDER}`}}>
+                  fontFamily:"'Hanken Grotesk',sans-serif",paddingTop:4,borderTop:`1px dashed ${BORDER}`}}>
                   {activeItem.contactId&&<span style={{userSelect:"all"}} title="contactId">
                     contact: {String(activeItem.contactId).slice(0,10)}…
                   </span>}
@@ -3542,11 +3576,11 @@ const ControlComercial=()=>{
                     background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
                     NOTA GHL
                   </span>
-                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif"}}>solo lectura</span>
                   {hasMultiple&&(
                     <span style={{fontSize:9,fontWeight:700,color:TXT2,
                       background:BORDER,border:`1px solid ${BORDER}`,
-                      padding:"1px 6px",borderRadius:999,fontFamily:"'Inter',sans-serif"}}>
+                      padding:"1px 6px",borderRadius:999,fontFamily:"'Hanken Grotesk',sans-serif"}}>
                       {noteCount} notas
                     </span>
                   )}
@@ -3556,14 +3590,14 @@ const ControlComercial=()=>{
                       style={{marginLeft:"auto",background:"transparent",
                         border:`1px solid ${BORDER}`,borderRadius:6,
                         padding:"2px 8px",fontSize:10,fontWeight:700,color:TXT2,
-                        cursor:"pointer",fontFamily:"'Inter',sans-serif"}}>
+                        cursor:"pointer",fontFamily:"'Hanken Grotesk',sans-serif"}}>
                       {showAllGhlNotes?"Ocultar":"Ver todas"}
                     </button>
                   )}
                 </div>
                 {!showAllGhlNotes&&(
                   <div style={{fontSize:12,color:latestBody?TXT:TXT3,whiteSpace:"pre-wrap",
-                    wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
+                    wordBreak:"break-word",fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.4,
                     maxHeight:140,overflowY:"auto"}}>
                     {latestBody||"Sin nota GHL para este contacto."}
                   </div>
@@ -3579,12 +3613,12 @@ const ControlComercial=()=>{
                           display:"flex",flexDirection:"column",gap:3,minWidth:0}}>
                           {dt&&(
                             <div style={{fontSize:9,fontWeight:700,color:TXT3,
-                              letterSpacing:"0.04em",fontFamily:"'JetBrains Mono',monospace"}}>
+                              letterSpacing:"0.04em",fontFamily:"'Hanken Grotesk',sans-serif"}}>
                               {dt}
                             </div>
                           )}
                           <div style={{fontSize:12,color:TXT,whiteSpace:"pre-wrap",
-                            wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4}}>
+                            wordBreak:"break-word",fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.4}}>
                             {n.body}
                           </div>
                         </div>
@@ -3600,10 +3634,10 @@ const ControlComercial=()=>{
                     background:BRAND+"15",border:`1px solid ${BRAND}40`,padding:"2px 6px",borderRadius:6}}>
                     NOTA FATHOM
                   </span>
-                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Inter',sans-serif"}}>solo lectura</span>
+                  <span style={{fontSize:9,color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif"}}>solo lectura</span>
                 </div>
                 <div style={{fontSize:12,color:activeItem.fathomNote?TXT:TXT3,whiteSpace:"pre-wrap",
-                  wordBreak:"break-word",fontFamily:"'Inter',sans-serif",lineHeight:1.4,
+                  wordBreak:"break-word",fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.4,
                   maxHeight:140,overflowY:"auto"}}>
                   {activeItem.fathomNote||"Sin contexto de llamada (Fathom)."}
                 </div>
@@ -3617,18 +3651,18 @@ const ControlComercial=()=>{
               placeholder="Lo que escribas aquí se guarda en el panel y se sincroniza a GHL como nota nueva."
               style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:9,
                 color:TXT,padding:"9px 11px",fontSize:13,outline:"none",
-                fontFamily:"'Inter',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
+                fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:500,resize:"vertical",minHeight:54,width:"100%"}}/>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center",marginTop:12,flexWrap:"wrap"}}>
             <button onClick={handleSave} disabled={saving} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:10,
               padding:"10px 22px",fontWeight:700,fontSize:13,
-              cursor:saving?"wait":"pointer",fontFamily:"'Inter',sans-serif",
+              cursor:saving?"wait":"pointer",fontFamily:"'Hanken Grotesk',sans-serif",
               opacity:saving?0.6:1}}>
               {saving?"Guardando...":(syncGhl?"Guardar y sincronizar":"Guardar registro")}
             </button>
             <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",
-              fontFamily:"'Inter',sans-serif",userSelect:"none"}}>
+              fontFamily:"'Hanken Grotesk',sans-serif",userSelect:"none"}}>
               <input type="checkbox" checked={syncGhl}
                 onChange={e=>setSyncGhl(e.target.checked)}
                 style={{width:16,height:16,cursor:"pointer",accentColor:BRAND}}/>
@@ -3645,7 +3679,7 @@ const ControlComercial=()=>{
                 background:(syncStatus.kind==="ok"?C.green:C.amber)+"15",
                 border:`1px solid ${(syncStatus.kind==="ok"?C.green:C.amber)}40`,
                 padding:"6px 10px",borderRadius:8,
-                fontFamily:"'Inter',sans-serif"}}>
+                fontFamily:"'Hanken Grotesk',sans-serif"}}>
                 {syncStatus.msg}
               </div>
             )}
@@ -3657,8 +3691,8 @@ const ControlComercial=()=>{
       {!loading&&!loadError&&items.length===0&&(
         <Card>
           <div style={{textAlign:"center",padding:"30px",color:TXT3,fontSize:12,
-            fontFamily:"'Inter',sans-serif"}}>
-            Sin items en pipeline para <b style={{color:TXT2,fontFamily:"'JetBrains Mono',monospace"}}>{date}</b>.
+            fontFamily:"'Hanken Grotesk',sans-serif"}}>
+            Sin items en pipeline para <b style={{color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif"}}>{date}</b>.
           </div>
         </Card>
       )}
@@ -3676,11 +3710,11 @@ const ControlComercial=()=>{
                     <div style={{width:6,height:6,borderRadius:100,background:b.c}}/>
                     <span style={{fontSize:12,fontWeight:700,color:TXT,letterSpacing:"-0.01em"}}>{b.label}</span>
                   </div>
-                  <span style={{fontSize:10,color:TXT3,fontFamily:"'JetBrains Mono',monospace",fontWeight:700}}>{list.length}</span>
+                  <span style={{fontSize:10,color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:700}}>{list.length}</span>
                 </div>
                 <div className="cc-pipeline-list" style={{display:"flex",flexDirection:"column",gap:8,maxHeight:520,overflowY:"auto"}}>
                   {list.length===0&&(
-                    <div className="cc-pipeline-empty" style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Inter',sans-serif"}}>—</div>
+                    <div className="cc-pipeline-empty" style={{fontSize:11,color:TXT3,textAlign:"center",padding:"14px 0",fontFamily:"'Hanken Grotesk',sans-serif"}}>—</div>
                   )}
                   {list.map(renderItemCard)}
                 </div>
@@ -3778,6 +3812,7 @@ function App(){
   const [closerData,setCloserData]=useState({});
   const [error,setError]=useState(null);
   const [me,setMe]=useState(null);
+  const [meLoaded,setMeLoaded]=useState(false);
 
   // Identity + capabilities (drives the admin link and the scope banner). The
   // server is the real authorization boundary; this only shapes the UI.
@@ -3786,7 +3821,8 @@ function App(){
     fetch("/api/auth/me",{credentials:"same-origin"})
       .then(r=>r.ok?r.json():null)
       .then(d=>{if(alive&&d&&d.user)setMe(d.user);})
-      .catch(()=>{});
+      .catch(()=>{})
+      .finally(()=>{if(alive)setMeLoaded(true);});
     return()=>{alive=false;};
   },[]);
 
@@ -3833,6 +3869,15 @@ function App(){
   },[me,canManage,tab,embedUrl,visibleTabs.length]);
 
   useEffect(()=>{
+    // Wait for identity before touching commercial data. Operaciones-only users
+    // (capabilities.canRead===false) must not call /api/dashboard/select: the
+    // server would reject it and we'd flash a permission error on a screen that
+    // only ever shows them their allowed Operaciones menu. When /api/auth/me
+    // could not load (me===null) we keep the old behavior and try to read, since
+    // the root route only serves this shell to dashboard readers anyway.
+    if(!meLoaded)return;
+    const canReadDash=!me||!me.capabilities||me.capabilities.canRead!==false;
+    if(!canReadDash){setReady(true);return;}
     (async()=>{
       try{
         await syncAutoAdSpend();
@@ -3883,7 +3928,7 @@ function App(){
       }
       setReady(true);
     })();
-  },[]);
+  },[meLoaded,me]);
 
   const kk=`kpi:${year}-${month}`;
   const kpi=kpiData[kk]||{funnel:{revenue:"",adSpend:"",leads:"",agendas:"",shows:"",cierres:""},meta:{revenue:"150000"},day:new Date().getDate(),ads:[]};
@@ -3907,46 +3952,78 @@ function App(){
     },{onConflict:"year,month"});
   };
 
+  const syncCommercialCloserAggregate=async(date,entries)=>{
+    if(!areaComercialHasPriority(date))return;
+    const dayEntries=Object.values(entries).filter(e=>e&&e.date===date&&isHighTicketCloserReportingMember(closerCanonId(e.member),date));
+    const ventas_cash=sumF(dayEntries,"cashCollected")||sumF(dayEntries,"upfrontCash");
+    const payload={
+      date,
+      q_ventas_ht:sumF(dayEntries,"ventasHT"),
+      valor_venta_ht:sumF(dayEntries,"valorVentaHT"),
+      upfront_cash_ht:sumF(dayEntries,"upfrontCash"),
+      ventas_cash,
+      recurring_cash:sumF(dayEntries,"recurringCash"),
+    };
+    setCloserData(prev=>({...prev,[date]:{...(prev[date]||blankCloser()),...payload}}));
+    const {error}=await db.from("daily_closer").upsert(payload,{onConflict:"date"});
+    if(error)throw error;
+  };
+
   const saveEntry=async(key,entry)=>{
-    const nd={...daily,[key]:entry};
+    const canonicalMember=closerCanonId(entry.member);
+    const canonicalEntry={...entry,member:canonicalMember};
+    const canonicalKey=`${canonicalEntry.date}:${canonicalMember}`;
+    const legacyKeys=commercialEntryAliases(canonicalMember)
+      .filter(id=>id!==canonicalMember)
+      .map(id=>`${canonicalEntry.date}:${id}`);
+    const nd={...daily,[canonicalKey]:canonicalEntry};
+    legacyKeys.forEach(k=>{delete nd[k];});
     setDaily(nd);
     // Marketing activity columns are writable only by Lucas Soria. Commercial
     // collaborators still reuse these physical columns for their own mapped fields.
-    const writesMarketingActivity=isMarketingActivityMember(entry.member);
-    const writesLowTicketActivity=isLowTicketSetter(entry.member);
+    const writesMarketingActivity=isMarketingActivityMember(canonicalEntry.member);
+    const writesLowTicketActivity=isLowTicketSetter(canonicalEntry.member);
     const {error}=await db.from("daily_entries").upsert({
-      date:entry.date,member:entry.member,
-      ig_followers:writesMarketingActivity?(entry.igFollowers||0):isAdminMember(entry.member)?(entry.ventasLT||0):isCommercialMember(entry.member)?(entry.callsScheduled||0):0,
-      posts:writesMarketingActivity?(entry.posts||0):isAdminMember(entry.member)?(entry.valorVentaLT||0):isCommercialMember(entry.member)?(entry.outboundContactados||0):0,
-      mensajes:writesMarketingActivity?(entry.mensajes||0):isAdminMember(entry.member)?(entry.refunds||0):isCommercialMember(entry.member)?(entry.outboundAgendados||0):0,
-      follow_ups:entry.followUps||0,
-      bk_offers:writesMarketingActivity?(entry.bkOffers||0):isAdminMember(entry.member)?(entry.refundValue||0):isCommercialMember(entry.member)?(entry.hotLeads||0):0,
-      setter_new_conversations:entry.setterNewConversations||0,
-      setter_new_inbound:entry.setterNewInbound||0,
-      setter_new_outbound:entry.setterNewOutbound||0,
-      setter_outbound_replies:entry.setterOutboundReplies||0,
-      setter_calls_proposed:entry.setterCallsProposed||0,
-      setter_links_sent:entry.setterLinksSent||0,
-      gasto_meta:entry.gastoMeta||0,gasto_google:entry.gastoGoogle||0,
-      gasto_tiktok:entry.gastoTikTok||0,
-      gasto_otros:isCommercialMember(entry.member)?(entry.cashReservas||0):(entry.gastoOtros||0),
-      new_bk_organic:isSetterMember(entry.member)?(entry.setterLeadsContacted||0):(entry.agendas||0),
-      qual_bk_organic:isSetterMember(entry.member)?(entry.setterConfirmedAgendas||0):(entry.calificadas||0),
-      today_bk_organic:isSetterMember(entry.member)?(entry.setterCallsToLeads||0):(entry.agendasHoy||0),
-      show_organic:isSetterMember(entry.member)?(entry.setterMessagesSent||0):(entry.showUps||0),
-      sales_organic:isSetterMember(entry.member)?(entry.setterOrganicLeads||0):(entry.ventasHT||0),
-      revenue_organic:writesLowTicketActivity?(entry.lowTicketVentas||0):(entry.valorVentaHT||0),
-      cash_organic:writesLowTicketActivity?(entry.lowTicketAgendasHoy||0):(entry.cashCollected||entry.upfrontCash||0),
-      recurring_organic:writesLowTicketActivity?(entry.lowTicketShowUps||0):(entry.recurringCash||0),
-      pitches_organic:isAdminMember(entry.member)?(entry.activeClients||0):isSetterMember(entry.member)?(entry.setterAdsLeads||0):(entry.pendDiaAnterior||0),
-      pitches_paid:writesLowTicketActivity?(entry.lowTicketFollowUps||0):(entry.pendAcumulados||0),
-      reservas_organic:entry.reservas||0,
-      showup_notes:entry.showupNotes||"",
-      hot_leads_evidence:entry.hotLeadsEvidence||"",
-      blockers:entry.blockers||"",
-      setter_findings:entry.setterFindings||"",
+      date:canonicalEntry.date,member:canonicalEntry.member,
+      ig_followers:writesMarketingActivity?(canonicalEntry.igFollowers||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.ventasLT||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.callsScheduled||0):0,
+      posts:writesMarketingActivity?(canonicalEntry.posts||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.valorVentaLT||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.outboundContactados||0):0,
+      mensajes:writesMarketingActivity?(canonicalEntry.mensajes||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.refunds||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.outboundAgendados||0):0,
+      follow_ups:canonicalEntry.followUps||0,
+      bk_offers:writesMarketingActivity?(canonicalEntry.bkOffers||0):isAdminMember(canonicalEntry.member)?(canonicalEntry.refundValue||0):isCommercialMember(canonicalEntry.member)?(canonicalEntry.hotLeads||0):0,
+      setter_new_conversations:canonicalEntry.setterNewConversations||0,
+      setter_new_inbound:canonicalEntry.setterNewInbound||0,
+      setter_new_outbound:canonicalEntry.setterNewOutbound||0,
+      setter_outbound_replies:canonicalEntry.setterOutboundReplies||0,
+      setter_calls_proposed:canonicalEntry.setterCallsProposed||0,
+      setter_links_sent:canonicalEntry.setterLinksSent||0,
+      gasto_meta:canonicalEntry.gastoMeta||0,gasto_google:canonicalEntry.gastoGoogle||0,
+      gasto_tiktok:canonicalEntry.gastoTikTok||0,
+      gasto_otros:isCommercialMember(canonicalEntry.member)?(canonicalEntry.cashReservas||0):(canonicalEntry.gastoOtros||0),
+      new_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterLeadsContacted||0):(canonicalEntry.agendas||0),
+      qual_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterConfirmedAgendas||0):(canonicalEntry.calificadas||0),
+      today_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterCallsToLeads||0):(canonicalEntry.agendasHoy||0),
+      show_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterMessagesSent||0):(canonicalEntry.showUps||0),
+      sales_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterOrganicLeads||0):(canonicalEntry.ventasHT||0),
+      revenue_organic:writesLowTicketActivity?(canonicalEntry.lowTicketVentas||0):(canonicalEntry.valorVentaHT||0),
+      cash_organic:writesLowTicketActivity?(canonicalEntry.lowTicketAgendasHoy||0):(canonicalEntry.cashCollected||canonicalEntry.upfrontCash||0),
+      recurring_organic:writesLowTicketActivity?(canonicalEntry.lowTicketShowUps||0):(canonicalEntry.recurringCash||0),
+      pitches_organic:isAdminMember(canonicalEntry.member)?(canonicalEntry.activeClients||0):isSetterMember(canonicalEntry.member)?(canonicalEntry.setterAdsLeads||0):(canonicalEntry.pendDiaAnterior||0),
+      pitches_paid:writesLowTicketActivity?(canonicalEntry.lowTicketFollowUps||0):(canonicalEntry.pendAcumulados||0),
+      reservas_organic:canonicalEntry.reservas||0,
+      showup_notes:canonicalEntry.showupNotes||"",
+      hot_leads_evidence:canonicalEntry.hotLeadsEvidence||"",
+      blockers:canonicalEntry.blockers||"",
+      setter_findings:canonicalEntry.setterFindings||"",
     },{onConflict:"date,member"});
     if(error){alert("Error guardando: "+error.message);return false;}
+    for(const legacyKey of legacyKeys){
+      const legacyMember=legacyKey.split(":").slice(1).join(":");
+      if(daily[legacyKey])await db.from("daily_entries").delete().match({date:canonicalEntry.date,member:legacyMember});
+    }
+    if(isHighTicketCloserReportingMember(canonicalEntry.member,canonicalEntry.date)){
+      try{await syncCommercialCloserAggregate(canonicalEntry.date,nd);}
+      catch(e){alert("Guardado en colaborador, pero no se pudo actualizar el total diario: "+(e.message||e));return false;}
+    }
     return true;
   };
 
@@ -4024,11 +4101,18 @@ function App(){
   };
 
   const deleteEntry=async(date,member)=>{
-    await db.from("daily_entries").delete().match({date,member});
-    const key=`${date}:${member}`;
+    const canonicalMember=closerCanonId(member);
+    const members=commercialEntryAliases(canonicalMember);
+    for(const id of members){
+      await db.from("daily_entries").delete().match({date,member:id});
+    }
     const nd={...daily};
-    delete nd[key];
+    members.forEach(id=>{delete nd[`${date}:${id}`];});
     setDaily(nd);
+    if(isHighTicketCloserReportingMember(canonicalMember,date)){
+      try{await syncCommercialCloserAggregate(date,nd);}
+      catch(e){alert("Entrada eliminada, pero no se pudo actualizar el total diario: "+(e.message||e));}
+    }
   };
 
   const allKpi=Object.fromEntries(Object.entries(kpiData).filter(([k])=>k.startsWith("kpi:")));
@@ -4047,10 +4131,10 @@ function App(){
         alignItems:"center",justifyContent:"center",
         fontSize:20,fontWeight:900,color:"#fff",boxShadow:`0 0 30px ${BRAND}40`}}>U</div>
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-        <div style={{color:TXT,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:600,letterSpacing:"-0.01em"}}>
+        <div style={{color:TXT,fontFamily:"'Hanken Grotesk',sans-serif",fontSize:13,fontWeight:600,letterSpacing:"-0.01em"}}>
           Torre de Control
         </div>
-        <div style={{color:TXT3,fontFamily:"'Inter',sans-serif",fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>
+        <div style={{color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>
           Cargando datos...
         </div>
       </div>
@@ -4065,7 +4149,7 @@ function App(){
           alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}>
           <Icon name="megaphone" size={20} color={C.red}/>
         </div>
-        <div style={{color:C.red,fontSize:12,lineHeight:1.8,fontFamily:"'Inter',sans-serif"}}>{error}</div>
+        <div style={{color:C.red,fontSize:12,lineHeight:1.8,fontFamily:"'Hanken Grotesk',sans-serif"}}>{error}</div>
       </div>
     </div>
   );
@@ -4074,7 +4158,7 @@ function App(){
     <>
       <style>{`
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:${BG};font-family:'Inter',sans-serif;color:${TXT};height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+        html,body{background:${BG};font-family:'Hanken Grotesk',sans-serif;color:${TXT};height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
         ::-webkit-scrollbar{width:5px;height:5px}
         ::-webkit-scrollbar-track{background:${BG}}
         ::-webkit-scrollbar-thumb{background:${BORDER2};border-radius:4px}
@@ -4091,15 +4175,22 @@ function App(){
         .sidebar-item:hover{background:${SURFACE2}!important;color:${TXT}!important}
         .sidebar-item.active{background:${BRAND}18!important;color:${BRAND}!important;border-left:2px solid ${BRAND}!important}
         .tab-btn:hover{background:${SURFACE2}!important}
+        /* iOS Safari dynamic-viewport fix: size the app shell to the *visible*
+           viewport (100dvh) so the fixed mobile bottom nav and the Safari bottom
+           toolbar never cover scrollable content (e.g. the closer report
+           "Guardar" button). 100vh stays as the fallback for engines without dvh
+           support; on desktop dvh === vh, so the layout is unchanged. */
+        .main-content{height:100vh!important;height:100dvh!important}
         @media (max-width:767px){
           .sidebar{display:none!important}
           .main-content{margin-left:0!important}
           .mobile-nav{display:none!important}
           .mobile-topbar-extra{display:none!important}
           .mobile-menu-btn{display:inline-flex!important}
+          .mobile-bottom-nav{display:flex!important}
           .mobile-ops-drawer{display:flex!important}
           .mobile-ops-overlay{display:block!important}
-          .page-content{padding:12px 12px 24px!important}
+          .page-content{padding:12px 12px calc(108px + env(safe-area-inset-bottom,0px))!important;scroll-padding-bottom:calc(108px + env(safe-area-inset-bottom,0px))!important}
           .cc-control{gap:10px!important}
           .cc-control > div{border-radius:14px!important;padding:14px!important}
           .cc-controls-bar{align-items:stretch!important;gap:12px!important}
@@ -4155,8 +4246,8 @@ function App(){
                 background:`linear-gradient(135deg,${BRAND},${BRAND2})`,
                 alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff"}}>U</div>
               <div>
-                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED</div>
-                <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Centro de Operaciones</div>
+                <div style={{fontSize:11,fontWeight:800,color:TXT,letterSpacing:"-0.02em",lineHeight:1}}>UNLOCKED ECOM</div>
+                <div style={{fontSize:9,color:TXT3,letterSpacing:"0.08em",marginTop:2,textTransform:"uppercase",fontWeight:600}}>Torre de Control</div>
               </div>
             </div>
           </div>
@@ -4168,13 +4259,13 @@ function App(){
               <select value={month} onChange={e=>setMonth(Number(e.target.value))}
                 style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                   color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
-                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                  fontFamily:"'Hanken Grotesk',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
                 {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
               </select>
               <select value={year} onChange={e=>setYear(Number(e.target.value))}
                 style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                   color:TXT,padding:"7px 10px",fontSize:11,outline:"none",
-                  fontFamily:"'Inter',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
+                  fontFamily:"'Hanken Grotesk',sans-serif",cursor:"pointer",width:"100%",fontWeight:500}}>
                 {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
               </select>
             </div>
@@ -4193,7 +4284,7 @@ function App(){
                     style={{width:"100%",textAlign:"left",background:embedUrl===t.href?BRAND+"18":"transparent",
                       border:"none",borderLeft:embedUrl===t.href?`2px solid ${BRAND}`:"2px solid transparent",borderRadius:"0 9px 9px 0",
                       padding:"9px 12px",color:embedUrl===t.href?BRAND:TXT2,fontSize:12,fontWeight:embedUrl===t.href?700:500,
-                      fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                      fontFamily:"'Hanken Grotesk',sans-serif",display:"flex",alignItems:"center",
                       gap:9,marginBottom:2,textDecoration:"none",transition:"all .15s",cursor:"pointer"}}>
                     <Icon name={t.icon} size={15} color={embedUrl===t.href?BRAND:TXT3}/>
                     <span>{t.l}</span>
@@ -4211,7 +4302,7 @@ function App(){
                         border:"none",borderLeft:expanded?`2px solid ${BRAND}`:"2px solid transparent",
                         borderRadius:"0 9px 9px 0",padding:"9px 12px",cursor:"pointer",
                         color:expanded?BRAND:TXT2,fontSize:12,fontWeight:expanded?700:500,
-                        fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                        fontFamily:"'Hanken Grotesk',sans-serif",display:"flex",alignItems:"center",
                         gap:9,transition:"all .15s"}}>
                       <Icon name={t.icon} size={15} color={expanded?BRAND:TXT3}/>
                       <span style={{flex:1}}>{t.l}</span>
@@ -4224,7 +4315,7 @@ function App(){
                           style={{padding:"7px 12px 7px 37px",fontSize:12,
                             color:subActive?BRAND:TXT2,
                             background:subActive?BRAND+"18":"transparent",
-                            fontFamily:"'Inter',sans-serif",fontWeight:subActive?700:500,
+                            fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:subActive?700:500,
                             textDecoration:"none",textAlign:"left",width:"100%",
                             display:"block",borderRadius:"0 9px 9px 0",border:"none",cursor:"pointer"}}
                           onMouseEnter={e=>{if(!subActive)e.currentTarget.style.background=BRAND+"10";}}
@@ -4244,7 +4335,7 @@ function App(){
                     borderRadius:active?"0 9px 9px 0":"0 9px 9px 0",
                     padding:"9px 12px",cursor:"pointer",
                     color:active?BRAND:TXT2,fontSize:12,fontWeight:active?700:500,
-                    fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",
+                    fontFamily:"'Hanken Grotesk',sans-serif",display:"flex",alignItems:"center",
                     gap:9,marginBottom:2,position:"relative",transition:"all .15s"}}>
                   <Icon name={t.icon} size={15} color={active?BRAND:TXT3}/>
                   <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
@@ -4268,7 +4359,7 @@ function App(){
             <button onClick={toggleTheme} style={{
               width:"100%",background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
               padding:"8px 10px",cursor:"pointer",color:TXT2,fontSize:11,fontWeight:600,
-              fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",gap:8,
+              fontFamily:"'Hanken Grotesk',sans-serif",display:"flex",alignItems:"center",gap:8,
               transition:"all .15s"}}>
               <Icon name={isDark?"trendUp":"barChart"} size={13} color={TXT3}/>
               {isDark?"Modo Claro":"Modo Oscuro"}
@@ -4276,7 +4367,7 @@ function App(){
             <button onClick={handleLogout} style={{
               width:"100%",marginTop:8,background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:8,
               padding:"8px 10px",cursor:"pointer",color:TXT2,fontSize:11,fontWeight:700,
-              fontFamily:"'Inter',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+              fontFamily:"'Hanken Grotesk',sans-serif",display:"flex",alignItems:"center",justifyContent:"center",gap:8,
               transition:"all .15s"}}>
               <Icon name="logout" size={13} color={TXT3}/>
               Cerrar sesión
@@ -4295,14 +4386,17 @@ function App(){
                 aria-label="Abrir menú" aria-expanded={mobileOpsMenuOpen}
                 style={{display:"none",alignItems:"center",gap:6,padding:"7px 11px",
                   background:SURFACE,border:`1px solid ${BORDER}`,borderRadius:8,
-                  color:TXT,fontSize:12,fontWeight:700,fontFamily:"'Inter',sans-serif",cursor:"pointer"}}>
+                  color:TXT,fontSize:12,fontWeight:700,fontFamily:"'Hanken Grotesk',sans-serif",cursor:"pointer"}}>
                 <Icon name="menu" size={15} color={TXT}/>
                 <span>Menú</span>
               </button>
               <Icon name={TABS.find(t=>t.id===tab)?.icon} size={18} color={BRAND}/>
-              <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
-                {TABS.find(t=>t.id===tab)?.l}
-                {TABS.find(t=>t.id===tab)?.sub&&<div style={{fontSize:10,fontWeight:600,color:TXT3,lineHeight:1.2,marginTop:2}}>{TABS.find(t=>t.id===tab)?.sub}</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                <div style={{fontSize:9,fontWeight:800,color:BRAND,letterSpacing:"0.12em",lineHeight:1,textTransform:"uppercase"}}>UNLOCKED ECOM</div>
+                <div style={{fontSize:16,fontWeight:800,color:TXT,letterSpacing:"-0.03em",lineHeight:1}}>
+                  {TABS.find(t=>t.id===tab)?.l}
+                  {TABS.find(t=>t.id===tab)?.sub&&<div style={{fontSize:10,fontWeight:600,color:TXT3,lineHeight:1.2,marginTop:2}}>{TABS.find(t=>t.id===tab)?.sub}</div>}
+                </div>
               </div>
               <div className="mobile-topbar-extra" style={{fontSize:10,color:TXT3,marginTop:4,letterSpacing:"0.02em"}}>
                 {MONTHS[month].toUpperCase()} {year} · {periodState==="past"?`MES CERRADO · ${MDAYS[month]} DÍAS`:periodState==="future"?`MES FUTURO · ${MDAYS[month]} DÍAS`:`DÍA ${Math.min(nv(kpi.day)||_topD,MDAYS[month])} DE ${MDAYS[month]}`}
@@ -4315,19 +4409,19 @@ function App(){
           <div className="mobile-period-bar" style={{background:SURFACE,borderBottom:`1px solid ${BORDER}`,padding:"8px 12px",display:"flex",gap:8,alignItems:"center"}}>
             {tab!=="control"&&<button onClick={()=>changeTab("control")} style={{
               background:BRAND,color:"#fff",border:"none",borderRadius:9,padding:"8px 10px",
-              fontSize:11,fontWeight:800,fontFamily:"'Inter',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
+              fontSize:11,fontWeight:800,fontFamily:"'Hanken Grotesk',sans-serif",whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(224,58,24,.22)"}}>
               Control Comercial
             </button>}
             <select value={month} onChange={e=>setMonth(Number(e.target.value))}
               style={{flex:1,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                 color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
-                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+                fontFamily:"'Hanken Grotesk',sans-serif",cursor:"pointer",fontWeight:500}}>
               {MONTHS.map((m,i)=><option key={i} value={i}>{m}</option>)}
             </select>
             <select value={year} onChange={e=>setYear(Number(e.target.value))}
               style={{width:80,background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
                 color:TXT,padding:"7px 10px",fontSize:12,outline:"none",
-                fontFamily:"'Inter',sans-serif",cursor:"pointer",fontWeight:500}}>
+                fontFamily:"'Hanken Grotesk',sans-serif",cursor:"pointer",fontWeight:500}}>
               {[2025,2026,2027].map(y=><option key={y}>{y}</option>)}
             </select>
           </div>
@@ -4369,6 +4463,31 @@ function App(){
           </div>
         </div>
 
+        {/* Mobile bottom tab bar — visual handoff primary navigation */}
+        <nav className="mobile-bottom-nav" aria-label="Navegación principal móvil" style={{display:"none",position:"fixed",left:0,right:0,bottom:0,zIndex:260,
+          background:SURFACE,borderTop:`1px solid ${BORDER}`,boxShadow:"0 -10px 28px rgba(12,14,14,.08)",
+          padding:"7px 8px calc(7px + env(safe-area-inset-bottom,0px))",justifyContent:"space-around",gap:4}}>
+          {[
+            {id:"torre",l:"Torre",icon:"home"},
+            {id:"colab",l:"Comercial",icon:"dollar"},
+            {id:"funnel",l:"Funnel",icon:"trendUp"},
+            {id:"equipo",l:"Equipo",icon:"users"},
+            {id:"mas",l:"Más",icon:"menu"},
+          ].map(item=>{
+            const active=!embedUrl&&tab===item.id;
+            const onTap=item.id==="mas"?()=>setMobileOpsMenuOpen(true):()=>changeTab(item.id);
+            return(
+              <button type="button" key={item.id} onClick={onTap} aria-current={active?"page":undefined}
+                style={{flex:"1 1 0",minWidth:0,border:"none",background:"transparent",borderRadius:12,
+                  padding:"6px 2px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,
+                  color:active?BRAND:TXT3,fontFamily:"'Hanken Grotesk',sans-serif",fontSize:9.5,fontWeight:700,cursor:"pointer"}}>
+                <Icon name={item.icon} size={20} color={active?BRAND:TXT3}/>
+                <span style={{lineHeight:1,whiteSpace:"nowrap"}}>{item.l}</span>
+              </button>
+            );
+          })}
+        </nav>
+
         {/* Mobile Operaciones drawer */}
         {mobileOpsMenuOpen&&<div className="mobile-ops-overlay" onClick={()=>setMobileOpsMenuOpen(false)}
           style={{position:"fixed",inset:0,background:"rgba(17,17,16,0.45)",zIndex:300,display:"none"}}/>}
@@ -4401,7 +4520,7 @@ function App(){
                   <div key={t.id} style={{marginTop:6}}>
                     <div style={{display:"flex",alignItems:"center",gap:9,
                       padding:"10px 18px 4px",fontSize:10,
-                      color:TXT3,fontFamily:"'Inter',sans-serif",fontWeight:700,
+                      color:TXT3,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:700,
                       letterSpacing:"0.1em",textTransform:"uppercase"}}>
                       <Icon name={t.icon} size={13} color={TXT3}/>
                       <span>{t.l}</span>
@@ -4416,7 +4535,7 @@ function App(){
                             color:subActive?BRAND:TXT2,
                             background:subActive?BRAND+"18":"transparent",
                             borderLeft:subActive?`2px solid ${BRAND}`:"2px solid transparent",
-                            border:"none",fontFamily:"'Inter',sans-serif",
+                            border:"none",fontFamily:"'Hanken Grotesk',sans-serif",
                             fontWeight:subActive?700:500,cursor:"pointer"}}>
                           {c.l}
                         </button>
@@ -4431,7 +4550,7 @@ function App(){
                     style={{display:"flex",alignItems:"center",gap:9,width:"100%",textAlign:"left",
                       padding:"11px 18px",fontSize:13,color:embedUrl===t.href?BRAND:TXT2,
                       background:embedUrl===t.href?BRAND+"18":"transparent",borderLeft:embedUrl===t.href?`2px solid ${BRAND}`:"2px solid transparent",
-                      border:"none",fontFamily:"'Inter',sans-serif",fontWeight:embedUrl===t.href?700:500,textDecoration:"none",cursor:"pointer"}}>
+                      border:"none",fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:embedUrl===t.href?700:500,textDecoration:"none",cursor:"pointer"}}>
                     <Icon name={t.icon} size={14} color={embedUrl===t.href?BRAND:TXT3}/>
                     <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>
                       <span>{t.l}</span>
@@ -4449,7 +4568,7 @@ function App(){
                     color:active?BRAND:TXT2,
                     background:active?BRAND+"18":"transparent",
                     borderLeft:active?`2px solid ${BRAND}`:"2px solid transparent",
-                    border:"none",fontFamily:"'Inter',sans-serif",
+                    border:"none",fontFamily:"'Hanken Grotesk',sans-serif",
                     fontWeight:active?700:500,cursor:"pointer"}}>
                   <Icon name={t.icon} size={14} color={active?BRAND:TXT3}/>
                   <span style={{display:"flex",flexDirection:"column",lineHeight:1.15}}>

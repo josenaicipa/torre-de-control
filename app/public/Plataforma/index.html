@@ -2417,6 +2417,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   const canEditMarketingActivity=isMarketingActivityMember(collabId);
   const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
   const st=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const setCloserCash=v=>setForm(p=>({...p,upfrontCash:Number(v)||0,cashCollected:Number(v)||0}));
 
   const noShowCalc=Math.max(0,(form.calificadas||0)-(form.showUps||0));
   const normalizedCommercialForm=role==="closer"?{...form,agendas:noShowCalc}:form;
@@ -2656,7 +2657,7 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11}}>
               <Inp label="# Cierres" value={form.ventasHT} onChange={v=>sf("ventasHT",v)}/>
               <Inp label="$ Venta HT" prefix="$" value={form.valorVentaHT} onChange={v=>sf("valorVentaHT",v)}/>
-              <Inp label="Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>
+              <Inp label="Cash Collected $" prefix="$" value={form.cashCollected||form.upfrontCash} onChange={setCloserCash}/>
               <Inp label="Recurring Cash $" prefix="$" value={form.recurringCash} onChange={v=>sf("recurringCash",v)}/>
               <Inp label="# Reservas" value={form.reservas} onChange={v=>sf("reservas",v)}/>
               <Inp label="$ Reservas" prefix="$" value={form.cashReservas} onChange={v=>sf("cashReservas",v)}/>

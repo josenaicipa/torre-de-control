@@ -89,6 +89,15 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('{l:"$ Cash Reservas",k:"cashReservas",fmt:"$"}');
   });
 
+  it("keeps closer Cash Collected edits from being overwritten by the previous value", () => {
+    const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));
+    const closerBlock = llenarBlock.slice(llenarBlock.indexOf('{!isValentina&&role==="closer"&&('), llenarBlock.indexOf('<Inp label="Recurring Cash $"'));
+
+    expect(llenarBlock).toContain('const setCloserCash=v=>setForm(p=>({...p,upfrontCash:Number(v)||0,cashCollected:Number(v)||0}));');
+    expect(closerBlock).toContain('<Inp label="Cash Collected $" prefix="$" value={form.cashCollected||form.upfrontCash} onChange={setCloserCash}/>');
+    expect(closerBlock).not.toContain('<Inp label="Cash Collected $" prefix="$" value={form.upfrontCash} onChange={v=>sf("upfrontCash",v)}/>');
+  });
+
   it("keeps commercial collaborator daily entries in daily_entries instead of rewriting manual Agendas / Leads", () => {
     const saveEntryBlock = html.slice(html.indexOf('const saveEntry=async'), html.indexOf('const saveCloserEntry=async'));
 
