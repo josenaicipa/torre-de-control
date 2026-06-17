@@ -116,6 +116,7 @@ model User {
   dropiLinkAuditActions  DropiStudentLinkAudit[] @relation("DropiLinkAuditActor")
   enrollmentsApproved    StudentProductEnrollment[] @relation("EnrollmentApprover")
   enrollmentsCeoSigned   StudentProductEnrollment[] @relation("EnrollmentCeoSigner")
+  operacionesSettingsUpdated OperacionesSetting[]    @relation("OperacionesSettingUpdater")
 
   @@index([role])
   @@index([position])
@@ -138,6 +139,19 @@ model AuditEvent {
 
   @@index([actorId])
   @@index([createdAt])
+}
+
+// Configuración global de Operaciones, key-value. Hoy guarda la firma manuscrita
+// fija de Jose Naicipa (key "jose_signature_image") que se estampa en todos los
+// contratos aprobados.
+model OperacionesSetting {
+  key         String   @id
+  value       String   @db.Text
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("OperacionesSettingUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([updatedById])
 }
 
 // Lineage / dedupe record for each external import (CRM, ad spend, etc.).

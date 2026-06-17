@@ -306,54 +306,12 @@ function EnrollmentCard({
   >(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  // Firma manuscrita de Jose Naicipa (data URL PNG/JPEG) que se sube al aprobar.
-  const [ceoSignature, setCeoSignature] = useState<string | null>(null);
-  const [signatureError, setSignatureError] = useState<string | null>(null);
 
   const ACTION_ERROR_LABEL: Record<"approve" | "retry-lw" | "contract-test", string> = {
     approve: "No se pudo aprobar el contrato",
     "retry-lw": "No se pudo reintentar la sincronización con LearnWorlds",
     "contract-test": "No se pudo crear el contrato",
   };
-
-  function onSelectCeoSignature(file: File | null) {
-    setSignatureError(null);
-    if (!file) {
-      setCeoSignature(null);
-      return;
-    }
-    if (file.type !== "image/png" && file.type !== "image/jpeg") {
-      setCeoSignature(null);
-      setSignatureError("La firma debe ser una imagen PNG o JPG");
-      return;
-    }
-    if (file.size > 1_048_576) {
-      setCeoSignature(null);
-      setSignatureError("La imagen de la firma supera el límite de 1 MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : null;
-      if (!result) {
-        setSignatureError("No se pudo leer la imagen de la firma");
-        return;
-      }
-      setCeoSignature(result);
-    };
-    reader.onerror = () => setSignatureError("No se pudo leer la imagen de la firma");
-    reader.readAsDataURL(file);
-  }
-
-  function onApprove() {
-    if (!ceoSignature) {
-      setSignatureError(
-        "Sube la firma de Jose Naicipa en PNG o JPG antes de aprobar el contrato",
-      );
-      return;
-    }
-    void runAction("approve", { signatureImage: ceoSignature });
-  }
 
   async function runAction(
     action: "approve" | "retry-lw" | "contract-test",
@@ -385,10 +343,6 @@ function EnrollmentCard({
           setActionError(baseMessage);
         }
         return;
-      }
-      if (action === "approve") {
-        setCeoSignature(null);
-        setSignatureError(null);
       }
       onChanged();
     } catch {
@@ -539,7 +493,7 @@ function EnrollmentCard({
           {canApprove && (
             <button
               type="button"
-              onClick={onApprove}
+              onClick={() => void runAction("approve")}
               disabled={actionLoading !== null}
               className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
             >
@@ -577,33 +531,6 @@ function EnrollmentCard({
             >
               PDF disponible después de la firma de Jose Naicipa
             </button>
-          )}
-        </div>
-      )}
-
-      {canApprove && (
-        <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-          <label className="block text-sm font-medium text-slate-700">
-            Firma de Jose Naicipa (PNG/JPG)
-          </label>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Esta imagen se pondrá encima de LA EMPRESA en el PDF firmado. Máximo 1 MB.
-          </p>
-          <input
-            type="file"
-            accept="image/png,image/jpeg"
-            onChange={(e) => onSelectCeoSignature(e.target.files?.[0] ?? null)}
-            className="mt-2 block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border file:border-slate-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-100"
-          />
-          {ceoSignature && (
-            <img
-              src={ceoSignature}
-              alt="Vista previa de la firma de Jose Naicipa"
-              className="mt-2 max-h-24 rounded-md border border-slate-200 bg-white p-1"
-            />
-          )}
-          {signatureError && (
-            <p className="mt-2 text-xs text-rose-600">{signatureError}</p>
           )}
         </div>
       )}
@@ -739,13 +666,13 @@ function JoseSignatureHint({
   let message: string;
   if (studentSigned) {
     message = canWrite
-      ? "El estudiante ya firmó. Usa el botón «Firmar como Jose Naicipa y aprobar contrato» para estampar la firma de Jose y liberar el acceso."
+      ? "El estudiante ya firmó. Usa el botón «Firmar como Jose Naicipa y aprobar contrato» para estampar la firma fija de Jose y liberar el acceso. La firma fija se sube una sola vez en Operaciones › Configuración; si aún no la has subido, hazlo allí primero."
       : "El estudiante ya firmó y el contrato espera la firma de Jose Naicipa, pero no tienes permisos para firmarlo. Pídele a un administrador que lo apruebe.";
   } else {
     // DRAFT o PENDING_SIGNATURE: el estudiante todavía no firma.
     message = canWrite
-      ? "Jose Naicipa firma este contrato desde aquí (Operaciones › Estudiante › Producto) una vez que el estudiante haya firmado. El botón de firma aún no aparece porque falta la firma del estudiante."
-      : "Cuando el estudiante firme, Jose Naicipa deberá firmar desde aquí (Operaciones › Estudiante › Producto). No tienes permisos para firmar como Jose Naicipa.";
+      ? "Cuando el estudiante firme, aprueba el contrato desde aquí (Operaciones › Estudiante › Producto) y se estampará automáticamente la firma fija de Jose Naicipa. La firma fija se configura una sola vez en Operaciones › Configuración. El botón de aprobar aún no aparece porque falta la firma del estudiante."
+      : "Cuando el estudiante firme, un administrador deberá aprobar el contrato desde aquí (Operaciones › Estudiante › Producto). No tienes permisos para firmar como Jose Naicipa.";
   }
 
   return (

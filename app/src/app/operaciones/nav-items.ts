@@ -12,6 +12,7 @@ export const OPERACIONES_NAV_ITEMS: OperacionesNavItem[] = [
   { href: "/operaciones/mentores", label: "Mentores", roles: ["ADMIN", "OPERATOR", "VIEWER"] },
   { href: "/operaciones/catalogo", label: "Catálogo", roles: ["ADMIN", "OPERATOR", "VIEWER"] },
   { href: "/operaciones/importar", label: "Importar Excel", roles: ["ADMIN", "OPERATOR"] },
+  { href: "/operaciones/configuracion", label: "Configuración", roles: ["ADMIN", "OPERATOR"] },
   { href: "/operaciones/mis-estudiantes", label: "Mis Estudiantes", roles: ["MENTOR"] },
 ];
 

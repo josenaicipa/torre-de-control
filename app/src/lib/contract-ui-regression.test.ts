@@ -13,6 +13,11 @@ const productosTab = () =>
   read("src/app/operaciones/estudiantes/[id]/productos-tab.tsx");
 const signPage = () => read("src/app/contratos/firmar/[token]/page.tsx");
 const signForm = () => read("src/app/contratos/firmar/[token]/sign-form.tsx");
+const configPage = () =>
+  read("src/app/operaciones/configuracion/page.tsx");
+const joseSignatureConfig = () =>
+  read("src/app/operaciones/configuracion/jose-signature-config.tsx");
+const navItems = () => read("src/app/operaciones/nav-items.ts");
 
 describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
   it("el botón de aprobar firma explícitamente como Jose Naicipa", () => {

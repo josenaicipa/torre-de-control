@@ -15,8 +15,8 @@ import {
   computeCeoSignatureHash,
   contractEnrollmentSelect,
   findMissingContractFields,
-  validateSignatureImage,
 } from "@/lib/operaciones-contract";
+import { getJoseSignature } from "@/lib/operaciones-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,27 +36,15 @@ export async function POST(_req: Request, { params }: Params) {
     requireOperatorOrAdmin(actor);
     const { id, enrollmentId } = await params;
 
-    // La firma manuscrita de Jose Naicipa es obligatoria para aprobar: se sube
-    // como data URL PNG/JPEG (máx. 1 MB) y se guarda para estamparla en el PDF.
-    let body: unknown;
-    try {
-      body = await _req.json();
-    } catch {
-      body = null;
-    }
-    const signatureImageValue =
-      body && typeof body === "object"
-        ? (body as { signatureImage?: unknown }).signatureImage
-        : undefined;
-    if (signatureImageValue === undefined || signatureImageValue === null) {
+    // La firma manuscrita de Jose Naicipa se configura una sola vez en
+    // Operaciones › Configuración y se reutiliza aquí automáticamente. Al
+    // aprobar se congela una copia en el enrollment como evidencia del contrato.
+    const joseSignature = await getJoseSignature();
+    if (!joseSignature) {
       return jsonError(
         400,
-        "Sube la firma de Jose Naicipa en PNG o JPG antes de aprobar el contrato",
+        "Primero configura la firma fija de Jose Naicipa en Operaciones > Configuración",
       );
-    }
-    const signatureImage = validateSignatureImage(signatureImageValue);
-    if (!signatureImage.ok) {
-      return jsonError(400, signatureImage.error);
     }
 
     const student = await prisma.student.findUnique({
@@ -154,7 +142,7 @@ export async function POST(_req: Request, { params }: Params) {
         contractCeoSignedAt: now,
         contractCeoSignedById: actor.userId,
         contractCeoSignatureHash: ceoHash,
-        contractCeoSignatureImage: signatureImage.dataUrl,
+        contractCeoSignatureImage: joseSignature.dataUrl,
         contractRejectedAt: null,
         contractRejectionReason: null,
       },
