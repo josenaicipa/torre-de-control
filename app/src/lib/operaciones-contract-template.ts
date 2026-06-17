@@ -27,6 +27,46 @@ export function contractBulletText(text: string): string {
   return isContractBullet(text) ? text.slice(CONTRACT_BULLET_PREFIX.length) : text;
 }
 
+// Marcadores inline para resaltar en negrita fragmentos DENTRO de un párrafo
+// (p. ej. los montos y fechas variables del calendario de pagos). Igual que el
+// prefijo de viñetas, es una convención de texto para no cambiar la forma
+// `string[]` de los párrafos: los renderizadores (web y PDF) parsean estos
+// marcadores con `parseContractSegments`. Se usan caracteres improbables en el
+// texto legal (corchetes blancos matemáticos) para evitar colisiones.
+export const CONTRACT_BOLD_OPEN = "⟦"; // ⟦
+export const CONTRACT_BOLD_CLOSE = "⟧"; // ⟧
+
+// Envuelve un fragmento para que se renderice en negrita dentro de un párrafo.
+function boldFragment(text: string): string {
+  return `${CONTRACT_BOLD_OPEN}${text}${CONTRACT_BOLD_CLOSE}`;
+}
+
+// Convierte un párrafo con marcadores de negrita inline en segmentos
+// {text, bold}. Texto sin marcadores devuelve un único segmento no-negrita.
+export function parseContractSegments(text: string): ContractTextSegment[] {
+  const segments: ContractTextSegment[] = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const open = text.indexOf(CONTRACT_BOLD_OPEN, cursor);
+    if (open === -1) {
+      segments.push({ text: text.slice(cursor), bold: false });
+      break;
+    }
+    if (open > cursor) {
+      segments.push({ text: text.slice(cursor, open), bold: false });
+    }
+    const close = text.indexOf(CONTRACT_BOLD_CLOSE, open + 1);
+    if (close === -1) {
+      // Marcador sin cierre: renderiza el resto como texto normal (sin marca).
+      segments.push({ text: text.slice(open + 1), bold: false });
+      break;
+    }
+    segments.push({ text: text.slice(open + 1, close), bold: true });
+    cursor = close + 1;
+  }
+  return segments.filter((s) => s.text.length > 0);
+}
+
 // Frase que reemplaza los datos legales cuando faltan. El flujo de emisión de
 // contrato BLOQUEA antes de llegar aquí (findMissingContractFields); este
 // marcador solo aparece si alguien arma la vista a mano con datos incompletos.
@@ -35,7 +75,7 @@ export const INCOMPLETE_LEGAL_DATA = "DATOS LEGALES INCOMPLETOS";
 // Versión de la plantilla aceptada por el estudiante. Se congela en la
 // inscripción al firmar para tener evidencia de QUÉ texto se aceptó. Súbela
 // cuando cambie el contenido legal del contrato.
-export const CONTRACT_TEMPLATE_VERSION = "2026-06-unlocked-v1";
+export const CONTRACT_TEMPLATE_VERSION = "2026-06-unlocked-v2";
 
 // Texto exacto de la declaración de aceptación que firma el estudiante. Se
 // guarda junto a la firma como evidencia de consentimiento informado.
@@ -196,16 +236,15 @@ function buildPaymentParagraphs(input: ContractInput): string[] {
   if (input.balanceUsd > 0) {
     let abono =
       `Se deja constancia de que EL CLIENTE realizó un primer abono de ` +
-      `${formatContractUsd(input.initialPaymentUsd)} al momento de la firma ` +
-      `del presente contrato. El saldo restante por valor de ` +
-      `${formatContractUsd(input.balanceUsd)} será cancelado`;
+      `${boldFragment(formatContractUsd(input.initialPaymentUsd))} al momento ` +
+      `de la firma del presente contrato. El saldo restante por valor de ` +
+      `${boldFragment(formatContractUsd(input.balanceUsd))} será cancelado`;
     if (input.installments.length > 0) {
       const fechas = input.installments
         .map(
           (cuota) =>
-            `${formatContractUsd(cuota.amountUsd)} el ${formatContractDate(
-              cuota.dueDate,
-            )}`,
+            `${boldFragment(formatContractUsd(cuota.amountUsd))} el ` +
+            `${boldFragment(formatContractDate(cuota.dueDate))}`,
         )
         .join("; ");
       abono += ` conforme al siguiente calendario de pagos: ${fechas}.`;
@@ -338,20 +377,22 @@ export function buildContractView(input: ContractInput): ContractView {
           "compensación o indemnización alguna.",
         "2.11. Implementación inicial del negocio: LA EMPRESA podrá, como parte del " +
           "proceso de acompañamiento, realizar la estructuración inicial del negocio " +
-          "digital del CLIENTE, la cual podrá incluir exclusivamente: creación y " +
-          "configuración de una tienda online con página principal (homepage); " +
-          "implementación y configuración de un (1) producto inicial; desarrollo de " +
-          "hasta tres (3) piezas creativas publicitarias; creación de una (1) página " +
-          "de aterrizaje (landing page); y configuración de las aplicaciones " +
-          "necesarias para la operación inicial de la tienda, incluyendo plataformas " +
-          "como Dropify, Judge.me y Releasit, o sus equivalentes. LA EMPRESA no " +
-          "realizará la creación, configuración, vinculación, administración ni " +
-          "solución de incidencias relacionadas con cuentas publicitarias, píxeles, " +
-          "catálogos, perfiles comerciales o campañas en plataformas de terceros, " +
-          "incluyendo, pero sin limitarse a, Meta (Facebook e Instagram) y TikTok. " +
-          "Dichas actividades serán responsabilidad exclusiva del CLIENTE. Este " +
-          "servicio se entrega con fines de validación inicial del modelo de negocio " +
-          "y no garantiza resultados económicos específicos.",
+          "digital del CLIENTE, la cual podrá incluir exclusivamente:",
+        `${CONTRACT_BULLET_PREFIX}Creación y configuración de una tienda online con ` +
+          "página principal (homepage).",
+        `${CONTRACT_BULLET_PREFIX}Implementación y configuración de un (1) producto inicial.`,
+        `${CONTRACT_BULLET_PREFIX}Desarrollo de hasta tres (3) piezas creativas publicitarias.`,
+        `${CONTRACT_BULLET_PREFIX}Creación de una (1) página de aterrizaje (landing page).`,
+        `${CONTRACT_BULLET_PREFIX}Configuración de las aplicaciones necesarias para la ` +
+          "operación inicial de la tienda, incluyendo plataformas como Dropify, " +
+          "Judge.me y Releasit, o sus equivalentes.",
+        "LA EMPRESA no realizará la creación, configuración, vinculación, " +
+          "administración ni solución de incidencias relacionadas con cuentas " +
+          "publicitarias, píxeles, catálogos, perfiles comerciales o campañas en " +
+          "plataformas de terceros, incluyendo, pero sin limitarse a, Meta " +
+          "(Facebook e Instagram) y TikTok. Dichas actividades serán responsabilidad " +
+          "exclusiva del CLIENTE. Este servicio se entrega con fines de validación " +
+          "inicial del modelo de negocio y no garantiza resultados económicos específicos.",
       ],
     },
     {

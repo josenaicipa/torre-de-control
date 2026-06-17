@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildContractView,
   buildPartiesSegments,
+  contractBulletText,
   isContractBullet,
+  parseContractSegments,
   segmentsToText,
   COMPANY,
   INCOMPLETE_LEGAL_DATA,
@@ -137,6 +139,42 @@ describe("plantilla dinamiza honorarios, fechas y partes", () => {
     expect(view.parties).not.toContain(INCOMPLETE_LEGAL_DATA);
   });
 
+  it("resalta en negrita los datos variables del párrafo de pagos", () => {
+    const honorarios = buildContractView(baseInput).sections.find(
+      (s) => s.id === "honorarios",
+    )!;
+    const abono = honorarios.paragraphs.find((p) => p.includes("primer abono"))!;
+    const segments = parseContractSegments(abono);
+    const bold = segments.filter((s) => s.bold).map((s) => s.text);
+    // Primer abono, saldo restante, monto de cuota y fecha de cuota en negrita.
+    expect(bold).toContain("USD $2,000.00");
+    expect(bold).toContain("USD $900.00");
+    expect(bold).toContain("11 de agosto de 2026");
+    // Los conectores siguen en texto normal, no en negrita.
+    const normal = segments.filter((s) => !s.bold).map((s) => s.text).join("");
+    expect(normal).toContain("primer abono de");
+    expect(normal).toContain("El saldo restante por valor de");
+    expect(normal).toContain("calendario de pagos:");
+  });
+
+  it("renderiza la cláusula 2.11 (implementación inicial) como viñetas reales", () => {
+    const servicios = buildContractView(baseInput).sections.find(
+      (s) => s.id === "servicios",
+    )!;
+    const bullets = servicios.paragraphs
+      .filter((p) => isContractBullet(p))
+      .map((p) => contractBulletText(p));
+    expect(bullets.some((b) => b.includes("tienda online"))).toBe(true);
+    expect(bullets.some((b) => b.includes("producto inicial"))).toBe(true);
+    expect(bullets.some((b) => b.includes("piezas creativas"))).toBe(true);
+    expect(bullets.some((b) => b.includes("landing page"))).toBe(true);
+    expect(bullets.some((b) => b.includes("Dropify"))).toBe(true);
+    // El encabezado 2.11 sigue presente y la lista ya no queda pegada con ";".
+    const intro = servicios.paragraphs.find((p) => p.includes("2.11."))!;
+    expect(intro).toContain("podrá incluir exclusivamente:");
+    expect(intro).not.toContain("homepage); implementación");
+  });
+
   it("renderiza las razones de no reembolso (4.6) como viñetas reales", () => {
     const view = buildContractView(baseInput);
     const honorarios = view.sections.find((s) => s.id === "honorarios")!;
@@ -201,5 +239,23 @@ describe("segmentos de la cláusula Reunidos con negritas", () => {
       .join("");
     expect(normal).toContain("De una parte, ");
     expect(normal).toContain("Y, de otra parte, ");
+  });
+});
+
+describe("parseContractSegments separa negritas inline de los párrafos", () => {
+  it("texto plano sin marcadores devuelve un solo segmento normal", () => {
+    const segments = parseContractSegments("solo texto plano");
+    expect(segments).toEqual([{ text: "solo texto plano", bold: false }]);
+  });
+
+  it("extrae los fragmentos marcados como negrita y deja el resto normal", () => {
+    const segments = parseContractSegments("abono de ⟦USD $2,000.00⟧ y saldo ⟦USD $900.00⟧.");
+    expect(segments.filter((s) => s.bold).map((s) => s.text)).toEqual([
+      "USD $2,000.00",
+      "USD $900.00",
+    ]);
+    expect(segments.map((s) => s.text).join("")).toBe(
+      "abono de USD $2,000.00 y saldo USD $900.00.",
+    );
   });
 });

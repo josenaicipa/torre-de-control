@@ -6,6 +6,7 @@ import {
   formatContractDate,
   formatContractUsd,
   isContractBullet,
+  parseContractSegments,
 } from "@/lib/operaciones-contract-template";
 import {
   buildContractInputFromData,
@@ -38,6 +39,25 @@ function InvalidLink() {
   );
 }
 
+// Renderiza un texto resaltando en negrita los fragmentos marcados (montos y
+// fechas variables del párrafo de pagos) mediante <strong>.
+function InlineText({ text }: { text: string }) {
+  const segments = parseContractSegments(text);
+  return (
+    <>
+      {segments.map((segment, idx) =>
+        segment.bold ? (
+          <strong key={idx} className="font-semibold text-slate-900">
+            {segment.text}
+          </strong>
+        ) : (
+          <span key={idx}>{segment.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
 // Renderiza los párrafos de una cláusula agrupando viñetas consecutivas en una
 // lista <ul> con bullets reales; el resto se renderiza como párrafos normales.
 function SectionParagraphs({ paragraphs }: { paragraphs: string[] }) {
@@ -51,7 +71,9 @@ function SectionParagraphs({ paragraphs }: { paragraphs: string[] }) {
     blocks.push(
       <ul key={key} className="ml-5 list-disc space-y-1">
         {items.map((text, idx) => (
-          <li key={idx}>{text}</li>
+          <li key={idx}>
+            <InlineText text={text} />
+          </li>
         ))}
       </ul>,
     );
@@ -63,7 +85,11 @@ function SectionParagraphs({ paragraphs }: { paragraphs: string[] }) {
       return;
     }
     flushBullets(`ul-${idx}`);
-    blocks.push(<p key={`p-${idx}`}>{paragraph}</p>);
+    blocks.push(
+      <p key={`p-${idx}`}>
+        <InlineText text={paragraph} />
+      </p>,
+    );
   });
   flushBullets("ul-end");
 

@@ -7,6 +7,7 @@ import {
   formatContractUsd,
   isContractBullet,
   contractBulletText,
+  parseContractSegments,
   type ContractInput,
 } from "./operaciones-contract-template";
 import { validateSignatureImage } from "./operaciones-contract";
@@ -113,6 +114,25 @@ export function generateSignedContractPdf({
       doc.font(fonts.bold).text(value);
     };
 
+    // Escribe un párrafo resaltando en negrita los fragmentos marcados (montos y
+    // fechas variables). Acepta un prefijo opcional (p. ej. la viñeta "•  ").
+    const renderRichText = (
+      text: string,
+      options: PDFKit.Mixins.TextOptions,
+      prefix?: string,
+    ) => {
+      const segments = parseContractSegments(text);
+      if (prefix) {
+        doc.font(fonts.regular).text(prefix, { ...options, continued: true });
+      }
+      segments.forEach((segment, index) => {
+        doc.font(segment.bold ? fonts.bold : fonts.regular).text(segment.text, {
+          ...options,
+          continued: index < segments.length - 1,
+        });
+      });
+    };
+
     // Título
     doc.fontSize(16).font(fonts.bold).text(view.title, { align: "center" });
     doc.moveDown(0.3);
@@ -168,12 +188,13 @@ export function generateSignedContractPdf({
       doc.font(fonts.regular).fontSize(10);
       for (const paragraph of section.paragraphs) {
         if (isContractBullet(paragraph)) {
-          doc.text(`•  ${contractBulletText(paragraph)}`, {
-            align: "left",
-            indent: 14,
-          });
+          renderRichText(
+            contractBulletText(paragraph),
+            { align: "left", indent: 14 },
+            "•  ",
+          );
         } else {
-          doc.text(paragraph, { align: "justify" });
+          renderRichText(paragraph, { align: "justify" });
         }
         doc.moveDown(0.25);
       }

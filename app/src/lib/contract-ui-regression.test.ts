@@ -36,6 +36,17 @@ describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
       "PDF disponible después de la firma de Jose Naicipa",
     );
   });
+
+  it("explica dónde y cuándo firma Jose Naicipa según estado y permisos", () => {
+    const source = productosTab();
+    expect(source).toContain("JoseSignatureHint");
+    // Ubicación interna del flujo de firma de Jose.
+    expect(source).toContain("Operaciones › Estudiante › Producto");
+    // Estado: el estudiante ya firmó y falta la firma de Jose.
+    expect(source).toContain("El estudiante ya firmó");
+    // Caso sin permisos.
+    expect(source).toContain("No tienes permisos para firmar como Jose Naicipa");
+  });
 });
 
 describe("UI página pública de firma", () => {

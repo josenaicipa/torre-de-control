@@ -530,6 +530,8 @@ function EnrollmentCard({
         <p className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{actionError}</p>
       )}
 
+      <JoseSignatureHint contractStatus={enrollment.contractStatus} canWrite={canWrite} />
+
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <Metric label="Pago inicial" value={formatUsd(enrollment.initialPaymentUsd ?? 0)} />
         <Metric label="Saldo USD" value={formatUsd(enrollment.balanceUsd ?? 0)} />
@@ -633,6 +635,41 @@ function EnrollmentCard({
         </p>
       )}
     </div>
+  );
+}
+
+// Explica al operador dónde y cuándo firma Jose Naicipa según el estado del
+// contrato y los permisos del usuario. La regla de negocio (cuándo aparece el
+// botón de aprobar) no cambia; esto solo hace visible el flujo.
+function JoseSignatureHint({
+  contractStatus,
+  canWrite,
+}: {
+  contractStatus: Enrollment["contractStatus"];
+  canWrite: boolean;
+}) {
+  // Ya firmado por Jose (APPROVED) o rechazado: no aplica esta ayuda.
+  if (contractStatus === "APPROVED" || contractStatus === "REJECTED") return null;
+
+  const studentSigned =
+    contractStatus === "SIGNED" || contractStatus === "PENDING_APPROVAL";
+
+  let message: string;
+  if (studentSigned) {
+    message = canWrite
+      ? "El estudiante ya firmó. Usa el botón «Firmar como Jose Naicipa y aprobar contrato» para estampar la firma de Jose y liberar el acceso."
+      : "El estudiante ya firmó y el contrato espera la firma de Jose Naicipa, pero no tienes permisos para firmarlo. Pídele a un administrador que lo apruebe.";
+  } else {
+    // DRAFT o PENDING_SIGNATURE: el estudiante todavía no firma.
+    message = canWrite
+      ? "Jose Naicipa firma este contrato desde aquí (Operaciones › Estudiante › Producto) una vez que el estudiante haya firmado. El botón de firma aún no aparece porque falta la firma del estudiante."
+      : "Cuando el estudiante firme, Jose Naicipa deberá firmar desde aquí (Operaciones › Estudiante › Producto). No tienes permisos para firmar como Jose Naicipa.";
+  }
+
+  return (
+    <p className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      {message}
+    </p>
   );
 }
 
