@@ -120,4 +120,12 @@ describe("admin users UX", () => {
     expect(dashboard).toContain("if(current?.children?.length&&!embedUrl)");
     expect(dashboard).toContain("visibleTabs.find(t=>t.href)||visibleTabs.find(t=>t.children&&t.children[0]?.href)");
   });
+
+  it("forces Babel Standalone to compile JSX with the classic React runtime", () => {
+    const dashboard = staticDashboardSource();
+
+    expect(dashboard).toContain("Babel.availablePresets.react");
+    expect(dashboard).toContain('runtime:\"classic\"');
+    expect(dashboard).toContain('text/babel');
+  });
 });

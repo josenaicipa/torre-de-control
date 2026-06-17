@@ -10,6 +10,17 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+// Babel Standalone's latest React preset defaults to the automatic JSX runtime,
+// which emits `import { jsx } from "react/jsx-runtime"` inside this classic UMD
+// page and leaves the dashboard blank. Force the classic runtime before the
+// text/babel dashboard script is transformed.
+(function(){
+  if(!window.Babel||!Babel.availablePresets||!Babel.availablePresets.react)return;
+  const reactPreset=Babel.availablePresets.react;
+  Babel.availablePresets.react=function(api,opts){return reactPreset(api,Object.assign({runtime:"classic"},opts||{}));};
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
