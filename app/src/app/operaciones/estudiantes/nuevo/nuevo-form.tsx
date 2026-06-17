@@ -599,15 +599,6 @@ export function NuevoEstudianteForm({
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700">Nombre legal (opcional)</label>
-          <input
-            value={legalName}
-            onChange={(e) => setLegalName(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700">Correo *</label>
@@ -703,9 +694,18 @@ export function NuevoEstudianteForm({
           </h2>
           <p className="mt-1 text-xs text-slate-500">
             Necesarios para generar el contrato real. Puedes completarlos ahora o
-            más tarde desde el detalle del estudiante. El nombre legal y el
-            teléfono se toman de los campos de arriba.
+            más tarde desde el detalle del estudiante. El teléfono se toma de los
+            campos de arriba.
           </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Nombre legal (opcional)</label>
+          <input
+            value={legalName}
+            onChange={(e) => setLegalName(e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
