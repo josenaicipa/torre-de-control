@@ -443,6 +443,7 @@ model Student {
   documentNumber       String?
   legalAddress         String?
   legalCity            String?
+  legalState           String?
   legalCountry         String?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
@@ -872,6 +873,10 @@ model StudentProductEnrollment {
   contractTemplateVersion         String?
   contractAcceptanceText          String?
   contractStudentSignatureHash    String?
+  // Imagen de la firma manuscrita del estudiante (data URL base64 PNG/JPEG)
+  // capturada en la página pública de firma. Se ubica junto al nombre del
+  // estudiante en el contrato web y en el PDF firmado.
+  contractStudentSignatureImage   String?   @db.Text
   contractSignedAt       DateTime?
   // Firma del CEO (Jose David Naicipa Jiménez) registrada al aprobar desde
   // Torre. El hash CEO encadena el hash del estudiante con la identidad y la

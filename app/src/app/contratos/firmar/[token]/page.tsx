@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import {
   buildContractView,
+  contractBulletText,
   formatContractDate,
   formatContractUsd,
-  type ContractInput,
+  isContractBullet,
 } from "@/lib/operaciones-contract-template";
+import {
+  buildContractInputFromData,
+  contractEnrollmentSelect,
+} from "@/lib/operaciones-contract";
 import { SignForm } from "./sign-form";
 
 export const runtime = "nodejs";
@@ -32,37 +37,45 @@ function InvalidLink() {
   );
 }
 
+// Renderiza los párrafos de una cláusula agrupando viñetas consecutivas en una
+// lista <ul> con bullets reales; el resto se renderiza como párrafos normales.
+function SectionParagraphs({ paragraphs }: { paragraphs: string[] }) {
+  const blocks: React.ReactNode[] = [];
+  let bulletBuffer: string[] = [];
+
+  const flushBullets = (key: string) => {
+    if (bulletBuffer.length === 0) return;
+    const items = bulletBuffer;
+    bulletBuffer = [];
+    blocks.push(
+      <ul key={key} className="ml-5 list-disc space-y-1">
+        {items.map((text, idx) => (
+          <li key={idx}>{text}</li>
+        ))}
+      </ul>,
+    );
+  };
+
+  paragraphs.forEach((paragraph, idx) => {
+    if (isContractBullet(paragraph)) {
+      bulletBuffer.push(contractBulletText(paragraph));
+      return;
+    }
+    flushBullets(`ul-${idx}`);
+    blocks.push(<p key={`p-${idx}`}>{paragraph}</p>);
+  });
+  flushBullets("ul-end");
+
+  return <div className="mt-2 space-y-2 text-sm leading-relaxed text-slate-700">{blocks}</div>;
+}
+
 export default async function FirmarContratoPage({ params }: PageProps) {
   const { token } = await params;
   if (!token) return <InvalidLink />;
 
   const enrollment = await prisma.studentProductEnrollment.findUnique({
     where: { contractSignatureToken: token },
-    select: {
-      id: true,
-      totalAmountUsd: true,
-      initialPaymentUsd: true,
-      balanceUsd: true,
-      currency: true,
-      endsAt: true,
-      contractStatus: true,
-      contractSignedAt: true,
-      contractSignerName: true,
-      student: {
-        select: { fullName: true, legalName: true, email: true, endDate: true },
-      },
-      product: { select: { name: true } },
-      paymentSchedules: {
-        orderBy: { installmentNumber: "asc" },
-        select: {
-          id: true,
-          installmentNumber: true,
-          amountDue: true,
-          currency: true,
-          dueDate: true,
-        },
-      },
-    },
+    select: contractEnrollmentSelect,
   });
 
   if (!enrollment) return <InvalidLink />;
@@ -74,33 +87,15 @@ export default async function FirmarContratoPage({ params }: PageProps) {
 
   const clientName =
     enrollment.student.legalName?.trim() || enrollment.student.fullName;
-  const agreementDate =
-    isoDate(enrollment.contractSignedAt) ??
-    new Date().toISOString().slice(0, 10);
-  // Fecha de finalización: preferimos student.endDate; si no, la del
-  // enrollment. No la inventamos cuando ambas faltan.
-  const endDate = isoDate(enrollment.student.endDate) ?? isoDate(enrollment.endsAt);
 
-  const installments = enrollment.paymentSchedules.map((s) => ({
-    number: s.installmentNumber,
-    amountUsd: Number(s.amountDue),
-    currency: s.currency,
-    dueDate: s.dueDate.toISOString().slice(0, 10),
-  }));
-
-  const input: ContractInput = {
-    clientName,
-    clientEmail: enrollment.student.email,
-    productName: enrollment.product.name,
-    totalAmountUsd: Number(enrollment.totalAmountUsd),
-    initialPaymentUsd: Number(enrollment.initialPaymentUsd ?? 0),
-    balanceUsd: Number(enrollment.balanceUsd ?? 0),
-    installments,
-    agreementDate,
-    endDate,
-  };
-
+  const input = buildContractInputFromData(
+    enrollment,
+    enrollment.contractSignedAt,
+  );
   const contract = buildContractView(input);
+
+  const agreementDateLabel = contract.signature.agreementDateLabel;
+  const signatureImage = enrollment.contractStudentSignatureImage;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
@@ -128,21 +123,23 @@ export default async function FirmarContratoPage({ params }: PageProps) {
         <dl className="mt-6 grid gap-3 sm:grid-cols-2">
           <Detail label="Estudiante (EL CLIENTE)" value={clientName} />
           <Detail label="Correo" value={enrollment.student.email} />
-          <Detail label="Producto" value={enrollment.product.name} />
-          <Detail label="Fecha de acuerdo" value={formatContractDate(agreementDate)} />
+          <Detail label="Documento" value={input.clientDocument ?? "—"} />
+          <Detail label="Domicilio" value={input.clientAddress ?? "—"} />
+          <Detail label="Producto" value={input.productName} />
+          <Detail label="Fecha de acuerdo" value={agreementDateLabel} />
           <Detail label="Valor total" value={formatContractUsd(input.totalAmountUsd)} />
           <Detail label="Pago inicial" value={formatContractUsd(input.initialPaymentUsd)} />
           <Detail label="Saldo pendiente" value={formatContractUsd(input.balanceUsd)} />
           <Detail label="Fecha de finalización" value={contract.signature.endDateLabel} />
         </dl>
 
-        {installments.length > 0 && (
+        {input.installments.length > 0 && (
           <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
             <p className="text-xs font-semibold uppercase text-slate-500">
               Calendario de pagos
             </p>
             <ul className="mt-2 space-y-1 text-sm text-slate-700">
-              {installments.map((cuota) => (
+              {input.installments.map((cuota) => (
                 <li key={cuota.number} className="flex flex-wrap items-center gap-x-2">
                   <span className="font-medium">Cuota {cuota.number}</span>
                   <span>· vence {formatContractDate(cuota.dueDate)}</span>
@@ -157,11 +154,7 @@ export default async function FirmarContratoPage({ params }: PageProps) {
           {contract.sections.map((section) => (
             <section key={section.id}>
               <h2 className="text-sm font-semibold text-slate-900">{section.heading}</h2>
-              <div className="mt-2 space-y-2 text-sm leading-relaxed text-slate-700">
-                {section.paragraphs.map((paragraph, idx) => (
-                  <p key={idx}>{paragraph}</p>
-                ))}
-              </div>
+              <SectionParagraphs paragraphs={section.paragraphs} />
             </section>
           ))}
         </div>
@@ -194,6 +187,21 @@ export default async function FirmarContratoPage({ params }: PageProps) {
             {enrollment.contractSignedAt && (
               <p className="mt-1">
                 Fecha de firma: {formatContractDate(isoDate(enrollment.contractSignedAt))}
+              </p>
+            )}
+            {signatureImage ? (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-emerald-600">Firma manuscrita</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={signatureImage}
+                  alt={`Firma de ${enrollment.contractSignerName ?? clientName}`}
+                  className="mt-1 max-h-28 w-auto rounded bg-white object-contain"
+                />
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-emerald-600">
+                Firma registrada electrónicamente (sin imagen manuscrita adjunta).
               </p>
             )}
           </div>

@@ -112,6 +112,42 @@ describe("createStudentSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("acepta los datos legales opcionales incluido legalState", () => {
+    const result = createStudentSchema.safeParse({
+      fullName: "Juan",
+      email: "j@e.com",
+      startDate: "2026-05-23",
+      durationMonths: 12,
+      documentType: "Cédula de Ciudadanía",
+      documentNumber: "1.040.046.608",
+      legalAddress: "Carrera 27 # 7b - 145",
+      legalCity: "Medellín",
+      legalState: "Antioquia",
+      legalCountry: "Colombia",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.legalState).toBe("Antioquia");
+  });
+
+  it("trata legalState como opcional y acepta null", () => {
+    const omitted = createStudentSchema.safeParse({
+      fullName: "Juan",
+      email: "j@e.com",
+      startDate: "2026-05-23",
+      durationMonths: 12,
+    });
+    expect(omitted.success).toBe(true);
+
+    const explicitNull = createStudentSchema.safeParse({
+      fullName: "Juan",
+      email: "j@e.com",
+      startDate: "2026-05-23",
+      durationMonths: 12,
+      legalState: null,
+    });
+    expect(explicitNull.success).toBe(true);
+  });
 });
 
 describe("updateStudentSchema", () => {

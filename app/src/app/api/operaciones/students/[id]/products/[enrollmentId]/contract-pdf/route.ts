@@ -69,6 +69,7 @@ export async function GET(_req: Request, { params }: Params) {
         studentSignedAt: enrollment.contractSignedAt,
         studentSignedIp: enrollment.contractSignedIp,
         studentSignatureHash: enrollment.contractStudentSignatureHash,
+        studentSignatureImage: enrollment.contractStudentSignatureImage,
         ceoSignerName: enrollment.contractCeoSignerName,
         ceoSignedAt: enrollment.contractCeoSignedAt,
         ceoSignatureHash: enrollment.contractCeoSignatureHash,

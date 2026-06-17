@@ -14,6 +14,24 @@ export const CONTRACT_TITLE =
   "CONTRATO DE PRESTACIÓN DE SERVICIOS DE CONSULTORÍA";
 export const CONTRACT_SUBTITLE = "Unlocked Academy";
 
+// Marcador con el que se prefijan los párrafos que deben renderizarse como
+// viñetas (tanto en la vista web como en el PDF). Se mantiene como convención
+// de texto para no cambiar la forma `string[]` de los párrafos.
+export const CONTRACT_BULLET_PREFIX = "• ";
+
+export function isContractBullet(text: string): boolean {
+  return text.startsWith(CONTRACT_BULLET_PREFIX);
+}
+
+export function contractBulletText(text: string): string {
+  return isContractBullet(text) ? text.slice(CONTRACT_BULLET_PREFIX.length) : text;
+}
+
+// Frase que reemplaza los datos legales cuando faltan. El flujo de emisión de
+// contrato BLOQUEA antes de llegar aquí (findMissingContractFields); este
+// marcador solo aparece si alguien arma la vista a mano con datos incompletos.
+export const INCOMPLETE_LEGAL_DATA = "DATOS LEGALES INCOMPLETOS";
+
 // Versión de la plantilla aceptada por el estudiante. Se congela en la
 // inscripción al firmar para tener evidencia de QUÉ texto se aceptó. Súbela
 // cuando cambie el contenido legal del contrato.
@@ -166,11 +184,13 @@ function buildPaymentParagraphs(input: ContractInput): string[] {
       "LA EMPRESA por CUALQUIER RAZÓN, o reclamar una disputa/solicitar una " +
       "devolución de fondos.",
     "4.6. No serán aceptadas por LA EMPRESA solicitudes de reembolso por parte de " +
-      "EL CLIENTE al inicio del programa, basadas en las siguientes razones: no " +
-      "asistió a las clases grupales dadas por los mentores, no respondió a los " +
-      "comunicados enviados por diferentes medios como correo o WhatsApp, " +
-      "emergencias personales/familiares, dificultades financieras, entre otros. En " +
-      "su lugar, usted acepta que su inversión se mantendrá como un depósito no " +
+      "EL CLIENTE al inicio del programa, basadas en las siguientes razones:",
+    `${CONTRACT_BULLET_PREFIX}No asistió a las clases grupales dadas por los mentores.`,
+    `${CONTRACT_BULLET_PREFIX}No respondió a los comunicados enviados por diferentes ` +
+      "medios como correo o WhatsApp.",
+    `${CONTRACT_BULLET_PREFIX}Emergencias personales o familiares.`,
+    `${CONTRACT_BULLET_PREFIX}Dificultades financieras, entre otras.`,
+    "En su lugar, usted acepta que su inversión se mantendrá como un depósito no " +
       "reembolsable dentro de nuestra organización, en el que usted puede reanudar " +
       "el entrenamiento con nosotros en cualquier momento, si decide pausar su " +
       "membresía por un período de tiempo acordado, por lo que las futuras cuotas " +
@@ -189,10 +209,10 @@ function buildPaymentParagraphs(input: ContractInput): string[] {
 export function buildContractView(input: ContractInput): ContractView {
   const clientDocument = input.clientDocument?.trim()
     ? `identificado con ${input.clientDocument.trim()}`
-    : "identificado con el documento registrado en Torre de Control";
+    : `identificado con ${INCOMPLETE_LEGAL_DATA}`;
   const clientAddress = input.clientAddress?.trim()
     ? `con domicilio a efectos de notificaciones en ${input.clientAddress.trim()}`
-    : "con domicilio a efectos de notificaciones registrado en Torre de Control";
+    : `con domicilio a efectos de notificaciones ${INCOMPLETE_LEGAL_DATA}`;
 
   const parties =
     `De una parte, ${COMPANY.legalName} con EIN ${COMPANY.ein}, con domicilio a ` +

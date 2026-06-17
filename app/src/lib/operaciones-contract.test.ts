@@ -8,8 +8,14 @@ import {
   findMissingContractFields,
   isContractComplete,
   namesReasonablyMatch,
+  validateSignatureImage,
   type ContractDataShape,
 } from "./operaciones-contract";
+
+// PNG 1x1 transparente válido, suficiente para los tests del validador y el PDF.
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+const TINY_JPEG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2Q==";
 
 const appRoot = resolve(__dirname, "..", "..");
 
@@ -24,6 +30,7 @@ function completeData(overrides?: Partial<ContractDataShape>): ContractDataShape
       documentNumber: "1.040.046.608",
       legalAddress: "Carrera 27 # 7b - 145",
       legalCity: "Medellín",
+      legalState: "Antioquia",
       legalCountry: "Colombia",
       startDate: "2026-06-11",
       endDate: "2027-06-11",
@@ -47,7 +54,7 @@ function completeData(overrides?: Partial<ContractDataShape>): ContractDataShape
 }
 
 describe("findMissingContractFields", () => {
-  it("reporta documento, dirección, ciudad, país y teléfono faltantes, y cronograma si hay saldo > 0", () => {
+  it("reporta documento, dirección, ciudad, departamento, país y teléfono faltantes, y cronograma si hay saldo > 0", () => {
     const data = completeData({
       student: {
         ...completeData().student,
@@ -56,6 +63,7 @@ describe("findMissingContractFields", () => {
         documentNumber: null,
         legalAddress: null,
         legalCity: null,
+        legalState: null,
         legalCountry: null,
       },
       paymentSchedules: [],
@@ -69,6 +77,7 @@ describe("findMissingContractFields", () => {
     expect(fields).toContain("documentNumber");
     expect(fields).toContain("legalAddress");
     expect(fields).toContain("legalCity");
+    expect(fields).toContain("legalState");
     expect(fields).toContain("legalCountry");
     // Con saldo > 0 y sin cuotas debe exigir el cronograma.
     expect(fields).toContain("paymentSchedule");
@@ -84,6 +93,15 @@ describe("findMissingContractFields", () => {
     expect(fields).not.toContain("paymentSchedule");
   });
 
+  it("exige el departamento/estado/provincia (legalState) cuando falta", () => {
+    const data = completeData({
+      student: { ...completeData().student, legalState: null },
+    });
+    const fields = findMissingContractFields(data).map((m) => m.field);
+    expect(fields).toContain("legalState");
+    expect(isContractComplete(data)).toBe(false);
+  });
+
   it("con datos completos no devuelve faltantes", () => {
     expect(findMissingContractFields(completeData())).toHaveLength(0);
     expect(isContractComplete(completeData())).toBe(true);
@@ -91,10 +109,13 @@ describe("findMissingContractFields", () => {
 });
 
 describe("buildContractInputFromData", () => {
-  it("usa el documento y el domicilio reales del estudiante", () => {
+  it("usa el documento y el domicilio reales del estudiante, con departamento", () => {
     const input = buildContractInputFromData(completeData());
     expect(input.clientDocument).toBe("Cédula de Ciudadanía N° 1.040.046.608");
-    expect(input.clientAddress).toBe("Carrera 27 # 7b - 145, Medellín, Colombia");
+    expect(input.clientAddress).toBe(
+      "Carrera 27 # 7b - 145, Medellín, Antioquia, Colombia",
+    );
+    expect(input.clientAddress).toContain("Antioquia");
     expect(input.clientName).toBe("Andrés Toro Sierra");
     expect(input.productName).toBe("Mentoría VIP 1 a 1 Dropshipping");
     expect(input.totalAmountUsd).toBe(2900);
@@ -133,6 +154,53 @@ describe("hashes de firma electrónica", () => {
     expect(hashA).toMatch(/^[0-9a-f]{64}$/);
     expect(hashB).toMatch(/^[0-9a-f]{64}$/);
     expect(hashA).not.toBe(hashB);
+  });
+
+  it("la imagen de firma cambia el hash del estudiante (evidencia)", () => {
+    const input = buildContractInputFromData(completeData());
+    const sinImagen = computeStudentSignatureHash(input, "Andrés Toro Sierra");
+    const conImagen = computeStudentSignatureHash(input, "Andrés Toro Sierra", TINY_PNG);
+    const otraImagen = computeStudentSignatureHash(input, "Andrés Toro Sierra", TINY_JPEG);
+    expect(conImagen).toMatch(/^[0-9a-f]{64}$/);
+    expect(conImagen).not.toBe(sinImagen);
+    expect(conImagen).not.toBe(otraImagen);
+  });
+});
+
+describe("validateSignatureImage", () => {
+  it("acepta data URL PNG válida", () => {
+    const result = validateSignatureImage(TINY_PNG);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.mime).toBe("image/png");
+      expect(result.bytes).toBeGreaterThan(0);
+      expect(result.dataUrl).toBe(TINY_PNG);
+    }
+  });
+
+  it("acepta data URL JPEG válida", () => {
+    const result = validateSignatureImage(TINY_JPEG);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.mime).toBe("image/jpeg");
+  });
+
+  it("rechaza webp y otros formatos", () => {
+    expect(validateSignatureImage("data:image/webp;base64,UklGRiQAAABXRUJQ").ok).toBe(
+      false,
+    );
+    expect(validateSignatureImage("data:image/gif;base64,R0lGODlhAQABAAA").ok).toBe(
+      false,
+    );
+    expect(validateSignatureImage("no es una data url").ok).toBe(false);
+    expect(validateSignatureImage("").ok).toBe(false);
+    expect(validateSignatureImage(null).ok).toBe(false);
+  });
+
+  it("rechaza imágenes que superan 1 MB", () => {
+    const huge = `data:image/png;base64,${"A".repeat(1_400_000)}`;
+    const result = validateSignatureImage(huge);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("1 MB");
   });
 });
 

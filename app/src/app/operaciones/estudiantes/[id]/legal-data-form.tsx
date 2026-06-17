@@ -1,7 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  COUNTRIES,
+  DOCUMENT_TYPES,
+  subdivisionsForCountry,
+} from "@/lib/legal-locations";
 
 export interface LegalData {
   legalName: string | null;
@@ -10,6 +15,7 @@ export interface LegalData {
   documentNumber: string | null;
   legalAddress: string | null;
   legalCity: string | null;
+  legalState: string | null;
   legalCountry: string | null;
 }
 
@@ -28,6 +34,7 @@ export function LegalDataForm({
     documentNumber: initial.documentNumber ?? "",
     legalAddress: initial.legalAddress ?? "",
     legalCity: initial.legalCity ?? "",
+    legalState: initial.legalState ?? "",
     legalCountry: initial.legalCountry ?? "",
   });
   const [saving, setSaving] = useState(false);
@@ -38,6 +45,18 @@ export function LegalDataForm({
     setState((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
   }
+
+  // Al cambiar de país se limpia el departamento/estado para no arrastrar un
+  // valor que no pertenece al nuevo catálogo.
+  function onChangeCountry(value: string) {
+    setState((prev) => ({ ...prev, legalCountry: value, legalState: "" }));
+    setSaved(false);
+  }
+
+  const subdivisions = useMemo(
+    () => subdivisionsForCountry(state.legalCountry),
+    [state.legalCountry],
+  );
 
   function trimmedOrNull(value: string): string | null {
     const t = value.trim();
@@ -59,6 +78,7 @@ export function LegalDataForm({
           documentNumber: trimmedOrNull(state.documentNumber),
           legalAddress: trimmedOrNull(state.legalAddress),
           legalCity: trimmedOrNull(state.legalCity),
+          legalState: trimmedOrNull(state.legalState),
           legalCountry: trimmedOrNull(state.legalCountry),
         }),
       });
@@ -119,14 +139,18 @@ export function LegalDataForm({
           />
         </LegalField>
         <LegalField label="Tipo de documento">
-          <input
-            type="text"
+          <select
             value={state.documentType}
             onChange={(e) => update("documentType", e.target.value)}
-            maxLength={50}
-            placeholder="Cédula de Ciudadanía"
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
+          >
+            <option value="">— Selecciona —</option>
+            {DOCUMENT_TYPES.map((dt) => (
+              <option key={dt.value} value={dt.value}>
+                {dt.label}
+              </option>
+            ))}
+          </select>
         </LegalField>
         <LegalField label="Número de documento">
           <input
@@ -146,20 +170,49 @@ export function LegalDataForm({
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </LegalField>
+        <LegalField label="País">
+          <select
+            value={state.legalCountry}
+            onChange={(e) => onChangeCountry(e.target.value)}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">— Selecciona —</option>
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </LegalField>
+        <LegalField label="Departamento / Estado / Provincia">
+          {subdivisions.length > 0 ? (
+            <select
+              value={state.legalState}
+              onChange={(e) => update("legalState", e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">— Selecciona —</option>
+              {subdivisions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={state.legalState}
+              onChange={(e) => update("legalState", e.target.value)}
+              maxLength={120}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          )}
+        </LegalField>
         <LegalField label="Ciudad">
           <input
             type="text"
             value={state.legalCity}
             onChange={(e) => update("legalCity", e.target.value)}
-            maxLength={120}
-            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </LegalField>
-        <LegalField label="País">
-          <input
-            type="text"
-            value={state.legalCountry}
-            onChange={(e) => update("legalCountry", e.target.value)}
             maxLength={120}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />

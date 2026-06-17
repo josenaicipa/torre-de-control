@@ -1,8 +1,11 @@
 import PDFDocument from "pdfkit";
 import {
   buildContractView,
+  isContractBullet,
+  contractBulletText,
   type ContractInput,
 } from "./operaciones-contract-template";
+import { validateSignatureImage } from "./operaciones-contract";
 
 // Genera el PDF del contrato firmado a partir del ContractInput canónico y la
 // evidencia de firma electrónica (estudiante + CEO). El cuerpo legal se toma de
@@ -15,6 +18,7 @@ export interface ContractPdfEvidence {
   studentSignedAt: Date | string | null;
   studentSignedIp: string | null;
   studentSignatureHash: string | null;
+  studentSignatureImage: string | null;
   ceoSignerName: string | null;
   ceoSignedAt: Date | string | null;
   ceoSignatureHash: string | null;
@@ -67,6 +71,20 @@ export function generateSignedContractPdf({
     doc.font("Helvetica").text(view.exponen, { align: "justify" });
     doc.moveDown(0.6);
 
+    // Datos de EL CLIENTE con los campos dinámicos en negrita.
+    doc.font("Helvetica-Bold").fontSize(10).text("DATOS DE EL CLIENTE");
+    doc.moveDown(0.2);
+    const clientFields: Array<[string, string]> = [
+      ["Nombre", input.clientName],
+      ["Documento", input.clientDocument?.trim() || "—"],
+      ["Domicilio", input.clientAddress?.trim() || "—"],
+    ];
+    for (const [label, value] of clientFields) {
+      doc.font("Helvetica").fontSize(10).text(`${label}: `, { continued: true });
+      doc.font("Helvetica-Bold").text(value);
+    }
+    doc.moveDown(0.6);
+
     doc.font("Helvetica-Bold").text("CLÁUSULAS");
     doc.moveDown(0.3);
 
@@ -76,7 +94,14 @@ export function generateSignedContractPdf({
       doc.moveDown(0.15);
       doc.font("Helvetica").fontSize(10);
       for (const paragraph of section.paragraphs) {
-        doc.text(paragraph, { align: "justify" });
+        if (isContractBullet(paragraph)) {
+          doc.text(`•  ${contractBulletText(paragraph)}`, {
+            align: "left",
+            indent: 14,
+          });
+        } else {
+          doc.text(paragraph, { align: "justify" });
+        }
         doc.moveDown(0.25);
       }
       doc.moveDown(0.3);
@@ -99,6 +124,20 @@ export function generateSignedContractPdf({
     doc.text(`Fecha de firma: ${formatDateTime(evidence.studentSignedAt)}`);
     doc.text(`IP de firma: ${evidence.studentSignedIp ?? "—"}`);
     doc.text(`Hash de firma: ${shortHash(evidence.studentSignatureHash)}`);
+
+    // Imagen de la firma manuscrita. Si la imagen es inválida, no rompe el PDF.
+    const signature = validateSignatureImage(evidence.studentSignatureImage);
+    if (signature.ok) {
+      try {
+        const buffer = Buffer.from(signature.base64, "base64");
+        doc.moveDown(0.2);
+        doc.text("Firma manuscrita:");
+        doc.moveDown(0.2);
+        doc.image(buffer, { fit: [200, 80] });
+      } catch {
+        // Imagen corrupta: se omite sin interrumpir la generación del PDF.
+      }
+    }
     doc.moveDown(0.5);
 
     doc.font("Helvetica-Bold").fontSize(10).text("LA EMPRESA");

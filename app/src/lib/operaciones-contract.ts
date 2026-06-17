@@ -33,6 +33,7 @@ export interface ContractDataShape {
     documentNumber: string | null;
     legalAddress: string | null;
     legalCity: string | null;
+    legalState: string | null;
     legalCountry: string | null;
     startDate: Date | string | null;
     endDate: Date | string | null;
@@ -63,6 +64,7 @@ export const contractEnrollmentSelect = {
   contractSignedUserAgent: true,
   contractTemplateVersion: true,
   contractStudentSignatureHash: true,
+  contractStudentSignatureImage: true,
   contractCeoSignerName: true,
   contractCeoSignedAt: true,
   contractCeoSignatureHash: true,
@@ -77,6 +79,7 @@ export const contractEnrollmentSelect = {
       documentNumber: true,
       legalAddress: true,
       legalCity: true,
+      legalState: true,
       legalCountry: true,
       startDate: true,
       endDate: true,
@@ -136,6 +139,8 @@ export function findMissingContractFields(data: ContractDataShape): MissingField
   if (!nonEmpty(data.student.legalAddress))
     add("legalAddress", "Dirección / domicilio");
   if (!nonEmpty(data.student.legalCity)) add("legalCity", "Ciudad");
+  if (!nonEmpty(data.student.legalState))
+    add("legalState", "Departamento / Estado / Provincia");
   if (!nonEmpty(data.student.legalCountry)) add("legalCountry", "País");
 
   if (!data.product || !nonEmpty(data.product.name)) add("product", "Producto");
@@ -182,6 +187,7 @@ function composeAddress(data: ContractDataShape): string | null {
   const parts = [
     data.student.legalAddress?.trim(),
     data.student.legalCity?.trim(),
+    data.student.legalState?.trim(),
     data.student.legalCountry?.trim(),
   ].filter((p): p is string => Boolean(p && p.length > 0));
   return parts.length > 0 ? parts.join(", ") : null;
@@ -223,6 +229,65 @@ export function buildContractInputFromData(
   };
 }
 
+// ─── Imagen de la firma manuscrita ───────────────────────────────────────────
+
+// Límite de tamaño de la imagen de firma decodificada: 1 MB.
+export const SIGNATURE_IMAGE_MAX_BYTES = 1_048_576;
+
+export type SignatureImageMime = "image/png" | "image/jpeg";
+
+export type SignatureImageValidation =
+  | {
+      ok: true;
+      mime: SignatureImageMime;
+      base64: string;
+      bytes: number;
+      dataUrl: string;
+    }
+  | { ok: false; error: string };
+
+// Tamaño en bytes de un base64 sin decodificarlo (válido en navegador y server,
+// sin depender de Buffer).
+function base64ByteLength(base64: string): number {
+  const len = base64.length;
+  if (len === 0) return 0;
+  let padding = 0;
+  if (base64.endsWith("==")) padding = 2;
+  else if (base64.endsWith("=")) padding = 1;
+  return Math.floor((len * 3) / 4) - padding;
+}
+
+// Valida que el valor sea una data URL de imagen PNG o JPEG de máximo 1 MB.
+// Rechaza otros formatos (webp, gif, svg, etc.), data URLs malformadas y
+// tamaños excesivos. Devuelve la data URL normalizada para almacenar.
+export function validateSignatureImage(value: unknown): SignatureImageValidation {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return { ok: false, error: "Sube una foto de tu firma para continuar" };
+  }
+  const trimmed = value.trim();
+  const match =
+    /^data:(image\/png|image\/jpeg);base64,([A-Za-z0-9+/]+={0,2})$/.exec(trimmed);
+  if (!match) {
+    return {
+      ok: false,
+      error: "La firma debe ser una imagen PNG o JPEG válida",
+    };
+  }
+  const mime = match[1] as SignatureImageMime;
+  const base64 = match[2];
+  const bytes = base64ByteLength(base64);
+  if (bytes <= 0) {
+    return { ok: false, error: "La imagen de la firma está vacía" };
+  }
+  if (bytes > SIGNATURE_IMAGE_MAX_BYTES) {
+    return {
+      ok: false,
+      error: "La imagen de la firma supera el límite de 1 MB",
+    };
+  }
+  return { ok: true, mime, base64, bytes, dataUrl: `data:${mime};base64,${base64}` };
+}
+
 // ─── Firma electrónica: hash + verificación de nombre ────────────────────────
 
 // Representación canónica de lo que el estudiante firma: versión de plantilla,
@@ -242,13 +307,17 @@ function sha256(value: string): string {
 }
 
 // Hash de la firma del estudiante: contenido del contrato + nombre del
-// firmante + texto de aceptación.
+// firmante + texto de aceptación + huella de la imagen de firma (si existe).
+// La imagen se incorpora como su propio sha256 para que el hash quede acotado
+// y sirva de evidencia de la firma manuscrita aceptada.
 export function computeStudentSignatureHash(
   input: ContractInput,
   signerName: string,
+  signatureImage?: string | null,
 ): string {
+  const imageDigest = signatureImage?.trim() ? sha256(signatureImage.trim()) : "";
   return sha256(
-    `${canonicalContractPayload(input)}::signer=${signerName.trim()}::accept=${CONTRACT_ACCEPTANCE_TEXT}`,
+    `${canonicalContractPayload(input)}::signer=${signerName.trim()}::accept=${CONTRACT_ACCEPTANCE_TEXT}::image=${imageDigest}`,
   );
 }
 

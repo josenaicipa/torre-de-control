@@ -9,6 +9,7 @@ import {
   contractEnrollmentSelect,
   findMissingContractFields,
   namesReasonablyMatch,
+  validateSignatureImage,
 } from "@/lib/operaciones-contract";
 
 export const runtime = "nodejs";
@@ -60,6 +61,12 @@ export async function POST(req: Request, { params }: Params) {
       return jsonError(400, "Debes aceptar el contrato para firmar");
     }
 
+    // La foto de la firma es obligatoria: debe ser PNG o JPEG de máximo 1 MB.
+    const signatureImage = validateSignatureImage(record.signatureImage);
+    if (!signatureImage.ok) {
+      return jsonError(400, signatureImage.error);
+    }
+
     if (enrollment.contractStatus === "SIGNED") {
       return jsonError(400, "Este contrato ya fue firmado");
     }
@@ -95,7 +102,11 @@ export async function POST(req: Request, { params }: Params) {
 
     const signedAt = new Date();
     const contractInput = buildContractInputFromData(enrollment, signedAt);
-    const signatureHash = computeStudentSignatureHash(contractInput, signerName);
+    const signatureHash = computeStudentSignatureHash(
+      contractInput,
+      signerName,
+      signatureImage.dataUrl,
+    );
 
     await prisma.studentProductEnrollment.update({
       where: { id: enrollment.id },
@@ -108,6 +119,7 @@ export async function POST(req: Request, { params }: Params) {
         contractTemplateVersion: CONTRACT_TEMPLATE_VERSION,
         contractAcceptanceText: CONTRACT_ACCEPTANCE_TEXT,
         contractStudentSignatureHash: signatureHash,
+        contractStudentSignatureImage: signatureImage.dataUrl,
       },
     });
 

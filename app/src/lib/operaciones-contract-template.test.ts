@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildContractView, type ContractInput } from "./operaciones-contract-template";
+import {
+  buildContractView,
+  isContractBullet,
+  INCOMPLETE_LEGAL_DATA,
+  type ContractInput,
+} from "./operaciones-contract-template";
 
 const appRoot = resolve(__dirname, "..", "..");
 const templateSource = () =>
@@ -110,20 +115,33 @@ describe("plantilla dinamiza honorarios, fechas y partes", () => {
     expect(text).not.toContain("saldo restante");
   });
 
-  it("usa frase segura cuando faltan documento y domicilio del cliente", () => {
+  it("usa el marcador de datos incompletos sin mencionar Torre de Control", () => {
     const view = buildContractView(baseInput);
-    expect(view.parties).toContain("documento registrado en Torre");
-    expect(view.parties).toContain("domicilio a efectos de notificaciones registrado en Torre");
+    expect(view.parties).toContain(INCOMPLETE_LEGAL_DATA);
+    expect(view.parties).not.toContain("Torre de Control");
+    expect(view.parties).not.toContain("registrado en Torre");
   });
 
-  it("usa el documento y domicilio reales cuando existen", () => {
+  it("usa el documento y domicilio reales cuando existen, sin frase Torre", () => {
     const view = buildContractView({
       ...baseInput,
       clientDocument: "Cédula de Ciudadanía N° 1.040.046.608",
-      clientAddress: "Carrera 27 # 7b - 145 Medellín, Antioquia",
+      clientAddress: "Carrera 27 # 7b - 145, Medellín, Antioquia, Colombia",
     });
     expect(view.parties).toContain("Cédula de Ciudadanía N° 1.040.046.608");
-    expect(view.parties).toContain("Carrera 27 # 7b - 145 Medellín, Antioquia");
+    expect(view.parties).toContain("Carrera 27 # 7b - 145, Medellín, Antioquia, Colombia");
+    expect(view.parties).not.toContain("Torre de Control");
+    expect(view.parties).not.toContain(INCOMPLETE_LEGAL_DATA);
+  });
+
+  it("renderiza las razones de no reembolso (4.6) como viñetas reales", () => {
+    const view = buildContractView(baseInput);
+    const honorarios = view.sections.find((s) => s.id === "honorarios")!;
+    const bullets = honorarios.paragraphs.filter((p) => isContractBullet(p));
+    expect(bullets.length).toBeGreaterThanOrEqual(3);
+    expect(
+      bullets.some((b) => b.includes("clases grupales")),
+    ).toBe(true);
   });
 
   it("formatea la fecha de finalización derivada de los datos del estudiante", () => {

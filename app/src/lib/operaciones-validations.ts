@@ -34,6 +34,7 @@ export const createStudentSchema = z.object({
   documentNumber: z.string().trim().max(100).optional().nullable(),
   legalAddress: z.string().trim().max(300).optional().nullable(),
   legalCity: z.string().trim().max(120).optional().nullable(),
+  legalState: z.string().trim().max(120).optional().nullable(),
   legalCountry: z.string().trim().max(120).optional().nullable(),
 });
 

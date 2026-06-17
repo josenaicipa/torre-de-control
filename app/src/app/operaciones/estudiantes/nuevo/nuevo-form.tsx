@@ -6,6 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useExchangeRate } from "../_lib/use-exchange-rate";
 import { ExchangeRateStatusLine } from "../_lib/exchange-rate-status";
 import { MoneyInput } from "../_lib/money-input";
+import {
+  COUNTRIES,
+  DOCUMENT_TYPES,
+  subdivisionsForCountry,
+} from "@/lib/legal-locations";
 
 interface Mentor { id: string; name: string | null; email: string }
 interface Closer { id: string; name: string | null; email: string; position: string }
@@ -176,6 +181,25 @@ export function NuevoEstudianteForm({
   const [mentorUserId, setMentorUserId] = useState("");
   const [closerUserId, setCloserUserId] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Datos legales opcionales para el contrato. El teléfono y el nombre legal
+  // ya viven arriba; aquí sólo se capturan documento, dirección y ubicación.
+  const [documentType, setDocumentType] = useState("");
+  const [documentNumber, setDocumentNumber] = useState("");
+  const [legalAddress, setLegalAddress] = useState("");
+  const [legalCountry, setLegalCountry] = useState("");
+  const [legalState, setLegalState] = useState("");
+  const [legalCity, setLegalCity] = useState("");
+
+  const legalSubdivisions = useMemo(
+    () => subdivisionsForCountry(legalCountry),
+    [legalCountry],
+  );
+
+  function onChangeLegalCountry(value: string) {
+    setLegalCountry(value);
+    setLegalState("");
+  }
 
   // Catalog data fetched on mount.
   const [products, setProducts] = useState<Product[]>([]);
@@ -506,6 +530,12 @@ export function NuevoEstudianteForm({
       mentorUserId: mentorUserId || null,
       closerUserId: closerUserId || null,
       legalName: legalName || null,
+      documentType: documentType || null,
+      documentNumber: documentNumber || null,
+      legalAddress: legalAddress || null,
+      legalCountry: legalCountry || null,
+      legalState: legalState || null,
+      legalCity: legalCity || null,
       notes: notes || null,
     };
     if (initialEnrollment) {
@@ -661,6 +691,116 @@ export function NuevoEstudianteForm({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">
+            Datos legales para contrato (opcional)
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Necesarios para generar el contrato real. Puedes completarlos ahora o
+            más tarde desde el detalle del estudiante. El nombre legal y el
+            teléfono se toman de los campos de arriba.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Tipo de documento
+            </label>
+            <select
+              value={documentType}
+              onChange={(e) => setDocumentType(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">— Selecciona —</option>
+              {DOCUMENT_TYPES.map((dt) => (
+                <option key={dt.value} value={dt.value}>
+                  {dt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Número de documento
+            </label>
+            <input
+              value={documentNumber}
+              onChange={(e) => setDocumentNumber(e.target.value)}
+              maxLength={100}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">
+            Dirección / domicilio
+          </label>
+          <input
+            value={legalAddress}
+            onChange={(e) => setLegalAddress(e.target.value)}
+            maxLength={300}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700">País</label>
+            <select
+              value={legalCountry}
+              onChange={(e) => onChangeLegalCountry(e.target.value)}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            >
+              <option value="">— Selecciona —</option>
+              {COUNTRIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Departamento / Estado / Provincia
+            </label>
+            {legalSubdivisions.length > 0 ? (
+              <select
+                value={legalState}
+                onChange={(e) => setLegalState(e.target.value)}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">— Selecciona —</option>
+                {legalSubdivisions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={legalState}
+                onChange={(e) => setLegalState(e.target.value)}
+                maxLength={120}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700">Ciudad</label>
+          <input
+            value={legalCity}
+            onChange={(e) => setLegalCity(e.target.value)}
+            maxLength={120}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>

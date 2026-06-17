@@ -117,6 +117,12 @@ export async function POST(req: Request) {
       notes: body.notes ?? null,
       personality: body.personality ?? null,
       legalName: body.legalName ?? null,
+      documentType: body.documentType ?? null,
+      documentNumber: body.documentNumber ?? null,
+      legalAddress: body.legalAddress ?? null,
+      legalCity: body.legalCity ?? null,
+      legalState: body.legalState ?? null,
+      legalCountry: body.legalCountry ?? null,
     };
     const studentInclude = {
       mentorUser: { select: { id: true, name: true, email: true } },

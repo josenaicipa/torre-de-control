@@ -161,6 +161,7 @@ function InfoTab({
     documentNumber: string | null;
     legalAddress: string | null;
     legalCity: string | null;
+    legalState: string | null;
     legalCountry: string | null;
     notes: string | null;
     personality: string | null;
@@ -195,6 +196,10 @@ function InfoTab({
         <div>
           <dt className="font-medium text-slate-500">Ciudad</dt>
           <dd className="text-slate-900">{student.legalCity ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Departamento / Estado / Provincia</dt>
+          <dd className="text-slate-900">{student.legalState ?? "—"}</dd>
         </div>
         <div>
           <dt className="font-medium text-slate-500">País</dt>
@@ -240,6 +245,7 @@ function InfoTab({
             documentNumber: student.documentNumber,
             legalAddress: student.legalAddress,
             legalCity: student.legalCity,
+            legalState: student.legalState,
             legalCountry: student.legalCountry,
           }}
         />
