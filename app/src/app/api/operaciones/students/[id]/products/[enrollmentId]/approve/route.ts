@@ -15,6 +15,7 @@ import {
   computeCeoSignatureHash,
   contractEnrollmentSelect,
   findMissingContractFields,
+  validateSignatureImage,
 } from "@/lib/operaciones-contract";
 
 export const runtime = "nodejs";
@@ -34,6 +35,29 @@ export async function POST(_req: Request, { params }: Params) {
     requireActor(actor);
     requireOperatorOrAdmin(actor);
     const { id, enrollmentId } = await params;
+
+    // La firma manuscrita de Jose Naicipa es obligatoria para aprobar: se sube
+    // como data URL PNG/JPEG (máx. 1 MB) y se guarda para estamparla en el PDF.
+    let body: unknown;
+    try {
+      body = await _req.json();
+    } catch {
+      body = null;
+    }
+    const signatureImageValue =
+      body && typeof body === "object"
+        ? (body as { signatureImage?: unknown }).signatureImage
+        : undefined;
+    if (signatureImageValue === undefined || signatureImageValue === null) {
+      return jsonError(
+        400,
+        "Sube la firma de Jose Naicipa en PNG o JPG antes de aprobar el contrato",
+      );
+    }
+    const signatureImage = validateSignatureImage(signatureImageValue);
+    if (!signatureImage.ok) {
+      return jsonError(400, signatureImage.error);
+    }
 
     const student = await prisma.student.findUnique({
       where: { id },
@@ -130,6 +154,7 @@ export async function POST(_req: Request, { params }: Params) {
         contractCeoSignedAt: now,
         contractCeoSignedById: actor.userId,
         contractCeoSignatureHash: ceoHash,
+        contractCeoSignatureImage: signatureImage.dataUrl,
         contractRejectedAt: null,
         contractRejectionReason: null,
       },

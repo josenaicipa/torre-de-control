@@ -886,6 +886,9 @@ model StudentProductEnrollment {
   contractCeoSignedById  String?
   contractCeoSignedBy    User?            @relation("EnrollmentCeoSigner", fields: [contractCeoSignedById], references: [id], onDelete: SetNull)
   contractCeoSignatureHash String?
+  // Imagen de la firma manuscrita de Jose Naicipa (data URL base64 PNG/JPEG)
+  // cargada al aprobar desde Torre. Se ubica sobre LA EMPRESA en el PDF firmado.
+  contractCeoSignatureImage String? @db.Text
   contractApprovedAt     DateTime?
   contractApprovedById   String?
   contractApprovedBy     User?            @relation("EnrollmentApprover", fields: [contractApprovedById], references: [id], onDelete: SetNull)

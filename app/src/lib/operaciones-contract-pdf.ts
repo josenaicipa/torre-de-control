@@ -76,6 +76,7 @@ export interface ContractPdfEvidence {
   ceoSignerName: string | null;
   ceoSignedAt: Date | string | null;
   ceoSignatureHash: string | null;
+  ceoSignatureImage: string | null;
   templateVersion: string | null;
 }
 
@@ -207,10 +208,58 @@ export function generateSignedContractPdf({
     labeledValue("Fecha de acuerdo", view.signature.agreementDateLabel);
     labeledValue("Fecha de finalización", view.signature.endDateLabel);
 
+    // Dibuja la imagen de una firma manuscrita reservando su alto real: PDFKit
+    // NO avanza doc.y tras pintar una imagen, así que la posicionamos en una
+    // caja fija y movemos doc.y manualmente para que el texto siguiente (el
+    // encabezado de la parte) quede DEBAJO y nunca se monte sobre la firma. Si
+    // no cabe en la página, abre una nueva. Imágenes inválidas/corruptas se
+    // omiten sin interrumpir la generación del PDF.
+    const signatureBox = { width: 200, height: 80 };
+    const drawSignatureImage = (image: string | null, caption: string) => {
+      const validated = validateSignatureImage(image);
+      if (!validated.ok) return;
+      let buffer: Buffer;
+      try {
+        buffer = Buffer.from(validated.base64, "base64");
+      } catch {
+        return;
+      }
+      const captionHeight = 14;
+      const blockHeight = captionHeight + signatureBox.height + 8;
+      const bottomLimit = doc.page.height - doc.page.margins.bottom;
+      if (doc.y + blockHeight > bottomLimit) {
+        doc.addPage();
+      }
+      doc.font(fonts.regular).fontSize(9).fillColor("#555555").text(caption);
+      doc.fillColor("black");
+      const imageTop = doc.y;
+      try {
+        doc.image(buffer, doc.x, imageTop, {
+          fit: [signatureBox.width, signatureBox.height],
+        });
+      } catch {
+        // Imagen corrupta: restaurar posición y continuar sin la imagen.
+        doc.y = imageTop;
+        return;
+      }
+      // Reservar el alto de la caja para que el siguiente texto no se solape.
+      doc.y = imageTop + signatureBox.height + 8;
+    };
+
     // Bloque de evidencia de firma electrónica
     doc.moveDown(1);
-    doc.font(fonts.bold).fontSize(11).text("EVIDENCIA DE FIRMA ELECTRÓNICA");
+    doc
+      .font(fonts.bold)
+      .fontSize(11)
+      .fillColor("black")
+      .text("EVIDENCIA DE FIRMA ELECTRÓNICA");
     doc.moveDown(0.4);
+
+    // Firma manuscrita del estudiante, arriba del encabezado EL CLIENTE.
+    drawSignatureImage(
+      evidence.studentSignatureImage,
+      "Firma manuscrita de EL CLIENTE:",
+    );
 
     doc.font(fonts.bold).fontSize(10).text("EL CLIENTE");
     doc.font(fonts.regular).fontSize(10);
@@ -218,21 +267,13 @@ export function generateSignedContractPdf({
     doc.text(`Fecha de firma: ${formatDateTime(evidence.studentSignedAt)}`);
     doc.text(`IP de firma: ${evidence.studentSignedIp ?? "—"}`);
     doc.text(`Hash de firma: ${shortHash(evidence.studentSignatureHash)}`);
+    doc.moveDown(0.6);
 
-    // Imagen de la firma manuscrita. Si la imagen es inválida, no rompe el PDF.
-    const signature = validateSignatureImage(evidence.studentSignatureImage);
-    if (signature.ok) {
-      try {
-        const buffer = Buffer.from(signature.base64, "base64");
-        doc.moveDown(0.2);
-        doc.text("Firma manuscrita:");
-        doc.moveDown(0.2);
-        doc.image(buffer, { fit: [200, 80] });
-      } catch {
-        // Imagen corrupta: se omite sin interrumpir la generación del PDF.
-      }
-    }
-    doc.moveDown(0.5);
+    // Firma manuscrita de Jose Naicipa, arriba del encabezado LA EMPRESA.
+    drawSignatureImage(
+      evidence.ceoSignatureImage,
+      "Firma manuscrita de LA EMPRESA:",
+    );
 
     doc.font(fonts.bold).fontSize(10).text("LA EMPRESA");
     doc.font(fonts.regular).fontSize(10);

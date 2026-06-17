@@ -68,6 +68,7 @@ export const contractEnrollmentSelect = {
   contractCeoSignerName: true,
   contractCeoSignedAt: true,
   contractCeoSignatureHash: true,
+  contractCeoSignatureImage: true,
   contractApprovedAt: true,
   student: {
     select: {

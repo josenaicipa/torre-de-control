@@ -73,6 +73,7 @@ export async function GET(_req: Request, { params }: Params) {
         ceoSignerName: enrollment.contractCeoSignerName,
         ceoSignedAt: enrollment.contractCeoSignedAt,
         ceoSignatureHash: enrollment.contractCeoSignatureHash,
+        ceoSignatureImage: enrollment.contractCeoSignatureImage,
         templateVersion: enrollment.contractTemplateVersion,
       },
     });

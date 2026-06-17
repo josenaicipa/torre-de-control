@@ -31,6 +31,7 @@ function baseEvidence(image: string | null) {
     ceoSignerName: "Jose David Naicipa Jiménez",
     ceoSignedAt: new Date("2026-06-12T12:00:00.000Z"),
     ceoSignatureHash: "b".repeat(64),
+    ceoSignatureImage: image,
     templateVersion: "2026-06-unlocked-v1",
   };
 }
