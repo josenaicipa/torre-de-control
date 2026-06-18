@@ -886,6 +886,10 @@ model StudentProductEnrollment {
   // contrato firmado (contenido + datos + firmante) para verificación.
   contractTemplateVersion         String?
   contractAcceptanceText          String?
+  // Snapshot JSON de las cláusulas manuales vigentes al firmar (ManualClause[]),
+  // para que el contrato congelado no cambie si Operaciones edita las cláusulas
+  // configurables después de la firma.
+  contractManualClausesSnapshot   String?   @db.Text
   contractStudentSignatureHash    String?
   // Imagen de la firma manuscrita del estudiante (data URL base64 PNG/JPEG)
   // capturada en la página pública de firma. Se ubica junto al nombre del

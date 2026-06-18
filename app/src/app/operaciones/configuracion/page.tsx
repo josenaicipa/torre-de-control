@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getActor } from "@/lib/actor";
 import { JoseSignatureConfig } from "./jose-signature-config";
+import { ContractClausesConfig } from "./contract-clauses-config";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function ConfiguracionPage() {
     <div>
       <h1 className="mb-6 text-2xl font-bold text-slate-900">Configuración</h1>
       <JoseSignatureConfig />
+      <ContractClausesConfig />
     </div>
   );
 }

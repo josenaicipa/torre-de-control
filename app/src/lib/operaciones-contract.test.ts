@@ -7,10 +7,15 @@ import {
   computeStudentSignatureHash,
   findMissingContractFields,
   isContractComplete,
+  MANUAL_CLAUSE_LIMITS,
   namesReasonablyMatch,
+  parseManualClauses,
+  parseManualClausesSnapshot,
+  serializeManualClausesSnapshot,
   validateSignatureImage,
   type ContractDataShape,
 } from "./operaciones-contract";
+import { buildContractView, type ManualClause } from "./operaciones-contract-template";
 
 // PNG 1x1 transparente válido, suficiente para los tests del validador y el PDF.
 const TINY_PNG =
@@ -201,6 +206,102 @@ describe("validateSignatureImage", () => {
     const result = validateSignatureImage(huge);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("1 MB");
+  });
+});
+
+describe("parseManualClauses", () => {
+  it("recorta a maxClauses (10) y descarta el resto", () => {
+    const raw = Array.from({ length: 15 }, (_, i) => ({
+      heading: `Clausula ${i + 1}`,
+      paragraphs: [`Texto ${i + 1}`],
+    }));
+    const parsed = parseManualClauses(raw);
+    expect(parsed).toHaveLength(MANUAL_CLAUSE_LIMITS.maxClauses);
+    expect(parsed[0].heading).toBe("Clausula 1");
+    expect(parsed[9].heading).toBe("Clausula 10");
+  });
+
+  it("descarta entradas no-objeto, sin heading o sin párrafos válidos", () => {
+    const raw = [
+      null,
+      "string suelto",
+      42,
+      { heading: "", paragraphs: ["x"] },
+      { heading: "   ", paragraphs: ["x"] },
+      { heading: "Sin párrafos" },
+      { heading: "Párrafos no-array", paragraphs: "no es array" },
+      { heading: "Párrafos vacíos", paragraphs: ["", "   "] },
+      { heading: "OK", paragraphs: ["válido", 123, "  otro  "] },
+    ];
+    const parsed = parseManualClauses(raw);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].heading).toBe("OK");
+    // Filtra el number 123 y conserva strings recortados.
+    expect(parsed[0].paragraphs).toEqual(["válido", "otro"]);
+  });
+
+  it("devuelve [] para valores no-array", () => {
+    expect(parseManualClauses(null)).toEqual([]);
+    expect(parseManualClauses(undefined)).toEqual([]);
+    expect(parseManualClauses("foo")).toEqual([]);
+    expect(parseManualClauses({ heading: "x", paragraphs: ["y"] })).toEqual([]);
+  });
+});
+
+describe("buildContractView con cláusulas manuales", () => {
+  const baseInput = buildContractInputFromData(completeData());
+
+  it("agrega la cláusula manual al final del cuerpo legal con id manual-N", () => {
+    const manual: ManualClause = {
+      heading: "Décima Cuarta. Pacto especial",
+      paragraphs: ["Cláusula adicional acordada con el cliente."],
+    };
+    const view = buildContractView({ ...baseInput, manualClauses: [manual] });
+    const last = view.sections[view.sections.length - 1];
+    expect(last.id).toBe("manual-1");
+    expect(last.heading).toBe(manual.heading);
+    expect(last.paragraphs).toEqual(manual.paragraphs);
+  });
+
+  it("sin cláusulas manuales no añade secciones manual-*", () => {
+    const view = buildContractView(baseInput);
+    expect(view.sections.some((s) => s.id.startsWith("manual-"))).toBe(false);
+  });
+});
+
+describe("parseManualClausesSnapshot", () => {
+  it("devuelve null cuando el snapshot todavía no se tomó", () => {
+    expect(parseManualClausesSnapshot(null)).toBeNull();
+    expect(parseManualClausesSnapshot(undefined)).toBeNull();
+  });
+
+  it("devuelve [] cuando el JSON está corrupto", () => {
+    expect(parseManualClausesSnapshot("{not json")).toEqual([]);
+    expect(parseManualClausesSnapshot("")).toEqual([]);
+  });
+
+  it("normaliza el snapshot a través de parseManualClauses", () => {
+    const snapshot = JSON.stringify([
+      { heading: "OK", paragraphs: ["uno"] },
+      { heading: "", paragraphs: ["se descarta"] },
+    ]);
+    expect(parseManualClausesSnapshot(snapshot)).toEqual([
+      { heading: "OK", paragraphs: ["uno"] },
+    ]);
+  });
+
+  it("roundtrip: serializeManualClausesSnapshot + parseManualClausesSnapshot", () => {
+    const clauses: ManualClause[] = [
+      { heading: "Primera adicional", paragraphs: ["uno", "dos"] },
+      { heading: "Segunda adicional", paragraphs: ["tres"] },
+    ];
+    const snapshot = serializeManualClausesSnapshot(clauses);
+    expect(parseManualClausesSnapshot(snapshot)).toEqual(clauses);
+  });
+
+  it("roundtrip de [] devuelve [] (no null)", () => {
+    const snapshot = serializeManualClausesSnapshot([]);
+    expect(parseManualClausesSnapshot(snapshot)).toEqual([]);
   });
 });
 

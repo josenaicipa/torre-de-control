@@ -9,8 +9,11 @@ import {
   contractEnrollmentSelect,
   findMissingContractFields,
   namesReasonablyMatch,
+  parseManualClausesSnapshot,
+  serializeManualClausesSnapshot,
   validateSignatureImage,
 } from "@/lib/operaciones-contract";
+import { getManualContractClauses } from "@/lib/operaciones-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,7 +104,14 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const signedAt = new Date();
-    const contractInput = buildContractInputFromData(enrollment, signedAt);
+    let manualClauses = parseManualClausesSnapshot(enrollment.contractManualClausesSnapshot);
+    let clausesSnapshot = enrollment.contractManualClausesSnapshot;
+    if (manualClauses === null) {
+      const global = await getManualContractClauses();
+      manualClauses = global?.clauses ?? [];
+      clausesSnapshot = serializeManualClausesSnapshot(manualClauses);
+    }
+    const contractInput = buildContractInputFromData(enrollment, signedAt, manualClauses);
     const signatureHash = computeStudentSignatureHash(
       contractInput,
       signerName,
@@ -120,6 +130,7 @@ export async function POST(req: Request, { params }: Params) {
         contractAcceptanceText: CONTRACT_ACCEPTANCE_TEXT,
         contractStudentSignatureHash: signatureHash,
         contractStudentSignatureImage: signatureImage.dataUrl,
+        contractManualClausesSnapshot: clausesSnapshot,
       },
     });
 
