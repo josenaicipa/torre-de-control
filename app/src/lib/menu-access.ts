@@ -25,6 +25,7 @@ export const MENU_ACCESS_ITEMS = [
   { id: "operaciones-mentores", label: "Operaciones · Mentores", description: "Gestionar mentores", group: "Operaciones", permissions: ["operaciones.read", "operaciones.mentors.manage"] },
   { id: "operaciones-catalogo", label: "Operaciones · Catálogo", description: "Ver catálogo operativo", group: "Operaciones", permissions: ["operaciones.read", "operaciones.write"] },
   { id: "operaciones-importar", label: "Operaciones · Importar Excel", description: "Importar datos por Excel/CSV", group: "Operaciones", permissions: ["operaciones.read", "operaciones.import"] },
+  { id: "operaciones-configuracion", label: "Operaciones · Configuración", description: "Configurar firma y cláusulas de contrato", group: "Operaciones", permissions: ["operaciones.read", "operaciones.import"] },
   { id: "comunidad-dropi", label: "Comunidad Dropi", description: "Módulo de comunidad", group: "Operaciones", permissions: ["operaciones.read"] },
   { id: "detalle", label: "Detalle Diario", description: "Registro y revisión diaria", group: "Comercial", permissions: REPORTS_READ },
   { id: "equipo", label: "Resumen Equipo", description: "Resumen operativo del equipo", group: "Comercial", permissions: REPORTS_READ },

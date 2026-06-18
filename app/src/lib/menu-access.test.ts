@@ -21,6 +21,7 @@ describe("menu access", () => {
       "operaciones-mentores",
       "operaciones-catalogo",
       "operaciones-importar",
+      "operaciones-configuracion",
       "comunidad-dropi",
       "detalle",
       "equipo",

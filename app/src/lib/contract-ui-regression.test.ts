@@ -18,6 +18,9 @@ const configPage = () =>
 const joseSignatureConfig = () =>
   read("src/app/operaciones/configuracion/jose-signature-config.tsx");
 const navItems = () => read("src/app/operaciones/nav-items.ts");
+const legacyShell = () => read("public/index.html");
+const platformShell = () => read("public/Plataforma/index.html");
+const menuAccess = () => read("src/lib/menu-access.ts");
 
 describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
   it("el botón de aprobar firma explícitamente como Jose Naicipa", () => {
@@ -51,6 +54,37 @@ describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
     expect(source).toContain("El estudiante ya firmó");
     // Caso sin permisos.
     expect(source).toContain("No tienes permisos para firmar como Jose Naicipa");
+  });
+});
+
+describe("Menú Operaciones: submenú Configuración", () => {
+  it("aparece como hijo de Operaciones en el shell legacy", () => {
+    for (const shell of [legacyShell(), platformShell()]) {
+      expect(shell).toContain(
+        '{id:"operaciones-configuracion", l:"Configuración", href:"/operaciones/configuracion"}',
+      );
+    }
+  });
+
+  it("está registrado en la nav Next de Operaciones", () => {
+    const source = navItems();
+    expect(source).toContain('href: "/operaciones/configuracion"');
+    expect(source).toContain('label: "Configuración"');
+  });
+
+  it("está en el registry de menús habilitado para acceso operativo", () => {
+    const source = menuAccess();
+    expect(source).toContain('id: "operaciones-configuracion"');
+    // Gated por una capacidad que tiene OPERATOR pero no MENTOR/VIEWER.
+    expect(source).toMatch(
+      /id: "operaciones-configuracion"[\s\S]*?permissions: \["operaciones\.read", "operaciones\.import"\]/,
+    );
+  });
+
+  it("la página de configuración existe y limita el acceso a ADMIN/OPERATOR", () => {
+    const source = configPage();
+    expect(source).toContain('actor.role !== "ADMIN"');
+    expect(source).toContain('actor.role !== "OPERATOR"');
   });
 });
 
