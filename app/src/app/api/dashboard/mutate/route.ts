@@ -158,7 +158,28 @@ export async function POST(req: NextRequest) {
     && isOwnDashboardEntryMember(result.actor, values.member)
     && canReadDashboard(result.actor);
 
-  if (!access.canWrite && !ownDailyEntryFill) {
+  // Raw match.member, read before sanitizeMatch, only to gate the own-entry
+  // delete exception below. The authorized delete still uses the sanitized match.
+  const rawMatchMember = body.op === "delete"
+    && body.match && typeof body.match === "object" && !Array.isArray(body.match)
+    ? (body.match as Record<string, unknown>).member
+    : undefined;
+
+  // A scoped collaborator without broad dashboard.write may also DELETE their own
+  // daily_entries rows (including legacy-alias rows). The browser performs a
+  // post-save legacy-alias cleanup delete after the allowed own upsert; without
+  // this exception that follow-up delete returned HTTP 403 and was silently
+  // dropped, leaving a duplicate legacy row that DOUBLE-COUNTS in the derived
+  // daily_closer aggregate (a stale "Carlos" row plus the canonical "Carlos Velez"
+  // row both sum into the total). This mirrors the ownDailyEntryFill upsert
+  // exception exactly: it only ever touches the caller's own collaborator aliases
+  // and never grants an aggregate (no member column) or cross-member write.
+  const ownDailyEntryDelete = body.op === "delete"
+    && table === "daily_entries"
+    && isOwnDashboardEntryMember(result.actor, rawMatchMember)
+    && canReadDashboard(result.actor);
+
+  if (!access.canWrite && !ownDailyEntryFill && !ownDailyEntryDelete) {
     return NextResponse.json({ error: "Sin permiso de escritura" }, { status: 403 });
   }
 
@@ -173,10 +194,15 @@ export async function POST(req: NextRequest) {
       if (!match) {
         return NextResponse.json({ error: "Filtro de borrado inválido" }, { status: 400 });
       }
-      // For member-scoped deletes, the member must be in the caller's set. We
-      // also require the member key so a scoped user can't delete by id alone.
+      // For member-scoped deletes, the member must be in the caller's set (or be
+      // one of the caller's OWN collaborator aliases, for the legacy-alias cleanup
+      // path). We also require the member key so a scoped user can't delete by id
+      // alone.
       if (memberScoped && !access.isGlobalData) {
-        if (!("member" in match) || !isMemberAllowed(access, match.member)) {
+        const memberAuthorized = "member" in match
+          && (isMemberAllowed(access, match.member)
+            || isOwnDashboardEntryMember(result.actor, match.member));
+        if (!memberAuthorized) {
           return FORBIDDEN;
         }
       }

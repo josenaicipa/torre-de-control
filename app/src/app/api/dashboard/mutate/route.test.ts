@@ -205,6 +205,77 @@ describe("server-side recompute is wired on an allowed daily_entries delete", ()
   });
 });
 
+describe("scoped own collaborator legacy-alias cleanup delete (the remaining-403 path)", () => {
+  // After the own daily_entries upsert, the browser deletes any stale legacy-alias
+  // row (e.g. "Daryi" -> canonical "Daryi Perez") so it is not double-counted in
+  // the derived daily_closer aggregate. A read-only scoped closer must be allowed
+  // to delete their OWN rows for that cleanup to succeed instead of 403-ing.
+  it("allows a read-only scoped closer to delete their own LEGACY alias row and recomputes", async () => {
+    asActor(actor({ permissions: ["dashboard.read"] }));
+
+    const res = await POST(
+      req({ op: "delete", table: "daily_entries", match: { date: "2026-06-17", member: "Daryi" } }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, aggregate: "recomputed" });
+    expect(deleteMock).toHaveBeenCalledTimes(1);
+    expect(deleteMock).toHaveBeenCalledWith(
+      "daily_entries",
+      expect.objectContaining({ member: "Daryi" }),
+    );
+    // The legacy alias canonicalizes to a high-ticket closer, so the aggregate is
+    // re-derived from the surviving rows (no stale duplicate left behind).
+    expect(recomputeMock).toHaveBeenCalledWith("2026-06-17");
+  });
+
+  it("allows a read-only scoped closer to delete their own CANONICAL row", async () => {
+    asActor(actor({ permissions: ["dashboard.read"] }));
+
+    const res = await POST(
+      req({ op: "delete", table: "daily_entries", match: { date: "2026-06-17", member: "Daryi Perez" } }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(deleteMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("FORBIDS a read-only scoped closer from deleting a row for a member they do NOT own", async () => {
+    asActor(actor({ permissions: ["dashboard.read"] }));
+
+    const res = await POST(
+      req({ op: "delete", table: "daily_entries", match: { date: "2026-06-17", member: "Carlos Velez" } }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(recomputeMock).not.toHaveBeenCalled();
+  });
+
+  it("FORBIDS deleting the aggregate daily_closer table even via the delete op (read-only scoped)", async () => {
+    asActor(actor({ permissions: ["dashboard.read"] }));
+
+    const res = await POST(
+      req({ op: "delete", table: "daily_closer", match: { date: "2026-06-17" } }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(recomputeMock).not.toHaveBeenCalled();
+  });
+
+  it("FORBIDS deleting the aggregate daily_closer table even for a scoped user WITH write", async () => {
+    asActor(actor({ permissions: ["dashboard.read", "dashboard.write"], dataScope: "OWN" }));
+
+    const res = await POST(
+      req({ op: "delete", table: "daily_closer", match: { date: "2026-06-17" } }),
+    );
+
+    expect(res.status).toBe(403);
+    expect(deleteMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("global admin behavior is preserved", () => {
   it("still allows a direct daily_closer upsert and does NOT run the entry-derived recompute", async () => {
     asActor(actor({ role: "ADMIN", position: "ADMIN", permissions: [], dataScope: "ALL" }));
