@@ -3740,6 +3740,7 @@ const TABS=[
     {id:"operaciones-mentores", l:"Mentores", href:"/operaciones/mentores"},
     {id:"operaciones-catalogo", l:"Catálogo", href:"/operaciones/catalogo"},
     {id:"operaciones-importar", l:"Importar Excel", href:"/operaciones/importar"},
+    {id:"operaciones-configuracion", l:"Configuración", href:"/operaciones/configuracion"},
   ]},
   {id:"comunidad-dropi", l:"Comunidad Dropi", icon:"users", href:"/comunidad-dropi"},
   {id:"detalle", l:"Detalle Diario",     icon:"barChart"},
@@ -3834,7 +3835,8 @@ function App(){
   const caps=(me&&me.capabilities)||null;
   const scopeLimited=!!(caps&&!caps.isGlobalData);
   const menuAccess=new Set((me&&Array.isArray(me.menuAccess))?me.menuAccess:[]);
-  const isMenuAllowed=(id)=>!me||menuAccess.has(id)||(id==="admin"&&canManage);
+  const isInternalOpsConfig=(id)=>id==="operaciones-configuracion"&&!!me&&(me.role==="ADMIN"||me.role==="OPERATOR");
+  const isMenuAllowed=(id)=>!me||menuAccess.has(id)||isInternalOpsConfig(id)||(id==="admin"&&canManage);
   const filterMenuTab=(t)=>{
     if(!t)return null;
     if(t.id==="admin")return isMenuAllowed("admin")?t:null;

@@ -18,8 +18,15 @@ const configPage = () =>
 const joseSignatureConfig = () =>
   read("src/app/operaciones/configuracion/jose-signature-config.tsx");
 const navItems = () => read("src/app/operaciones/nav-items.ts");
-const legacyShell = () => read("public/index.html");
-const platformShell = () => read("public/Plataforma/index.html");
+// Los 4 shells estáticos que renderizan el menú: las dos copias servidas por
+// Next (public/*) y las dos copias en la raíz del repo (../*). Las cuatro deben
+// incluir el link y el gate isInternalOpsConfig para no divergir entre sí.
+const menuShells = (): Array<[string, string]> => [
+  ["public/index.html", read("public/index.html")],
+  ["public/Plataforma/index.html", read("public/Plataforma/index.html")],
+  ["../index.html", read("../index.html")],
+  ["../Plataforma/index.html", read("../Plataforma/index.html")],
+];
 const menuAccess = () => read("src/lib/menu-access.ts");
 
 describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
@@ -58,11 +65,18 @@ describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
 });
 
 describe("Menú Operaciones: submenú Configuración", () => {
-  it("aparece como hijo de Operaciones en el shell legacy", () => {
-    for (const shell of [legacyShell(), platformShell()]) {
-      expect(shell).toContain(
+  it("aparece como hijo de Operaciones en los 4 shells estáticos", () => {
+    for (const [name, shell] of menuShells()) {
+      expect(
+        shell,
+        `${name} debe incluir el link de Configuración`,
+      ).toContain(
         '{id:"operaciones-configuracion", l:"Configuración", href:"/operaciones/configuracion"}',
       );
+      expect(
+        shell,
+        `${name} debe incluir el gate isInternalOpsConfig`,
+      ).toContain("isInternalOpsConfig");
     }
   });
 
