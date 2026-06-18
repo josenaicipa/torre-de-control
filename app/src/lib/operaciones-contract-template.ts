@@ -102,6 +102,16 @@ export interface ContractInstallment {
   dueDate: string; // YYYY-MM-DD
 }
 
+// Cláusula adicional configurable por Operaciones (no vive en el código de la
+// plantilla, sino en la configuración global). Se añade al final del cuerpo
+// legal en TODAS las vistas (web, PDF) y entra al hash de la firma. Al cambiar
+// estas cláusulas debe subirse CONTRACT_TEMPLATE_VERSION, igual que cuando se
+// edita el texto de la plantilla en código.
+export interface ManualClause {
+  heading: string;
+  paragraphs: string[];
+}
+
 export interface ContractInput {
   // Nombre legal del estudiante (legalName si existe; si no, fullName).
   clientName: string;
@@ -117,6 +127,8 @@ export interface ContractInput {
   installments: ContractInstallment[];
   agreementDate: string; // YYYY-MM-DD (contractSignedAt o fecha actual)
   endDate: string | null; // YYYY-MM-DD (student.endDate si está disponible)
+  // Cláusulas manuales configurables que se anexan al final del contrato.
+  manualClauses?: ManualClause[];
 }
 
 export interface ContractSection {
@@ -670,6 +682,16 @@ export function buildContractView(input: ContractInput): ContractView {
       ],
     },
   ];
+
+  // Cláusulas manuales configurables: se anexan al final del cuerpo legal con
+  // un id estable (manual-N) para que web, PDF y hash compartan el mismo orden.
+  for (const [index, clause] of (input.manualClauses ?? []).entries()) {
+    sections.push({
+      id: `manual-${index + 1}`,
+      heading: clause.heading,
+      paragraphs: clause.paragraphs,
+    });
+  }
 
   return {
     title: CONTRACT_TITLE,

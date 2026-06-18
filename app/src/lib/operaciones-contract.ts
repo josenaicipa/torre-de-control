@@ -4,6 +4,7 @@ import {
   CONTRACT_TEMPLATE_VERSION,
   buildContractView,
   type ContractInput,
+  type ManualClause,
 } from "./operaciones-contract-template";
 
 // Capa compartida entre la página pública de firma, las APIs (crear link,
@@ -63,6 +64,7 @@ export const contractEnrollmentSelect = {
   contractSignedIp: true,
   contractSignedUserAgent: true,
   contractTemplateVersion: true,
+  contractManualClausesSnapshot: true,
   contractStudentSignatureHash: true,
   contractStudentSignatureImage: true,
   contractCeoSignerName: true,
@@ -194,11 +196,80 @@ function composeAddress(data: ContractDataShape): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
+// ─── Cláusulas manuales configurables ────────────────────────────────────────
+
+// Topes para acotar el tamaño de las cláusulas manuales y evitar abusos.
+export const MANUAL_CLAUSE_LIMITS = {
+  maxClauses: 10,
+  maxParagraphsPerClause: 30,
+  maxHeadingLength: 120,
+  maxParagraphLength: 4000,
+} as const;
+
+// Normaliza un valor arbitrario (típicamente JSON del settings o del body de la
+// API) en una lista de cláusulas manuales válidas. Es tolerante: descarta lo
+// que no encaje (entradas no-objeto, encabezados vacíos, párrafos vacíos) en
+// lugar de fallar, recorta espacios y aplica los topes. Devuelve [] si no hay
+// nada utilizable, de modo que un contrato sin cláusulas manuales sea el caso
+// por defecto.
+// Parsea el snapshot JSON de cláusulas manuales congeladas en el enrollment.
+// Devuelve null cuando el snapshot todavía no se tomó (el contrato no llegó a
+// PENDING_SIGNATURE) y [] si el snapshot existe pero quedó vacío. El JSON se
+// normaliza con parseManualClauses para descartar entradas corruptas.
+export function parseManualClausesSnapshot(
+  snapshot: string | null | undefined,
+): ManualClause[] | null {
+  if (snapshot === null || snapshot === undefined) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(snapshot);
+  } catch {
+    return [];
+  }
+  return parseManualClauses(parsed);
+}
+
+// Serializa una lista de cláusulas para guardarla como snapshot en el
+// enrollment. Normaliza antes de serializar para que la BD nunca contenga
+// entradas inválidas.
+export function serializeManualClausesSnapshot(
+  clauses: ManualClause[],
+): string {
+  return JSON.stringify(parseManualClauses(clauses));
+}
+
+export function parseManualClauses(value: unknown): ManualClause[] {
+  if (!Array.isArray(value)) return [];
+  const clauses: ManualClause[] = [];
+  for (const raw of value) {
+    if (clauses.length >= MANUAL_CLAUSE_LIMITS.maxClauses) break;
+    if (!raw || typeof raw !== "object") continue;
+    const candidate = raw as { heading?: unknown; paragraphs?: unknown };
+    const heading =
+      typeof candidate.heading === "string"
+        ? candidate.heading.trim().slice(0, MANUAL_CLAUSE_LIMITS.maxHeadingLength)
+        : "";
+    if (!heading) continue;
+    if (!Array.isArray(candidate.paragraphs)) continue;
+    const paragraphs = candidate.paragraphs
+      .filter((p): p is string => typeof p === "string")
+      .map((p) => p.trim().slice(0, MANUAL_CLAUSE_LIMITS.maxParagraphLength))
+      .filter((p) => p.length > 0)
+      .slice(0, MANUAL_CLAUSE_LIMITS.maxParagraphsPerClause);
+    if (paragraphs.length === 0) continue;
+    clauses.push({ heading, paragraphs });
+  }
+  return clauses;
+}
+
 // Arma el ContractInput canónico a partir de los datos en Torre. `signedAt`
 // permite fijar la fecha de acuerdo a la firma real; si falta se usa hoy.
+// `manualClauses` anexa cláusulas configurables al final del contrato; se
+// normalizan para que el input canónico no contenga entradas inválidas.
 export function buildContractInputFromData(
   data: ContractDataShape,
   signedAt?: Date | string | null,
+  manualClauses?: ManualClause[],
 ): ContractInput {
   const clientName = data.student.legalName?.trim() || data.student.fullName;
   const agreementDate =
@@ -227,6 +298,7 @@ export function buildContractInputFromData(
     installments,
     agreementDate,
     endDate,
+    manualClauses: parseManualClauses(manualClauses ?? []),
   };
 }
 

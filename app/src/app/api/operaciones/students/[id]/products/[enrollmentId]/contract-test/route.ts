@@ -13,7 +13,9 @@ import { writeAudit } from "@/lib/audit";
 import {
   contractEnrollmentSelect,
   findMissingContractFields,
+  serializeManualClausesSnapshot,
 } from "@/lib/operaciones-contract";
+import { getManualContractClauses } from "@/lib/operaciones-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,6 +73,14 @@ export async function POST(_req: Request, { params }: Params) {
     const token = randomBytes(32).toString("hex");
     const contractUrl = `/contratos/firmar/${token}`;
 
+    // Congela las cláusulas manuales vigentes en el enrollment: lo que firme el
+    // estudiante no debe cambiar si Operaciones edita las cláusulas globales
+    // después de generar el link.
+    const manualClauses = await getManualContractClauses();
+    const clausesSnapshot = serializeManualClausesSnapshot(
+      manualClauses?.clauses ?? [],
+    );
+
     await prisma.studentProductEnrollment.update({
       where: { id: enrollment.id },
       data: {
@@ -78,6 +88,7 @@ export async function POST(_req: Request, { params }: Params) {
         contractSignatureToken: token,
         contractSignatureTokenCreatedAt: new Date(),
         contractUrl,
+        contractManualClausesSnapshot: clausesSnapshot,
         // Regenerar limpia firma previa, su evidencia y cualquier rechazo.
         contractSignedAt: null,
         contractSignerName: null,
