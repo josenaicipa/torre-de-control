@@ -13,6 +13,7 @@ import { writeAudit } from "@/lib/audit";
 import {
   contractEnrollmentSelect,
   findMissingContractFields,
+  parseManualClausesSnapshot,
   serializeManualClausesSnapshot,
 } from "@/lib/operaciones-contract";
 import { getManualContractClauses } from "@/lib/operaciones-settings";
@@ -73,13 +74,15 @@ export async function POST(_req: Request, { params }: Params) {
     const token = randomBytes(32).toString("hex");
     const contractUrl = `/contratos/firmar/${token}`;
 
-    // Congela las cláusulas manuales vigentes en el enrollment: lo que firme el
-    // estudiante no debe cambiar si Operaciones edita las cláusulas globales
-    // después de generar el link.
-    const manualClauses = await getManualContractClauses();
-    const clausesSnapshot = serializeManualClausesSnapshot(
-      manualClauses?.clauses ?? [],
-    );
+    // Congela las cláusulas manuales vigentes en el enrollment: si Operaciones
+    // ya personalizó este contrato, conserva ese snapshot; si no, inicializa
+    // desde la configuración global vigente.
+    const clausesSnapshot =
+      enrollment.contractManualClausesSnapshot ??
+      serializeManualClausesSnapshot(
+        (await getManualContractClauses())?.clauses ?? [],
+      );
+    const clausesCount = parseManualClausesSnapshot(clausesSnapshot)?.length ?? 0;
 
     await prisma.studentProductEnrollment.update({
       where: { id: enrollment.id },
@@ -110,6 +113,7 @@ export async function POST(_req: Request, { params }: Params) {
         studentId: id,
         contractStatus: "PENDING_SIGNATURE",
         regenerated: enrollment.contractStatus === "PENDING_SIGNATURE",
+        clausesCount,
       },
     });
 

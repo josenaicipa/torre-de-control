@@ -16,6 +16,7 @@ import {
   type ContractDataShape,
 } from "./operaciones-contract";
 import { buildContractView, type ManualClause } from "./operaciones-contract-template";
+import { validateManualClausesInput } from "./operaciones-manual-clauses";
 
 // PNG 1x1 transparente válido, suficiente para los tests del validador y el PDF.
 const TINY_PNG =
@@ -381,6 +382,28 @@ describe("parseManualClausesSnapshot", () => {
   it("roundtrip de [] devuelve [] (no null)", () => {
     const snapshot = serializeManualClausesSnapshot([]);
     expect(parseManualClausesSnapshot(snapshot)).toEqual([]);
+  });
+});
+
+describe("validateManualClausesInput", () => {
+  it("normaliza cuerpo de textarea y viñetas antes de guardar", () => {
+    const result = validateManualClausesInput([
+      { heading: "  Cláusula puntual  ", body: "Primer párrafo\n- Viñeta" },
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      clauses: [
+        { heading: "Cláusula puntual", paragraphs: ["Primer párrafo", "• Viñeta"] },
+      ],
+    });
+  });
+
+  it("rechaza cuerpos vacíos para dar feedback claro a la UI", () => {
+    const result = validateManualClausesInput([{ heading: "Sin cuerpo", body: "  \n" }]);
+    expect(result).toEqual({
+      ok: false,
+      error: "Cláusula 1: agrega al menos un párrafo de cuerpo",
+    });
   });
 });
 

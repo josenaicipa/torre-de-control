@@ -104,6 +104,11 @@ interface Enrollment {
   paymentSchedules: EnrollmentSchedule[];
 }
 
+interface ManualClauseFormItem {
+  heading: string;
+  body: string;
+}
+
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
 type InstallmentFrequency = "monthly" | "biweekly";
 
@@ -306,6 +311,7 @@ function EnrollmentCard({
   >(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showClausesEditor, setShowClausesEditor] = useState(false);
 
   const ACTION_ERROR_LABEL: Record<"approve" | "retry-lw" | "contract-test", string> = {
     approve: "No se pudo aprobar el contrato",
@@ -381,6 +387,19 @@ function EnrollmentCard({
   const canCreateTestContract = canWrite && enrollment.contractStatus !== "APPROVED";
   const hasSignLink = Boolean(enrollment.contractUrl);
   const canDownloadPdf = enrollment.contractStatus === "APPROVED";
+  const canEditContractClauses =
+    canWrite &&
+    !enrollment.contractSignedAt &&
+    (enrollment.contractStatus === "DRAFT" ||
+      enrollment.contractStatus === "PENDING_SIGNATURE" ||
+      enrollment.contractStatus === "REJECTED");
+  const contractClausesLocked =
+    canWrite &&
+    !canEditContractClauses &&
+    (enrollment.contractStatus === "SIGNED" ||
+      enrollment.contractStatus === "PENDING_APPROVAL" ||
+      enrollment.contractStatus === "APPROVED" ||
+      Boolean(enrollment.contractSignedAt));
   // El estudiante ya firmó pero falta la firma de Jose Naicipa (aprobación).
   const pdfPendingJoseSignature =
     enrollment.contractStatus === "SIGNED" ||
@@ -453,6 +472,7 @@ function EnrollmentCard({
       {(canApprove ||
         canRetryLw ||
         canCreateTestContract ||
+        canEditContractClauses ||
         hasSignLink ||
         canDownloadPdf ||
         pdfPendingJoseSignature) && (
@@ -469,6 +489,15 @@ function EnrollmentCard({
                 : hasSignLink
                   ? "Regenerar link de firma"
                   : "Crear contrato"}
+            </button>
+          )}
+          {canEditContractClauses && (
+            <button
+              type="button"
+              onClick={() => setShowClausesEditor((prev) => !prev)}
+              className="rounded-md border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+            >
+              Editar cláusulas de este contrato
             </button>
           )}
           {hasSignLink && (
@@ -537,6 +566,24 @@ function EnrollmentCard({
 
       {actionError && (
         <p className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{actionError}</p>
+      )}
+
+      {contractClausesLocked && (
+        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Las cláusulas de este contrato no se pueden modificar porque ya fue firmado o aprobado. Para cambiarlas, regenera o emite otro contrato.
+        </p>
+      )}
+
+      {showClausesEditor && canEditContractClauses && (
+        <ContractClausesEditor
+          studentId={studentId}
+          enrollmentId={enrollment.id}
+          onCancel={() => setShowClausesEditor(false)}
+          onSaved={() => {
+            setShowClausesEditor(false);
+            onChanged();
+          }}
+        />
       )}
 
       <JoseSignatureHint contractStatus={enrollment.contractStatus} canWrite={canWrite} />
@@ -642,6 +689,189 @@ function EnrollmentCard({
         <p className="mt-3 whitespace-pre-wrap rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-700">
           {enrollment.notes}
         </p>
+      )}
+    </div>
+  );
+}
+
+function ContractClausesEditor({
+  studentId,
+  enrollmentId,
+  onCancel,
+  onSaved,
+}: {
+  studentId: string;
+  enrollmentId: string;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [clauses, setClauses] = useState<ManualClauseFormItem[]>([]);
+  const [source, setSource] = useState<"global" | "enrollment" | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadClauses() {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          `/api/operaciones/students/${studentId}/products/${enrollmentId}/contract-clauses`,
+        );
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (active) setError(json.error ?? "No se pudieron cargar las cláusulas");
+          return;
+        }
+        if (!active) return;
+        setSource(json.source === "enrollment" ? "enrollment" : "global");
+        setClauses(
+          Array.isArray(json.clauses)
+            ? json.clauses.map((clause: { heading?: unknown; paragraphs?: unknown }) => ({
+                heading: typeof clause.heading === "string" ? clause.heading : "",
+                body: Array.isArray(clause.paragraphs)
+                  ? clause.paragraphs.filter((p): p is string => typeof p === "string").join("\n")
+                  : "",
+              }))
+            : [],
+        );
+      } catch {
+        if (active) setError("Error de red al cargar las cláusulas");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    void loadClauses();
+    return () => {
+      active = false;
+    };
+  }, [studentId, enrollmentId]);
+
+  function updateClause(index: number, patch: Partial<ManualClauseFormItem>) {
+    setClauses((prev) =>
+      prev.map((clause, i) => (i === index ? { ...clause, ...patch } : clause)),
+    );
+  }
+
+  function removeClause(index: number) {
+    setClauses((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/operaciones/students/${studentId}/products/${enrollmentId}/contract-clauses`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clauses }),
+        },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(json.error ?? "No se pudieron guardar las cláusulas");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Error de red al guardar las cláusulas");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h5 className="text-sm font-semibold text-slate-900">Cláusulas manuales de este contrato</h5>
+          <p className="mt-1 text-xs text-slate-600">
+            Estos cambios solo aplican a este estudiante/contrato y no modifican las cláusulas generales. Si ya existe un link pendiente, el link abierto mostrará estas cláusulas guardadas.
+          </p>
+          {source === "global" && (
+            <p className="mt-1 text-xs text-indigo-700">
+              Base cargada desde cláusulas generales; al guardar quedará personalizada para este contrato.
+            </p>
+          )}
+        </div>
+        <button type="button" onClick={onCancel} className="text-sm text-slate-500 hover:text-slate-700">
+          Cancelar
+        </button>
+      </div>
+
+      {error && <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+
+      {loading ? (
+        <p className="mt-3 text-sm text-slate-500">Cargando cláusulas...</p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {clauses.length === 0 && (
+            <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-500">
+              Este contrato no tiene cláusulas manuales adicionales.
+            </p>
+          )}
+          {clauses.map((clause, index) => (
+            <div key={index} className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block flex-1 text-xs font-medium text-slate-600">
+                  Título
+                  <input
+                    value={clause.heading}
+                    onChange={(e) => updateClause(index, { heading: e.target.value })}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    maxLength={120}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => removeClause(index)}
+                  className="mt-5 text-xs font-medium text-rose-600 hover:text-rose-700"
+                >
+                  Eliminar
+                </button>
+              </div>
+              <label className="mt-2 block text-xs font-medium text-slate-600">
+                Cuerpo
+                <textarea
+                  value={clause.body}
+                  onChange={(e) => updateClause(index, { body: e.target.value })}
+                  rows={4}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setClauses((prev) => [...prev, { heading: "", body: "" }])}
+              disabled={clauses.length >= 10 || saving}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50"
+            >
+              + Agregar cláusula
+            </button>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving}
+              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {saving ? "Guardando..." : "Guardar cláusulas"}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={saving}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
