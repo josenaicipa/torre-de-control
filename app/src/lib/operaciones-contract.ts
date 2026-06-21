@@ -36,6 +36,7 @@ export interface ContractDataShape {
     legalCity: string | null;
     legalState: string | null;
     legalCountry: string | null;
+    durationMonths: number | string | { toString(): string } | null;
     startDate: Date | string | null;
     endDate: Date | string | null;
   };
@@ -84,6 +85,7 @@ export const contractEnrollmentSelect = {
       legalCity: true,
       legalState: true,
       legalCountry: true,
+      durationMonths: true,
       startDate: true,
       endDate: true,
     },
@@ -116,6 +118,36 @@ function isoDate(value: Date | string | null | undefined): string | null {
     return match ? value.slice(0, 10) : null;
   }
   return value.toISOString().slice(0, 10);
+}
+
+function durationMonthsFromDates(
+  startValue: Date | string | null | undefined,
+  endValue: Date | string | null | undefined,
+): number {
+  const startIso = isoDate(startValue);
+  const endIso = isoDate(endValue);
+  if (!startIso || !endIso) return 12;
+
+  const start = Date.parse(`${startIso}T00:00:00.000Z`);
+  const end = Date.parse(`${endIso}T00:00:00.000Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 12;
+
+  const days = (end - start) / 86_400_000;
+  const months = Math.round(days / 30.436875);
+  return Number.isInteger(months) && months > 0 ? months : 12;
+}
+
+function resolveDurationMonths(
+  durationValue: number | string | { toString(): string } | null | undefined,
+  startValue: Date | string | null | undefined,
+  endValue: Date | string | null | undefined,
+): number {
+  const explicitDuration = toNumberOrNull(durationValue);
+  if (explicitDuration !== null && Number.isInteger(explicitDuration) && explicitDuration > 0) {
+    return explicitDuration;
+  }
+
+  return durationMonthsFromDates(startValue, endValue);
 }
 
 function nonEmpty(value: string | null | undefined): boolean {
@@ -160,7 +192,7 @@ export function findMissingContractFields(data: ContractDataShape): MissingField
   const startDate = isoDate(data.startedAt) ?? isoDate(data.student.startDate);
   if (!startDate) add("startDate", "Fecha de acuerdo / inicio");
 
-  const endDate = isoDate(data.student.endDate) ?? isoDate(data.endsAt);
+  const endDate = isoDate(data.endsAt) ?? isoDate(data.student.endDate);
   if (!endDate) add("endDate", "Fecha de finalización");
 
   // Si hay saldo pendiente, debe existir al menos una cuota que lo respalde.
@@ -277,7 +309,12 @@ export function buildContractInputFromData(
     isoDate(data.startedAt) ??
     isoDate(data.student.startDate) ??
     new Date().toISOString().slice(0, 10);
-  const endDate = isoDate(data.student.endDate) ?? isoDate(data.endsAt);
+  const endDate = isoDate(data.endsAt) ?? isoDate(data.student.endDate);
+  const durationMonths = resolveDurationMonths(
+    data.student.durationMonths,
+    data.startedAt ?? data.student.startDate,
+    data.endsAt ?? data.student.endDate,
+  );
 
   const installments = data.paymentSchedules.map((s) => ({
     number: s.installmentNumber,
@@ -298,6 +335,7 @@ export function buildContractInputFromData(
     installments,
     agreementDate,
     endDate,
+    durationMonths,
     manualClauses: parseManualClauses(manualClauses ?? []),
   };
 }

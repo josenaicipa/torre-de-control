@@ -19,6 +19,7 @@ const input: ContractInput = {
   ],
   agreementDate: "2026-06-11",
   endDate: "2027-06-11",
+  durationMonths: 12,
 };
 
 function baseEvidence(image: string | null) {

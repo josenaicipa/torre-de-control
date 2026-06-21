@@ -75,7 +75,7 @@ export const INCOMPLETE_LEGAL_DATA = "DATOS LEGALES INCOMPLETOS";
 // Versión de la plantilla aceptada por el estudiante. Se congela en la
 // inscripción al firmar para tener evidencia de QUÉ texto se aceptó. Súbela
 // cuando cambie el contenido legal del contrato.
-export const CONTRACT_TEMPLATE_VERSION = "2026-06-unlocked-v2";
+export const CONTRACT_TEMPLATE_VERSION = "2026-06-unlocked-v3";
 
 // Texto exacto de la declaración de aceptación que firma el estudiante. Se
 // guarda junto a la firma como evidencia de consentimiento informado.
@@ -126,7 +126,10 @@ export interface ContractInput {
   balanceUsd: number;
   installments: ContractInstallment[];
   agreementDate: string; // YYYY-MM-DD (contractSignedAt o fecha actual)
-  endDate: string | null; // YYYY-MM-DD (student.endDate si está disponible)
+  endDate: string | null; // YYYY-MM-DD (endsAt o student.endDate si está disponible)
+  // Duración real de la mentoría en meses. Viene de las fechas de la inscripción
+  // (startedAt/endsAt) o, como respaldo, de las fechas del estudiante.
+  durationMonths: number;
   // Cláusulas manuales configurables que se anexan al final del contrato.
   manualClauses?: ManualClause[];
 }
@@ -237,7 +240,86 @@ export function formatContractDate(iso: string | null): string {
   return `${Number(day)} de ${monthName} de ${year}`;
 }
 
+const NUMEROS_ES: Record<number, string> = {
+  1: "un",
+  2: "dos",
+  3: "tres",
+  4: "cuatro",
+  5: "cinco",
+  6: "seis",
+  7: "siete",
+  8: "ocho",
+  9: "nueve",
+  10: "diez",
+  11: "once",
+  12: "doce",
+  13: "trece",
+  14: "catorce",
+  15: "quince",
+  16: "dieciséis",
+  17: "diecisiete",
+  18: "dieciocho",
+  19: "diecinueve",
+  20: "veinte",
+  21: "veintiún",
+  22: "veintidós",
+  23: "veintitrés",
+  24: "veinticuatro",
+  25: "veinticinco",
+  26: "veintiséis",
+  27: "veintisiete",
+  28: "veintiocho",
+  29: "veintinueve",
+  30: "treinta",
+  31: "treinta y un",
+  32: "treinta y dos",
+  33: "treinta y tres",
+  34: "treinta y cuatro",
+  35: "treinta y cinco",
+  36: "treinta y seis",
+  37: "treinta y siete",
+  38: "treinta y ocho",
+  39: "treinta y nueve",
+  40: "cuarenta",
+  41: "cuarenta y un",
+  42: "cuarenta y dos",
+  43: "cuarenta y tres",
+  44: "cuarenta y cuatro",
+  45: "cuarenta y cinco",
+  46: "cuarenta y seis",
+  47: "cuarenta y siete",
+  48: "cuarenta y ocho",
+  49: "cuarenta y nueve",
+  50: "cincuenta",
+  51: "cincuenta y un",
+  52: "cincuenta y dos",
+  53: "cincuenta y tres",
+  54: "cincuenta y cuatro",
+  55: "cincuenta y cinco",
+  56: "cincuenta y seis",
+  57: "cincuenta y siete",
+  58: "cincuenta y ocho",
+  59: "cincuenta y nueve",
+  60: "sesenta",
+};
+
+function safeDurationMonths(value: number): number {
+  return Number.isInteger(value) && value > 0 ? value : 12;
+}
+
+function durationMonthsLabel(value: number): string {
+  const months = safeDurationMonths(value);
+  return `${months} ${months === 1 ? "mes" : "meses"}`;
+}
+
+function legalDurationMonthsLabel(value: number): string {
+  const months = safeDurationMonths(value);
+  const words = NUMEROS_ES[months] ?? String(months);
+  return `${words} (${months}) ${months === 1 ? "mes" : "meses"}`;
+}
+
 function buildPaymentParagraphs(input: ContractInput): string[] {
+  const legalDuration = legalDurationMonthsLabel(input.durationMonths);
   const paragraphs: string[] = [
     `EL CLIENTE conviene cancelar la suma de ${formatContractUsd(
       input.totalAmountUsd,
@@ -298,8 +380,8 @@ function buildPaymentParagraphs(input: ContractInput): string[] {
       "el entrenamiento con nosotros en cualquier momento, si decide pausar su " +
       "membresía por un período de tiempo acordado, por lo que las futuras cuotas " +
       "se reanudarían en la fecha acordada anterior sin más cambios en las fechas de pago.",
-    "4.7. La consultoría «Unlocked Academy» tendrá una duración inicial de doce " +
-      "(12) meses a partir de la fecha de inicio establecida en este contrato. " +
+    `4.7. La consultoría «Unlocked Academy» tendrá una duración inicial de ${legalDuration} ` +
+      "a partir de la fecha de inicio establecida en este contrato. " +
       "Durante este período, EL CLIENTE recibirá las sesiones y el acompañamiento " +
       "correspondiente. En caso de requerir acompañamiento adicional una vez " +
       "finalizado este período, EL CLIENTE podrá solicitar información sobre los " +
@@ -311,6 +393,7 @@ function buildPaymentParagraphs(input: ContractInput): string[] {
 
 export function buildContractView(input: ContractInput): ContractView {
   const parties = segmentsToText(buildPartiesSegments(input));
+  const duration = durationMonthsLabel(input.durationMonths);
 
   const exponen =
     `${input.clientName} (en adelante EL CLIENTE) está interesado en la ` +
@@ -345,7 +428,7 @@ export function buildContractView(input: ContractInput): ContractView {
           "consulta y referencia.",
         "2.2. Ingreso a la plataforma Unlocked Academy (Programa pregrabado).",
         "2.3. Clases grupales.",
-        "2.4. Acompañamiento durante 12 meses.",
+        `2.4. Acompañamiento durante ${duration}.`,
         "2.5. Mínimo dos (02) sesiones 1 a 1 en la semana con uno de los mentores, " +
           "pudiendo ser más dependiendo de la agenda de los mentores.",
         "2.6. Acceso a un grupo exclusivo con los mentores.",

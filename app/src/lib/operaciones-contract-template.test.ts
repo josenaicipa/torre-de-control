@@ -37,6 +37,7 @@ const baseInput: ContractInput = {
   ],
   agreementDate: "2026-06-11",
   endDate: "2027-06-11",
+  durationMonths: 12,
 };
 
 describe("plantilla del contrato real conserva las cláusulas oficiales", () => {

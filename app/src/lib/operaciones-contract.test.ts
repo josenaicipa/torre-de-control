@@ -37,6 +37,7 @@ function completeData(overrides?: Partial<ContractDataShape>): ContractDataShape
       legalCity: "Medellín",
       legalState: "Antioquia",
       legalCountry: "Colombia",
+      durationMonths: 12,
       startDate: "2026-06-11",
       endDate: "2027-06-11",
     },
@@ -126,6 +127,84 @@ describe("buildContractInputFromData", () => {
     expect(input.totalAmountUsd).toBe(2900);
     expect(input.balanceUsd).toBe(900);
     expect(input.installments).toHaveLength(1);
+    expect(input.durationMonths).toBe(12);
+  });
+
+  it("prefiere durationMonths del estudiante aunque las fechas sugieran otra duración y lo renderiza en el contrato", () => {
+    const input = buildContractInputFromData(
+      completeData({
+        startedAt: "2026-06-11",
+        endsAt: "2027-06-11",
+        student: {
+          ...completeData().student,
+          durationMonths: 4,
+          startDate: "2026-06-11",
+          // Las fechas sugieren 12 meses, pero Info muestra durationMonths = 4.
+          endDate: "2027-06-11",
+        },
+      }),
+    );
+    const view = buildContractView(input);
+    const blob = view.sections.flatMap((s) => [s.heading, ...s.paragraphs]).join("\n");
+    const servicios = view.sections.find((s) => s.id === "servicios")!;
+    const honorarios = view.sections.find((s) => s.id === "honorarios")!;
+    const clause47 = honorarios.paragraphs.find((p) => p.startsWith("4.7."))!;
+
+    expect(input.durationMonths).toBe(4);
+    expect(input.endDate).toBe("2027-06-11");
+    expect(servicios.paragraphs).toContain("2.4. Acompañamiento durante 4 meses.");
+    expect(clause47).toContain("cuatro (4) meses");
+    expect(clause47).not.toContain("doce (12)");
+    expect(blob).not.toContain("doce (12) meses a partir de la fecha de inicio");
+  });
+
+  it("calcula duración variable desde fechas reales de enrollment si durationMonths falta o no es válido", () => {
+    const inputWithoutDuration = buildContractInputFromData(
+      completeData({
+        startedAt: "2026-06-11",
+        endsAt: "2026-10-11",
+        student: {
+          ...completeData().student,
+          durationMonths: null,
+          startDate: "2026-06-11",
+          // Debe preferir endsAt del enrollment sobre el endDate del estudiante.
+          endDate: "2027-06-11",
+        },
+      }),
+    );
+    const inputWithInvalidDuration = buildContractInputFromData(
+      completeData({
+        startedAt: "2026-06-11",
+        endsAt: "2026-10-11",
+        student: {
+          ...completeData().student,
+          durationMonths: "no válido",
+          startDate: "2026-06-11",
+          endDate: "2027-06-11",
+        },
+      }),
+    );
+
+    expect(inputWithoutDuration.durationMonths).toBe(4);
+    expect(inputWithoutDuration.endDate).toBe("2026-10-11");
+    expect(inputWithInvalidDuration.durationMonths).toBe(4);
+  });
+
+  it("usa duración segura de 12 meses si no puede calcularla", () => {
+    const input = buildContractInputFromData(
+      completeData({
+        startedAt: null,
+        endsAt: null,
+        student: {
+          ...completeData().student,
+          durationMonths: null,
+          startDate: null,
+          endDate: null,
+        },
+      }),
+    );
+
+    expect(input.durationMonths).toBe(12);
   });
 });
 
