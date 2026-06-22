@@ -93,6 +93,7 @@ interface Enrollment {
   contractUrl: string | null;
   contractSignerName: string | null;
   contractSignedAt: string | null;
+  contractCeoSignedAt: string | null;
   contractApprovedAt: string | null;
   contractRejectedAt: string | null;
   contractRejectionReason: string | null;
@@ -320,6 +321,7 @@ function EnrollmentCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showClausesEditor, setShowClausesEditor] = useState(false);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
 
   const ACTION_ERROR_LABEL: Record<"approve" | "retry-lw" | "contract-test", string> = {
     approve: "No se pudo aprobar el contrato",
@@ -392,7 +394,16 @@ function EnrollmentCard({
     canWrite &&
     (enrollment.accessStatus === "SYNC_ERROR" ||
       (enrollment.contractStatus === "APPROVED" && enrollment.accessStatus !== "ACTIVE"));
-  const canCreateTestContract = canWrite && enrollment.contractStatus !== "APPROVED";
+  // No se puede (re)generar un link de firma una vez que el estudiante firmó o
+  // el contrato avanzó a firmado/pendiente de aprobación/aprobado: regenerarlo
+  // invalidaría la firma ya capturada. Solo DRAFT/PENDING_SIGNATURE/REJECTED sin
+  // contractSignedAt admiten crear o regenerar el link.
+  const canCreateTestContract =
+    canWrite &&
+    !enrollment.contractSignedAt &&
+    enrollment.contractStatus !== "SIGNED" &&
+    enrollment.contractStatus !== "PENDING_APPROVAL" &&
+    enrollment.contractStatus !== "APPROVED";
   const hasSignLink = Boolean(enrollment.contractUrl);
   const canDownloadPdf = enrollment.contractStatus === "APPROVED";
   const canEditContractClauses =
@@ -408,6 +419,29 @@ function EnrollmentCard({
       enrollment.contractStatus === "PENDING_APPROVAL" ||
       enrollment.contractStatus === "APPROVED" ||
       Boolean(enrollment.contractSignedAt));
+  // Cambiar el tipo de contrato (Tradicional/Empresarial) solo se permite si
+  // ninguna de las dos partes firmó: ni el estudiante (contractSignedAt) ni
+  // Jose/CEO (contractCeoSignedAt / contractApprovedAt). Espeja la regla del
+  // endpoint PATCH .../contract-template.
+  const canChangeContractTemplate =
+    canWrite &&
+    !enrollment.contractSignedAt &&
+    !enrollment.contractCeoSignedAt &&
+    !enrollment.contractApprovedAt &&
+    (enrollment.contractStatus === "DRAFT" ||
+      enrollment.contractStatus === "PENDING_SIGNATURE" ||
+      enrollment.contractStatus === "REJECTED");
+  // El helper de bloqueo solo aplica cuando hay firma/aprobación real (no para
+  // un viewer sin permisos ni por otros motivos): espeja la regla del endpoint.
+  const contractTemplateLocked =
+    canWrite &&
+    !canChangeContractTemplate &&
+    (enrollment.contractStatus === "SIGNED" ||
+      enrollment.contractStatus === "PENDING_APPROVAL" ||
+      enrollment.contractStatus === "APPROVED" ||
+      Boolean(enrollment.contractSignedAt) ||
+      Boolean(enrollment.contractCeoSignedAt) ||
+      Boolean(enrollment.contractApprovedAt));
   // El estudiante ya firmó pero falta la firma de Jose Naicipa (aprobación).
   const pdfPendingJoseSignature =
     enrollment.contractStatus === "SIGNED" ||
@@ -487,6 +521,7 @@ function EnrollmentCard({
         canRetryLw ||
         canCreateTestContract ||
         canEditContractClauses ||
+        canChangeContractTemplate ||
         hasSignLink ||
         canDownloadPdf ||
         pdfPendingJoseSignature) && (
@@ -512,6 +547,15 @@ function EnrollmentCard({
               className="rounded-md border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
             >
               Editar contrato de este estudiante
+            </button>
+          )}
+          {canChangeContractTemplate && (
+            <button
+              type="button"
+              onClick={() => setShowTemplateEditor((prev) => !prev)}
+              className="rounded-md border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
+            >
+              Cambiar tipo de contrato
             </button>
           )}
           {hasSignLink && (
@@ -588,6 +632,12 @@ function EnrollmentCard({
         </p>
       )}
 
+      {contractTemplateLocked && (
+        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          No se puede cambiar el tipo porque este contrato ya tiene firma.
+        </p>
+      )}
+
       {showClausesEditor && canEditContractClauses && (
         <ContractClausesEditor
           studentId={studentId}
@@ -595,6 +645,18 @@ function EnrollmentCard({
           onCancel={() => setShowClausesEditor(false)}
           onSaved={() => {
             setShowClausesEditor(false);
+            onChanged();
+          }}
+        />
+      )}
+
+      {showTemplateEditor && canChangeContractTemplate && (
+        <ContractTemplateEditor
+          studentId={studentId}
+          enrollment={enrollment}
+          onCancel={() => setShowTemplateEditor(false)}
+          onSaved={() => {
+            setShowTemplateEditor(false);
             onChanged();
           }}
         />
@@ -970,6 +1032,114 @@ function ContractClausesEditor({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Cambia el tipo de contrato (Tradicional/Empresarial) de una inscripción ya
+// creada. Al guardar, el endpoint deja un contrato nuevo en DRAFT y borra el
+// link de firma y los snapshots previos; por eso se pide confirmación cuando ya
+// existe un link vigente o el contrato está pendiente de firma.
+function ContractTemplateEditor({
+  studentId,
+  enrollment,
+  onCancel,
+  onSaved,
+}: {
+  studentId: string;
+  enrollment: Enrollment;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [templateKind, setTemplateKind] = useState<ContractTemplateKind>(
+    enrollment.contractTemplateKind ?? "TRADITIONAL",
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setError(null);
+    const hasActiveLink =
+      Boolean(enrollment.contractUrl) ||
+      enrollment.contractStatus === "PENDING_SIGNATURE";
+    if (
+      hasActiveLink &&
+      !window.confirm(
+        "Esto borrará el link de firma actual y dejará un contrato nuevo. ¿Continuar?",
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(
+        `/api/operaciones/students/${studentId}/products/${enrollment.id}/contract-template`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contractTemplateKind: templateKind }),
+        },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(json.error ?? "No se pudo cambiar el tipo de contrato");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Error de red al cambiar el tipo de contrato");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h5 className="text-sm font-semibold text-slate-900">
+            Cambiar tipo de contrato
+          </h5>
+          <p className="mt-1 text-xs text-slate-600">
+            Al cambiarlo se borra el link de firma actual y se crea un contrato
+            nuevo para este estudiante.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-slate-500 hover:text-slate-700"
+        >
+          Cancelar
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="block text-xs font-medium text-slate-600">
+          Tipo de contrato
+          <select
+            value={templateKind}
+            onChange={(e) => setTemplateKind(e.target.value as ContractTemplateKind)}
+            disabled={saving}
+            className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-56"
+          >
+            <option value="TRADITIONAL">Tradicional</option>
+            <option value="BUSINESS">Empresarial</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving}
+          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
+        >
+          {saving ? "Guardando..." : "Guardar tipo de contrato"}
+        </button>
+      </div>
     </div>
   );
 }

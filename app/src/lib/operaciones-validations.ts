@@ -424,6 +424,17 @@ export const contractTemplateKindSchema = z
   .enum(["TRADITIONAL", "BUSINESS"])
   .default("TRADITIONAL");
 
+// Body para cambiar el tipo de contrato de una inscripción existente. Reutiliza
+// contractTemplateKindSchema (TRADITIONAL/BUSINESS); si el campo viene ausente,
+// el default lo trata como TRADITIONAL.
+export const changeContractTemplateSchema = z.object({
+  contractTemplateKind: contractTemplateKindSchema,
+});
+
+export type ChangeContractTemplateInput = z.infer<
+  typeof changeContractTemplateSchema
+>;
+
 // Base shape for enrolling a student in a product. Downstream flows (initial
 // payment + installment plan creation) are validated by their own schemas;
 // this only covers the StudentProductEnrollment row itself.

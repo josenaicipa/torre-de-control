@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildContractInputFromData,
+  buildContractTemplateResetData,
+  canChangeContractTemplateKind,
   computeCeoSignatureHash,
   computeStudentSignatureHash,
   findMissingContractFields,
@@ -535,6 +537,76 @@ describe("validateManualClausesInput", () => {
       ok: false,
       error: "Cláusula 1: agrega al menos un párrafo de cuerpo",
     });
+  });
+});
+
+describe("canChangeContractTemplateKind", () => {
+  const gate = (overrides?: Partial<Parameters<typeof canChangeContractTemplateKind>[0]>) => ({
+    contractStatus: "DRAFT",
+    contractSignedAt: null,
+    contractCeoSignedAt: null,
+    contractApprovedAt: null,
+    ...overrides,
+  });
+
+  it("permite DRAFT, PENDING_SIGNATURE y REJECTED cuando no hay firmas", () => {
+    expect(canChangeContractTemplateKind(gate({ contractStatus: "DRAFT" }))).toBe(true);
+    expect(
+      canChangeContractTemplateKind(gate({ contractStatus: "PENDING_SIGNATURE" })),
+    ).toBe(true);
+    expect(canChangeContractTemplateKind(gate({ contractStatus: "REJECTED" }))).toBe(true);
+  });
+
+  it("bloquea SIGNED, PENDING_APPROVAL y APPROVED", () => {
+    expect(canChangeContractTemplateKind(gate({ contractStatus: "SIGNED" }))).toBe(false);
+    expect(
+      canChangeContractTemplateKind(gate({ contractStatus: "PENDING_APPROVAL" })),
+    ).toBe(false);
+    expect(canChangeContractTemplateKind(gate({ contractStatus: "APPROVED" }))).toBe(false);
+  });
+
+  it("bloquea si hay cualquier evidencia de firma aunque el estado lo permita", () => {
+    expect(
+      canChangeContractTemplateKind(
+        gate({ contractStatus: "PENDING_SIGNATURE", contractSignedAt: new Date() }),
+      ),
+    ).toBe(false);
+    expect(
+      canChangeContractTemplateKind(
+        gate({ contractStatus: "DRAFT", contractCeoSignedAt: "2026-06-12" }),
+      ),
+    ).toBe(false);
+    expect(
+      canChangeContractTemplateKind(
+        gate({ contractStatus: "REJECTED", contractApprovedAt: new Date() }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("buildContractTemplateResetData", () => {
+  it("fija el nuevo tipo, vuelve a DRAFT y limpia link/snapshots/firmas", () => {
+    const data = buildContractTemplateResetData("BUSINESS");
+    expect(data.contractTemplateKind).toBe("BUSINESS");
+    expect(data.contractStatus).toBe("DRAFT");
+    expect(data.contractUrl).toBeNull();
+    expect(data.contractSignatureToken).toBeNull();
+    expect(data.contractSignatureTokenCreatedAt).toBeNull();
+    expect(data.contractManualClausesSnapshot).toBeNull();
+    expect(data.contractSectionsSnapshot).toBeNull();
+    expect(data.contractSignedAt).toBeNull();
+    expect(data.contractStudentSignatureHash).toBeNull();
+    expect(data.contractStudentSignatureImage).toBeNull();
+    expect(data.contractCeoSignedAt).toBeNull();
+    expect(data.contractCeoSignatureHash).toBeNull();
+    expect(data.contractApprovedAt).toBeNull();
+    expect(data.contractRejectedAt).toBeNull();
+  });
+
+  it("conserva el tipo TRADITIONAL cuando se cambia hacia él", () => {
+    expect(buildContractTemplateResetData("TRADITIONAL").contractTemplateKind).toBe(
+      "TRADITIONAL",
+    );
   });
 });
 

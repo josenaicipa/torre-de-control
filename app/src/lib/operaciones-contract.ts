@@ -426,6 +426,86 @@ export function buildContractInputFromData(
   };
 }
 
+// ─── Cambio de tipo de contrato (plantilla) por inscripción ──────────────────
+
+// Únicos estados en los que se permite cambiar la plantilla legal. Cualquier
+// otro estado (firmado, aprobado, pendiente de aprobación, activo, cancelado o
+// uno desconocido) bloquea el cambio. Además el cambio de plantilla exige que
+// NO exista ninguna evidencia de firma (estudiante o CEO).
+const CONTRACT_TEMPLATE_CHANGE_ALLOWED_STATUSES = new Set([
+  "DRAFT",
+  "PENDING_SIGNATURE",
+  "REJECTED",
+]);
+
+// Mensaje único que ven el operador (UI) y la API cuando el cambio de tipo de
+// contrato está bloqueado por una firma ya existente.
+export const CONTRACT_TEMPLATE_CHANGE_LOCKED_MESSAGE =
+  "No se puede cambiar el tipo porque este contrato ya tiene firma.";
+
+// Forma mínima necesaria para decidir si una inscripción puede cambiar de
+// plantilla legal. Se mantiene laxa (Date | string | null) para aceptar filas
+// de Prisma y objetos planos de los tests.
+export interface ContractTemplateChangeGate {
+  contractStatus: string;
+  contractSignedAt: Date | string | null;
+  contractCeoSignedAt: Date | string | null;
+  contractApprovedAt: Date | string | null;
+}
+
+// ¿Se puede cambiar el tipo de contrato de esta inscripción? Solo si ninguna de
+// las dos partes firmó (ni estudiante ni CEO/Jose) y el contrato no está en un
+// estado firmado/aprobado/pendiente de aprobación. Se permite en DRAFT,
+// PENDING_SIGNATURE o REJECTED siempre que no haya firmas registradas.
+export function canChangeContractTemplateKind(
+  enrollment: ContractTemplateChangeGate,
+): boolean {
+  if (
+    !CONTRACT_TEMPLATE_CHANGE_ALLOWED_STATUSES.has(enrollment.contractStatus)
+  ) {
+    return false;
+  }
+  if (enrollment.contractSignedAt) return false;
+  if (enrollment.contractCeoSignedAt) return false;
+  if (enrollment.contractApprovedAt) return false;
+  return true;
+}
+
+// Datos para dejar la inscripción con un contrato NUEVO/no emitido al cambiar la
+// plantilla: fija el nuevo tipo, vuelve a DRAFT y limpia link de firma, snapshots
+// y toda evidencia de firma/aprobación/rechazo previa. Invalida cualquier link
+// anterior y obliga a generar uno nuevo con la plantilla elegida.
+export function buildContractTemplateResetData(
+  templateKind: "TRADITIONAL" | "BUSINESS",
+) {
+  return {
+    contractTemplateKind: templateKind,
+    contractStatus: "DRAFT" as const,
+    contractUrl: null,
+    contractSignatureToken: null,
+    contractSignatureTokenCreatedAt: null,
+    contractManualClausesSnapshot: null,
+    contractSectionsSnapshot: null,
+    contractSignerName: null,
+    contractSignedIp: null,
+    contractSignedUserAgent: null,
+    contractSignedAt: null,
+    contractStudentSignatureHash: null,
+    contractStudentSignatureImage: null,
+    contractCeoSignerName: null,
+    contractCeoSignedAt: null,
+    contractCeoSignedById: null,
+    contractCeoSignatureHash: null,
+    contractCeoSignatureImage: null,
+    contractApprovedAt: null,
+    contractApprovedById: null,
+    contractRejectedAt: null,
+    contractRejectionReason: null,
+    contractTemplateVersion: null,
+    contractAcceptanceText: null,
+  };
+}
+
 // ─── Imagen de la firma manuscrita ───────────────────────────────────────────
 
 // Límite de tamaño de la imagen de firma decodificada: 1 MB.

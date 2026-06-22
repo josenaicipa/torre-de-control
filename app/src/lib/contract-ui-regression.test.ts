@@ -83,6 +83,17 @@ describe("UI selector de tipo de contrato (Tradicional / Empresarial)", () => {
     expect(source).toContain("Empresarial");
     expect(source).toContain(BUSINESS_HELPER);
   });
+
+  it("la pestaña de productos permite cambiar el tipo de contrato de una inscripción", () => {
+    const source = productosTab();
+    expect(source).toContain("Cambiar tipo de contrato");
+    expect(source).toContain(
+      "Al cambiarlo se borra el link de firma actual",
+    );
+    expect(source).toContain(
+      "No se puede cambiar el tipo porque este contrato ya tiene firma.",
+    );
+  });
 });
 
 describe("Menú Operaciones: submenú Configuración", () => {
