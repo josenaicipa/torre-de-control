@@ -9,6 +9,7 @@ import {
   contractEnrollmentSelect,
   findMissingContractFields,
   namesReasonablyMatch,
+  parseContractSectionsSnapshot,
   parseManualClausesSnapshot,
   serializeManualClausesSnapshot,
   validateSignatureImage,
@@ -111,7 +112,14 @@ export async function POST(req: Request, { params }: Params) {
       manualClauses = global?.clauses ?? [];
       clausesSnapshot = serializeManualClausesSnapshot(manualClauses);
     }
-    const contractInput = buildContractInputFromData(enrollment, signedAt, manualClauses);
+    const sectionsSnapshot =
+      parseContractSectionsSnapshot(enrollment.contractSectionsSnapshot) ?? undefined;
+    const contractInput = buildContractInputFromData(
+      enrollment,
+      signedAt,
+      manualClauses,
+      sectionsSnapshot,
+    );
     const signatureHash = computeStudentSignatureHash(
       contractInput,
       signerName,

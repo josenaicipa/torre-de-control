@@ -8,14 +8,22 @@ import {
   findMissingContractFields,
   isContractComplete,
   MANUAL_CLAUSE_LIMITS,
+  CONTRACT_SECTIONS_LIMITS,
   namesReasonablyMatch,
+  parseContractSections,
+  parseContractSectionsSnapshot,
   parseManualClauses,
   parseManualClausesSnapshot,
+  serializeContractSectionsSnapshot,
   serializeManualClausesSnapshot,
   validateSignatureImage,
   type ContractDataShape,
 } from "./operaciones-contract";
-import { buildContractView, type ManualClause } from "./operaciones-contract-template";
+import {
+  buildContractView,
+  type ContractSection,
+  type ManualClause,
+} from "./operaciones-contract-template";
 import { validateManualClausesInput } from "./operaciones-manual-clauses";
 
 // PNG 1x1 transparente válido, suficiente para los tests del validador y el PDF.
@@ -382,6 +390,113 @@ describe("parseManualClausesSnapshot", () => {
   it("roundtrip de [] devuelve [] (no null)", () => {
     const snapshot = serializeManualClausesSnapshot([]);
     expect(parseManualClausesSnapshot(snapshot)).toEqual([]);
+  });
+});
+
+describe("parseContractSections", () => {
+  it("descarta entradas no-objeto, sin heading o sin párrafos válidos", () => {
+    const raw = [
+      null,
+      "string suelto",
+      42,
+      { heading: "", paragraphs: ["x"] },
+      { heading: "   ", paragraphs: ["x"] },
+      { heading: "Sin párrafos" },
+      { heading: "Párrafos no-array", paragraphs: "no es array" },
+      { heading: "Párrafos vacíos", paragraphs: ["", "   "] },
+      { id: "uno", heading: "OK", paragraphs: ["válido", 123, "  otro  "] },
+    ];
+    const parsed = parseContractSections(raw);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].id).toBe("uno");
+    expect(parsed[0].heading).toBe("OK");
+    expect(parsed[0].paragraphs).toEqual(["válido", "otro"]);
+  });
+
+  it("devuelve [] para valores no-array", () => {
+    expect(parseContractSections(null)).toEqual([]);
+    expect(parseContractSections(undefined)).toEqual([]);
+    expect(parseContractSections("foo")).toEqual([]);
+    expect(parseContractSections({ heading: "x", paragraphs: ["y"] })).toEqual([]);
+  });
+
+  it("asigna un id estable cuando falta o se repite", () => {
+    const parsed = parseContractSections([
+      { heading: "Sin id", paragraphs: ["a"] },
+      { id: "dup", heading: "Con id", paragraphs: ["b"] },
+      { id: "dup", heading: "Repite id", paragraphs: ["c"] },
+    ]);
+    expect(parsed.map((s) => s.id)).toEqual(["section-1", "dup", "section-3"]);
+  });
+
+  it("respeta los topes de secciones, párrafos por sección y longitudes", () => {
+    const rawSections = Array.from(
+      { length: CONTRACT_SECTIONS_LIMITS.maxSections + 5 },
+      (_, i) => ({
+        heading: `Sección ${i + 1}`,
+        paragraphs: Array.from(
+          { length: CONTRACT_SECTIONS_LIMITS.maxParagraphsPerSection + 3 },
+          (_, j) => `Párrafo ${j + 1}`,
+        ),
+      }),
+    );
+    const parsed = parseContractSections(rawSections);
+    expect(parsed).toHaveLength(CONTRACT_SECTIONS_LIMITS.maxSections);
+    expect(parsed[0].paragraphs).toHaveLength(
+      CONTRACT_SECTIONS_LIMITS.maxParagraphsPerSection,
+    );
+
+    const longHeading = "h".repeat(CONTRACT_SECTIONS_LIMITS.maxHeadingLength + 50);
+    const longParagraph = "p".repeat(CONTRACT_SECTIONS_LIMITS.maxParagraphLength + 50);
+    const trimmed = parseContractSections([
+      { heading: longHeading, paragraphs: [longParagraph] },
+    ]);
+    expect(trimmed[0].heading).toHaveLength(CONTRACT_SECTIONS_LIMITS.maxHeadingLength);
+    expect(trimmed[0].paragraphs[0]).toHaveLength(
+      CONTRACT_SECTIONS_LIMITS.maxParagraphLength,
+    );
+  });
+});
+
+describe("parseContractSectionsSnapshot", () => {
+  it("devuelve null cuando el snapshot no existe", () => {
+    expect(parseContractSectionsSnapshot(null)).toBeNull();
+    expect(parseContractSectionsSnapshot(undefined)).toBeNull();
+  });
+
+  it("devuelve [] cuando el JSON está corrupto, sin lanzar", () => {
+    expect(parseContractSectionsSnapshot("{not json")).toEqual([]);
+    expect(parseContractSectionsSnapshot("")).toEqual([]);
+  });
+
+  it("roundtrip preserva ñ/tildes, viñetas '• ' y marcadores de negrita ⟦ ⟧", () => {
+    const sections: ContractSection[] = [
+      {
+        id: "personalizada",
+        heading: "Cláusula con ñ y tildes: año, mañana, José",
+        paragraphs: [
+          "Acompañamiento durante 4 meses con tildes: éxito, próximo.",
+          "• Viñeta con ñ y acento: configuración",
+          "Pago de ⟦USD $2,000.00⟧ el ⟦11 de agosto de 2026⟧.",
+        ],
+      },
+    ];
+    const snapshot = serializeContractSectionsSnapshot(sections);
+    const roundtripped = parseContractSectionsSnapshot(snapshot);
+    expect(roundtripped).toEqual(sections);
+    // Verificaciones explícitas de que los caracteres especiales sobreviven.
+    const blob = JSON.stringify(roundtripped);
+    expect(blob).toContain("año");
+    expect(blob).toContain("José");
+    expect(blob).toContain("• Viñeta");
+    expect(blob).toContain("⟦USD $2,000.00⟧");
+    expect(blob).toContain("⟦11 de agosto de 2026⟧");
+  });
+
+  it("roundtrip de [] devuelve [] (no null)", () => {
+    expect(parseContractSectionsSnapshot(serializeContractSectionsSnapshot([]))).toEqual(
+      [],
+    );
   });
 });
 

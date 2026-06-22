@@ -9,6 +9,7 @@ import { handleApiError, jsonError } from "@/lib/api-helpers";
 import {
   buildContractInputFromData,
   contractEnrollmentSelect,
+  parseContractSectionsSnapshot,
   parseManualClausesSnapshot,
 } from "@/lib/operaciones-contract";
 import { generateSignedContractPdf } from "@/lib/operaciones-contract-pdf";
@@ -60,10 +61,13 @@ export async function GET(_req: Request, { params }: Params) {
     }
 
     const manualClauses = parseManualClausesSnapshot(enrollment.contractManualClausesSnapshot) ?? [];
+    const sectionsSnapshot =
+      parseContractSectionsSnapshot(enrollment.contractSectionsSnapshot) ?? undefined;
     const input = buildContractInputFromData(
       enrollment,
       enrollment.contractSignedAt,
       manualClauses,
+      sectionsSnapshot,
     );
     const pdf = await generateSignedContractPdf({
       input,

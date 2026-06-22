@@ -4,6 +4,7 @@ import {
   CONTRACT_TEMPLATE_VERSION,
   buildContractView,
   type ContractInput,
+  type ContractSection,
   type ManualClause,
 } from "./operaciones-contract-template";
 
@@ -66,6 +67,7 @@ export const contractEnrollmentSelect = {
   contractSignedUserAgent: true,
   contractTemplateVersion: true,
   contractManualClausesSnapshot: true,
+  contractSectionsSnapshot: true,
   contractStudentSignatureHash: true,
   contractStudentSignatureImage: true,
   contractCeoSignerName: true,
@@ -294,6 +296,84 @@ export function parseManualClauses(value: unknown): ManualClause[] {
   return clauses;
 }
 
+// ─── Snapshot del contrato COMPLETO por inscripción ───────────────────────────
+
+// Topes para el contrato completo personalizado de una inscripción. Acotan el
+// tamaño del JSON congelado y se preservan tildes/ñ/viñetas (solo se recorta
+// largo y se descartan entradas inválidas, sin tocar el contenido textual).
+export const CONTRACT_SECTIONS_LIMITS = {
+  maxSections: 30,
+  maxParagraphsPerSection: 20,
+  maxHeadingLength: 160,
+  maxParagraphLength: 4000,
+} as const;
+
+// Normaliza un valor arbitrario en una lista de secciones de contrato válidas.
+// Tolerante: descarta entradas no-objeto, encabezados vacíos y párrafos vacíos,
+// recorta a los topes y asigna un id estable cuando falta o se repite. Devuelve
+// [] si no hay nada utilizable. NO altera tildes, ñ, viñetas «»°— ni marcadores
+// de negrita inline: solo recorta longitud y espacios en los extremos.
+export function parseContractSections(value: unknown): ContractSection[] {
+  if (!Array.isArray(value)) return [];
+  const sections: ContractSection[] = [];
+  const usedIds = new Set<string>();
+  for (const raw of value) {
+    if (sections.length >= CONTRACT_SECTIONS_LIMITS.maxSections) break;
+    if (!raw || typeof raw !== "object") continue;
+    const candidate = raw as {
+      id?: unknown;
+      heading?: unknown;
+      paragraphs?: unknown;
+    };
+    const heading =
+      typeof candidate.heading === "string"
+        ? candidate.heading.trim().slice(0, CONTRACT_SECTIONS_LIMITS.maxHeadingLength)
+        : "";
+    if (!heading) continue;
+    if (!Array.isArray(candidate.paragraphs)) continue;
+    const paragraphs = candidate.paragraphs
+      .filter((p): p is string => typeof p === "string")
+      .map((p) => p.trim().slice(0, CONTRACT_SECTIONS_LIMITS.maxParagraphLength))
+      .filter((p) => p.length > 0)
+      .slice(0, CONTRACT_SECTIONS_LIMITS.maxParagraphsPerSection);
+    if (paragraphs.length === 0) continue;
+
+    const rawId =
+      typeof candidate.id === "string" ? candidate.id.trim().slice(0, 80) : "";
+    let id = rawId;
+    if (!id || usedIds.has(id)) {
+      id = `section-${sections.length + 1}`;
+    }
+    usedIds.add(id);
+    sections.push({ id, heading, paragraphs });
+  }
+  return sections;
+}
+
+// Parsea el snapshot JSON del contrato completo congelado en la inscripción.
+// Devuelve null cuando el snapshot no existe (la inscripción usa la plantilla
+// oficial) y [] cuando el JSON está corrupto o no contiene secciones válidas.
+export function parseContractSectionsSnapshot(
+  snapshot: string | null | undefined,
+): ContractSection[] | null {
+  if (snapshot === null || snapshot === undefined) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(snapshot);
+  } catch {
+    return [];
+  }
+  return parseContractSections(parsed);
+}
+
+// Serializa las secciones del contrato completo para guardarlas como snapshot.
+// Normaliza antes de serializar para que la BD nunca contenga entradas inválidas.
+export function serializeContractSectionsSnapshot(
+  sections: ContractSection[],
+): string {
+  return JSON.stringify(parseContractSections(sections));
+}
+
 // Arma el ContractInput canónico a partir de los datos en Torre. `signedAt`
 // permite fijar la fecha de acuerdo a la firma real; si falta se usa hoy.
 // `manualClauses` anexa cláusulas configurables al final del contrato; se
@@ -302,6 +382,7 @@ export function buildContractInputFromData(
   data: ContractDataShape,
   signedAt?: Date | string | null,
   manualClauses?: ManualClause[],
+  sectionsSnapshot?: ContractSection[] | null,
 ): ContractInput {
   const clientName = data.student.legalName?.trim() || data.student.fullName;
   const agreementDate =
@@ -337,6 +418,7 @@ export function buildContractInputFromData(
     endDate,
     durationMonths,
     manualClauses: parseManualClauses(manualClauses ?? []),
+    sectionsSnapshot: sectionsSnapshot ?? null,
   };
 }
 

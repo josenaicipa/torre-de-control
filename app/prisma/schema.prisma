@@ -890,6 +890,12 @@ model StudentProductEnrollment {
   // para que el contrato congelado no cambie si Operaciones edita las cláusulas
   // configurables después de la firma.
   contractManualClausesSnapshot   String?   @db.Text
+  // Snapshot JSON del contrato COMPLETO personalizado para esta inscripción
+  // (ContractSection[]: id, heading, paragraphs[]). Cuando existe, reemplaza a
+  // la plantilla + cláusulas manuales en TODAS las vistas (web, PDF, hash de
+  // firma) solo para este estudiante. Si es null, se usa la plantilla oficial
+  // más las cláusulas manuales configurables como hasta ahora.
+  contractSectionsSnapshot        String?   @db.Text
   contractStudentSignatureHash    String?
   // Imagen de la firma manuscrita del estudiante (data URL base64 PNG/JPEG)
   // capturada en la página pública de firma. Se ubica junto al nombre del

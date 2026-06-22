@@ -9,10 +9,18 @@ import {
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
 import {
+  buildContractInputFromData,
+  contractEnrollmentSelect,
+  parseContractSectionsSnapshot,
   parseManualClausesSnapshot,
+  serializeContractSectionsSnapshot,
   serializeManualClausesSnapshot,
 } from "@/lib/operaciones-contract";
-import { validateManualClausesInput } from "@/lib/operaciones-manual-clauses";
+import { buildContractView } from "@/lib/operaciones-contract-template";
+import {
+  validateContractSectionsInput,
+  validateManualClausesInput,
+} from "@/lib/operaciones-manual-clauses";
 import { getManualContractClauses } from "@/lib/operaciones-settings";
 import { prisma } from "@/lib/prisma";
 
@@ -57,13 +65,7 @@ async function getAuthorizedEnrollment(id: string, enrollmentId: string) {
 
   const enrollment = await prisma.studentProductEnrollment.findUnique({
     where: { id: enrollmentId },
-    select: {
-      id: true,
-      studentId: true,
-      contractStatus: true,
-      contractSignedAt: true,
-      contractManualClausesSnapshot: true,
-    },
+    select: { ...contractEnrollmentSelect, studentId: true },
   });
   if (!enrollment || enrollment.studentId !== id) {
     return {
@@ -80,22 +82,46 @@ export async function GET(_req: Request, { params }: Params) {
     const { id, enrollmentId } = await params;
     const result = await getAuthorizedEnrollment(id, enrollmentId);
     if ("error" in result) return result.error;
+    const { enrollment } = result;
 
+    // Cláusulas manuales (compatibilidad): snapshot del enrollment o, si nunca
+    // se tomó, la configuración global vigente.
     const snapshotClauses = parseManualClausesSnapshot(
-      result.enrollment.contractManualClausesSnapshot,
+      enrollment.contractManualClausesSnapshot,
     );
-    const hasSpecificSnapshot = snapshotClauses !== null;
-    const clauses = hasSpecificSnapshot
+    const hasSpecificClauses = snapshotClauses !== null;
+    const clauses = hasSpecificClauses
       ? snapshotClauses
       : (await getManualContractClauses())?.clauses ?? [];
 
+    // Secciones del contrato COMPLETO. Si la inscripción ya tiene un snapshot
+    // personalizado se devuelve tal cual; si no, se devuelven las secciones de
+    // la plantilla oficial (con las cláusulas manuales anexadas) como punto de
+    // partida editable.
+    const snapshotSections = parseContractSectionsSnapshot(
+      enrollment.contractSectionsSnapshot,
+    );
+    const hasSpecificSections =
+      snapshotSections !== null && snapshotSections.length > 0;
+    const sections = hasSpecificSections
+      ? snapshotSections
+      : buildContractView(
+          buildContractInputFromData(
+            enrollment,
+            enrollment.contractSignedAt,
+            clauses,
+          ),
+        ).sections;
+
+    const editable = isEnrollmentContractEditable(enrollment);
+
     return NextResponse.json({
       clauses,
-      source: hasSpecificSnapshot ? "enrollment" : "global",
-      editable: isEnrollmentContractEditable(result.enrollment),
-      lockedReason: isEnrollmentContractEditable(result.enrollment)
-        ? null
-        : LOCKED_MESSAGE,
+      source: hasSpecificClauses ? "enrollment" : "global",
+      sections,
+      sectionsSource: hasSpecificSections ? "enrollment" : "template",
+      editable,
+      lockedReason: editable ? null : LOCKED_MESSAGE,
     });
   } catch (err) {
     return handleApiError(err);
@@ -118,11 +144,40 @@ export async function PUT(req: Request, { params }: Params) {
     } catch {
       body = null;
     }
-    const clausesInput =
+    const record =
       body && typeof body === "object"
-        ? (body as { clauses?: unknown }).clauses
-        : undefined;
-    const validated = validateManualClausesInput(clausesInput);
+        ? (body as { clauses?: unknown; sections?: unknown })
+        : {};
+
+    // Modo nuevo: editar el contrato COMPLETO por secciones. Tiene prioridad si
+    // el body trae `sections`; congela el snapshot del contrato en la inscripción.
+    if (record.sections !== undefined) {
+      const validated = validateContractSectionsInput(record.sections);
+      if (!validated.ok) return jsonError(400, validated.error);
+
+      const snapshot = serializeContractSectionsSnapshot(validated.sections);
+      await prisma.studentProductEnrollment.update({
+        where: { id: result.enrollment.id },
+        data: { contractSectionsSnapshot: snapshot },
+      });
+
+      await writeAudit({
+        actorId: result.actor.userId,
+        action: "operaciones.student_product_enrollment.update_contract_sections",
+        target: result.enrollment.id,
+        metadata: { studentId: id, count: validated.sections.length },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        sections: validated.sections,
+        sectionsSource: "enrollment",
+        editable: true,
+      });
+    }
+
+    // Modo de compatibilidad: editar solo las cláusulas manuales anexas.
+    const validated = validateManualClausesInput(record.clauses);
     if (!validated.ok) return jsonError(400, validated.error);
 
     const snapshot = serializeManualClausesSnapshot(validated.clauses);

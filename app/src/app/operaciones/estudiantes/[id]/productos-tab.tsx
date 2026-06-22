@@ -104,7 +104,8 @@ interface Enrollment {
   paymentSchedules: EnrollmentSchedule[];
 }
 
-interface ManualClauseFormItem {
+interface ContractSectionFormItem {
+  id: string;
   heading: string;
   body: string;
 }
@@ -497,7 +498,7 @@ function EnrollmentCard({
               onClick={() => setShowClausesEditor((prev) => !prev)}
               className="rounded-md border border-indigo-300 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
             >
-              Editar cláusulas de este contrato
+              Editar contrato de este estudiante
             </button>
           )}
           {hasSignLink && (
@@ -705,15 +706,15 @@ function ContractClausesEditor({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const [clauses, setClauses] = useState<ManualClauseFormItem[]>([]);
-  const [source, setSource] = useState<"global" | "enrollment" | null>(null);
+  const [sections, setSections] = useState<ContractSectionFormItem[]>([]);
+  const [source, setSource] = useState<"template" | "enrollment" | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    async function loadClauses() {
+    async function loadSections() {
       setLoading(true);
       setError(null);
       try {
@@ -722,63 +723,121 @@ function ContractClausesEditor({
         );
         const json = await response.json().catch(() => ({}));
         if (!response.ok) {
-          if (active) setError(json.error ?? "No se pudieron cargar las cláusulas");
+          if (active) setError(json.error ?? "No se pudo cargar el contrato");
           return;
         }
         if (!active) return;
-        setSource(json.source === "enrollment" ? "enrollment" : "global");
-        setClauses(
-          Array.isArray(json.clauses)
-            ? json.clauses.map((clause: { heading?: unknown; paragraphs?: unknown }) => ({
-                heading: typeof clause.heading === "string" ? clause.heading : "",
-                body: Array.isArray(clause.paragraphs)
-                  ? clause.paragraphs.filter((p): p is string => typeof p === "string").join("\n")
+
+        if (Array.isArray(json.sections) && json.sections.length > 0) {
+          setSource(json.sectionsSource === "enrollment" ? "enrollment" : "template");
+          setSections(
+            json.sections.map(
+              (
+                section: { id?: unknown; heading?: unknown; paragraphs?: unknown },
+                index: number,
+              ) => ({
+                id: typeof section.id === "string" ? section.id : `section-${index}`,
+                heading: typeof section.heading === "string" ? section.heading : "",
+                body: Array.isArray(section.paragraphs)
+                  ? section.paragraphs
+                      .filter((p): p is string => typeof p === "string")
+                      .join("\n")
                   : "",
-              }))
+              }),
+            ),
+          );
+          return;
+        }
+
+        // Compatibilidad: respuesta legacy con `clauses`.
+        setSource("template");
+        setSections(
+          Array.isArray(json.clauses)
+            ? json.clauses.map(
+                (
+                  clause: { heading?: unknown; paragraphs?: unknown },
+                  index: number,
+                ) => ({
+                  id: `section-${index}`,
+                  heading: typeof clause.heading === "string" ? clause.heading : "",
+                  body: Array.isArray(clause.paragraphs)
+                    ? clause.paragraphs
+                        .filter((p): p is string => typeof p === "string")
+                        .join("\n")
+                    : "",
+                }),
+              )
             : [],
         );
       } catch {
-        if (active) setError("Error de red al cargar las cláusulas");
+        if (active) setError("Error de red al cargar el contrato");
       } finally {
         if (active) setLoading(false);
       }
     }
-    void loadClauses();
+    void loadSections();
     return () => {
       active = false;
     };
   }, [studentId, enrollmentId]);
 
-  function updateClause(index: number, patch: Partial<ManualClauseFormItem>) {
-    setClauses((prev) =>
-      prev.map((clause, i) => (i === index ? { ...clause, ...patch } : clause)),
+  function updateSection(index: number, patch: Partial<ContractSectionFormItem>) {
+    setSections((prev) =>
+      prev.map((section, i) => (i === index ? { ...section, ...patch } : section)),
     );
   }
 
-  function removeClause(index: number) {
-    setClauses((prev) => prev.filter((_, i) => i !== index));
+  function removeSection(index: number) {
+    setSections((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function moveSection(index: number, direction: -1 | 1) {
+    setSections((prev) => {
+      const target = index + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  function addSection() {
+    setSections((prev) => [
+      ...prev,
+      { id: `section-nuevo-${Date.now()}`, heading: "", body: "" },
+    ]);
   }
 
   async function save() {
     setSaving(true);
     setError(null);
     try {
+      const payload = {
+        sections: sections.map((section) => ({
+          id: section.id,
+          heading: section.heading,
+          paragraphs: section.body
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0),
+        })),
+      };
       const response = await fetch(
         `/api/operaciones/students/${studentId}/products/${enrollmentId}/contract-clauses`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clauses }),
+          body: JSON.stringify(payload),
         },
       );
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(json.error ?? "No se pudieron guardar las cláusulas");
+        setError(json.error ?? "No se pudo guardar el contrato personalizado");
         return;
       }
       onSaved();
     } catch {
-      setError("Error de red al guardar las cláusulas");
+      setError("Error de red al guardar el contrato personalizado");
     } finally {
       setSaving(false);
     }
@@ -788,13 +847,18 @@ function ContractClausesEditor({
     <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h5 className="text-sm font-semibold text-slate-900">Cláusulas manuales de este contrato</h5>
+          <h5 className="text-sm font-semibold text-slate-900">
+            Contrato personalizado de este estudiante
+          </h5>
           <p className="mt-1 text-xs text-slate-600">
-            Estos cambios solo aplican a este estudiante/contrato y no modifican las cláusulas generales. Si ya existe un link pendiente, el link abierto mostrará estas cláusulas guardadas.
+            Edita las cláusulas/secciones existentes del contrato. Estos cambios solo afectan a
+            este estudiante/contrato y no modifican la plantilla global. Si ya existe un link de
+            firma pendiente, mostrará estas secciones guardadas.
           </p>
-          {source === "global" && (
+          {source === "template" && (
             <p className="mt-1 text-xs text-indigo-700">
-              Base cargada desde cláusulas generales; al guardar quedará personalizada para este contrato.
+              Base cargada desde el contrato oficial actual; al guardar queda personalizada para
+              este estudiante.
             </p>
           )}
         </div>
@@ -806,40 +870,60 @@ function ContractClausesEditor({
       {error && <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
 
       {loading ? (
-        <p className="mt-3 text-sm text-slate-500">Cargando cláusulas...</p>
+        <p className="mt-3 text-sm text-slate-500">Cargando contrato...</p>
       ) : (
         <div className="mt-3 space-y-3">
-          {clauses.length === 0 && (
+          {sections.length === 0 && (
             <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-500">
-              Este contrato no tiene cláusulas manuales adicionales.
+              Este contrato no tiene secciones. Agrega al menos una.
             </p>
           )}
-          {clauses.map((clause, index) => (
-            <div key={index} className="rounded-md border border-slate-200 bg-white p-3">
+          {sections.map((section, index) => (
+            <div key={section.id} className="rounded-md border border-slate-200 bg-white p-3">
               <div className="flex items-center justify-between gap-2">
                 <label className="block flex-1 text-xs font-medium text-slate-600">
-                  Título
+                  Sección / cláusula
                   <input
-                    value={clause.heading}
-                    onChange={(e) => updateClause(index, { heading: e.target.value })}
+                    value={section.heading}
+                    onChange={(e) => updateSection(index, { heading: e.target.value })}
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    maxLength={120}
+                    maxLength={160}
                   />
                 </label>
-                <button
-                  type="button"
-                  onClick={() => removeClause(index)}
-                  className="mt-5 text-xs font-medium text-rose-600 hover:text-rose-700"
-                >
-                  Eliminar
-                </button>
+                <div className="mt-5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => moveSection(index, -1)}
+                    disabled={index === 0}
+                    className="text-xs font-medium text-slate-500 hover:text-slate-700 disabled:opacity-30"
+                    title="Subir"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveSection(index, 1)}
+                    disabled={index === sections.length - 1}
+                    className="text-xs font-medium text-slate-500 hover:text-slate-700 disabled:opacity-30"
+                    title="Bajar"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeSection(index)}
+                    className="text-xs font-medium text-rose-600 hover:text-rose-700"
+                  >
+                    Eliminar
+                  </button>
+                </div>
               </div>
               <label className="mt-2 block text-xs font-medium text-slate-600">
-                Cuerpo
+                Párrafos
                 <textarea
-                  value={clause.body}
-                  onChange={(e) => updateClause(index, { body: e.target.value })}
-                  rows={4}
+                  value={section.body}
+                  onChange={(e) => updateSection(index, { body: e.target.value })}
+                  rows={5}
                   className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                 />
               </label>
@@ -848,11 +932,11 @@ function ContractClausesEditor({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setClauses((prev) => [...prev, { heading: "", body: "" }])}
-              disabled={clauses.length >= 10 || saving}
+              onClick={addSection}
+              disabled={sections.length >= 30 || saving}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50"
             >
-              + Agregar cláusula
+              + Agregar sección
             </button>
             <button
               type="button"
@@ -860,7 +944,7 @@ function ContractClausesEditor({
               disabled={saving}
               className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {saving ? "Guardando..." : "Guardar cláusulas"}
+              {saving ? "Guardando..." : "Guardar contrato personalizado"}
             </button>
             <button
               type="button"

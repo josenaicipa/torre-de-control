@@ -11,6 +11,7 @@ import {
 import {
   buildContractInputFromData,
   contractEnrollmentSelect,
+  parseContractSectionsSnapshot,
   parseManualClausesSnapshot,
 } from "@/lib/operaciones-contract";
 import { SignForm } from "./sign-form";
@@ -137,10 +138,13 @@ export default async function FirmarContratoPage({ params }: PageProps) {
 
   const manualClauses =
     parseManualClausesSnapshot(enrollment.contractManualClausesSnapshot) ?? [];
+  const sectionsSnapshot =
+    parseContractSectionsSnapshot(enrollment.contractSectionsSnapshot) ?? undefined;
   const input = buildContractInputFromData(
     enrollment,
     enrollment.contractSignedAt,
     manualClauses,
+    sectionsSnapshot,
   );
   const contract = buildContractView(input);
 

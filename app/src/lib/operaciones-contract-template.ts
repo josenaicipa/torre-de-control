@@ -132,6 +132,11 @@ export interface ContractInput {
   durationMonths: number;
   // Cláusulas manuales configurables que se anexan al final del contrato.
   manualClauses?: ManualClause[];
+  // Snapshot del contrato COMPLETO personalizado para esta inscripción. Cuando
+  // está presente y tiene al menos una sección, REEMPLAZA la plantilla oficial
+  // y las cláusulas manuales como `sections` en TODAS las vistas (web, PDF y el
+  // hash de firma). null/undefined/[] => se usa la plantilla oficial.
+  sectionsSnapshot?: ContractSection[] | null;
 }
 
 export interface ContractSection {
@@ -404,7 +409,7 @@ export function buildContractView(input: ContractInput): ContractView {
     "capacidad suficiente para formalizar el presente acuerdo con base en las " +
     "siguientes cláusulas.";
 
-  const sections: ContractSection[] = [
+  const defaultSections: ContractSection[] = [
     {
       id: "objeto",
       heading: "Primera. Objeto del contrato",
@@ -769,12 +774,20 @@ export function buildContractView(input: ContractInput): ContractView {
   // Cláusulas manuales configurables: se anexan al final del cuerpo legal con
   // un id estable (manual-N) para que web, PDF y hash compartan el mismo orden.
   for (const [index, clause] of (input.manualClauses ?? []).entries()) {
-    sections.push({
+    defaultSections.push({
       id: `manual-${index + 1}`,
       heading: clause.heading,
       paragraphs: clause.paragraphs,
     });
   }
+
+  // Si la inscripción tiene un snapshot de contrato personalizado (con al menos
+  // una sección), reemplaza por completo la plantilla + cláusulas manuales. Un
+  // snapshot ausente o vacío cae a la plantilla oficial para no producir un
+  // contrato en blanco.
+  const snapshot = input.sectionsSnapshot;
+  const sections =
+    Array.isArray(snapshot) && snapshot.length > 0 ? snapshot : defaultSections;
 
   return {
     title: CONTRACT_TITLE,

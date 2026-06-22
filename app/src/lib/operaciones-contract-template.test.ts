@@ -11,6 +11,8 @@ import {
   COMPANY,
   INCOMPLETE_LEGAL_DATA,
   type ContractInput,
+  type ContractSection,
+  type ManualClause,
 } from "./operaciones-contract-template";
 
 const appRoot = resolve(__dirname, "..", "..");
@@ -240,6 +242,50 @@ describe("segmentos de la cláusula Reunidos con negritas", () => {
       .join("");
     expect(normal).toContain("De una parte, ");
     expect(normal).toContain("Y, de otra parte, ");
+  });
+});
+
+describe("buildContractView con snapshot de contrato completo", () => {
+  const snapshot: ContractSection[] = [
+    {
+      id: "custom-objeto",
+      heading: "Primera. Objeto personalizado",
+      paragraphs: ["Cláusula objeto reescrita para esta inscripción."],
+    },
+    {
+      id: "custom-cierre",
+      heading: "Segunda. Cierre personalizado",
+      paragraphs: ["Párrafo final personalizado."],
+    },
+  ];
+
+  it("usa el snapshot completo y reemplaza plantilla oficial + cláusulas manuales", () => {
+    const manual: ManualClause = {
+      heading: "Cláusula manual que NO debe anexarse",
+      paragraphs: ["Texto que no debe aparecer."],
+    };
+    const view = buildContractView({
+      ...baseInput,
+      manualClauses: [manual],
+      sectionsSnapshot: snapshot,
+    });
+
+    expect(view.sections).toEqual(snapshot);
+    // No quedan secciones oficiales ni cláusulas manuales encima.
+    expect(view.sections.some((s) => s.id === "objeto")).toBe(false);
+    expect(view.sections.some((s) => s.id === "honorarios")).toBe(false);
+    expect(view.sections.some((s) => s.id.startsWith("manual-"))).toBe(false);
+    expect(view.sections.some((s) => s.heading === manual.heading)).toBe(false);
+  });
+
+  it("cae a la plantilla oficial cuando el snapshot es [] o null", () => {
+    const withEmpty = buildContractView({ ...baseInput, sectionsSnapshot: [] });
+    const withNull = buildContractView({ ...baseInput, sectionsSnapshot: null });
+    for (const view of [withEmpty, withNull]) {
+      expect(view.sections.some((s) => s.id === "objeto")).toBe(true);
+      expect(view.sections.some((s) => s.id === "honorarios")).toBe(true);
+      expect(view.sections.some((s) => s.id === "custom-objeto")).toBe(false);
+    }
   });
 });
 
