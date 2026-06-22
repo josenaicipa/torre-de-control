@@ -89,6 +89,7 @@ interface Enrollment {
     | "PENDING_APPROVAL"
     | "APPROVED"
     | "REJECTED";
+  contractTemplateKind?: ContractTemplateKind | null;
   contractUrl: string | null;
   contractSignerName: string | null;
   contractSignedAt: string | null;
@@ -112,6 +113,12 @@ interface ContractSectionFormItem {
 
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
 type InstallmentFrequency = "monthly" | "biweekly";
+type ContractTemplateKind = "TRADITIONAL" | "BUSINESS";
+
+const CONTRACT_TEMPLATE_KIND_LABEL: Record<ContractTemplateKind, string> = {
+  TRADITIONAL: "Tradicional",
+  BUSINESS: "Empresarial",
+};
 
 function toNum(value: Numeric | null | undefined): number {
   if (value === null || value === undefined) return 0;
@@ -419,6 +426,12 @@ function EnrollmentCard({
             <Badge tone={enrollmentStatusTone}>{enrollmentStatusLabel}</Badge>
             <Badge tone={accessStatusTone}>Acceso: {accessStatusLabel}</Badge>
             <Badge tone={contractStatusTone}>Contrato: {contractStatusLabel}</Badge>
+            <Badge tone="bg-slate-100 text-slate-700">
+              Contrato:{" "}
+              {CONTRACT_TEMPLATE_KIND_LABEL[
+                enrollment.contractTemplateKind ?? "TRADITIONAL"
+              ]}
+            </Badge>
           </div>
           <p className="mt-1 text-xs text-slate-500">
             Inicio: {enrollment.startedAt.slice(0, 10)}
@@ -1017,6 +1030,7 @@ interface FormState {
   installmentFrequency: InstallmentFrequency;
   paymentAccountId: string;
   currency: string;
+  contractTemplateKind: ContractTemplateKind;
   commissionPercent: string;
   commissionBaseUsd: string;
   grantAccessNow: boolean;
@@ -1043,6 +1057,7 @@ function buildInitialFormState(): FormState {
     installmentFrequency: "monthly",
     paymentAccountId: "",
     currency: "USD",
+    contractTemplateKind: "TRADITIONAL",
     commissionPercent: "",
     commissionBaseUsd: "",
     grantAccessNow: false,
@@ -1238,6 +1253,7 @@ function SellProductForm({
         endsAt: state.endsAt || null,
         totalAmountUsd: totalAmountUsdNum,
         currency: state.currency,
+        contractTemplateKind: state.contractTemplateKind,
         installmentFrequency: state.installmentFrequency,
         grantAccessNow: state.grantAccessNow,
         notes: state.notes.trim() ? state.notes.trim() : null,
@@ -1399,6 +1415,26 @@ function SellProductForm({
           {product.generatesCommission ? " · Genera comisión" : " · Sin comisión"}
         </p>
       )}
+
+      <Field label="Tipo de contrato">
+        <select
+          value={state.contractTemplateKind}
+          onChange={(e) =>
+            update("contractTemplateKind", e.target.value as ContractTemplateKind)
+          }
+          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
+        >
+          <option value="TRADITIONAL">Tradicional</option>
+          <option value="BUSINESS">Empresarial</option>
+        </select>
+        {state.contractTemplateKind === "BUSINESS" && (
+          <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            Este contrato empresarial usa los datos legales del estudiante
+            (nombre legal, documento, domicilio, duración y valor). Completa esos
+            campos para poder firmarlo.
+          </p>
+        )}
+      </Field>
 
       {/* Initial payment block */}
       <fieldset className="rounded-md border border-slate-200 p-3">

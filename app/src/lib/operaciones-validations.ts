@@ -417,6 +417,13 @@ export const accessStatusSchema = z.enum([
   "SYNC_ERROR",
 ]);
 
+// Plantilla legal de la inscripción. Refleja el enum Prisma
+// ContractTemplateKind: TRADITIONAL es el contrato por defecto «Unlocked
+// Academy»; BUSINESS es el contrato «Unlocked Academy Empresarial».
+export const contractTemplateKindSchema = z
+  .enum(["TRADITIONAL", "BUSINESS"])
+  .default("TRADITIONAL");
+
 // Base shape for enrolling a student in a product. Downstream flows (initial
 // payment + installment plan creation) are validated by their own schemas;
 // this only covers the StudentProductEnrollment row itself.
@@ -436,6 +443,7 @@ export const createEnrollmentBaseSchema = z.object({
   commissionPercent: percentSchema.optional().nullable(),
   currency: z.string().length(3).default("USD"),
   paymentAccountId: fkIdSchema("Cuenta receptora").optional().nullable(),
+  contractTemplateKind: contractTemplateKindSchema,
   notes: z.string().max(5000).optional().nullable(),
 });
 

@@ -199,6 +199,22 @@ describe("buildContractInputFromData", () => {
     expect(inputWithInvalidDuration.durationMonths).toBe(4);
   });
 
+  it("propaga templateKind BUSINESS desde contractTemplateKind", () => {
+    const input = buildContractInputFromData(
+      completeData({ contractTemplateKind: "BUSINESS" }),
+    );
+    expect(input.templateKind).toBe("BUSINESS");
+  });
+
+  it("normaliza contractTemplateKind null/undefined a TRADITIONAL", () => {
+    const conNull = buildContractInputFromData(
+      completeData({ contractTemplateKind: null }),
+    );
+    const conUndefined = buildContractInputFromData(completeData());
+    expect(conNull.templateKind).toBe("TRADITIONAL");
+    expect(conUndefined.templateKind).toBe("TRADITIONAL");
+  });
+
   it("usa duración segura de 12 meses si no puede calcularla", () => {
     const input = buildContractInputFromData(
       completeData({

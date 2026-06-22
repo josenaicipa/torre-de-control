@@ -774,6 +774,14 @@ enum ContractStatus {
   REJECTED
 }
 
+// Plantilla legal con la que se emite el contrato de una inscripción.
+// TRADITIONAL = "Unlocked Academy" (contrato por defecto). BUSINESS =
+// "Unlocked Academy Empresarial" (programa de transformación empresarial).
+enum ContractTemplateKind {
+  TRADITIONAL
+  BUSINESS
+}
+
 enum TagAssignmentSource {
   AUTOMATIC
   MANUAL
@@ -871,6 +879,10 @@ model StudentProductEnrollment {
   // access: a new enrollment lands in PENDING_APPROVAL and access stays
   // PENDING until an operator approves the contract from Torre.
   contractStatus         ContractStatus   @default(PENDING_APPROVAL)
+  // Plantilla legal de esta inscripción. Se elige al crear el estudiante con
+  // venta inicial y decide título/subtítulo y cuerpo del contrato (web, PDF,
+  // hash y editor). Por defecto el contrato tradicional «Unlocked Academy».
+  contractTemplateKind   ContractTemplateKind @default(TRADITIONAL)
   contractUrl            String?
   // Test signing surface (Torre-internal). A secure token is minted when an
   // operator creates the test contract link; the public /contratos/firmar

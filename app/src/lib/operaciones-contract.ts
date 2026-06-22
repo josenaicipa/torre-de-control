@@ -3,6 +3,7 @@ import {
   CONTRACT_ACCEPTANCE_TEXT,
   CONTRACT_TEMPLATE_VERSION,
   buildContractView,
+  normalizeContractTemplateKind,
   type ContractInput,
   type ContractSection,
   type ManualClause,
@@ -47,6 +48,7 @@ export interface ContractDataShape {
   balanceUsd: number | string | { toString(): string } | null;
   startedAt: Date | string | null;
   endsAt: Date | string | null;
+  contractTemplateKind?: string | null;
   paymentSchedules: ContractScheduleShape[];
 }
 
@@ -61,6 +63,7 @@ export const contractEnrollmentSelect = {
   startedAt: true,
   endsAt: true,
   contractStatus: true,
+  contractTemplateKind: true,
   contractSignedAt: true,
   contractSignerName: true,
   contractSignedIp: true,
@@ -405,6 +408,7 @@ export function buildContractInputFromData(
   }));
 
   return {
+    templateKind: normalizeContractTemplateKind(data.contractTemplateKind),
     clientName,
     clientEmail: data.student.email,
     clientDocument: composeDocument(data),

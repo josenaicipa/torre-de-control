@@ -54,6 +54,7 @@ interface PaymentAccount {
 
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
 type InstallmentFrequency = "monthly" | "biweekly";
+type ContractTemplateKind = "TRADITIONAL" | "BUSINESS";
 
 function toNum(value: Numeric | null | undefined): number {
   if (value === null || value === undefined) return 0;
@@ -76,6 +77,7 @@ interface SaleState {
   grantAccessNow: boolean;
   paymentAccountId: string;
   currency: string;
+  contractTemplateKind: ContractTemplateKind;
   notes: string;
   // Initial payment
   hasInitialPayment: boolean;
@@ -145,6 +147,7 @@ function buildInitialSaleState(startDate: string): SaleState {
     grantAccessNow: false,
     paymentAccountId: "",
     currency: "USD",
+    contractTemplateKind: "TRADITIONAL",
     notes: "",
     hasInitialPayment: false,
     initialPaymentAmount: "",
@@ -471,6 +474,7 @@ export function NuevoEstudianteForm({
       installmentFrequency: sale.installmentFrequency,
       grantAccessNow: sale.grantAccessNow,
       paymentAccountId: sale.paymentAccountId || null,
+      contractTemplateKind: sale.contractTemplateKind,
       notes: sale.notes.trim() ? sale.notes.trim() : null,
     };
     if (sale.endsAt) body.endsAt = sale.endsAt;
@@ -895,6 +899,32 @@ export function NuevoEstudianteForm({
                 {selectedProduct.generatesCommission ? " · Genera comisión" : ""}
               </p>
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Tipo de contrato
+              </label>
+              <select
+                value={sale.contractTemplateKind}
+                onChange={(e) =>
+                  updateSale(
+                    "contractTemplateKind",
+                    e.target.value as ContractTemplateKind,
+                  )
+                }
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:max-w-xs"
+              >
+                <option value="TRADITIONAL">Tradicional</option>
+                <option value="BUSINESS">Empresarial</option>
+              </select>
+              {sale.contractTemplateKind === "BUSINESS" && (
+                <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                  Este contrato empresarial usa los datos legales del estudiante
+                  (nombre legal, documento, domicilio, duración y valor).
+                  Completa esos campos para poder firmarlo.
+                </p>
+              )}
+            </div>
 
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input

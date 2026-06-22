@@ -289,6 +289,26 @@ describe("buildContractView con snapshot de contrato completo", () => {
   });
 });
 
+describe("plantilla empresarial (BUSINESS) vs tradicional", () => {
+  it("BUSINESS usa el subtítulo «Unlocked Academy Empresarial» y la cláusula Tercera empresarial", () => {
+    const view = buildContractView({ ...baseInput, templateKind: "BUSINESS" });
+    expect(view.subtitle).toBe("Unlocked Academy Empresarial");
+    const headings = view.sections.map((s) => s.heading);
+    expect(headings).toContain(
+      "Tercera. DESCRIPCIÓN DEL PROGRAMA DE TRANSFORMACIÓN EMPRESARIAL",
+    );
+  });
+
+  it("sin templateKind cae al tradicional con subtítulo «Unlocked Academy»", () => {
+    const view = buildContractView(baseInput);
+    expect(view.subtitle).toBe("Unlocked Academy");
+    const headings = view.sections.map((s) => s.heading);
+    expect(headings).not.toContain(
+      "Tercera. DESCRIPCIÓN DEL PROGRAMA DE TRANSFORMACIÓN EMPRESARIAL",
+    );
+  });
+});
+
 describe("parseContractSegments separa negritas inline de los párrafos", () => {
   it("texto plano sin marcadores devuelve un solo segmento normal", () => {
     const segments = parseContractSegments("solo texto plano");

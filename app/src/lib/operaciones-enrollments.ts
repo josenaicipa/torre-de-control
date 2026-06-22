@@ -351,6 +351,7 @@ export async function createValidatedEnrollmentInTx(
       commissionPercent,
       currency: body.currency,
       paymentAccountId: body.paymentAccountId ?? null,
+      contractTemplateKind: body.contractTemplateKind ?? "TRADITIONAL",
       // A new enrollment never grants real access: Torre de Control owns the
       // decision. Access stays PENDING until the contract is approved and
       // LearnWorlds is provisioned. grantAccessNow is ignored on purpose.

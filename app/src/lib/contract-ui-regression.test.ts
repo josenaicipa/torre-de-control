@@ -11,6 +11,8 @@ const read = (relative: string) =>
 
 const productosTab = () =>
   read("src/app/operaciones/estudiantes/[id]/productos-tab.tsx");
+const nuevoForm = () =>
+  read("src/app/operaciones/estudiantes/nuevo/nuevo-form.tsx");
 const signPage = () => read("src/app/contratos/firmar/[token]/page.tsx");
 const signForm = () => read("src/app/contratos/firmar/[token]/sign-form.tsx");
 const configPage = () =>
@@ -61,6 +63,25 @@ describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
     expect(source).toContain("El estudiante ya firmó");
     // Caso sin permisos.
     expect(source).toContain("No tienes permisos para firmar como Jose Naicipa");
+  });
+});
+
+describe("UI selector de tipo de contrato (Tradicional / Empresarial)", () => {
+  const BUSINESS_HELPER =
+    "Este contrato empresarial usa los datos legales del estudiante";
+
+  it("el formulario de nuevo estudiante ofrece el selector y el helper empresarial", () => {
+    const source = nuevoForm();
+    expect(source).toContain("Tipo de contrato");
+    expect(source).toContain("Empresarial");
+    expect(source).toContain(BUSINESS_HELPER);
+  });
+
+  it("la pestaña de productos ofrece el selector y el helper empresarial", () => {
+    const source = productosTab();
+    expect(source).toContain("Tipo de contrato");
+    expect(source).toContain("Empresarial");
+    expect(source).toContain(BUSINESS_HELPER);
   });
 });
 
