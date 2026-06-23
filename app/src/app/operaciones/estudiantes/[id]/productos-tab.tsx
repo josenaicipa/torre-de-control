@@ -93,6 +93,7 @@ interface Enrollment {
   contractUrl: string | null;
   contractSignerName: string | null;
   contractSignedAt: string | null;
+  contractStudentSignatureHash: string | null;
   contractCeoSignedAt: string | null;
   contractApprovedAt: string | null;
   contractRejectedAt: string | null;
@@ -386,23 +387,34 @@ function EnrollmentCard({
     }
   }
 
+  // El estudiante firmó de verdad solo si existe la evidencia electrónica
+  // completa: fecha de firma Y hash de la firma. Un contrato puede estar en
+  // SIGNED/PENDING_APPROVAL sin esta evidencia (registros legacy o en
+  // transición); en ese caso NO está realmente firmado y debe poder recuperarse
+  // regenerando el link, en vez de mostrar el botón de Jose como si se pudiera
+  // aprobar. Espeja la evidencia que exige el endpoint de aprobación.
+  const hasStudentSignatureEvidence =
+    Boolean(enrollment.contractSignedAt) &&
+    Boolean(enrollment.contractStudentSignatureHash);
+
   const canApprove =
     canWrite &&
+    hasStudentSignatureEvidence &&
     (enrollment.contractStatus === "SIGNED" ||
       enrollment.contractStatus === "PENDING_APPROVAL");
   const canRetryLw =
     canWrite &&
     (enrollment.accessStatus === "SYNC_ERROR" ||
       (enrollment.contractStatus === "APPROVED" && enrollment.accessStatus !== "ACTIVE"));
-  // No se puede (re)generar un link de firma una vez que el estudiante firmó o
-  // el contrato avanzó a firmado/pendiente de aprobación/aprobado: regenerarlo
-  // invalidaría la firma ya capturada. Solo DRAFT/PENDING_SIGNATURE/REJECTED sin
-  // contractSignedAt admiten crear o regenerar el link.
+  // No se puede (re)generar un link de firma una vez que el estudiante firmó de
+  // verdad (evidencia completa) o el contrato ya fue aprobado: regenerarlo
+  // invalidaría la firma ya capturada. Pero un PENDING_APPROVAL/SIGNED SIN
+  // evidencia está atascado y sí admite crear o regenerar el link para que el
+  // estudiante lo firme. Espeja la regla del endpoint contract-test (solo
+  // bloquea APPROVED).
   const canCreateTestContract =
     canWrite &&
-    !enrollment.contractSignedAt &&
-    enrollment.contractStatus !== "SIGNED" &&
-    enrollment.contractStatus !== "PENDING_APPROVAL" &&
+    !hasStudentSignatureEvidence &&
     enrollment.contractStatus !== "APPROVED";
   const hasSignLink = Boolean(enrollment.contractUrl);
   const canDownloadPdf = enrollment.contractStatus === "APPROVED";
@@ -412,13 +424,11 @@ function EnrollmentCard({
     (enrollment.contractStatus === "DRAFT" ||
       enrollment.contractStatus === "PENDING_SIGNATURE" ||
       enrollment.contractStatus === "REJECTED");
+  // El mensaje de bloqueo de cláusulas solo aplica cuando hay firma real del
+  // estudiante (evidencia completa); para un registro atascado sin evidencia la
+  // ayuda de JoseSignatureHint explica cómo recuperarlo.
   const contractClausesLocked =
-    canWrite &&
-    !canEditContractClauses &&
-    (enrollment.contractStatus === "SIGNED" ||
-      enrollment.contractStatus === "PENDING_APPROVAL" ||
-      enrollment.contractStatus === "APPROVED" ||
-      Boolean(enrollment.contractSignedAt));
+    canWrite && !canEditContractClauses && hasStudentSignatureEvidence;
   // Cambiar el tipo de contrato (Tradicional/Empresarial) solo se permite si
   // ninguna de las dos partes firmó: ni el estudiante (contractSignedAt) ni
   // Jose/CEO (contractCeoSignedAt / contractApprovedAt). Espeja la regla del
@@ -431,21 +441,21 @@ function EnrollmentCard({
     (enrollment.contractStatus === "DRAFT" ||
       enrollment.contractStatus === "PENDING_SIGNATURE" ||
       enrollment.contractStatus === "REJECTED");
-  // El helper de bloqueo solo aplica cuando hay firma/aprobación real (no para
-  // un viewer sin permisos ni por otros motivos): espeja la regla del endpoint.
+  // El mensaje de bloqueo solo aplica cuando hay firma/aprobación real (no para
+  // un viewer sin permisos ni para un registro atascado sin evidencia): así no
+  // afirmamos "ya tiene firma" sobre un contrato que en realidad no se firmó.
   const contractTemplateLocked =
     canWrite &&
     !canChangeContractTemplate &&
-    (enrollment.contractStatus === "SIGNED" ||
-      enrollment.contractStatus === "PENDING_APPROVAL" ||
-      enrollment.contractStatus === "APPROVED" ||
-      Boolean(enrollment.contractSignedAt) ||
+    (hasStudentSignatureEvidence ||
       Boolean(enrollment.contractCeoSignedAt) ||
       Boolean(enrollment.contractApprovedAt));
-  // El estudiante ya firmó pero falta la firma de Jose Naicipa (aprobación).
+  // El estudiante ya firmó de verdad (evidencia completa) pero falta la firma de
+  // Jose Naicipa (aprobación). Sin evidencia no aplica este aviso de PDF.
   const pdfPendingJoseSignature =
-    enrollment.contractStatus === "SIGNED" ||
-    enrollment.contractStatus === "PENDING_APPROVAL";
+    hasStudentSignatureEvidence &&
+    (enrollment.contractStatus === "SIGNED" ||
+      enrollment.contractStatus === "PENDING_APPROVAL");
   const pdfUrl = `/api/operaciones/students/${studentId}/products/${enrollment.id}/contract-pdf`;
 
   return (

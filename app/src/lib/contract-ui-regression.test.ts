@@ -70,6 +70,43 @@ describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
   });
 });
 
+describe("UI productos-tab: evidencia de firma del estudiante", () => {
+  it("deriva hasStudentSignatureEvidence de contractSignedAt y el hash de firma", () => {
+    const source = productosTab();
+    expect(source).toMatch(
+      /const hasStudentSignatureEvidence\s*=\s*Boolean\(enrollment\.contractSignedAt\)\s*&&\s*Boolean\(enrollment\.contractStudentSignatureHash\)/,
+    );
+  });
+
+  it("canApprove exige la evidencia de firma del estudiante", () => {
+    const source = productosTab();
+    expect(source).toMatch(
+      /const canApprove\s*=\s*canWrite\s*&&\s*hasStudentSignatureEvidence/,
+    );
+  });
+
+  it("canCreateTestContract recupera registros sin evidencia y no bloquea PENDING_APPROVAL", () => {
+    const source = productosTab();
+    expect(source).toMatch(
+      /const canCreateTestContract\s*=\s*canWrite\s*&&\s*!hasStudentSignatureEvidence\s*&&\s*enrollment\.contractStatus !== "APPROVED"/,
+    );
+    // Solo APPROVED bloquea; no debe bloquear explícitamente PENDING_APPROVAL/SIGNED.
+    expect(source).not.toMatch(
+      /canCreateTestContract[\s\S]*?contractStatus !== "PENDING_APPROVAL"/,
+    );
+    expect(source).not.toMatch(
+      /canCreateTestContract[\s\S]*?contractStatus !== "SIGNED"/,
+    );
+  });
+
+  it("pdfPendingJoseSignature requiere la evidencia de firma del estudiante", () => {
+    const source = productosTab();
+    expect(source).toMatch(
+      /const pdfPendingJoseSignature\s*=\s*hasStudentSignatureEvidence\s*&&/,
+    );
+  });
+});
+
 describe("UI selector de tipo de contrato (Tradicional / Empresarial)", () => {
   const BUSINESS_HELPER =
     "Este contrato empresarial usa los datos legales del estudiante";
