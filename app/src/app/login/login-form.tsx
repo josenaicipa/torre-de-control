@@ -22,10 +22,22 @@ export function LoginForm() {
       });
       if (res.ok) {
         const body = (await res.json().catch(() => ({}))) as { redirectTo?: unknown };
-        const dest =
-          typeof body.redirectTo === "string" && body.redirectTo.startsWith("/")
-            ? body.redirectTo
-            : "/";
+        const raw = typeof body.redirectTo === "string" ? body.redirectTo : "/";
+        // Solo destinos internos: descarta URLs externas y protocol-relative (//host).
+        const dest = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+        // Si el login quedó embebido en un iframe (sesión vencida dentro del shell
+        // legacy), navega la ventana superior; si no, cargaríamos la Torre dentro
+        // de la Torre. En top-level se mantiene el flujo normal con el router.
+        let embedded = false;
+        try {
+          embedded = window.self !== window.top;
+        } catch {
+          embedded = true;
+        }
+        if (embedded && window.top) {
+          window.top.location.replace(dest);
+          return;
+        }
         router.replace(dest);
         router.refresh();
         return;

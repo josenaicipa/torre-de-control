@@ -5,6 +5,13 @@ import { LoginForm } from "./login-form";
 
 export const dynamic = "force-dynamic";
 
+// Si /login terminó dentro de un iframe (sesión vencida en una ruta embebida del
+// shell legacy), rompe el frame ANTES de pintar el formulario y lleva la ventana
+// superior a /login. Así nunca queda el login embebido junto al menú legacy.
+// next solo apunta a rutas internas (empieza con "/" y no "//") para evitar open redirect.
+const BREAK_FRAME_SCRIPT =
+  "(function(){try{if(window.self===window.top)return;var n='/';try{var e=new URLSearchParams(window.top.location.search).get('embed');if(e&&e.charAt(0)==='/'&&e.charAt(1)!=='/')n=e;}catch(_){}window.top.location.replace('/login?next='+encodeURIComponent(n));}catch(e){try{window.top.location.href='/login?next=/';}catch(_){}}})();";
+
 export default async function LoginPage() {
   const actorResult = await getDashboardActor();
   const access = actorResult ? resolveDashboardAccess(actorResult.actor) : null;
@@ -14,6 +21,7 @@ export default async function LoginPage() {
 
   return (
     <main className="auth-shell">
+      <script dangerouslySetInnerHTML={{ __html: BREAK_FRAME_SCRIPT }} />
       <div className="card auth-card">
         <div style={{ marginBottom: "1.5rem" }}>
           <div
