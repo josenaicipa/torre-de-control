@@ -459,6 +459,16 @@ model Student {
   legalCity            String?
   legalState           String?
   legalCountry         String?
+  // Carpeta Google Drive del estudiante. La crea n8n por webhook desde GHL y la
+  // informa a Torre vía /api/integrations/n8n/student-drive-folder. Torre sube
+  // ahí el PDF firmado del contrato (sin subcarpeta). Todos opcionales para no
+  // romper estudiantes/importadores existentes.
+  driveFolderId        String?
+  driveFolderUrl       String?
+  driveFolderSource    String?
+  driveFolderSyncedAt  DateTime?
+  driveFolderSyncStatus String?
+  driveFolderSyncError String?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 
@@ -782,6 +792,31 @@ enum ContractTemplateKind {
   BUSINESS
 }
 
+// Estado VISIBLE del flujo de firma electrónica de una inscripción, gobernado
+// por DocuSeal (fuente de verdad de la firma) y por el almacenamiento del PDF
+// firmado en Torre y Drive. Es independiente de ContractStatus, que modela la
+// aprobación interna. Una inscripción legacy/manual que nunca entró al flujo
+// DocuSeal se queda en NOT_SENT y el gate de aprobación no la bloquea.
+//
+//   NOT_SENT          -> Pendiente de envío a DocuSeal
+//   PENDING_SIGNATURES-> Enviado, faltan firmas
+//   STUDENT_SIGNED    -> Firmó el estudiante, falta Jose/empresa
+//   COMPLETED         -> Ambas firmas completas en DocuSeal
+//   PDF_STORED        -> PDF final descargado y guardado en Torre
+//   DRIVE_UPLOADED    -> PDF subido a la carpeta Drive del estudiante
+//   DOCUSEAL_ERROR    -> Error con DocuSeal
+//   DRIVE_ERROR       -> Error subiendo el PDF a Drive
+enum SignatureFlowStatus {
+  NOT_SENT
+  PENDING_SIGNATURES
+  STUDENT_SIGNED
+  COMPLETED
+  PDF_STORED
+  DRIVE_UPLOADED
+  DOCUSEAL_ERROR
+  DRIVE_ERROR
+}
+
 enum TagAssignmentSource {
   AUTOMATIC
   MANUAL
@@ -826,6 +861,16 @@ model Product {
   defaultCommissionPercent Decimal          @default(0) @db.Decimal(6, 2)
   isMainProduct            Boolean          @default(false)
   isActive                 Boolean          @default(true)
+  // Nivel del programa principal (3, 4, 5). Null para add-ons/cursos sueltos.
+  // Editable desde el catálogo; congela su valor en cada venta vía snapshot.
+  programLevel             Int?
+  // Orden de aparición en el selector de programas del alta de estudiante.
+  displayOrder             Int?
+  // Nombre exacto a usar en el contrato cuando difiere del `name` comercial.
+  contractDisplayName      String?
+  // Marca si el programa incluye el acceso `clases-avanzadas`. Default true para
+  // los programas principales N3/N4/N5; informativo para la UI/catalogo.
+  includesAdvancedClasses  Boolean          @default(true)
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
 
@@ -930,6 +975,39 @@ model StudentProductEnrollment {
   contractApprovedBy     User?            @relation("EnrollmentApprover", fields: [contractApprovedById], references: [id], onDelete: SetNull)
   contractRejectedAt     DateTime?
   contractRejectionReason String?
+  // ─── Snapshot histórico del programa vendido ───────────────────────────────
+  // Congela nivel, nombre y precio bruto del programa al momento de la venta,
+  // para que cambios futuros del catálogo no reescriban el contrato/histórico.
+  programLevelSnapshot   Int?
+  productNameSnapshot    String?
+  grossProgramPriceUsd   Decimal?         @db.Decimal(14, 2)
+  // ─── Upgrade entre niveles ─────────────────────────────────────────────────
+  // Un upgrade es una NUEVA inscripción ligada a la anterior (no edición
+  // destructiva). El crédito es lo realmente pagado en el/los nivel(es) previos
+  // y el neto = bruto nuevo − crédito.
+  upgradeFromEnrollmentId String?
+  upgradeFromEnrollment  StudentProductEnrollment?  @relation("EnrollmentUpgrade", fields: [upgradeFromEnrollmentId], references: [id], onDelete: SetNull)
+  upgradesTo             StudentProductEnrollment[] @relation("EnrollmentUpgrade")
+  upgradeCreditUsd       Decimal?         @db.Decimal(14, 2)
+  netAmountUsd           Decimal?         @db.Decimal(14, 2)
+  // ─── DocuSeal (fuente de verdad de la firma electrónica) ───────────────────
+  docusealSubmissionId   String?
+  docusealStatus         String?
+  signatureFlowStatus    SignatureFlowStatus @default(NOT_SENT)
+  studentSignedAt        DateTime?
+  companySignedAt        DateTime?
+  docusealCompletedAt    DateTime?
+  // ─── PDF firmado guardado en Torre + Drive ─────────────────────────────────
+  // El contenido del PDF final firmado se guarda en Torre (base64) como
+  // evidencia interna y se sube además a la carpeta Drive del estudiante.
+  signedPdfStoredAt      DateTime?
+  signedPdfFilePath      String?
+  signedPdfContent       String?          @db.Text
+  signedPdfDriveFileId   String?
+  signedPdfDriveUrl      String?
+  signedPdfDriveUploadedAt DateTime?
+  signedPdfDriveUploadStatus String?
+  signedPdfDriveUploadError  String?
   notes                  String?
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
@@ -946,6 +1024,9 @@ model StudentProductEnrollment {
   @@index([contractStatus])
   @@index([contractApprovedById])
   @@index([contractCeoSignedById])
+  @@index([upgradeFromEnrollmentId])
+  @@index([docusealSubmissionId])
+  @@index([signatureFlowStatus])
 }
 
 // Where money actually lands (Stripe US, Hotmart BR, Wise EUR, etc.). Keeping
@@ -1104,6 +1185,30 @@ model LearnWorldsAccessConfig {
   @@index([productId])
   @@index([lwProductType])
   @@index([isActive])
+}
+
+// Evento de carpeta Drive informado por n8n (creada desde GHL) que aún no se
+// pudo asociar a un estudiante existente. Se guarda para reconciliar cuando el
+// estudiante se cree o cuando un dato (email/teléfono/ghlContactId) coincida.
+// `resolvedAt` marca los ya conciliados; los pendientes se reintentan.
+model PendingDriveFolderEvent {
+  id             String    @id @default(cuid())
+  studentEmail   String?
+  studentPhone   String?
+  ghlContactId   String?
+  driveFolderId  String
+  driveFolderUrl String?
+  rawPayload     Json?
+  resolvedAt     DateTime?
+  resolvedStudentId String?
+  attempts       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([studentEmail])
+  @@index([studentPhone])
+  @@index([ghlContactId])
+  @@index([resolvedAt])
 }
 
 // ─── Comunidad Dropi ─────────────────────────────────────────────────────────
