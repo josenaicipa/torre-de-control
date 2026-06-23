@@ -73,7 +73,14 @@ export async function POST(_req: Request, { params }: Params) {
       return jsonError(404, "Inscripción no encontrada para este estudiante");
     }
 
-    if (enrollment.contractStatus !== "SIGNED") {
+    // El contrato se considera firmado por el estudiante tanto en SIGNED como
+    // en PENDING_APPROVAL (estado que la UI muestra como "Pendiente aprobación"
+    // y que puede provenir de registros legacy/en transición). La firma real se
+    // valida más abajo exigiendo la evidencia (contractSignedAt + hash).
+    if (
+      enrollment.contractStatus !== "SIGNED" &&
+      enrollment.contractStatus !== "PENDING_APPROVAL"
+    ) {
       return jsonError(
         400,
         "El contrato debe estar firmado por el estudiante para poder aprobarlo y liberar acceso",

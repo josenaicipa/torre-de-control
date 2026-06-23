@@ -30,6 +30,10 @@ const menuShells = (): Array<[string, string]> => [
   ["../Plataforma/index.html", read("../Plataforma/index.html")],
 ];
 const menuAccess = () => read("src/lib/menu-access.ts");
+const approveRoute = () =>
+  read(
+    "src/app/api/operaciones/students/[id]/products/[enrollmentId]/approve/route.ts",
+  );
 
 describe("UI productos-tab: firma y aprobación de Jose Naicipa", () => {
   it("el botón de aprobar firma explícitamente como Jose Naicipa", () => {
@@ -131,6 +135,32 @@ describe("Menú Operaciones: submenú Configuración", () => {
     const source = configPage();
     expect(source).toContain('actor.role !== "ADMIN"');
     expect(source).toContain('actor.role !== "OPERATOR"');
+  });
+});
+
+describe("Endpoint de aprobación: estados firmados por el estudiante", () => {
+  it("acepta SIGNED y PENDING_APPROVAL como firmados por el estudiante", () => {
+    const source = approveRoute();
+    expect(source).toContain('enrollment.contractStatus !== "SIGNED"');
+    expect(source).toContain(
+      'enrollment.contractStatus !== "PENDING_APPROVAL"',
+    );
+  });
+
+  it("no aprueba estados sin firma del estudiante (DRAFT / PENDING_SIGNATURE)", () => {
+    const source = approveRoute();
+    expect(source).not.toContain('contractStatus === "DRAFT"');
+    expect(source).not.toContain('contractStatus === "PENDING_SIGNATURE"');
+  });
+
+  it("sigue exigiendo la evidencia de firma electrónica del estudiante", () => {
+    const source = approveRoute();
+    expect(source).toContain(
+      "!enrollment.contractStudentSignatureHash || !enrollment.contractSignedAt",
+    );
+    expect(source).toContain(
+      "Falta la evidencia de firma electrónica del estudiante",
+    );
   });
 });
 
