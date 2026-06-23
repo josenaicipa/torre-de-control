@@ -422,6 +422,7 @@ describe("manual collaborator labels", () => {
       'l:"Area Comercial"',
       'l:"Agendas / Leads"',
       'l:"Control Comercial"',
+      'l:"Mentores / Servicio"',
       'l:"Operaciones"',
       'l:"Comunidad Dropi"',
       'l:"Detalle Diario"',
@@ -430,6 +431,63 @@ describe("manual collaborator labels", () => {
 
     positions.forEach((position) => expect(position).toBeGreaterThanOrEqual(0));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  it("adds Mentores / Servicio as a new left tab below Control Comercial with mentor and service report groups", () => {
+    const tabsBlock = html.slice(html.indexOf('const TABS=['), html.indexOf('const MOBILE_TABS=['));
+    const renderBlock = html.slice(html.indexOf('tab==="control"'), html.indexOf('tab==="entrada"'));
+
+    expect(tabsBlock).toContain('{id:"mentor_servicio", l:"Mentores / Servicio", icon:"users"}');
+    expect(tabsBlock.indexOf('l:"Mentores / Servicio"')).toBeGreaterThan(tabsBlock.indexOf('l:"Control Comercial"'));
+    expect(tabsBlock.indexOf('l:"Mentores / Servicio"')).toBeLessThan(tabsBlock.indexOf('l:"Operaciones"'));
+    expect(renderBlock).toContain('{tab==="mentor_servicio"&&<MentoresServicio allDaily={daily} year={year} month={month} onSave={saveEntry}/>');
+    expect(html).toContain('const MENTOR_SERVICE_GROUPS={');
+    expect(html).toContain('mentores:{label:"Mentores",collaborators:MENTOR_COLLABORATORS}');
+    expect(html).toContain('servicio:{label:"Servicio",collaborators:SERVICE_COLLABORATORS}');
+  });
+
+  it("renders the requested daily mentor capture fields", () => {
+    const mentorBlock = html.slice(html.indexOf('const MentorServiceReportForm='), html.indexOf('// ─── TABLA MENSUAL'));
+
+    expect(html).toContain('{id:"Nicolas Manrique",label:"Nicolas Manrique",color:C.teal,role:"mentor"}');
+    expect(html).toContain('{id:"Keiner Chara",label:"Keiner Chara",color:C.blue,role:"mentor"}');
+    expect(html).toContain('{id:"Viviana Lozano",label:"Viviana Lozano",color:C.pink,role:"mentor"}');
+    expect(html).toContain('{id:"Natan Rojas",label:"Natan Rojas",color:C.green,role:"mentor"}');
+    expect(html).toContain('{id:"Juan David Gonzalez",label:"Juan David Gonzalez",color:C.orange,role:"mentor"}');
+    expect(html).toContain('{id:"Valentina Sanchez Mentor",label:"Valentina Sanchez",color:C.red,role:"mentor"}');
+    expect(html).toContain('mentorChatsAttended:0,mentorMeetingsScheduled:0,mentorOneOnOneAttended:0,');
+    expect(html).toContain('mentorStudentsHighlights:"",mentorStudentsNeedSupport:"",mentorDailyNotes:"",');
+    expect(mentorBlock).toContain('<STit icon="🎓" title="Reporte Diario Mentor" sub={`Llenado por ${collab.label}`}/>');
+    expect(mentorBlock).toContain('<Inp label="Cantidad de chats atendidos" value={form.mentorChatsAttended} onChange={v=>sf("mentorChatsAttended",v)}/>');
+    expect(mentorBlock).toContain('<Inp label="Cantidad de Reuniones programadas" value={form.mentorMeetingsScheduled} onChange={v=>sf("mentorMeetingsScheduled",v)}/>');
+    expect(mentorBlock).toContain('<Inp label="Cantidad de Reuniones 1 a 1 asistidas" value={form.mentorOneOnOneAttended} onChange={v=>sf("mentorOneOnOneAttended",v)}/>');
+    expect(mentorBlock).toContain('<Txt label="Estudiantes con avances destacados hoy" value={form.mentorStudentsHighlights} onChange={v=>st("mentorStudentsHighlights",v)}');
+    expect(mentorBlock).toContain('<Txt label="Estudiantes que requieren seguimiento o apoyo adicional" value={form.mentorStudentsNeedSupport} onChange={v=>st("mentorStudentsNeedSupport",v)}');
+    expect(mentorBlock).toContain('<Txt label="Situaciones importantes, logros o dificultades del día" value={form.mentorDailyNotes} onChange={v=>st("mentorDailyNotes",v)}');
+  });
+
+  it("renders the requested daily service capture fields for Eliana and Mariana", () => {
+    const serviceBlock = html.slice(html.indexOf('const MentorServiceReportForm='), html.indexOf('// ─── TABLA MENSUAL'));
+
+    expect(html).toContain('{id:"Eliana Salazar",label:"Eliana Salazar",color:C.amber,role:"servicio"}');
+    expect(html).toContain('{id:"Mariana Salazar",label:"Mariana Salazar",color:C.purple,role:"servicio"}');
+    expect(html).toContain('serviceOnboardings:0,serviceAccesses:0,serviceFollowUps:0,');
+    expect(html).toContain('servicePeopleScheduled:0,serviceChatsResponded:0,serviceComplaints:0,');
+    expect(html).toContain('serviceRiskStudents:"",serviceIncidents:"",serviceComplaintReason:"",serviceSupportNeeded:"",serviceMarianaIncidents:"",');
+    expect(serviceBlock).toContain('<STit icon="🤝" title="Reporte Diario Servicio" sub={`Llenado por ${collab.label}`}/>');
+    expect(serviceBlock).toContain('collabId==="Eliana Salazar"');
+    expect(serviceBlock).toContain('<Inp label="Cantidad de Onboardings del día" value={form.serviceOnboardings} onChange={v=>sf("serviceOnboardings",v)}/>');
+    expect(serviceBlock).toContain('<Inp label="Cantidad de Accesos brindados" value={form.serviceAccesses} onChange={v=>sf("serviceAccesses",v)}/>');
+    expect(serviceBlock).toContain('<Inp label="Cantidad de seguimiento del dia" value={form.serviceFollowUps} onChange={v=>sf("serviceFollowUps",v)}/>');
+    expect(serviceBlock).toContain('<Txt label="¿Qué estudiantes consideras en riesgo de abandono y por qué?" value={form.serviceRiskStudents} onChange={v=>st("serviceRiskStudents",v)}');
+    expect(serviceBlock).toContain('<Txt label="¿Hubo algún error, novedad o situación fuera de lo normal? ¿Cómo se gestionó?" value={form.serviceIncidents} onChange={v=>st("serviceIncidents",v)}');
+    expect(serviceBlock).toContain('collabId==="Mariana Salazar"');
+    expect(serviceBlock).toContain('<Inp label="Cantidad de personas agendadas en el dia" value={form.servicePeopleScheduled} onChange={v=>sf("servicePeopleScheduled",v)}/>');
+    expect(serviceBlock).toContain('<Inp label="Chats respondidos" value={form.serviceChatsResponded} onChange={v=>sf("serviceChatsResponded",v)}/>');
+    expect(serviceBlock).toContain('<Inp label="Cantidad de quejas en el dia" value={form.serviceComplaints} onChange={v=>sf("serviceComplaints",v)}/>');
+    expect(serviceBlock).toContain('<Txt label="Por qué de las quejas" value={form.serviceComplaintReason} onChange={v=>st("serviceComplaintReason",v)}');
+    expect(serviceBlock).toContain('<Txt label="¿En qué tema sientes que necesitas más apoyo del equipo?" value={form.serviceSupportNeeded} onChange={v=>st("serviceSupportNeeded",v)}');
+    expect(serviceBlock).toContain('<Txt label="¿Hubo algún error, novedad o situación fuera de lo normal? ¿Cómo se gestionó?" value={form.serviceMarianaIncidents} onChange={v=>st("serviceMarianaIncidents",v)}');
   });
 
   it("replicates the metrics setter form and adds closer notes fields in Area Comercial", () => {

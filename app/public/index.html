@@ -230,6 +230,26 @@ const CLOSER_COLLABORATORS=[
   {id:"Alejandro Gallo Closer",label:"Alejandro Gallo",color:C.teal,role:"closer",legacy:"Alejandro Gallo"},
 ];
 const COMMERCIAL_COLLABORATORS=[...ADMIN_COLLABORATORS,...CLOSER_COLLABORATORS];
+const MENTOR_COLLABORATORS=[
+  {id:"Nicolas Manrique",label:"Nicolas Manrique",color:C.teal,role:"mentor"},
+  {id:"Keiner Chara",label:"Keiner Chara",color:C.blue,role:"mentor"},
+  {id:"Viviana Lozano",label:"Viviana Lozano",color:C.pink,role:"mentor"},
+  {id:"Natan Rojas",label:"Natan Rojas",color:C.green,role:"mentor"},
+  {id:"Juan David Gonzalez",label:"Juan David Gonzalez",color:C.orange,role:"mentor"},
+  {id:"Valentina Sanchez Mentor",label:"Valentina Sanchez",color:C.red,role:"mentor"},
+];
+const SERVICE_COLLABORATORS=[
+  {id:"Eliana Salazar",label:"Eliana Salazar",color:C.amber,role:"servicio"},
+  {id:"Mariana Salazar",label:"Mariana Salazar",color:C.purple,role:"servicio"},
+];
+const MENTOR_SERVICE_GROUPS={
+  mentores:{label:"Mentores",collaborators:MENTOR_COLLABORATORS},
+  servicio:{label:"Servicio",collaborators:SERVICE_COLLABORATORS},
+};
+const MENTOR_SERVICE_COLLABORATORS=[...MENTOR_COLLABORATORS,...SERVICE_COLLABORATORS];
+const MENTOR_SERVICE_MEMBER_IDS=new Set(MENTOR_SERVICE_COLLABORATORS.map(c=>c.id));
+const isElianaService=m=>m==="Eliana Salazar";
+const isMarianaService=m=>m==="Mariana Salazar";
 const HIGH_TICKET_CLOSER_MEMBER_IDS=new Set(CLOSER_COLLABORATORS.map(c=>c.id));
 const REPORT_GROUPS={
   admin:{label:"Admin",collaborators:ADMIN_COLLABORATORS},
@@ -255,6 +275,7 @@ const MEMBER_LABELS={
 MANUAL_COLLABORATORS.forEach(c=>{MEMBER_LABELS[c.id]=c.label;});
 const memberLabel=m=>MEMBER_LABELS[m]||m;
 const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);
+const isMentorServiceMember=m=>MENTOR_SERVICE_MEMBER_IDS.has(m);
 const isAdminMember=m=>m==="Admin";
 const isMarketingMember=m=>MARKETING_MEMBER_IDS.has(m);
 const isSetterMember=m=>SETTER_MEMBER_IDS.has(m);
@@ -313,7 +334,12 @@ const blankEntry=()=>({
   lowTicketVentas:0,lowTicketAgendasHoy:0,lowTicketShowUps:0,lowTicketFollowUps:0,
   setterLeadsContacted:0,setterConfirmedAgendas:0,setterCallsToLeads:0,setterMessagesSent:0,
   setterOrganicLeads:0,setterAdsLeads:0,
+  mentorChatsAttended:0,mentorMeetingsScheduled:0,mentorOneOnOneAttended:0,
+  serviceOnboardings:0,serviceAccesses:0,serviceFollowUps:0,
+  servicePeopleScheduled:0,serviceChatsResponded:0,serviceComplaints:0,
   showupNotes:"",hotLeadsEvidence:"",blockers:"",setterFindings:"",
+  mentorStudentsHighlights:"",mentorStudentsNeedSupport:"",mentorDailyNotes:"",
+  serviceRiskStudents:"",serviceIncidents:"",serviceComplaintReason:"",serviceSupportNeeded:"",serviceMarianaIncidents:"",
 });
 
 const blankCloser=()=>({
@@ -436,6 +462,15 @@ const rowToEntry=row=>{
     setterMessagesSent:row.show_organic||0,
     setterOrganicLeads:row.sales_organic||0,
     setterAdsLeads:row.pitches_organic||0,
+    mentorChatsAttended:isMentorServiceMember(row.member)?(row.new_bk_organic||0):0,
+    mentorMeetingsScheduled:isMentorServiceMember(row.member)?(row.qual_bk_organic||0):0,
+    mentorOneOnOneAttended:isMentorServiceMember(row.member)?(row.today_bk_organic||0):0,
+    serviceOnboardings:isElianaService(row.member)?(row.new_bk_organic||0):0,
+    serviceAccesses:isElianaService(row.member)?(row.qual_bk_organic||0):0,
+    serviceFollowUps:isElianaService(row.member)?(row.today_bk_organic||0):0,
+    servicePeopleScheduled:isMarianaService(row.member)?(row.new_bk_organic||0):0,
+    serviceChatsResponded:isMarianaService(row.member)?(row.qual_bk_organic||0):0,
+    serviceComplaints:isMarianaService(row.member)?(row.today_bk_organic||0):0,
     lowTicketVentas:isLowTicketSetter(row.member)?(row.revenue_organic||0):0,
     lowTicketAgendasHoy:isLowTicketSetter(row.member)?(row.cash_organic||0):0,
     lowTicketShowUps:isLowTicketSetter(row.member)?(row.recurring_organic||0):0,
@@ -444,6 +479,14 @@ const rowToEntry=row=>{
     hotLeadsEvidence:row.hot_leads_evidence||"",
     blockers:row.blockers||"",
     setterFindings:row.setter_findings||"",
+    mentorStudentsHighlights:isMentorServiceMember(row.member)?(row.showup_notes||""):"",
+    mentorStudentsNeedSupport:isMentorServiceMember(row.member)?(row.hot_leads_evidence||""):"",
+    mentorDailyNotes:isMentorServiceMember(row.member)?(row.blockers||""):"",
+    serviceRiskStudents:isElianaService(row.member)?(row.showup_notes||""):"",
+    serviceIncidents:isElianaService(row.member)?(row.blockers||""):"",
+    serviceComplaintReason:isMarianaService(row.member)?(row.showup_notes||""):"",
+    serviceSupportNeeded:isMarianaService(row.member)?(row.hot_leads_evidence||""):"",
+    serviceMarianaIncidents:isMarianaService(row.member)?(row.blockers||""):"",
   };
 };
 
@@ -2699,6 +2742,175 @@ const LlenarReporte=({allDaily,allCloser,year,month,onSave,onSaveCloser,monthAdS
   );
 };
 
+// ─── MENTORES / SERVICIO ─────────────────────────────────────────────────────
+const MentoresServicio=({allDaily,year,month,onSave})=>{
+  const [view,setView]=useState("llenar");
+  const subBtn=v=>({background:view===v?TXT:"transparent",border:`1px solid ${view===v?TXT:BORDER}`,
+    borderRadius:8,padding:"6px 14px",cursor:"pointer",color:view===v?"#fff":TXT2,
+    fontSize:11,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:view===v?700:400,outline:"none"});
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {[["llenar","Llenar reporte"]].map(([v,l])=>(
+          <button key={v} onClick={()=>setView(v)} style={subBtn(v)}>{l}</button>
+        ))}
+      </div>
+      {view==="llenar"&&<MentorServiceReportForm allDaily={allDaily} year={year} month={month} onSave={onSave}/>}
+    </div>
+  );
+};
+
+const MentorServiceReportForm=({allDaily,year,month,onSave})=>{
+  const [reportGroup,setReportGroup]=useState("mentores");
+  const [collabId,setCollabId]=useState(MENTOR_SERVICE_GROUPS.mentores.collaborators[0].id);
+  const [date,setDate]=useState(today());
+  const [form,setForm]=useState(blankEntry());
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  useEffect(()=>{
+    const existing=allDaily[`${date}:${collabId}`];
+    setForm(existing?{...blankEntry(),...existing,member:collabId,date}:blankEntry());
+    setSaved(false);
+  },[collabId,date,allDaily]);
+
+  const group=MENTOR_SERVICE_GROUPS[reportGroup]||MENTOR_SERVICE_GROUPS.mentores;
+  const collab=MENTOR_SERVICE_COLLABORATORS.find(c=>c.id===collabId)||group.collaborators[0]||MENTOR_COLLABORATORS[0];
+  const role=collab?.role||reportGroup;
+  const sf=(k,v)=>setForm(p=>({...p,[k]:Number(v)||0}));
+  const st=(k,v)=>setForm(p=>({...p,[k]:v}));
+
+  const handleGroupChange=key=>{
+    const next=MENTOR_SERVICE_GROUPS[key];
+    setReportGroup(key);
+    if(next?.collaborators?.length)setCollabId(next.collaborators[0].id);
+  };
+  const handleSave=async()=>{
+    if(!collab)return;
+    setSaving(true);
+    const ok=await onSave(`${date}:${collab.id}`,{...form,member:collab.id,date});
+    setSaving(false);
+    if(ok!==false){setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <Card>
+        <STit icon="🧑‍🏫" title="Mentores / Servicio" sub="Captura diaria por perfil"/>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <Lbl>Sección</Lbl>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:5}}>
+              {Object.entries(MENTOR_SERVICE_GROUPS).map(([key,g])=>(
+                <button key={key} onClick={()=>handleGroupChange(key)} style={{
+                  background:reportGroup===key?BRAND+"18":SURFACE2,border:`1.5px solid ${reportGroup===key?BRAND:BORDER}`,
+                  borderRadius:999,padding:"7px 15px",cursor:"pointer",color:reportGroup===key?BRAND:TXT2,
+                  fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:reportGroup===key?800:600,
+                  transition:"all .15s"}}>{g.label}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Lbl>{reportGroup==="servicio"?"Persona de servicio":"Nombre de mentor"}</Lbl>
+            {group.collaborators.length?(
+              <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:5}}>
+                {group.collaborators.map(c=>{
+                  const sel=collabId===c.id;
+                  return(<button key={c.id} onClick={()=>setCollabId(c.id)} style={{
+                    background:sel?c.color+"18":SURFACE2,border:`1.5px solid ${sel?c.color:BORDER}`,
+                    borderRadius:8,padding:"7px 13px",cursor:"pointer",color:sel?c.color:TXT2,
+                    fontSize:12,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:sel?700:500,
+                    display:"inline-flex",alignItems:"center",gap:7,transition:"all .15s"}}>
+                    <span style={{width:7,height:7,borderRadius:100,background:c.color,display:"inline-block"}}/>
+                    <span>{c.label}</span>
+                    <span style={{fontSize:9,color:sel?c.color:TXT3,letterSpacing:"0.08em",textTransform:"uppercase",marginLeft:2}}>{c.role}</span>
+                  </button>);
+                })}
+              </div>
+            ):(
+              <div style={{fontSize:11,color:TXT2,fontFamily:"'Hanken Grotesk',sans-serif",lineHeight:1.55,
+                background:C.amber+"12",border:`1px solid ${C.amber}33`,borderRadius:10,padding:"10px 12px",marginTop:5}}>
+                Servicio queda listo para configurar apenas definamos personas y campos de captura.
+              </div>
+            )}
+          </div>
+          <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-end"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              <Lbl>Fecha del reporte</Lbl>
+              <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+                style={{background:SURFACE2,border:`1px solid ${BORDER}`,borderRadius:8,
+                  color:TXT,padding:"7px 11px",fontSize:12,outline:"none",fontFamily:"'Hanken Grotesk',sans-serif"}}/>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {role==="mentor"&&(
+        <Card>
+          <STit icon="🎓" title="Reporte Diario Mentor" sub={`Llenado por ${collab.label}`}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11,marginBottom:14}}>
+            <Inp label="Cantidad de chats atendidos" value={form.mentorChatsAttended} onChange={v=>sf("mentorChatsAttended",v)}/>
+            <Inp label="Cantidad de Reuniones programadas" value={form.mentorMeetingsScheduled} onChange={v=>sf("mentorMeetingsScheduled",v)}/>
+            <Inp label="Cantidad de Reuniones 1 a 1 asistidas" value={form.mentorOneOnOneAttended} onChange={v=>sf("mentorOneOnOneAttended",v)}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+            <Txt label="Estudiantes con avances destacados hoy" value={form.mentorStudentsHighlights} onChange={v=>st("mentorStudentsHighlights",v)} placeholder="Respuesta abierta"/>
+            <Txt label="Estudiantes que requieren seguimiento o apoyo adicional" value={form.mentorStudentsNeedSupport} onChange={v=>st("mentorStudentsNeedSupport",v)} placeholder="Respuesta abierta"/>
+            <Txt label="Situaciones importantes, logros o dificultades del día" value={form.mentorDailyNotes} onChange={v=>st("mentorDailyNotes",v)} placeholder="Respuesta abierta"/>
+          </div>
+        </Card>
+      )}
+
+      {role==="servicio"&&(
+        <Card>
+          <STit icon="🤝" title="Reporte Diario Servicio" sub={`Llenado por ${collab.label}`}/>
+          {collabId==="Eliana Salazar"&&(
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11,marginBottom:14}}>
+                <Inp label="Cantidad de Onboardings del día" value={form.serviceOnboardings} onChange={v=>sf("serviceOnboardings",v)}/>
+                <Inp label="Cantidad de Accesos brindados" value={form.serviceAccesses} onChange={v=>sf("serviceAccesses",v)}/>
+                <Inp label="Cantidad de seguimiento del dia" value={form.serviceFollowUps} onChange={v=>sf("serviceFollowUps",v)}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+                <Txt label="¿Qué estudiantes consideras en riesgo de abandono y por qué?" value={form.serviceRiskStudents} onChange={v=>st("serviceRiskStudents",v)} placeholder="Respuesta abierta"/>
+                <Txt label="¿Hubo algún error, novedad o situación fuera de lo normal? ¿Cómo se gestionó?" value={form.serviceIncidents} onChange={v=>st("serviceIncidents",v)} placeholder="Respuesta abierta"/>
+              </div>
+            </>
+          )}
+          {collabId==="Mariana Salazar"&&(
+            <>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(175px,1fr))",gap:11,marginBottom:14}}>
+                <Inp label="Cantidad de personas agendadas en el dia" value={form.servicePeopleScheduled} onChange={v=>sf("servicePeopleScheduled",v)}/>
+                <Inp label="Chats respondidos" value={form.serviceChatsResponded} onChange={v=>sf("serviceChatsResponded",v)}/>
+                <Inp label="Cantidad de quejas en el dia" value={form.serviceComplaints} onChange={v=>sf("serviceComplaints",v)}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+                <Txt label="Por qué de las quejas" value={form.serviceComplaintReason} onChange={v=>st("serviceComplaintReason",v)} placeholder="Respuesta abierta"/>
+                <Txt label="¿En qué tema sientes que necesitas más apoyo del equipo?" value={form.serviceSupportNeeded} onChange={v=>st("serviceSupportNeeded",v)} placeholder="Respuesta abierta"/>
+                <Txt label="¿Hubo algún error, novedad o situación fuera de lo normal? ¿Cómo se gestionó?" value={form.serviceMarianaIncidents} onChange={v=>st("serviceMarianaIncidents",v)} placeholder="Respuesta abierta"/>
+              </div>
+            </>
+          )}
+        </Card>
+      )}
+
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <button onClick={handleSave} disabled={saving||!collab||group.collaborators.length===0} style={{
+          background:saved?C.green:BRAND,color:"#fff",border:"none",
+          borderRadius:10,padding:"11px 28px",fontWeight:700,fontSize:13,
+          cursor:(saving||!collab||group.collaborators.length===0)?"not-allowed":"pointer",fontFamily:"'Hanken Grotesk',sans-serif",letterSpacing:"-0.01em",
+          transition:"all .2s",boxShadow:`0 4px 16px ${saved?C.green:BRAND}40`,
+          opacity:(saving||!collab||group.collaborators.length===0)?0.6:1}}>
+          {saving?"Guardando...":saved?"✓ Guardado":collab?`Guardar — ${collab.label} · ${date}`:"Guardar"}
+        </button>
+        {saved&&<div style={{fontSize:11,color:C.green,fontFamily:"'Hanken Grotesk',sans-serif",fontWeight:600}}>
+          Reporte guardado ✓
+        </div>}
+      </div>
+    </div>
+  );
+};
+
 // ─── TABLA MENSUAL (KPI rows × collaborator columns) ──────────────────────────
 const TablaMensual=({collabAgg,monthAdSpend,year,month})=>{
   const cellTxt=(v,fmt)=>{
@@ -3734,6 +3946,7 @@ const TABS=[
   {id:"colab",   l:"Area Comercial",sub:"Por Colaborador",icon:"dollar"},
   {id:"agendas", l:"Agendas / Leads",    icon:"calendar"},
   {id:"control", l:"Control Comercial",  icon:"clipboardCheck"},
+  {id:"mentor_servicio", l:"Mentores / Servicio", icon:"users"},
   {id:"operaciones", l:"Operaciones", icon:"users", children:[
     {id:"operaciones-estudiantes", l:"Estudiantes", href:"/operaciones/estudiantes"},
     {id:"operaciones-cartera", l:"Cartera", href:"/operaciones/cartera"},
@@ -3755,6 +3968,7 @@ const MOBILE_TABS=[
   TABS.find(t=>t.id==="colab"),
   TABS.find(t=>t.id==="agendas"),
   TABS.find(t=>t.id==="control"),
+  TABS.find(t=>t.id==="mentor_servicio"),
   TABS.find(t=>t.id==="operaciones"),
   TABS.find(t=>t.id==="comunidad-dropi"),
   TABS.find(t=>t.id==="detalle"),
@@ -4006,9 +4220,9 @@ function App(){
       gasto_meta:canonicalEntry.gastoMeta||0,gasto_google:canonicalEntry.gastoGoogle||0,
       gasto_tiktok:canonicalEntry.gastoTikTok||0,
       gasto_otros:isCommercialMember(canonicalEntry.member)?(canonicalEntry.cashReservas||0):(canonicalEntry.gastoOtros||0),
-      new_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterLeadsContacted||0):(canonicalEntry.agendas||0),
-      qual_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterConfirmedAgendas||0):(canonicalEntry.calificadas||0),
-      today_bk_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterCallsToLeads||0):(canonicalEntry.agendasHoy||0),
+      new_bk_organic:isElianaService(canonicalEntry.member)?(canonicalEntry.serviceOnboardings||0):isMarianaService(canonicalEntry.member)?(canonicalEntry.servicePeopleScheduled||0):isMentorServiceMember(canonicalEntry.member)?(canonicalEntry.mentorChatsAttended||0):isSetterMember(canonicalEntry.member)?(canonicalEntry.setterLeadsContacted||0):(canonicalEntry.agendas||0),
+      qual_bk_organic:isElianaService(canonicalEntry.member)?(canonicalEntry.serviceAccesses||0):isMarianaService(canonicalEntry.member)?(canonicalEntry.serviceChatsResponded||0):isMentorServiceMember(canonicalEntry.member)?(canonicalEntry.mentorMeetingsScheduled||0):isSetterMember(canonicalEntry.member)?(canonicalEntry.setterConfirmedAgendas||0):(canonicalEntry.calificadas||0),
+      today_bk_organic:isElianaService(canonicalEntry.member)?(canonicalEntry.serviceFollowUps||0):isMarianaService(canonicalEntry.member)?(canonicalEntry.serviceComplaints||0):isMentorServiceMember(canonicalEntry.member)?(canonicalEntry.mentorOneOnOneAttended||0):isSetterMember(canonicalEntry.member)?(canonicalEntry.setterCallsToLeads||0):(canonicalEntry.agendasHoy||0),
       show_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterMessagesSent||0):(canonicalEntry.showUps||0),
       sales_organic:isSetterMember(canonicalEntry.member)?(canonicalEntry.setterOrganicLeads||0):(canonicalEntry.ventasHT||0),
       revenue_organic:writesLowTicketActivity?(canonicalEntry.lowTicketVentas||0):(canonicalEntry.valorVentaHT||0),
@@ -4017,9 +4231,9 @@ function App(){
       pitches_organic:isAdminMember(canonicalEntry.member)?(canonicalEntry.activeClients||0):isSetterMember(canonicalEntry.member)?(canonicalEntry.setterAdsLeads||0):(canonicalEntry.pendDiaAnterior||0),
       pitches_paid:writesLowTicketActivity?(canonicalEntry.lowTicketFollowUps||0):(canonicalEntry.pendAcumulados||0),
       reservas_organic:canonicalEntry.reservas||0,
-      showup_notes:canonicalEntry.showupNotes||"",
-      hot_leads_evidence:canonicalEntry.hotLeadsEvidence||"",
-      blockers:canonicalEntry.blockers||"",
+      showup_notes:isElianaService(canonicalEntry.member)?(canonicalEntry.serviceRiskStudents||""):isMarianaService(canonicalEntry.member)?(canonicalEntry.serviceComplaintReason||""):isMentorServiceMember(canonicalEntry.member)?(canonicalEntry.mentorStudentsHighlights||""):(canonicalEntry.showupNotes||""),
+      hot_leads_evidence:isMarianaService(canonicalEntry.member)?(canonicalEntry.serviceSupportNeeded||""):isMentorServiceMember(canonicalEntry.member)?(canonicalEntry.mentorStudentsNeedSupport||""):(canonicalEntry.hotLeadsEvidence||""),
+      blockers:isElianaService(canonicalEntry.member)?(canonicalEntry.serviceIncidents||""):isMarianaService(canonicalEntry.member)?(canonicalEntry.serviceMarianaIncidents||""):isMentorServiceMember(canonicalEntry.member)?(canonicalEntry.mentorDailyNotes||""):(canonicalEntry.blockers||""),
       setter_findings:canonicalEntry.setterFindings||"",
     },{onConflict:"date,member"});
     if(error){alert("Error guardando: "+error.message);return false;}
@@ -4461,6 +4675,7 @@ function App(){
               <>
                 {tab==="torre"   &&<Torre kpi={kpi} year={year} month={month} allCloser={closerData} allDaily={daily} dm={MDAYS[month]} onSaveConfig={saveKpiConfig}/>}
                 {tab==="control" &&<ControlComercial/>}
+                {tab==="mentor_servicio"&&<MentoresServicio allDaily={daily} year={year} month={month} onSave={saveEntry}/>}
                 {tab==="entrada" &&<DailyEntryForm year={year} month={month} allDaily={daily} onSave={saveEntry}/>}
                 {tab==="agendas" &&<AgendasLeadsForm allCloser={closerData} onSave={saveCloserEntry}/>}
                 {tab==="equipo" &&<ResumenEquipo year={year} month={month} allDaily={daily}/>}
