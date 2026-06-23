@@ -332,3 +332,97 @@ function pickCell(row: string[], idx: number | null): string {
   if (idx == null) return "";
   return row[idx] ?? "";
 }
+
+// JSON we persist into a metric's `rawRow`. A single source row keeps its
+// original raw object so existing consumers are unaffected; an aggregated
+// member (several file rows collapsed into one period metric) keeps every
+// contributing raw row plus a count so the aggregation stays auditable.
+export type AggregatedRaw =
+  | Record<string, string>
+  | { aggregatedFrom: number; rows: Record<string, string>[] };
+
+export interface AggregatedMemberRow {
+  ordersEntered: number;
+  ordersMoved: number;
+  ordersDelivered: number;
+  ordersReturned: number;
+  movementRate: number;
+  deliveryRate: number;
+  returnRate: number;
+  country: string | null;
+  raw: AggregatedRaw;
+  rowCount: number;
+  rowNumbers: number[];
+}
+
+// When several parsed rows resolve to the same member — duplicate lines in the
+// export, or distinct identities (email/phone/Dropi id) that map to one
+// existing member — their order counts must be SUMMED for the period. Writing
+// them one by one with an upsert would let the last row overwrite the previous
+// ones, so the imported totals would fall short of the file's grand total.
+// Rates are recomputed from the summed counts using the same formulas as
+// `previewMatrix`. The returned Map preserves first-seen member order so the
+// confirm step processes members deterministically.
+export function aggregateRowsByMember<K>(
+  entries: Array<{ memberId: K; row: ParsedRow }>,
+): Map<K, AggregatedMemberRow> {
+  const acc = new Map<
+    K,
+    {
+      ordersEntered: number;
+      ordersMoved: number;
+      ordersDelivered: number;
+      ordersReturned: number;
+      country: string | null;
+      rawRows: Record<string, string>[];
+      rowNumbers: number[];
+    }
+  >();
+
+  for (const { memberId, row } of entries) {
+    let current = acc.get(memberId);
+    if (!current) {
+      current = {
+        ordersEntered: 0,
+        ordersMoved: 0,
+        ordersDelivered: 0,
+        ordersReturned: 0,
+        country: null,
+        rawRows: [],
+        rowNumbers: [],
+      };
+      acc.set(memberId, current);
+    }
+    current.ordersEntered += row.ordersEntered;
+    current.ordersMoved += row.ordersMoved;
+    current.ordersDelivered += row.ordersDelivered;
+    current.ordersReturned += row.ordersReturned;
+    if (current.country == null && row.country != null) {
+      current.country = row.country;
+    }
+    current.rawRows.push(row.raw);
+    current.rowNumbers.push(row.rowNumber);
+  }
+
+  const result = new Map<K, AggregatedMemberRow>();
+  for (const [memberId, c] of acc) {
+    const denominator = Math.max(c.ordersMoved, c.ordersEntered);
+    result.set(memberId, {
+      ordersEntered: c.ordersEntered,
+      ordersMoved: c.ordersMoved,
+      ordersDelivered: c.ordersDelivered,
+      ordersReturned: c.ordersReturned,
+      movementRate: safeRate(c.ordersMoved, c.ordersEntered),
+      deliveryRate: safeRate(c.ordersDelivered, denominator),
+      returnRate: safeRate(c.ordersReturned, denominator),
+      country: c.country,
+      raw:
+        c.rawRows.length === 1
+          ? c.rawRows[0]
+          : { aggregatedFrom: c.rawRows.length, rows: c.rawRows },
+      rowCount: c.rawRows.length,
+      rowNumbers: c.rowNumbers,
+    });
+  }
+  return result;
+}

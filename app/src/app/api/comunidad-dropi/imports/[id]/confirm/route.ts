@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getActor, requireActor, requireOperatorOrAdmin } from "@/lib/actor";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
-import { previewCsv } from "@/lib/comunidad-dropi-import";
+import { aggregateRowsByMember, previewCsv } from "@/lib/comunidad-dropi-import";
 import { previewXlsx } from "@/lib/comunidad-dropi-xlsx";
 import {
   calculateSegment,
@@ -86,13 +86,32 @@ export async function POST(
     // Imports can process hundreds of rows; Prisma's default 5s interactive
     // transaction timeout causes 500s on large XLSX batches.
     await prisma.$transaction(async (tx) => {
+      // Resolve every parsed row to a member first, then aggregate rows that
+      // map to the same member. Several file rows (duplicate lines, or distinct
+      // identities that resolve to one existing member) must contribute their
+      // SUM to the period metric — writing them one-by-one would let the last
+      // row overwrite the earlier ones and undercount the file totals.
+      type MemberRecord = Awaited<ReturnType<typeof upsertMember>>;
+      const entries: Array<{
+        memberId: string;
+        row: import("@/lib/comunidad-dropi-import").ParsedRow;
+      }> = [];
+      const memberById = new Map<string, MemberRecord>();
       for (const row of preview.parsedRows) {
         const member = await upsertMember(tx, row, batch.country ?? null);
+        entries.push({ memberId: member.id, row });
+        memberById.set(member.id, member);
+      }
+      rowsProcessed = entries.length;
+
+      const aggregated = aggregateRowsByMember(entries);
+      for (const [memberId, agg] of aggregated) {
+        const member = memberById.get(memberId)!;
         const segmentInput = {
-          ordersEntered: row.ordersEntered,
-          ordersDelivered: row.ordersDelivered,
-          ordersReturned: row.ordersReturned,
-          returnRate: row.returnRate,
+          ordersEntered: agg.ordersEntered,
+          ordersDelivered: agg.ordersDelivered,
+          ordersReturned: agg.ordersReturned,
+          returnRate: agg.returnRate,
           isFirstPeriodSeen: member.firstReportedAt == null,
         };
 
@@ -102,7 +121,7 @@ export async function POST(
         if (isWeekly) {
           const previous = await tx.dropiWeeklyMetric.findFirst({
             where: {
-              memberId: member.id,
+              memberId,
               periodEnd: { lt: batch.periodStart! },
             },
             orderBy: { periodEnd: "desc" },
@@ -115,53 +134,53 @@ export async function POST(
           const created = await tx.dropiWeeklyMetric.upsert({
             where: {
               memberId_periodStart_periodEnd: {
-                memberId: member.id,
+                memberId,
                 periodStart: batch.periodStart!,
                 periodEnd: batch.periodEnd!,
               },
             },
             update: {
-              ordersEntered: row.ordersEntered,
-              ordersMoved: row.ordersMoved,
-              ordersDelivered: row.ordersDelivered,
-              ordersReturned: row.ordersReturned,
-              movementRate: row.movementRate,
-              deliveryRate: row.deliveryRate,
-              returnRate: row.returnRate,
+              ordersEntered: agg.ordersEntered,
+              ordersMoved: agg.ordersMoved,
+              ordersDelivered: agg.ordersDelivered,
+              ordersReturned: agg.ordersReturned,
+              movementRate: agg.movementRate,
+              deliveryRate: agg.deliveryRate,
+              returnRate: agg.returnRate,
               previousOrdersEntered: previous?.ordersEntered ?? null,
               deltaOrdersEntered: segment.deltaOrders,
               deltaOrdersPercent: segment.deltaPercent ?? null,
               calculatedSegment: segment.segment,
               calculatedPriority: segment.priority,
-              country: row.country ?? batch.country ?? null,
+              country: agg.country ?? batch.country ?? null,
               importBatchId: batch.id,
-              rawRow: row.raw as never,
+              rawRow: agg.raw as never,
             },
             create: {
-              memberId: member.id,
+              memberId,
               periodStart: batch.periodStart!,
               periodEnd: batch.periodEnd!,
-              ordersEntered: row.ordersEntered,
-              ordersMoved: row.ordersMoved,
-              ordersDelivered: row.ordersDelivered,
-              ordersReturned: row.ordersReturned,
-              movementRate: row.movementRate,
-              deliveryRate: row.deliveryRate,
-              returnRate: row.returnRate,
+              ordersEntered: agg.ordersEntered,
+              ordersMoved: agg.ordersMoved,
+              ordersDelivered: agg.ordersDelivered,
+              ordersReturned: agg.ordersReturned,
+              movementRate: agg.movementRate,
+              deliveryRate: agg.deliveryRate,
+              returnRate: agg.returnRate,
               previousOrdersEntered: previous?.ordersEntered ?? null,
               deltaOrdersEntered: segment.deltaOrders,
               deltaOrdersPercent: segment.deltaPercent ?? null,
               calculatedSegment: segment.segment,
               calculatedPriority: segment.priority,
-              country: row.country ?? batch.country ?? null,
+              country: agg.country ?? batch.country ?? null,
               importBatchId: batch.id,
-              rawRow: row.raw as never,
+              rawRow: agg.raw as never,
             },
           });
           weeklyMetricId = created.id;
           await refreshMemberSnapshot(
             tx,
-            member.id,
+            memberId,
             segment.segment,
             segment.priority,
             batch.periodEnd!,
@@ -169,7 +188,7 @@ export async function POST(
           const reason = followUpReasonForSegment(segment.segment);
           if (reason) {
             followUpsToCreate.push({
-              memberId: member.id,
+              memberId,
               reason,
               priority: segment.priority,
               suggestedAction: suggestedActionFor(reason),
@@ -180,7 +199,7 @@ export async function POST(
         } else {
           const previousMonth = await tx.dropiMonthlyMetric.findFirst({
             where: {
-              memberId: member.id,
+              memberId,
               OR: [
                 { year: { lt: batch.year! } },
                 { year: batch.year!, month: { lt: batch.month! } },
@@ -196,39 +215,39 @@ export async function POST(
           const created = await tx.dropiMonthlyMetric.upsert({
             where: {
               memberId_year_month: {
-                memberId: member.id,
+                memberId,
                 year: batch.year!,
                 month: batch.month!,
               },
             },
             update: {
-              ordersEntered: row.ordersEntered,
-              ordersMoved: row.ordersMoved,
-              ordersDelivered: row.ordersDelivered,
-              ordersReturned: row.ordersReturned,
+              ordersEntered: agg.ordersEntered,
+              ordersMoved: agg.ordersMoved,
+              ordersDelivered: agg.ordersDelivered,
+              ordersReturned: agg.ordersReturned,
               monthOverMonthDelta: segment.deltaPercent ?? null,
               trend: segment.trend,
               calculatedSegment: segment.segment,
               calculatedPriority: segment.priority,
-              country: row.country ?? batch.country ?? null,
+              country: agg.country ?? batch.country ?? null,
               importBatchId: batch.id,
-              rawRow: row.raw as never,
+              rawRow: agg.raw as never,
             },
             create: {
-              memberId: member.id,
+              memberId,
               year: batch.year!,
               month: batch.month!,
-              ordersEntered: row.ordersEntered,
-              ordersMoved: row.ordersMoved,
-              ordersDelivered: row.ordersDelivered,
-              ordersReturned: row.ordersReturned,
+              ordersEntered: agg.ordersEntered,
+              ordersMoved: agg.ordersMoved,
+              ordersDelivered: agg.ordersDelivered,
+              ordersReturned: agg.ordersReturned,
               monthOverMonthDelta: segment.deltaPercent ?? null,
               trend: segment.trend,
               calculatedSegment: segment.segment,
               calculatedPriority: segment.priority,
-              country: row.country ?? batch.country ?? null,
+              country: agg.country ?? batch.country ?? null,
               importBatchId: batch.id,
-              rawRow: row.raw as never,
+              rawRow: agg.raw as never,
             },
           });
           monthlyMetricId = created.id;
@@ -237,7 +256,7 @@ export async function POST(
           );
           await refreshMemberSnapshot(
             tx,
-            member.id,
+            memberId,
             segment.segment,
             segment.priority,
             periodEnd,
@@ -245,7 +264,7 @@ export async function POST(
           const reason = followUpReasonForSegment(segment.segment);
           if (reason) {
             followUpsToCreate.push({
-              memberId: member.id,
+              memberId,
               reason,
               priority: segment.priority,
               suggestedAction: suggestedActionFor(reason),
@@ -254,7 +273,6 @@ export async function POST(
             });
           }
         }
-        rowsProcessed++;
       }
 
       for (const followUp of followUpsToCreate) {
