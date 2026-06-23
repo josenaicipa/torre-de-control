@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { COLORS } from "../../_lib/tokens";
 
 interface PreviewRow {
@@ -61,6 +62,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 //    re-validates everything against the original hash and writes the
 //    members/metrics/follow-ups in one transaction.
 export function ImportUploader() {
+  const router = useRouter();
   const [fileName, setFileName] = useState<string>("");
   const [fileSize, setFileSize] = useState<number>(0);
   const [csvContent, setCsvContent] = useState<string>("");
@@ -228,6 +230,7 @@ export function ImportUploader() {
           `Importación confirmada: ${payload.data.rowsProcessed} filas procesadas, ${payload.data.followUpsOpened} seguimientos abiertos.`,
         );
         resetForm();
+        router.refresh();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
