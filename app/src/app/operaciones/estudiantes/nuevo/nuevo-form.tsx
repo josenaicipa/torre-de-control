@@ -56,13 +56,22 @@ interface TeamMember {
   fullName: string;
   email: string;
   phone: string;
+  documentType: string;
+  documentNumber: string;
   isContractSigner: boolean;
 }
 
 const MAX_ADDITIONAL_MEMBERS = 4;
 
 function emptyMember(): TeamMember {
-  return { fullName: "", email: "", phone: "", isContractSigner: false };
+  return {
+    fullName: "",
+    email: "",
+    phone: "",
+    documentType: "",
+    documentNumber: "",
+    isContractSigner: false,
+  };
 }
 
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
@@ -592,6 +601,8 @@ export function NuevoEstudianteForm({
         fullName: m.fullName.trim(),
         email: m.email.trim() ? m.email.trim() : null,
         phone: m.phone.trim() ? m.phone.trim() : null,
+        documentType: m.documentType.trim() ? m.documentType.trim() : null,
+        documentNumber: m.documentNumber.trim() ? m.documentNumber.trim() : null,
         isContractSigner: m.isContractSigner,
       }));
     }
@@ -942,6 +953,40 @@ export function NuevoEstudianteForm({
                         updateMember(index, "phone", e.target.value)
                       }
                       placeholder="+573001234567"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Tipo de documento
+                    </label>
+                    <select
+                      value={member.documentType}
+                      onChange={(e) =>
+                        updateMember(index, "documentType", e.target.value)
+                      }
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">— Selecciona —</option>
+                      {DOCUMENT_TYPES.map((dt) => (
+                        <option key={dt.value} value={dt.value}>
+                          {dt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Número de documento
+                    </label>
+                    <input
+                      value={member.documentNumber}
+                      onChange={(e) =>
+                        updateMember(index, "documentNumber", e.target.value)
+                      }
+                      maxLength={100}
                       className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                     />
                   </div>

@@ -102,6 +102,8 @@ export async function POST(req: Request) {
       fullName: member.fullName,
       email: member.email ?? null,
       phone: member.phone ?? null,
+      documentType: member.documentType ?? null,
+      documentNumber: member.documentNumber ?? null,
       isPrimaryContact: member.isPrimaryContact ?? false,
       isContractSigner: member.isContractSigner,
       contractSignerName: member.isContractSigner ? member.fullName : null,

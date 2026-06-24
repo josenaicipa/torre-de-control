@@ -354,6 +354,31 @@ describe("contrato de equipo con integrantes adicionales", () => {
     expect(view.signature.signerNames).not.toContain("Carlos Pérez Lima");
   });
 
+  it("muestra el documento de cada integrante en REUNIDOS cuando está presente", () => {
+    const view = buildContractView({
+      ...baseInput,
+      teamMembers: [
+        {
+          fullName: "Beatriz Gómez Ruiz",
+          isContractSigner: true,
+          documentType: "CC",
+          documentNumber: "123456",
+        },
+        {
+          fullName: "Carlos Pérez Lima",
+          isContractSigner: false,
+          documentNumber: "987654",
+        },
+      ],
+    });
+    expect(view.parties).toContain(
+      "Beatriz Gómez Ruiz identificado con CC N° 123456",
+    );
+    expect(view.parties).toContain(
+      "Carlos Pérez Lima identificado con 987654",
+    );
+  });
+
   it("solo el titular firma cuando ningún integrante está marcado", () => {
     const view = buildContractView({
       ...baseInput,

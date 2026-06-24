@@ -9,6 +9,7 @@ import { handleApiError, jsonError } from "@/lib/api-helpers";
 import {
   buildContractInputFromData,
   contractEnrollmentSelect,
+  contractSignerMembers,
   parseContractSectionsSnapshot,
   parseManualClausesSnapshot,
 } from "@/lib/operaciones-contract";
@@ -69,6 +70,15 @@ export async function GET(_req: Request, { params }: Params) {
       manualClauses,
       sectionsSnapshot,
     );
+    const memberSigners = contractSignerMembers(enrollment.student.members).map(
+      (m) => ({
+        name: m.contractSignerName ?? m.fullName,
+        signedAt: m.contractSignedAt,
+        signedIp: m.contractSignedIp,
+        signatureHash: m.contractSignatureHash,
+        signatureImage: m.contractSignatureImage,
+      }),
+    );
     const pdf = await generateSignedContractPdf({
       input,
       evidence: {
@@ -82,6 +92,7 @@ export async function GET(_req: Request, { params }: Params) {
         ceoSignatureHash: enrollment.contractCeoSignatureHash,
         ceoSignatureImage: enrollment.contractCeoSignatureImage,
         templateVersion: enrollment.contractTemplateVersion,
+        memberSigners,
       },
     });
 

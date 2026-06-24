@@ -67,12 +67,26 @@ function registerContractFonts(doc: PDFKit.PDFDocument): ContractFonts {
 // estudiante; al final se añade un bloque de evidencia con nombres, fechas, IP
 // y hashes (cortos) de ambas firmas y la versión de la plantilla.
 
+// Evidencia de firma de un integrante adicional firmante (SOCIO 2..5). El
+// titular Student se representa en los campos student* de ContractPdfEvidence.
+export interface ContractMemberSignerEvidence {
+  name: string;
+  signedAt: Date | string | null;
+  signedIp: string | null;
+  signatureHash: string | null;
+  signatureImage: string | null;
+}
+
 export interface ContractPdfEvidence {
   studentSignerName: string | null;
   studentSignedAt: Date | string | null;
   studentSignedIp: string | null;
   studentSignatureHash: string | null;
   studentSignatureImage: string | null;
+  // Integrantes adicionales firmantes del equipo, en orden. Se renderizan como
+  // SOCIO 2, SOCIO 3, … entre EL CLIENTE y LA EMPRESA. Ausente/[] => contrato
+  // individual, con el bloque de firmas idéntico al anterior.
+  memberSigners?: ContractMemberSignerEvidence[];
   ceoSignerName: string | null;
   ceoSignedAt: Date | string | null;
   ceoSignatureHash: string | null;
@@ -268,6 +282,25 @@ export function generateSignedContractPdf({
     doc.text(`IP de firma: ${evidence.studentSignedIp ?? "—"}`);
     doc.text(`Hash de firma: ${shortHash(evidence.studentSignatureHash)}`);
     doc.moveDown(0.6);
+
+    // Integrantes adicionales firmantes del equipo: SOCIO 2, SOCIO 3, … Cada
+    // bloque lleva su firma manuscrita, nombre, fecha, IP (si existe) y hash.
+    (evidence.memberSigners ?? []).forEach((member, index) => {
+      const label = `SOCIO ${index + 2}`;
+      drawSignatureImage(
+        member.signatureImage,
+        `Firma manuscrita de ${label}:`,
+      );
+      doc.font(fonts.bold).fontSize(10).text(label);
+      doc.font(fonts.regular).fontSize(10);
+      doc.text(`Nombre: ${member.name}`);
+      doc.text(`Fecha de firma: ${formatDateTime(member.signedAt)}`);
+      if (member.signedIp) {
+        doc.text(`IP de firma: ${member.signedIp}`);
+      }
+      doc.text(`Hash de firma: ${shortHash(member.signatureHash)}`);
+      doc.moveDown(0.6);
+    });
 
     // Firma manuscrita de Jose Naicipa, arriba del encabezado LA EMPRESA.
     drawSignatureImage(

@@ -531,6 +531,8 @@ export const studentMemberInputSchema = z.object({
   fullName: z.string().trim().min(1, "Nombre del integrante requerido").max(200),
   email: z.string().trim().toLowerCase().email().optional().nullable(),
   phone: z.string().trim().max(50).optional().nullable(),
+  documentType: z.string().trim().max(50).optional().nullable(),
+  documentNumber: z.string().trim().max(100).optional().nullable(),
   isPrimaryContact: z.boolean().optional(),
   isContractSigner: z.boolean().default(false),
 });

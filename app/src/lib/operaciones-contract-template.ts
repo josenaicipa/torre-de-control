@@ -165,10 +165,14 @@ export interface ContractInput {
 }
 
 // Integrante adicional de un contrato de equipo. Solo el nombre es obligatorio;
-// isContractSigner marca a quién, además del titular, se le exige firmar.
+// isContractSigner marca a quién, además del titular, se le exige firmar. El
+// documento (tipo + número) es opcional: cuando existe se imprime junto al
+// nombre en la cláusula REUNIDOS («Nombre identificado con CC N° 123»).
 export interface ContractTeamMember {
   fullName: string;
   email?: string | null;
+  documentType?: string | null;
+  documentNumber?: string | null;
   isContractSigner?: boolean;
 }
 
@@ -230,25 +234,48 @@ export function buildPartiesSegments(input: ContractInput): ContractTextSegment[
   ];
 
   // Equipo: si hay integrantes adicionales, se añade una frase con el conteo
-  // total (titular + miembros) y la lista de nombres. El titular se conserva
-  // como representante principal; no se inventan datos legales de los miembros.
+  // total (titular + miembros) y la lista de integrantes con su documento. El
+  // titular se conserva como representante principal y reutiliza clientDocument;
+  // cada integrante muestra «Nombre identificado con <documento>» cuando tiene
+  // documento, o solo el nombre si no se capturó.
   const members = validTeamMembers(input);
   if (members.length > 0) {
-    const names = [input.clientName.trim(), ...members.map((m) => m.fullName.trim())];
+    const entries: { name: string; document: string | null }[] = [
+      { name: input.clientName.trim(), document: hasDocument ? documentValue : null },
+      ...members.map((m) => ({
+        name: m.fullName.trim(),
+        document: composeMemberDocument(m),
+      })),
+    ];
     segments.push({
-      text: ` EL CLIENTE está conformado por ${names.length} integrantes: `,
+      text: ` EL CLIENTE está conformado por ${entries.length} integrantes: `,
       bold: false,
     });
-    names.forEach((name, index) => {
-      segments.push({ text: name, bold: true });
+    entries.forEach((entry, index) => {
+      segments.push({ text: entry.name, bold: true });
+      if (entry.document) {
+        segments.push({ text: " identificado con ", bold: false });
+        segments.push({ text: entry.document, bold: true });
+      }
       segments.push({
-        text: index < names.length - 1 ? ", " : ".",
+        text: index < entries.length - 1 ? ", " : ".",
         bold: false,
       });
     });
   }
 
   return segments;
+}
+
+// Compone el documento legible de un integrante adicional a partir de su tipo y
+// número. Devuelve «Tipo N° Número» cuando ambos existen, o el dato disponible;
+// null cuando no se capturó documento.
+function composeMemberDocument(member: ContractTeamMember): string | null {
+  const type = member.documentType?.trim();
+  const number = member.documentNumber?.trim();
+  if (!type && !number) return null;
+  if (type && number) return `${type} N° ${number}`;
+  return type ?? number ?? null;
 }
 
 // Filtra los integrantes adicionales con nombre utilizable. Comparte la regla

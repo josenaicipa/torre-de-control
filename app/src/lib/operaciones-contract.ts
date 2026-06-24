@@ -46,10 +46,14 @@ export interface ContractDataShape {
     members?: {
       fullName: string;
       email: string | null;
+      documentType: string | null;
+      documentNumber: string | null;
       isContractSigner: boolean;
+      contractSignerName: string | null;
       contractSignedAt: Date | string | null;
       contractSignatureHash: string | null;
       contractSignatureImage: string | null;
+      contractSignedIp: string | null;
     }[];
   };
   product: { name: string } | null;
@@ -109,11 +113,14 @@ export const contractEnrollmentSelect = {
           id: true,
           fullName: true,
           email: true,
+          documentType: true,
+          documentNumber: true,
           isContractSigner: true,
           contractSignerName: true,
           contractSignedAt: true,
           contractSignatureHash: true,
           contractSignatureImage: true,
+          contractSignedIp: true,
         },
       },
     },
@@ -438,6 +445,8 @@ export function buildContractInputFromData(
     .map((m) => ({
       fullName: m.fullName,
       email: m.email,
+      documentType: m.documentType,
+      documentNumber: m.documentNumber,
       isContractSigner: m.isContractSigner,
     }));
 
