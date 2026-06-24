@@ -66,6 +66,7 @@ const LEGACY_TABS: Array<{
   { id: "torre", label: "Torre CEO", href: "/", Icon: Home },
   { id: "closer", label: "Área Comercial", href: "/?tab=closer", Icon: DollarSign },
   { id: "control", label: "Control Comercial", href: "/?tab=control", Icon: ClipboardCheck },
+  { id: "mentor_servicio", label: "Mentores / Servicio", href: "/?tab=mentor_servicio", Icon: Users },
   { id: "entrada", label: "Marketing", href: "/?tab=entrada", Icon: Megaphone },
   { id: "agendas", label: "Agendas / Leads", href: "/?tab=agendas", Icon: Calendar },
   { id: "equipo", label: "Resumen Equipo", href: "/?tab=equipo", Icon: Users },

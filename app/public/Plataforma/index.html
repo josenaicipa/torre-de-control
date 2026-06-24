@@ -4050,7 +4050,9 @@ function App(){
   const scopeLimited=!!(caps&&!caps.isGlobalData);
   const menuAccess=new Set((me&&Array.isArray(me.menuAccess))?me.menuAccess:[]);
   const isInternalOpsConfig=(id)=>id==="operaciones-configuracion"&&!!me&&(me.role==="ADMIN"||me.role==="OPERATOR");
-  const isMenuAllowed=(id)=>!me||menuAccess.has(id)||isInternalOpsConfig(id)||(id==="admin"&&canManage);
+  const hasDashboardRead=!!(!me||!caps||caps.canRead!==false);
+  const isDashboardReadTab=(id)=>["torre","colab","agendas","control","mentor_servicio"].includes(id);
+  const isMenuAllowed=(id)=>!me||menuAccess.has(id)||(hasDashboardRead&&isDashboardReadTab(id))||isInternalOpsConfig(id)||(id==="admin"&&canManage);
   const filterMenuTab=(t)=>{
     if(!t)return null;
     if(t.id==="admin")return isMenuAllowed("admin")?t:null;

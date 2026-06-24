@@ -71,6 +71,13 @@ describe("manual collaborator labels", () => {
     expect(html).toContain('<span style={{fontSize:9,lineHeight:1.1,opacity:.75}}>{t.sub}</span>');
   });
 
+  it("keeps Mentores / Servicio visible to dashboard-read users even if menuAccess is stale", () => {
+    expect(html).toContain('{id:"mentor_servicio", l:"Mentores / Servicio", icon:"users"}');
+    expect(html).toContain('const hasDashboardRead=!!(!me||!caps||caps.canRead!==false);');
+    expect(html).toContain('const isDashboardReadTab=(id)=>["torre","colab","agendas","control","mentor_servicio"].includes(id);');
+    expect(html).toContain('const isMenuAllowed=(id)=>!me||menuAccess.has(id)||(hasDashboardRead&&isDashboardReadTab(id))||isInternalOpsConfig(id)||(id==="admin"&&canManage);');
+  });
+
 
   it("surfaces legacy Area Comercial daily_closer data under Valentina and uses manual reservas first", () => {
     const llenarBlock = html.slice(html.indexOf('const LlenarReporte='), html.indexOf('// ─── TABLA MENSUAL'));

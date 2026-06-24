@@ -19,6 +19,7 @@ export const MENU_ACCESS_ITEMS = [
   { id: "colab", label: "Área Comercial", description: "Reporte por colaborador", group: "Comercial", permissions: DASHBOARD_READ },
   { id: "agendas", label: "Agendas / Leads", description: "Citas, leads y show ups", group: "Comercial", permissions: DASHBOARD_READ },
   { id: "control", label: "Control Comercial", description: "Seguimiento comercial diario", group: "Comercial", permissions: DASHBOARD_READ },
+  { id: "mentor_servicio", label: "Mentores / Servicio", description: "Reporte diario de mentores y servicio", group: "Comercial", permissions: DASHBOARD_READ },
   { id: "operaciones", label: "Operaciones", description: "Entrada general al módulo operativo", group: "Operaciones", permissions: ["operaciones.read"] },
   { id: "operaciones-estudiantes", label: "Operaciones · Estudiantes", description: "Ver y editar estudiantes", group: "Operaciones", permissions: ["operaciones.read", "operaciones.write"] },
   { id: "operaciones-cartera", label: "Operaciones · Cartera", description: "Consultar cartera y registrar pagos", group: "Operaciones", permissions: ["operaciones.read", "operaciones.payments.write"] },
