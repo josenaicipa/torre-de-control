@@ -10,6 +10,7 @@ import {
 } from "@/lib/operaciones-contract-template";
 import {
   buildContractInputFromData,
+  buildContractSignersSummary,
   contractEnrollmentSelect,
   parseContractSectionsSnapshot,
   parseManualClausesSnapshot,
@@ -128,13 +129,18 @@ export default async function FirmarContratoPage({ params }: PageProps) {
 
   if (!enrollment) return <InvalidLink />;
 
-  const isSigned =
-    enrollment.contractStatus === "SIGNED" ||
-    enrollment.contractStatus === "PENDING_APPROVAL" ||
-    enrollment.contractStatus === "APPROVED";
-
   const clientName =
     enrollment.student.legalName?.trim() || enrollment.student.fullName;
+
+  // Firmantes requeridos: el titular Student SIEMPRE (id "student") más cada
+  // integrante marcado con isContractSigner=true. El contrato se considera
+  // firmado solo cuando todos ellos han firmado.
+  const summary = buildContractSignersSummary(enrollment);
+  const usesMembers = summary.usesMembers;
+  const signers = summary.signers;
+  const pendingSigners = summary.pending.map((s) => ({ id: s.id, name: s.name }));
+  const signedCount = summary.signedCount;
+  const showSigned = summary.allSigned;
 
   const manualClauses =
     parseManualClausesSnapshot(enrollment.contractManualClausesSnapshot) ?? [];
@@ -163,7 +169,27 @@ export default async function FirmarContratoPage({ params }: PageProps) {
           </h1>
         </header>
 
-        {isSigned ? (
+        {usesMembers && (
+          <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+            <p className="text-sm font-bold text-slate-900">
+              Firmas: {signedCount}/{signers.length}
+            </p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {signers.map((signer) => (
+                <li key={signer.id} className="flex items-center justify-between gap-3">
+                  <span className="text-slate-700">{signer.name}</span>
+                  {signer.signed ? (
+                    <span className="font-medium text-emerald-700">Firmado</span>
+                  ) : (
+                    <span className="font-medium text-amber-600">Pendiente</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {showSigned ? (
           <div className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
             <p className="text-base font-bold text-emerald-900">Contrato firmado</p>
             {enrollment.contractSignerName && (
@@ -205,7 +231,7 @@ export default async function FirmarContratoPage({ params }: PageProps) {
               incluyendo el valor total, el pago inicial y el calendario de pagos descritos.
               Esta firma electrónica confirma mi voluntad de obligarme conforme a sus términos.
             </div>
-            <SignForm token={token} defaultName={clientName} />
+            <SignForm token={token} signerOptions={pendingSigners} />
           </section>
         )}
 

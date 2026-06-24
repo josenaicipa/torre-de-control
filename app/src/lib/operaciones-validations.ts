@@ -522,13 +522,37 @@ export type InitialEnrollmentForStudentCreateInput = z.infer<
   typeof initialEnrollmentForStudentCreateSchema
 >;
 
+// Integrante adicional del equipo de un estudiante titular (MVP de firma
+// múltiple). El titular Student no se representa aquí — estos son los
+// miembros extra que entran en el mismo contrato. `fullName` es lo único
+// obligatorio; el email es opcional pero, si viene, debe ser válido para no
+// chocar con el índice único [studentId, email] de StudentMember.
+export const studentMemberInputSchema = z.object({
+  fullName: z.string().trim().min(1, "Nombre del integrante requerido").max(200),
+  email: z.string().trim().toLowerCase().email().optional().nullable(),
+  phone: z.string().trim().max(50).optional().nullable(),
+  isPrimaryContact: z.boolean().optional(),
+  isContractSigner: z.boolean().default(false),
+});
+
+export type StudentMemberInput = z.infer<typeof studentMemberInputSchema>;
+
 // POST /api/operaciones/students payload: the original student fields plus an
 // optional `initialEnrollment` block. When the block is present the route
 // atomically creates the Student, the StudentProductEnrollment, the initial
 // Payment and the PaymentSchedule rows under the same transaction. Leaving the
 // block undefined preserves the old "create student only" behaviour.
+//
+// `members` lleva hasta 4 integrantes adicionales (equipo de máximo 5
+// contando al titular). El titular siempre cuenta como firmante por defecto;
+// si algún integrante se marca como firmante, esos firmantes adicionales se
+// habilitan. No se exige equipo: omitirlo conserva el flujo individual.
 export const createStudentWithInitialEnrollmentSchema = createStudentSchema.extend({
   initialEnrollment: initialEnrollmentForStudentCreateSchema.optional().nullable(),
+  members: z
+    .array(studentMemberInputSchema)
+    .max(4, "Máximo 4 integrantes adicionales (equipo de hasta 5)")
+    .optional(),
 });
 
 export type CreateStudentWithInitialEnrollmentInput = z.infer<

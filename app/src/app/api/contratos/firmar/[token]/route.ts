@@ -5,8 +5,11 @@ import { writeAudit } from "@/lib/audit";
 import { CONTRACT_ACCEPTANCE_TEXT, CONTRACT_TEMPLATE_VERSION } from "@/lib/operaciones-contract-template";
 import {
   buildContractInputFromData,
+  computeSignaturesSummaryHash,
   computeStudentSignatureHash,
+  CONTRACT_HOLDER_SIGNER_ID,
   contractEnrollmentSelect,
+  contractSignerMembers,
   findMissingContractFields,
   namesReasonablyMatch,
   parseContractSectionsSnapshot,
@@ -95,15 +98,9 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    const expectedName =
-      enrollment.student.legalName?.trim() || enrollment.student.fullName;
-    if (!namesReasonablyMatch(signerName, expectedName)) {
-      return jsonError(
-        400,
-        "El nombre firmado no coincide con el nombre registrado en el contrato. Usa tu nombre legal completo.",
-      );
-    }
-
+    // Datos compartidos por ambos flujos (firmante único legacy y firma
+    // múltiple por integrantes): se congelan cláusulas/secciones y se arma el
+    // ContractInput canónico que sustenta el hash de firma.
     const signedAt = new Date();
     let manualClauses = parseManualClausesSnapshot(enrollment.contractManualClausesSnapshot);
     let clausesSnapshot = enrollment.contractManualClausesSnapshot;
@@ -125,6 +122,196 @@ export async function POST(req: Request, { params }: Params) {
       signerName,
       signatureImage.dataUrl,
     );
+    const ip = clientIp(req);
+    const userAgent = req.headers.get("user-agent");
+
+    const signerMembers = contractSignerMembers(enrollment.student.members);
+
+    // ── Flujo de firma múltiple: titular Student SIEMPRE + integrantes ───────
+    // Firmantes requeridos = titular (id "student") + cada integrante marcado.
+    // La evidencia del titular se guarda en la inscripción; la de cada
+    // integrante en su StudentMember. El contrato no pasa a SIGNED hasta que el
+    // titular y todos los integrantes marcados hayan firmado.
+    if (signerMembers.length > 0) {
+      const rawSignerId = String(record.signerId ?? CONTRACT_HOLDER_SIGNER_ID).trim();
+      const signerId = rawSignerId.length > 0 ? rawSignerId : CONTRACT_HOLDER_SIGNER_ID;
+      const titularName =
+        enrollment.student.legalName?.trim() || enrollment.student.fullName;
+
+      if (signerId === CONTRACT_HOLDER_SIGNER_ID) {
+        if (enrollment.contractSignedAt) {
+          return jsonError(400, "El titular ya firmó este contrato");
+        }
+        if (!namesReasonablyMatch(signerName, titularName)) {
+          return jsonError(
+            400,
+            "El nombre firmado no coincide con el nombre registrado en el contrato. Usa tu nombre legal completo.",
+          );
+        }
+
+        // Guarda la evidencia del titular en la inscripción SIN marcar SIGNED:
+        // la consolidación ocurre más abajo solo si ya firmaron todos.
+        await prisma.studentProductEnrollment.update({
+          where: { id: enrollment.id },
+          data: {
+            contractSignedAt: signedAt,
+            contractSignerName: signerName,
+            contractSignedIp: ip,
+            contractSignedUserAgent: userAgent,
+            contractTemplateVersion: CONTRACT_TEMPLATE_VERSION,
+            contractAcceptanceText: CONTRACT_ACCEPTANCE_TEXT,
+            contractStudentSignatureHash: signatureHash,
+            contractStudentSignatureImage: signatureImage.dataUrl,
+            contractManualClausesSnapshot: clausesSnapshot,
+          },
+        });
+
+        await writeAudit({
+          actorId: null,
+          action: "operaciones.student_product_enrollment.sign_contract_holder",
+          target: enrollment.id,
+          metadata: {
+            studentId: enrollment.studentId,
+            signerName,
+            templateVersion: CONTRACT_TEMPLATE_VERSION,
+            signatureHash,
+          },
+        });
+      } else {
+        const target = signerMembers.find((m) => m.id === signerId);
+        if (!target) {
+          return jsonError(400, "Selecciona un firmante válido de la lista");
+        }
+        if (target.contractSignedAt) {
+          return jsonError(400, "Este integrante ya firmó el contrato");
+        }
+        if (!namesReasonablyMatch(signerName, target.fullName)) {
+          return jsonError(
+            400,
+            "El nombre firmado no coincide con el del firmante seleccionado. Usa su nombre completo.",
+          );
+        }
+
+        await prisma.studentMember.update({
+          where: { id: target.id },
+          data: {
+            contractSignerName: signerName,
+            contractSignedAt: signedAt,
+            contractSignatureImage: signatureImage.dataUrl,
+            contractSignatureHash: signatureHash,
+            contractSignedIp: ip,
+            contractSignedUserAgent: userAgent,
+          },
+        });
+
+        await writeAudit({
+          actorId: null,
+          action: "operaciones.student_product_enrollment.sign_contract_member",
+          target: enrollment.id,
+          metadata: {
+            studentId: enrollment.studentId,
+            memberId: target.id,
+            signerName,
+            templateVersion: CONTRACT_TEMPLATE_VERSION,
+            signatureHash,
+          },
+        });
+      }
+
+      // Evidencia consolidada tras esta firma: titular + cada integrante. Para
+      // el firmante actual se usan los valores recién firmados; para el resto la
+      // evidencia ya persistida.
+      const titularEvidence =
+        signerId === CONTRACT_HOLDER_SIGNER_ID
+          ? {
+              name: signerName,
+              hash: signatureHash,
+              image: signatureImage.dataUrl as string | null,
+              signed: true,
+            }
+          : {
+              name: enrollment.contractSignerName ?? titularName,
+              hash: enrollment.contractStudentSignatureHash ?? "",
+              image: enrollment.contractStudentSignatureImage,
+              signed: Boolean(enrollment.contractSignedAt),
+            };
+      const memberEvidence = signerMembers.map((m) =>
+        m.id === signerId
+          ? {
+              name: signerName,
+              hash: signatureHash,
+              image: signatureImage.dataUrl as string | null,
+              signed: true,
+            }
+          : {
+              name: m.contractSignerName ?? m.fullName,
+              hash: m.contractSignatureHash ?? "",
+              image: m.contractSignatureImage,
+              signed: Boolean(m.contractSignedAt),
+            },
+      );
+
+      const allEvidence = [titularEvidence, ...memberEvidence];
+      const pending = allEvidence.filter((e) => !e.signed);
+      if (pending.length > 0) {
+        return NextResponse.json({
+          contractStatus: "PENDING_SIGNATURE",
+          pendingSignatures: pending.length,
+        });
+      }
+
+      // Todos firmaron: se consolida la inscripción. contractStudentSignatureHash
+      // pasa a ser el resumen de los hashes individuales y contractSignerName une
+      // al titular con los integrantes firmantes. approve sigue viendo
+      // contractSignedAt y contractStudentSignatureHash.
+      const joinedNames = allEvidence.map((e) => e.name).join(", ");
+      const summaryHash = computeSignaturesSummaryHash(
+        allEvidence.map((e) => e.hash),
+      );
+      const firstImage =
+        allEvidence.find((e) => e.image)?.image ?? signatureImage.dataUrl;
+
+      await prisma.studentProductEnrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          contractStatus: "SIGNED",
+          contractSignedAt: signedAt,
+          contractSignerName: joinedNames,
+          contractSignedIp: ip,
+          contractSignedUserAgent: userAgent,
+          contractTemplateVersion: CONTRACT_TEMPLATE_VERSION,
+          contractAcceptanceText: CONTRACT_ACCEPTANCE_TEXT,
+          contractStudentSignatureHash: summaryHash,
+          contractStudentSignatureImage: firstImage,
+          contractManualClausesSnapshot: clausesSnapshot,
+        },
+      });
+
+      await writeAudit({
+        actorId: null,
+        action: "operaciones.student_product_enrollment.sign_contract",
+        target: enrollment.id,
+        metadata: {
+          studentId: enrollment.studentId,
+          signerName: joinedNames,
+          contractStatus: "SIGNED",
+          templateVersion: CONTRACT_TEMPLATE_VERSION,
+          signatureHash: summaryHash,
+        },
+      });
+
+      return NextResponse.json({ contractStatus: "SIGNED" });
+    }
+
+    // ── Flujo legacy: firmante único (titular Student) ───────────────────────
+    const expectedName =
+      enrollment.student.legalName?.trim() || enrollment.student.fullName;
+    if (!namesReasonablyMatch(signerName, expectedName)) {
+      return jsonError(
+        400,
+        "El nombre firmado no coincide con el nombre registrado en el contrato. Usa tu nombre legal completo.",
+      );
+    }
 
     await prisma.studentProductEnrollment.update({
       where: { id: enrollment.id },
@@ -132,8 +319,8 @@ export async function POST(req: Request, { params }: Params) {
         contractStatus: "SIGNED",
         contractSignedAt: signedAt,
         contractSignerName: signerName,
-        contractSignedIp: clientIp(req),
-        contractSignedUserAgent: req.headers.get("user-agent"),
+        contractSignedIp: ip,
+        contractSignedUserAgent: userAgent,
         contractTemplateVersion: CONTRACT_TEMPLATE_VERSION,
         contractAcceptanceText: CONTRACT_ACCEPTANCE_TEXT,
         contractStudentSignatureHash: signatureHash,

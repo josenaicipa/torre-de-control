@@ -309,6 +309,61 @@ describe("plantilla empresarial (BUSINESS) vs tradicional", () => {
   });
 });
 
+describe("contrato de equipo con integrantes adicionales", () => {
+  const teamInput: ContractInput = {
+    ...baseInput,
+    teamMembers: [
+      {
+        fullName: "Beatriz Gómez Ruiz",
+        email: "beatriz@example.com",
+        isContractSigner: true,
+      },
+      {
+        fullName: "Carlos Pérez Lima",
+        email: "carlos@example.com",
+        isContractSigner: false,
+      },
+    ],
+  };
+
+  it("sin teamMembers conserva parties y deja solo al titular como firmante", () => {
+    const view = buildContractView(baseInput);
+    expect(view.parties).toBe(segmentsToText(buildPartiesSegments(baseInput)));
+    expect(view.parties).not.toContain("integrantes:");
+    expect(view.signature.signerNames).toEqual(["Andrés Toro Sierra"]);
+  });
+
+  it("incluye el conteo total y la lista de integrantes en las partes", () => {
+    const view = buildContractView(teamInput);
+    expect(view.parties).toContain(
+      "EL CLIENTE está conformado por 3 integrantes:",
+    );
+    expect(view.parties).toContain("Andrés Toro Sierra");
+    expect(view.parties).toContain("Beatriz Gómez Ruiz");
+    expect(view.parties).toContain("Carlos Pérez Lima");
+    // Los segmentos siguen coincidiendo con el string plano firmado.
+    expect(segmentsToText(buildPartiesSegments(teamInput))).toBe(view.parties);
+  });
+
+  it("signerNames incluye al titular y solo a los miembros marcados", () => {
+    const view = buildContractView(teamInput);
+    expect(view.signature.signerNames).toEqual([
+      "Andrés Toro Sierra",
+      "Beatriz Gómez Ruiz",
+    ]);
+    expect(view.signature.signerNames).not.toContain("Carlos Pérez Lima");
+  });
+
+  it("solo el titular firma cuando ningún integrante está marcado", () => {
+    const view = buildContractView({
+      ...baseInput,
+      teamMembers: [{ fullName: "Beatriz Gómez Ruiz", isContractSigner: false }],
+    });
+    expect(view.parties).toContain("2 integrantes:");
+    expect(view.signature.signerNames).toEqual(["Andrés Toro Sierra"]);
+  });
+});
+
 describe("parseContractSegments separa negritas inline de los párrafos", () => {
   it("texto plano sin marcadores devuelve un solo segmento normal", () => {
     const segments = parseContractSegments("solo texto plano");

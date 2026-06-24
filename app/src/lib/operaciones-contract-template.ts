@@ -157,6 +157,19 @@ export interface ContractInput {
   // y las cláusulas manuales como `sections` en TODAS las vistas (web, PDF y el
   // hash de firma). null/undefined/[] => se usa la plantilla oficial.
   sectionsSnapshot?: ContractSection[] | null;
+  // Integrantes ADICIONALES cuando EL CLIENTE es un equipo. El titular sigue
+  // siendo clientName/clientEmail; estos son los demás miembros. Ausente/[] =>
+  // contrato individual, con salida idéntica a la anterior (parties y hash sin
+  // cambios). No se modelan datos legales (documento/domicilio) de los miembros.
+  teamMembers?: ContractTeamMember[];
+}
+
+// Integrante adicional de un contrato de equipo. Solo el nombre es obligatorio;
+// isContractSigner marca a quién, además del titular, se le exige firmar.
+export interface ContractTeamMember {
+  fullName: string;
+  email?: string | null;
+  isContractSigner?: boolean;
 }
 
 export interface ContractSection {
@@ -195,7 +208,7 @@ export function buildPartiesSegments(input: ContractInput): ContractTextSegment[
     ? input.clientAddress!.trim()
     : INCOMPLETE_LEGAL_DATA;
 
-  return [
+  const segments: ContractTextSegment[] = [
     { text: "De una parte, ", bold: false },
     { text: COMPANY.legalName, bold: true },
     { text: " con EIN ", bold: false },
@@ -215,6 +228,36 @@ export function buildPartiesSegments(input: ContractInput): ContractTextSegment[
     { text: addressValue, bold: true },
     { text: ".", bold: false },
   ];
+
+  // Equipo: si hay integrantes adicionales, se añade una frase con el conteo
+  // total (titular + miembros) y la lista de nombres. El titular se conserva
+  // como representante principal; no se inventan datos legales de los miembros.
+  const members = validTeamMembers(input);
+  if (members.length > 0) {
+    const names = [input.clientName.trim(), ...members.map((m) => m.fullName.trim())];
+    segments.push({
+      text: ` EL CLIENTE está conformado por ${names.length} integrantes: `,
+      bold: false,
+    });
+    names.forEach((name, index) => {
+      segments.push({ text: name, bold: true });
+      segments.push({
+        text: index < names.length - 1 ? ", " : ".",
+        bold: false,
+      });
+    });
+  }
+
+  return segments;
+}
+
+// Filtra los integrantes adicionales con nombre utilizable. Comparte la regla
+// entre la frase de partes y los firmantes para que conteo, lista y firmas no
+// se desincronicen.
+function validTeamMembers(input: ContractInput): ContractTeamMember[] {
+  return (input.teamMembers ?? []).filter(
+    (m) => typeof m.fullName === "string" && m.fullName.trim().length > 0,
+  );
 }
 
 export interface ContractView {
@@ -228,6 +271,9 @@ export interface ContractView {
     endDateLabel: string;
     clientName: string;
     ceoName: string;
+    // Firmantes requeridos del contrato interno: el titular y los integrantes
+    // adicionales marcados con isContractSigner. Sin equipo => [titular].
+    signerNames: string[];
   };
 }
 
@@ -1285,6 +1331,13 @@ export function buildContractView(input: ContractInput): ContractView {
   const sections =
     Array.isArray(snapshot) && snapshot.length > 0 ? snapshot : baseSections;
 
+  const signerNames = [
+    input.clientName,
+    ...validTeamMembers(input)
+      .filter((m) => m.isContractSigner)
+      .map((m) => m.fullName.trim()),
+  ];
+
   return {
     title: CONTRACT_TITLE,
     subtitle: isBusiness ? CONTRACT_SUBTITLE_BUSINESS : CONTRACT_SUBTITLE,
@@ -1296,6 +1349,7 @@ export function buildContractView(input: ContractInput): ContractView {
       endDateLabel: formatContractDate(input.endDate),
       clientName: input.clientName,
       ceoName: COMPANY.ceoName,
+      signerNames,
     },
   };
 }

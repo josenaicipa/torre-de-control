@@ -20,6 +20,8 @@ import {
   referralSplitListSchema,
   isHardDeleteConfirmed,
   HARD_DELETE_CONFIRMATION,
+  studentMemberInputSchema,
+  createStudentWithInitialEnrollmentSchema,
 } from "./operaciones-validations";
 
 describe("isHardDeleteConfirmed", () => {
@@ -613,6 +615,93 @@ describe("createEnrollmentBaseSchema", () => {
         commissionPercent: 110,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("studentMemberInputSchema", () => {
+  it("requires fullName and defaults isContractSigner to false", () => {
+    const parsed = studentMemberInputSchema.parse({ fullName: "Ana Gómez" });
+    expect(parsed.fullName).toBe("Ana Gómez");
+    expect(parsed.isContractSigner).toBe(false);
+  });
+
+  it("rejects an empty fullName", () => {
+    expect(studentMemberInputSchema.safeParse({ fullName: "  " }).success).toBe(
+      false,
+    );
+  });
+
+  it("accepts an optional email but rejects an invalid one", () => {
+    expect(
+      studentMemberInputSchema.safeParse({
+        fullName: "Ana",
+        email: "ana@example.com",
+      }).success,
+    ).toBe(true);
+    expect(
+      studentMemberInputSchema.safeParse({
+        fullName: "Ana",
+        email: "not-an-email",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("lowercases the email", () => {
+    const parsed = studentMemberInputSchema.parse({
+      fullName: "Ana",
+      email: "Ana@EXAMPLE.com",
+    });
+    expect(parsed.email).toBe("ana@example.com");
+  });
+});
+
+describe("createStudentWithInitialEnrollmentSchema members", () => {
+  const base = {
+    fullName: "Titular",
+    email: "titular@example.com",
+    startDate: "2026-05-23",
+    durationMonths: 12,
+  };
+
+  it("accepts the payload without any members (individual flow)", () => {
+    expect(
+      createStudentWithInitialEnrollmentSchema.safeParse(base).success,
+    ).toBe(true);
+  });
+
+  it("accepts up to 4 additional members", () => {
+    const result = createStudentWithInitialEnrollmentSchema.safeParse({
+      ...base,
+      members: [
+        { fullName: "M1", isContractSigner: true },
+        { fullName: "M2" },
+        { fullName: "M3" },
+        { fullName: "M4" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects more than 4 additional members (team capped at 5)", () => {
+    const result = createStudentWithInitialEnrollmentSchema.safeParse({
+      ...base,
+      members: [
+        { fullName: "M1" },
+        { fullName: "M2" },
+        { fullName: "M3" },
+        { fullName: "M4" },
+        { fullName: "M5" },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a member with an empty name", () => {
+    const result = createStudentWithInitialEnrollmentSchema.safeParse({
+      ...base,
+      members: [{ fullName: "" }],
+    });
+    expect(result.success).toBe(false);
   });
 });
 

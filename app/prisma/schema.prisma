@@ -512,6 +512,17 @@ model StudentMember {
   phone            String?
   isPrimaryContact Boolean  @default(false)
   ghlContactId     String?
+  // Firmantes del contrato interno. Cuando un equipo entra junto, el operador
+  // marca quiénes deben firmar (además del titular). La evidencia de firma de
+  // cada integrante se guarda aquí; el contrato no se libera hasta que todos
+  // los firmantes requeridos hayan firmado.
+  isContractSigner        Boolean   @default(false)
+  contractSignerName      String?
+  contractSignedAt        DateTime?
+  contractSignatureImage  String?   @db.Text
+  contractSignatureHash   String?
+  contractSignedIp        String?
+  contractSignedUserAgent String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

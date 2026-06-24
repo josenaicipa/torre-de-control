@@ -3,10 +3,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildContractInputFromData,
+  buildContractSignersSummary,
   buildContractTemplateResetData,
   canChangeContractTemplateKind,
   computeCeoSignatureHash,
+  computeSignaturesSummaryHash,
   computeStudentSignatureHash,
+  CONTRACT_HOLDER_SIGNER_ID,
+  contractSignerMembers,
   findMissingContractFields,
   isContractComplete,
   MANUAL_CLAUSE_LIMITS,
@@ -607,6 +611,116 @@ describe("buildContractTemplateResetData", () => {
     expect(buildContractTemplateResetData("TRADITIONAL").contractTemplateKind).toBe(
       "TRADITIONAL",
     );
+  });
+});
+
+describe("buildContractSignersSummary", () => {
+  const student = (
+    members?: ContractSignersInputMember[],
+    legalName: string | null = "Andrés Toro Sierra",
+  ) => ({
+    student: {
+      fullName: "Andrés Toro Sierra",
+      legalName,
+      ...(members ? { members } : {}),
+    },
+  });
+
+  type ContractSignersInputMember = {
+    id: string;
+    fullName: string;
+    isContractSigner: boolean;
+    contractSignedAt: Date | string | null;
+  };
+
+  it("flujo legacy: sin integrantes marcados, el único firmante es el titular", () => {
+    const summary = buildContractSignersSummary(student());
+    expect(summary.usesMembers).toBe(false);
+    expect(summary.signers).toHaveLength(1);
+    expect(summary.signers[0].id).toBe(CONTRACT_HOLDER_SIGNER_ID);
+    expect(summary.signers[0].isPrimary).toBe(true);
+    expect(summary.signers[0].name).toBe("Andrés Toro Sierra");
+    expect(summary.allSigned).toBe(false);
+  });
+
+  it("titular firma cuando la inscripción tiene contractSignedAt", () => {
+    const sin = buildContractSignersSummary(student());
+    const con = buildContractSignersSummary({
+      ...student(),
+      contractSignedAt: new Date("2026-06-24T10:00:00.000Z"),
+    });
+    expect(sin.signers[0].signed).toBe(false);
+    expect(con.signers[0].signed).toBe(true);
+    expect(con.allSigned).toBe(true);
+  });
+
+  it("usa el nombre legal del titular cuando existe y cae al fullName si falta", () => {
+    const conLegal = buildContractSignersSummary(student(undefined, "  Nombre Legal  "));
+    const sinLegal = buildContractSignersSummary(student(undefined, null));
+    expect(conLegal.signers[0].name).toBe("Nombre Legal");
+    expect(sinLegal.signers[0].name).toBe("Andrés Toro Sierra");
+  });
+
+  it("firmantes requeridos = titular SIEMPRE + cada integrante marcado", () => {
+    const summary = buildContractSignersSummary(
+      student([
+        { id: "m1", fullName: "Integrante Uno", isContractSigner: true, contractSignedAt: null },
+        { id: "m2", fullName: "Integrante Dos", isContractSigner: false, contractSignedAt: null },
+        { id: "m3", fullName: "Integrante Tres", isContractSigner: true, contractSignedAt: null },
+      ]),
+    );
+    expect(summary.usesMembers).toBe(true);
+    expect(summary.signers.map((s) => s.id)).toEqual([
+      CONTRACT_HOLDER_SIGNER_ID,
+      "m1",
+      "m3",
+    ]);
+    expect(summary.total).toBe(3);
+    expect(summary.pending.map((s) => s.id)).toEqual([
+      CONTRACT_HOLDER_SIGNER_ID,
+      "m1",
+      "m3",
+    ]);
+  });
+
+  it("computa progreso: cuenta titular + integrantes firmados", () => {
+    const summary = buildContractSignersSummary({
+      ...student([
+        {
+          id: "m1",
+          fullName: "Integrante Uno",
+          isContractSigner: true,
+          contractSignedAt: new Date("2026-06-24T11:00:00.000Z"),
+        },
+        { id: "m2", fullName: "Integrante Dos", isContractSigner: true, contractSignedAt: null },
+      ]),
+      contractSignedAt: new Date("2026-06-24T10:00:00.000Z"),
+    });
+    expect(summary.signedCount).toBe(2);
+    expect(summary.total).toBe(3);
+    expect(summary.allSigned).toBe(false);
+    expect(summary.pending.map((s) => s.id)).toEqual(["m2"]);
+  });
+
+  it("allSigned solo cuando titular y todos los integrantes marcados firmaron", () => {
+    const members: ContractSignersInputMember[] = [
+      {
+        id: "m1",
+        fullName: "Integrante Uno",
+        isContractSigner: true,
+        contractSignedAt: new Date("2026-06-24T11:00:00.000Z"),
+      },
+    ];
+    const titularPendiente = buildContractSignersSummary(student(members));
+    const todoFirmado = buildContractSignersSummary({
+      ...student(members),
+      contractSignedAt: new Date("2026-06-24T10:00:00.000Z"),
+    });
+    expect(titularPendiente.allSigned).toBe(false);
+    expect(titularPendiente.pending.map((s) => s.id)).toEqual([
+      CONTRACT_HOLDER_SIGNER_ID,
+    ]);
+    expect(todoFirmado.allSigned).toBe(true);
   });
 });
 

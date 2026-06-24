@@ -41,6 +41,16 @@ export interface ContractDataShape {
     durationMonths: number | string | { toString(): string } | null;
     startDate: Date | string | null;
     endDate: Date | string | null;
+    // Integrantes adicionales del equipo (el titular es el propio student).
+    // Opcional: las inscripciones individuales no traen miembros.
+    members?: {
+      fullName: string;
+      email: string | null;
+      isContractSigner: boolean;
+      contractSignedAt: Date | string | null;
+      contractSignatureHash: string | null;
+      contractSignatureImage: string | null;
+    }[];
   };
   product: { name: string } | null;
   totalAmountUsd: number | string | { toString(): string } | null;
@@ -93,6 +103,19 @@ export const contractEnrollmentSelect = {
       durationMonths: true,
       startDate: true,
       endDate: true,
+      members: {
+        orderBy: { createdAt: "asc" as const },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          isContractSigner: true,
+          contractSignerName: true,
+          contractSignedAt: true,
+          contractSignatureHash: true,
+          contractSignatureImage: true,
+        },
+      },
     },
   },
   product: { select: { name: true } },
@@ -407,6 +430,17 @@ export function buildContractInputFromData(
     dueDate: isoDate(s.dueDate) ?? "",
   }));
 
+  // Integrantes adicionales del equipo. Se omiten por completo cuando la
+  // inscripción es individual para que el ContractInput (y por tanto el hash
+  // de firma) quede idéntico al de antes de esta función.
+  const teamMembers = (data.student.members ?? [])
+    .filter((m) => typeof m.fullName === "string" && m.fullName.trim().length > 0)
+    .map((m) => ({
+      fullName: m.fullName,
+      email: m.email,
+      isContractSigner: m.isContractSigner,
+    }));
+
   return {
     templateKind: normalizeContractTemplateKind(data.contractTemplateKind),
     clientName,
@@ -423,6 +457,7 @@ export function buildContractInputFromData(
     durationMonths,
     manualClauses: parseManualClauses(manualClauses ?? []),
     sectionsSnapshot: sectionsSnapshot ?? null,
+    ...(teamMembers.length > 0 ? { teamMembers } : {}),
   };
 }
 
@@ -596,6 +631,95 @@ export function computeStudentSignatureHash(
   return sha256(
     `${canonicalContractPayload(input)}::signer=${signerName.trim()}::accept=${CONTRACT_ACCEPTANCE_TEXT}::image=${imageDigest}`,
   );
+}
+
+// Devuelve los integrantes marcados como firmantes del contrato, en el orden en
+// que vienen del select (createdAt asc). Si está vacío, la inscripción usa el
+// flujo de firmante único legacy (el titular Student, que igual debe firmar).
+export function contractSignerMembers<T extends { isContractSigner: boolean }>(
+  members: T[] | null | undefined,
+): T[] {
+  return (members ?? []).filter((m) => m.isContractSigner);
+}
+
+// Id reservado para el titular Student dentro del flujo de firma. El titular
+// SIEMPRE es firmante requerido; los integrantes marcados firman ADEMÁS.
+export const CONTRACT_HOLDER_SIGNER_ID = "student";
+
+export interface ContractSigner {
+  id: string; // "student" = titular; member.id para integrantes.
+  name: string;
+  isPrimary: boolean;
+  signed: boolean;
+}
+
+export interface ContractSignersSummary {
+  signers: ContractSigner[];
+  // ¿Hay integrantes marcados como firmantes? Si no, es el flujo legacy en el
+  // que el único firmante requerido es el titular.
+  usesMembers: boolean;
+  total: number;
+  signedCount: number;
+  pending: ContractSigner[];
+  allSigned: boolean;
+}
+
+// Forma mínima para calcular el resumen de firmantes de un contrato. El titular
+// firmó cuando la inscripción tiene contractSignedAt; cada integrante cuando su
+// propio contractSignedAt está presente.
+export interface ContractSignersInput {
+  student: {
+    fullName: string;
+    legalName: string | null;
+    members?: {
+      id: string;
+      fullName: string;
+      isContractSigner: boolean;
+      contractSignedAt: Date | string | null;
+    }[];
+  };
+  contractSignedAt?: Date | string | null;
+}
+
+// Resumen de los firmantes requeridos de un contrato: el titular Student SIEMPRE
+// (id "student") más cada integrante marcado con isContractSigner=true. Calcula
+// el progreso de firmas y la lista de pendientes para la página pública, la API
+// y los tests. allSigned es true solo cuando el titular y todos los integrantes
+// marcados tienen firma registrada.
+export function buildContractSignersSummary(
+  data: ContractSignersInput,
+): ContractSignersSummary {
+  const titularName = data.student.legalName?.trim() || data.student.fullName;
+  const members = contractSignerMembers(data.student.members ?? []);
+  const signers: ContractSigner[] = [
+    {
+      id: CONTRACT_HOLDER_SIGNER_ID,
+      name: titularName,
+      isPrimary: true,
+      signed: Boolean(data.contractSignedAt),
+    },
+    ...members.map((m) => ({
+      id: m.id,
+      name: m.fullName,
+      isPrimary: false,
+      signed: Boolean(m.contractSignedAt),
+    })),
+  ];
+  const pending = signers.filter((s) => !s.signed);
+  return {
+    signers,
+    usesMembers: members.length > 0,
+    total: signers.length,
+    signedCount: signers.length - pending.length,
+    pending,
+    allSigned: pending.length === 0,
+  };
+}
+
+// Hash resumen de una firma múltiple: combina los hashes individuales de cada
+// firmante en un único hash que representa el conjunto de firmas aceptadas.
+export function computeSignaturesSummaryHash(hashes: string[]): string {
+  return sha256(hashes.filter((h) => h && h.trim().length > 0).join("::"));
 }
 
 // Hash de la firma del CEO: encadena el hash del estudiante con la identidad

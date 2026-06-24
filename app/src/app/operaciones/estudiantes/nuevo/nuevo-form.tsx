@@ -52,6 +52,19 @@ interface PaymentAccount {
   isActive: boolean;
 }
 
+interface TeamMember {
+  fullName: string;
+  email: string;
+  phone: string;
+  isContractSigner: boolean;
+}
+
+const MAX_ADDITIONAL_MEMBERS = 4;
+
+function emptyMember(): TeamMember {
+  return { fullName: "", email: "", phone: "", isContractSigner: false };
+}
+
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
 type InstallmentFrequency = "monthly" | "biweekly";
 type ContractTemplateKind = "TRADITIONAL" | "BUSINESS";
@@ -184,6 +197,30 @@ export function NuevoEstudianteForm({
   const [mentorUserId, setMentorUserId] = useState("");
   const [closerUserId, setCloserUserId] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Equipo / firma múltiple. El titular es siempre firmante por defecto; aquí
+  // se capturan hasta 4 integrantes adicionales (equipo de máximo 5).
+  const [members, setMembers] = useState<TeamMember[]>([]);
+
+  function addMember() {
+    setMembers((prev) =>
+      prev.length >= MAX_ADDITIONAL_MEMBERS ? prev : [...prev, emptyMember()],
+    );
+  }
+
+  function removeMember(index: number) {
+    setMembers((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateMember<K extends keyof TeamMember>(
+    index: number,
+    key: K,
+    value: TeamMember[K],
+  ) {
+    setMembers((prev) =>
+      prev.map((m, i) => (i === index ? { ...m, [key]: value } : m)),
+    );
+  }
 
   // Datos legales opcionales para el contrato. El teléfono y el nombre legal
   // ya viven arriba; aquí sólo se capturan documento, dirección y ubicación.
@@ -520,6 +557,11 @@ export function NuevoEstudianteForm({
       return;
     }
 
+    if (members.some((m) => !m.fullName.trim())) {
+      setError("Cada integrante del equipo debe tener nombre");
+      return;
+    }
+
     setLoading(true);
 
     const effectiveStartDate =
@@ -544,6 +586,14 @@ export function NuevoEstudianteForm({
     };
     if (initialEnrollment) {
       body.initialEnrollment = initialEnrollment;
+    }
+    if (members.length > 0) {
+      body.members = members.map((m) => ({
+        fullName: m.fullName.trim(),
+        email: m.email.trim() ? m.email.trim() : null,
+        phone: m.phone.trim() ? m.phone.trim() : null,
+        isContractSigner: m.isContractSigner,
+      }));
     }
 
     try {
@@ -808,6 +858,108 @@ export function NuevoEstudianteForm({
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+      </section>
+
+      <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Equipo / integrantes (opcional)
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Agrega hasta {MAX_ADDITIONAL_MEMBERS} integrantes adicionales
+              (equipo de hasta {MAX_ADDITIONAL_MEMBERS + 1} contando al titular).
+              El titular firma el contrato por defecto; marca “Firma contrato” en
+              los integrantes que también deban firmarlo.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={addMember}
+            disabled={members.length >= MAX_ADDITIONAL_MEMBERS}
+            className="shrink-0 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            + Agregar integrante
+          </button>
+        </div>
+
+        {members.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            Sin integrantes adicionales. El estudiante titular entra solo.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {members.map((member, index) => (
+              <div
+                key={index}
+                className="rounded-md border border-slate-200 p-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-slate-700">
+                    Integrante {index + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeMember(index)}
+                    className="text-xs font-medium text-rose-600 hover:text-rose-700 hover:underline"
+                  >
+                    Quitar
+                  </button>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-1">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Nombre <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      value={member.fullName}
+                      onChange={(e) =>
+                        updateMember(index, "fullName", e.target.value)
+                      }
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Correo
+                    </label>
+                    <input
+                      type="email"
+                      value={member.email}
+                      onChange={(e) =>
+                        updateMember(index, "email", e.target.value)
+                      }
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Teléfono
+                    </label>
+                    <input
+                      value={member.phone}
+                      onChange={(e) =>
+                        updateMember(index, "phone", e.target.value)
+                      }
+                      placeholder="+573001234567"
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={member.isContractSigner}
+                    onChange={(e) =>
+                      updateMember(index, "isContractSigner", e.target.checked)
+                    }
+                  />
+                  Firma contrato
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">

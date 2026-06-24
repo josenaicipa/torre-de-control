@@ -18,15 +18,21 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+export interface SignerOption {
+  id: string;
+  name: string;
+}
+
 export function SignForm({
   token,
-  defaultName,
+  signerOptions,
 }: {
   token: string;
-  defaultName: string;
+  signerOptions: SignerOption[];
 }) {
   const router = useRouter();
-  const [name, setName] = useState(defaultName);
+  const [signerId, setSignerId] = useState(signerOptions[0]?.id ?? "student");
+  const [name, setName] = useState(signerOptions[0]?.name ?? "");
   const [accepted, setAccepted] = useState(false);
   const [signatureImage, setSignatureImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +73,13 @@ export function SignForm({
     }
   }
 
+  function onSignerChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const id = event.target.value;
+    setSignerId(id);
+    const option = signerOptions.find((o) => o.id === id);
+    if (option) setName(option.name);
+  }
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -88,6 +101,7 @@ export function SignForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          signerId,
           signerName: name.trim(),
           accepted,
           signatureImage,
@@ -110,6 +124,23 @@ export function SignForm({
     <form onSubmit={onSubmit} className="mt-5 space-y-4">
       {error && (
         <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>
+      )}
+
+      {signerOptions.length > 1 && (
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">¿Quién firma ahora?</span>
+          <select
+            value={signerId}
+            onChange={onSignerChange}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          >
+            {signerOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.name}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
       <label className="block">

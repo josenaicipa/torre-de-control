@@ -92,6 +92,20 @@ export async function POST(req: Request) {
     }
 
     const initialEnrollment = body.initialEnrollment ?? null;
+    const members = body.members ?? [];
+
+    // Firmantes adicionales del contrato interno. Si ningún integrante se marca
+    // como firmante, el titular Student queda como único firmante (la firma del
+    // titular vive a nivel de inscripción), preservando el flujo individual. Si
+    // hay integrantes marcados, esos firmantes adicionales quedan habilitados.
+    const memberData = members.map((member) => ({
+      fullName: member.fullName,
+      email: member.email ?? null,
+      phone: member.phone ?? null,
+      isPrimaryContact: member.isPrimaryContact ?? false,
+      isContractSigner: member.isContractSigner,
+      contractSignerName: member.isContractSigner ? member.fullName : null,
+    }));
 
     // Pre-validate the enrollment payload *before* opening the transaction so
     // a bad product / account / installment plan fails fast without leaving a
@@ -129,12 +143,22 @@ export async function POST(req: Request) {
       closerUser: { select: { id: true, name: true, email: true } },
     } as const;
 
-    const { student, enrollment, createdPaymentId } = await prisma.$transaction(
-      async (tx) => {
+    const { student, enrollment, createdPaymentId, createdMembers } =
+      await prisma.$transaction(async (tx) => {
         const created = await tx.student.create({
           data: studentData,
           include: studentInclude,
         });
+
+        const teamMembers = memberData.length
+          ? await Promise.all(
+              memberData.map((data) =>
+                tx.studentMember.create({
+                  data: { ...data, studentId: created.id },
+                }),
+              ),
+            )
+          : [];
 
         if (!initialEnrollment || !validatedEnrollment) {
           return {
@@ -143,6 +167,7 @@ export async function POST(req: Request) {
               | Awaited<ReturnType<typeof createValidatedEnrollmentInTx>>["enrollment"]
               | null,
             createdPaymentId: null as string | null,
+            createdMembers: teamMembers,
           };
         }
 
@@ -157,9 +182,9 @@ export async function POST(req: Request) {
           student: created,
           enrollment: result.enrollment,
           createdPaymentId: result.createdPaymentId,
+          createdMembers: teamMembers,
         };
-      },
-    );
+      });
 
     await writeAudit({
       actorId: actor.userId,
@@ -170,6 +195,9 @@ export async function POST(req: Request) {
         mentorUserId: student.mentorUserId,
         closerUserId: student.closerUserId,
         withInitialEnrollment: Boolean(enrollment),
+        memberCount: createdMembers.length,
+        additionalSignerCount: createdMembers.filter((m) => m.isContractSigner)
+          .length,
       },
     });
 
@@ -193,10 +221,11 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json(
-      enrollment ? { student, enrollment } : { student },
-      { status: 201 },
-    );
+    const responseBody: Record<string, unknown> = { student };
+    if (enrollment) responseBody.enrollment = enrollment;
+    if (createdMembers.length) responseBody.members = createdMembers;
+
+    return NextResponse.json(responseBody, { status: 201 });
   } catch (err) {
     if (err instanceof EnrollmentValidationError) {
       return jsonError(err.status, err.message);
