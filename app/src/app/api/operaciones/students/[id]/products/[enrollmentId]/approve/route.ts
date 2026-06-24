@@ -17,7 +17,6 @@ import {
   findMissingContractFields,
 } from "@/lib/operaciones-contract";
 import { getJoseSignature } from "@/lib/operaciones-settings";
-import { evaluateApprovalGate } from "@/lib/operaciones-signature-flow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,8 +62,6 @@ export async function POST(_req: Request, { params }: Params) {
         ...contractEnrollmentSelect,
         studentId: true,
         installmentCount: true,
-        docusealSubmissionId: true,
-        signatureFlowStatus: true,
         product: {
           select: { id: true, name: true, requiresInitialPayment: true },
         },
@@ -74,25 +71,6 @@ export async function POST(_req: Request, { params }: Params) {
     });
     if (!enrollment || enrollment.studentId !== id) {
       return jsonError(404, "Inscripción no encontrada para este estudiante");
-    }
-
-    // Gate DocuSeal: solo bloquea inscripciones que entraron al flujo de firma
-    // electrónica (tienen submission o un estado distinto de NOT_SENT). Las
-    // inscripciones legacy/manuales que nunca usaron DocuSeal no se gatean aquí
-    // y siguen el camino de aprobación tradicional de abajo.
-    const inDocusealFlow =
-      enrollment.docusealSubmissionId != null ||
-      enrollment.signatureFlowStatus !== "NOT_SENT";
-    const gate = evaluateApprovalGate({
-      inDocusealFlow,
-      signatureFlowStatus: enrollment.signatureFlowStatus,
-    });
-    if (!gate.allowed) {
-      return jsonError(
-        400,
-        gate.reason ??
-          "El flujo de firma DocuSeal no está completo; no se puede liberar LearnWorlds",
-      );
     }
 
     // El contrato se considera firmado por el estudiante tanto en SIGNED como

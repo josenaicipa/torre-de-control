@@ -98,16 +98,6 @@ interface Enrollment {
   contractApprovedAt: string | null;
   contractRejectedAt: string | null;
   contractRejectionReason: string | null;
-  // DocuSeal-driven electronic signature flow (fuente de verdad de la firma).
-  signatureFlowStatus: SignatureFlowStatus;
-  docusealStatus: string | null;
-  docusealSubmissionId: string | null;
-  studentSignedAt: string | null;
-  companySignedAt: string | null;
-  docusealCompletedAt: string | null;
-  signedPdfStoredAt: string | null;
-  signedPdfDriveUrl: string | null;
-  signedPdfDriveUploadError: string | null;
   learnWorldsSyncStatus: string;
   learnWorldsSyncError: string | null;
   notes: string | null;
@@ -126,28 +116,6 @@ interface ContractSectionFormItem {
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
 type InstallmentFrequency = "monthly" | "biweekly";
 type ContractTemplateKind = "TRADITIONAL" | "BUSINESS";
-type SignatureFlowStatus =
-  | "NOT_SENT"
-  | "PENDING_SIGNATURES"
-  | "STUDENT_SIGNED"
-  | "COMPLETED"
-  | "PDF_STORED"
-  | "DRIVE_UPLOADED"
-  | "DOCUSEAL_ERROR"
-  | "DRIVE_ERROR";
-
-// Espeja SIGNATURE_FLOW_LABELS del backend (operaciones-signature-flow.ts) con
-// el tono del badge para la línea de tiempo de la firma electrónica DocuSeal.
-const SIGNATURE_FLOW_LABEL: Record<SignatureFlowStatus, [string, string]> = {
-  NOT_SENT: ["Sin enviar a DocuSeal", "bg-slate-100 text-slate-700"],
-  PENDING_SIGNATURES: ["Pendiente de firmas", "bg-amber-100 text-amber-700"],
-  STUDENT_SIGNED: ["Firmado por estudiante", "bg-sky-100 text-sky-700"],
-  COMPLETED: ["Firma completa", "bg-sky-100 text-sky-700"],
-  PDF_STORED: ["PDF firmado guardado", "bg-indigo-100 text-indigo-700"],
-  DRIVE_UPLOADED: ["PDF en Drive", "bg-emerald-100 text-emerald-700"],
-  DOCUSEAL_ERROR: ["Error DocuSeal", "bg-rose-100 text-rose-700"],
-  DRIVE_ERROR: ["Error Drive", "bg-rose-100 text-rose-700"],
-};
 
 const CONTRACT_TEMPLATE_KIND_LABEL: Record<ContractTemplateKind, string> = {
   TRADITIONAL: "Tradicional",
@@ -348,26 +316,18 @@ function EnrollmentCard({
     CONTRACT_STATUS_LABEL[enrollment.contractStatus];
   const initialPayments = enrollment.payments.filter((p) => p.isInitialPayment);
 
-  type CardAction =
-    | "approve"
-    | "retry-lw"
-    | "contract-test"
-    | "contract/docuseal/send"
-    | "contract/drive/retry";
+  type CardAction = "approve" | "retry-lw" | "contract-test";
 
   const [actionLoading, setActionLoading] = useState<CardAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showClausesEditor, setShowClausesEditor] = useState(false);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
-  const [showLegacyTools, setShowLegacyTools] = useState(false);
 
   const ACTION_ERROR_LABEL: Record<CardAction, string> = {
     approve: "No se pudo aprobar el contrato",
     "retry-lw": "No se pudo reintentar la sincronización con LearnWorlds",
     "contract-test": "No se pudo crear el contrato",
-    "contract/docuseal/send": "No se pudo enviar el contrato a DocuSeal",
-    "contract/drive/retry": "No se pudo reintentar la subida a Drive",
   };
 
   async function runAction(
@@ -498,26 +458,6 @@ function EnrollmentCard({
       enrollment.contractStatus === "PENDING_APPROVAL");
   const pdfUrl = `/api/operaciones/students/${studentId}/products/${enrollment.id}/contract-pdf`;
 
-  // ─── Flujo de firma electrónica DocuSeal (fuente de verdad) ─────────────────
-  // El flujo manual antiguo (link de prueba/firma interna) se minimiza una vez
-  // que la inscripción entra a DocuSeal: signatureFlowStatus != NOT_SENT.
-  const flowStatus = enrollment.signatureFlowStatus ?? "NOT_SENT";
-  const inDocusealFlow = flowStatus !== "NOT_SENT";
-  const [flowLabel, flowTone] = SIGNATURE_FLOW_LABEL[flowStatus];
-  // Enviar a DocuSeal: disponible mientras no esté aprobado ni ya firmado/guardado.
-  const canSendDocuseal =
-    canWrite &&
-    enrollment.contractStatus !== "APPROVED" &&
-    flowStatus !== "COMPLETED" &&
-    flowStatus !== "PDF_STORED" &&
-    flowStatus !== "DRIVE_UPLOADED";
-  // Reintentar Drive: hay PDF firmado guardado pero aún no subido (o falló).
-  const canRetryDrive =
-    canWrite && (flowStatus === "DRIVE_ERROR" || flowStatus === "PDF_STORED");
-  // Herramientas legacy/desarrollo: el link de firma interno se conserva para
-  // recuperación manual, pero se esconde tras un disclosure cuando ya hay DocuSeal.
-  const hasLegacyTools = canCreateTestContract || hasSignLink;
-
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -536,7 +476,6 @@ function EnrollmentCard({
                 enrollment.contractTemplateKind ?? "TRADITIONAL"
               ]}
             </Badge>
-            {inDocusealFlow && <Badge tone={flowTone}>Firma: {flowLabel}</Badge>}
           </div>
           <p className="mt-1 text-xs text-slate-500">
             Inicio: {enrollment.startedAt.slice(0, 10)}
@@ -590,8 +529,6 @@ function EnrollmentCard({
 
       {(canApprove ||
         canRetryLw ||
-        canSendDocuseal ||
-        canRetryDrive ||
         canCreateTestContract ||
         canEditContractClauses ||
         canChangeContractTemplate ||
@@ -599,33 +536,7 @@ function EnrollmentCard({
         canDownloadPdf ||
         pdfPendingJoseSignature) && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {canSendDocuseal && (
-            <button
-              type="button"
-              onClick={() => void runAction("contract/docuseal/send")}
-              disabled={actionLoading !== null}
-              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium !text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {actionLoading === "contract/docuseal/send"
-                ? "Enviando a DocuSeal..."
-                : inDocusealFlow
-                  ? "Reenviar contrato a DocuSeal"
-                  : "Enviar contrato a DocuSeal"}
-            </button>
-          )}
-          {canRetryDrive && (
-            <button
-              type="button"
-              onClick={() => void runAction("contract/drive/retry")}
-              disabled={actionLoading !== null}
-              className="rounded-md border border-emerald-300 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-            >
-              {actionLoading === "contract/drive/retry"
-                ? "Subiendo a Drive..."
-                : "Reintentar subida a Drive"}
-            </button>
-          )}
-          {!inDocusealFlow && canCreateTestContract && (
+          {canCreateTestContract && (
             <button
               type="button"
               onClick={() => void runAction("contract-test")}
@@ -657,7 +568,7 @@ function EnrollmentCard({
               Cambiar tipo de contrato
             </button>
           )}
-          {!inDocusealFlow && hasSignLink && (
+          {hasSignLink && (
             <>
               <button
                 type="button"
@@ -723,79 +634,6 @@ function EnrollmentCard({
 
       {actionError && (
         <p className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{actionError}</p>
-      )}
-
-      {flowStatus === "DRIVE_ERROR" && enrollment.signedPdfDriveUploadError && (
-        <p className="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-          Error subiendo el PDF firmado a Drive: {enrollment.signedPdfDriveUploadError}. El PDF
-          firmado está guardado en Torre; usa «Reintentar subida a Drive».
-        </p>
-      )}
-
-      {flowStatus === "DRIVE_UPLOADED" && enrollment.signedPdfDriveUrl && (
-        <p className="mt-2 text-xs text-slate-500">
-          PDF firmado en Drive:{" "}
-          <a
-            href={enrollment.signedPdfDriveUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
-          >
-            abrir en Google Drive
-          </a>
-        </p>
-      )}
-
-      {inDocusealFlow && hasLegacyTools && (
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={() => setShowLegacyTools((prev) => !prev)}
-            className="text-xs font-medium text-slate-400 hover:text-slate-600"
-          >
-            {showLegacyTools ? "Ocultar" : "Mostrar"} herramientas legacy / desarrollo
-          </button>
-          {showLegacyTools && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-dashed border-slate-200 bg-slate-50 p-2">
-              <span className="text-xs text-slate-400">
-                Link de firma interno (legacy, solo recuperación manual):
-              </span>
-              {canCreateTestContract && (
-                <button
-                  type="button"
-                  onClick={() => void runAction("contract-test")}
-                  disabled={actionLoading !== null}
-                  className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-white disabled:opacity-50"
-                >
-                  {actionLoading === "contract-test"
-                    ? "Generando..."
-                    : hasSignLink
-                      ? "Regenerar link legacy"
-                      : "Crear link legacy"}
-                </button>
-              )}
-              {hasSignLink && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void copySignLink()}
-                    className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-white"
-                  >
-                    {copied ? "¡Link copiado!" : "Copiar link legacy"}
-                  </button>
-                  <a
-                    href={enrollment.contractUrl ?? "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-white"
-                  >
-                    Abrir link legacy
-                  </a>
-                </>
-              )}
-            </div>
-          )}
-        </div>
       )}
 
       {contractClausesLocked && (
