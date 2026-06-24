@@ -1,0 +1,188 @@
+// Runtime-safe (plain ESM) mirror of the canonical Operaciones default catalog
+// defined in `src/lib/operaciones-default-config.ts`.
+//
+// Why a second copy: the production runner image ships only `scripts/`,
+// `prisma/` and `node_modules/` (see Dockerfile), never `src/`, and it has no
+// `tsx` (devDeps are pruned). The boot-time seed therefore cannot import the
+// `.ts` source, so the data lives here too. A parity test
+// (`src/lib/operaciones-default-config.parity.test.ts`) asserts both files stay
+// byte-for-byte equal in value, so editing one without the other fails CI.
+
+export const defaultOperacionesProducts = [
+  {
+    name: "Nivel 3 · Dropshipping Total Guiado",
+    slug: "nivel-3-dropshipping-total-guiado",
+    description:
+      "Programa principal Nivel 3. Accesos LearnWorlds: nivel3-dropshipping-total-guiado + clases-avanzadas.",
+    basePriceUsd: 750,
+    currency: "USD",
+    saleLimit: "ONE_PER_STUDENT",
+    allowsInstallments: true,
+    requiresInitialPayment: true,
+    generatesCommission: true,
+    defaultCommissionPercent: 0,
+    isMainProduct: true,
+    isActive: true,
+    programLevel: 3,
+    displayOrder: 1,
+    contractDisplayName: "Dropshipping Total Guiado",
+    includesAdvancedClasses: true,
+  },
+  {
+    name: "Nivel 4 · Mentoría VIP 1:1 Dropshipping",
+    slug: "nivel-4-mentoria-vip-1-1-dropshipping",
+    description:
+      "Programa principal Nivel 4. Accesos LearnWorlds: nivel5 + clases-avanzadas.",
+    basePriceUsd: 3000,
+    currency: "USD",
+    saleLimit: "ONE_PER_STUDENT",
+    allowsInstallments: true,
+    requiresInitialPayment: true,
+    generatesCommission: true,
+    defaultCommissionPercent: 0,
+    isMainProduct: true,
+    isActive: true,
+    programLevel: 4,
+    displayOrder: 2,
+    contractDisplayName: "Mentoría VIP 1:1 Dropshipping",
+    includesAdvancedClasses: true,
+  },
+  {
+    name: "Nivel 5 · Mentoría FUNDADORES 1:1 Dropshipping",
+    slug: "nivel-5-mentoria-fundadores-1-1-dropshipping",
+    description:
+      "Programa principal Nivel 5. Accesos LearnWorlds: nivel5-fundadores-1-1 + clases-avanzadas.",
+    basePriceUsd: 5000,
+    currency: "USD",
+    saleLimit: "ONE_PER_STUDENT",
+    allowsInstallments: true,
+    requiresInitialPayment: true,
+    generatesCommission: true,
+    defaultCommissionPercent: 0,
+    isMainProduct: true,
+    isActive: true,
+    programLevel: 5,
+    displayOrder: 3,
+    contractDisplayName: "Mentoría FUNDADORES 1:1 Dropshipping",
+    includesAdvancedClasses: true,
+  },
+  {
+    name: "Mentoría principal (legacy)",
+    slug: "mentoria-principal",
+    description:
+      "Producto principal histórico, interpretado como Nivel 4. Conservado inactivo para no romper inscripciones previas; las nuevas ventas usan los programas Nivel 3/4/5.",
+    basePriceUsd: 0,
+    currency: "USD",
+    saleLimit: "ONE_PER_STUDENT",
+    allowsInstallments: true,
+    requiresInitialPayment: true,
+    generatesCommission: true,
+    defaultCommissionPercent: 0,
+    isMainProduct: false,
+    isActive: false,
+    programLevel: 4,
+    displayOrder: 99,
+    contractDisplayName: null,
+    includesAdvancedClasses: true,
+  },
+  {
+    name: "Marca Propia",
+    slug: "marca-propia",
+    description: "Producto adicional sin comisión. Valor base 1000 USD, máximo una venta activa por estudiante.",
+    basePriceUsd: 1000,
+    currency: "USD",
+    saleLimit: "ONE_PER_STUDENT",
+    allowsInstallments: true,
+    requiresInitialPayment: true,
+    generatesCommission: false,
+    defaultCommissionPercent: 0,
+    isMainProduct: false,
+    isActive: true,
+    programLevel: null,
+    displayOrder: 100,
+    contractDisplayName: null,
+    includesAdvancedClasses: false,
+  },
+];
+
+export const defaultOperacionesTags = [
+  {
+    name: "Separó cupo",
+    slug: "separo-cupo",
+    description: "Estudiante con separación/abono inicial registrado.",
+    color: "#f59e0b",
+    isAutomatic: true,
+    allowAutomaticAssignment: true,
+    isActive: true,
+  },
+  {
+    name: "Sin acceso",
+    slug: "sin-acceso",
+    description: "Estudiante sin acceso activo en LearnWorlds.",
+    color: "#ef4444",
+    isAutomatic: true,
+    allowAutomaticAssignment: true,
+    isActive: true,
+  },
+  {
+    name: "No inició",
+    slug: "no-inicio",
+    description: "Estudiante activo o separado cuya mentoría aún no inicia.",
+    color: "#6366f1",
+    isAutomatic: true,
+    allowAutomaticAssignment: true,
+    isActive: true,
+  },
+];
+
+export const defaultLearnWorldsAccessPlaceholders = [
+  {
+    productSlug: "nivel-3-dropshipping-total-guiado",
+    accessType: "COURSE",
+    lwDisplayName: "Nivel 3 · Dropshipping Total Guiado",
+    lwExternalId: "nivel3-dropshipping-total-guiado",
+    isActive: true,
+  },
+  {
+    productSlug: "nivel-3-dropshipping-total-guiado",
+    accessType: "COURSE",
+    lwDisplayName: "Clases avanzadas",
+    lwExternalId: "clases-avanzadas",
+    isActive: true,
+  },
+  {
+    productSlug: "nivel-4-mentoria-vip-1-1-dropshipping",
+    accessType: "COURSE",
+    lwDisplayName: "Nivel 5",
+    lwExternalId: "nivel5",
+    isActive: true,
+  },
+  {
+    productSlug: "nivel-4-mentoria-vip-1-1-dropshipping",
+    accessType: "COURSE",
+    lwDisplayName: "Clases avanzadas",
+    lwExternalId: "clases-avanzadas",
+    isActive: true,
+  },
+  {
+    productSlug: "nivel-5-mentoria-fundadores-1-1-dropshipping",
+    accessType: "COURSE",
+    lwDisplayName: "Nivel 5 · Fundadores 1:1",
+    lwExternalId: "nivel5-fundadores-1-1",
+    isActive: true,
+  },
+  {
+    productSlug: "nivel-5-mentoria-fundadores-1-1-dropshipping",
+    accessType: "COURSE",
+    lwDisplayName: "Clases avanzadas",
+    lwExternalId: "clases-avanzadas",
+    isActive: true,
+  },
+  {
+    productSlug: "marca-propia",
+    accessType: "COURSE",
+    lwDisplayName: "Marca Propia",
+    lwExternalId: null,
+    isActive: true,
+  },
+];

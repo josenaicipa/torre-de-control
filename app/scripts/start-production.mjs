@@ -40,6 +40,26 @@ function runMigrations() {
   }
 }
 
+function runOperacionesCatalogSeed() {
+  // Ensure the default Operaciones catalog (N3/N4/N5 programs + LW configs)
+  // exists in the deployed DB. Idempotent and strictly additive, so a failure
+  // here must not block serving traffic — log and continue.
+  console.log("[start-production] ensuring Operaciones default catalog");
+  const result = spawnSync("node", ["scripts/seed-operaciones-catalog.mjs"], {
+    stdio: "inherit",
+    env: process.env,
+    shell: isWindows,
+  });
+
+  if (result.error) {
+    console.error("[start-production] failed to spawn catalog seed:", result.error.message);
+    return;
+  }
+  if ((result.status ?? 0) !== 0) {
+    console.error(`[start-production] catalog seed exited with code ${result.status}; continuing startup`);
+  }
+}
+
 function runAdminBootstrap() {
   if (!process.env.TORRE_ADMIN_EMAIL && !process.env.TORRE_ADMIN_PASSWORD) {
     console.log("[start-production] admin bootstrap not configured — skipping");
@@ -154,6 +174,7 @@ function startNext() {
 
 if (databaseIsConfigured()) {
   runMigrations();
+  runOperacionesCatalogSeed();
   runAdminBootstrap();
   runAutoAdSpendSync();
   runDailyImport();
