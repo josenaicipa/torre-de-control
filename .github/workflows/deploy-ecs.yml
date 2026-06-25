@@ -23,6 +23,9 @@ on:
         description: AWS region of the stack
         required: true
         default: us-east-1
+      n8n_torre_webhook_secret:
+        description: Optional one-time N8N_TORRE_WEBHOOK_SECRET seed; leave empty to preserve existing task env/repo secret.
+        required: false
 
 concurrency:
   group: torre-de-control-ecs
@@ -138,8 +141,32 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
           TASK_DEF_ARN: ${{ steps.stack.outputs.task_def_arn }}
           IMAGE_URI: ${{ steps.image.outputs.image_uri }}
+          N8N_TORRE_WEBHOOK_SECRET_REPO: ${{ secrets.N8N_TORRE_WEBHOOK_SECRET }}
+          N8N_TORRE_WEBHOOK_SECRET_INPUT: ${{ github.event.inputs.n8n_torre_webhook_secret || '' }}
         run: |
           set -euo pipefail
+          # Decide whether to (re)seed N8N_TORRE_WEBHOOK_SECRET into the task
+          # definition. The repo secret may not exist (the available PAT can't
+          # create Actions secrets), so we never assume it's present.
+          # Priority: workflow_dispatch input > repo secret > preserve existing.
+          # Never print the value itself.
+          if [[ -n "${N8N_TORRE_WEBHOOK_SECRET_INPUT:-}" ]]; then
+            N8N_SECRET_TO_SET="${N8N_TORRE_WEBHOOK_SECRET_INPUT}"
+            echo "Using N8N_TORRE_WEBHOOK_SECRET from workflow_dispatch input."
+          elif [[ -n "${N8N_TORRE_WEBHOOK_SECRET_REPO:-}" ]]; then
+            N8N_SECRET_TO_SET="${N8N_TORRE_WEBHOOK_SECRET_REPO}"
+            echo "Using N8N_TORRE_WEBHOOK_SECRET from repo secret."
+          else
+            N8N_SECRET_TO_SET=""
+            echo "No N8N_TORRE_WEBHOOK_SECRET input/repo secret; preserving existing task env if present."
+          fi
+
+          # If a value is provided, enforce the minimum length without printing it.
+          if [[ -n "${N8N_SECRET_TO_SET}" && ${#N8N_SECRET_TO_SET} -lt 16 ]]; then
+            echo "N8N_TORRE_WEBHOOK_SECRET is too short (must be >= 16 chars)." >&2
+            exit 1
+          fi
+
           # Take the stack-managed task definition, swap only the container
           # image, and register a new revision. CloudFormation still owns the
           # base definition; this revision is a roll-forward to the new image.
@@ -148,8 +175,19 @@ jobs:
             --task-definition "${TASK_DEF_ARN}" \
             --query 'taskDefinition' --output json > current-taskdef.json
 
-          jq --arg IMAGE "${IMAGE_URI}" '
+          # Only upsert N8N_TORRE_WEBHOOK_SECRET when we have a value to set.
+          # When empty, leave the environment untouched so any value already in
+          # the current task definition is preserved across deploys.
+          jq --arg IMAGE "${IMAGE_URI}" \
+             --arg N8N_SECRET "${N8N_SECRET_TO_SET}" '
             .containerDefinitions[0].image = $IMAGE
+            | (if $N8N_SECRET != "" then
+                .containerDefinitions[0].environment = (
+                  (.containerDefinitions[0].environment // [])
+                  | map(select(.name != "N8N_TORRE_WEBHOOK_SECRET"))
+                  + [{ name: "N8N_TORRE_WEBHOOK_SECRET", value: $N8N_SECRET }]
+                )
+              else . end)
             | {
                 family,
                 taskRoleArn,

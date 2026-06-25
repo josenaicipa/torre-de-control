@@ -69,6 +69,13 @@ Parameters:
     NoEcho: true
     Description: Application signing secret (AUTH_SECRET). Never logged.
 
+  N8nTorreWebhookSecret:
+    Type: String
+    NoEcho: true
+    Description: >-
+      Shared secret for the n8n -> Torre integration webhooks
+      (N8N_TORRE_WEBHOOK_SECRET). Never logged.
+
   ImportPaymentTransactionsOnStart:
     Type: String
     Default: "1"
@@ -272,6 +279,8 @@ Resources:
               Value: !Ref DatabaseUrl
             - Name: AUTH_SECRET
               Value: !Ref AuthSecret
+            - Name: N8N_TORRE_WEBHOOK_SECRET
+              Value: !Ref N8nTorreWebhookSecret
             - Name: IMPORT_PAYMENT_TRANSACTIONS_ON_START
               Value: !Ref ImportPaymentTransactionsOnStart
           LogConfiguration:

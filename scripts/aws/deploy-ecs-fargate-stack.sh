@@ -7,9 +7,10 @@
 # environment and passed straight to CloudFormation as NoEcho parameters.
 #
 # Required environment:
-#   CONTAINER_IMAGE   Full ECR image URI to run (…/torre-de-control-v2:<sha>)
-#   DATABASE_URL      RDS PostgreSQL connection string
-#   AUTH_SECRET       Application signing secret (>= 32 chars)
+#   CONTAINER_IMAGE          Full ECR image URI to run (…/torre-de-control-v2:<sha>)
+#   DATABASE_URL             RDS PostgreSQL connection string
+#   AUTH_SECRET              Application signing secret (>= 32 chars)
+#   N8N_TORRE_WEBHOOK_SECRET Shared secret for the n8n -> Torre integration webhooks
 #
 # Optional overrides (defaults from discovered prod values):
 #   AWS_REGION                  default us-east-1
@@ -57,6 +58,7 @@ require_nonempty() {
 require_nonempty CONTAINER_IMAGE
 require_nonempty DATABASE_URL
 require_nonempty AUTH_SECRET
+require_nonempty N8N_TORRE_WEBHOOK_SECRET
 
 [[ -f "${TEMPLATE_FILE}" ]] || fail "template not found: ${TEMPLATE_FILE}"
 
@@ -92,6 +94,7 @@ else
 fi
 echo "  DATABASE_URL:   [provided, not shown]"
 echo "  AUTH_SECRET:    [provided, not shown]"
+echo "  N8N_TORRE_WEBHOOK_SECRET: [provided, not shown]"
 
 # Secrets are passed as parameter overrides but never printed. Avoid `set -x`.
 aws cloudformation deploy \
@@ -112,6 +115,7 @@ aws cloudformation deploy \
     "Memory=${MEMORY}" \
     "DatabaseUrl=${DATABASE_URL}" \
     "AuthSecret=${AUTH_SECRET}" \
+    "N8nTorreWebhookSecret=${N8N_TORRE_WEBHOOK_SECRET}" \
     "ImportPaymentTransactionsOnStart=${IMPORT_PAYMENT_TRANSACTIONS_ON_START}" \
     "HealthCheckPath=${HEALTH_CHECK_PATH}" \
     "AcmCertificateArn=${ACM_CERTIFICATE_ARN}"
