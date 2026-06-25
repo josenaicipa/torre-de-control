@@ -22,6 +22,8 @@ const PUBLIC_API = new Set<string>([
 // authorization, so these must be reachable without a session.
 const PUBLIC_API_PREFIXES = [
   "/api/contratos/firmar/",
+  // Webhooks de n8n: el secreto compartido se valida dentro del route handler.
+  "/api/integrations/n8n/",
 ];
 
 export function isPublic(pathname: string): boolean {

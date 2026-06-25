@@ -28,4 +28,9 @@ describe("proxy public-route gate", () => {
     expect(source).not.toContain('"/api/contratos/"');
     expect(source).not.toContain('"/api/contratos/crear"');
   });
+
+  it("keeps the n8n webhook prefix public and documents its purpose", () => {
+    expect(source).toContain('"/api/integrations/n8n/"');
+    expect(source).toContain("Webhooks de n8n");
+  });
 });
