@@ -9,7 +9,7 @@ import { PagosTab } from "./pagos-tab";
 import { MetricasTab } from "./metricas-tab";
 import { ProductosTab } from "./productos-tab";
 import { DeleteStudentButton } from "../delete-student-button";
-import { LegalDataForm } from "./legal-data-form";
+import { StudentDataEditForm } from "./student-data-edit-form";
 import { studentStatusLabel } from "@/lib/student-status";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +62,28 @@ export default async function StudentDetailPage({
   if (!student) notFound();
   if (!canAccessStudent(actor, student.mentorUserId)) notFound();
   const canWritePayments = actor.role === "ADMIN" || actor.role === "OPERATOR";
+
+  // Listas para los selects de mentor/closer en el editor de datos (mismo
+  // criterio que el formulario de creación de estudiante). Sólo se necesitan
+  // cuando el actor puede editar y está viendo la pestaña Info.
+  const [mentors, closers] =
+    canWritePayments && activeTab === "info"
+      ? await Promise.all([
+          prisma.user.findMany({
+            where: { role: "MENTOR", active: true },
+            select: { id: true, name: true, email: true },
+            orderBy: { name: "asc" },
+          }),
+          prisma.user.findMany({
+            where: {
+              active: true,
+              OR: [{ position: "CLOSER" }, { position: "ADMIN" }],
+            },
+            select: { id: true, name: true, email: true, position: true },
+            orderBy: { name: "asc" },
+          }),
+        ])
+      : [[], []];
   const canWriteProgress =
     actor.role === "ADMIN" ||
     actor.role === "OPERATOR" ||
@@ -132,7 +154,12 @@ export default async function StudentDetailPage({
       ) : (
         <div className="rounded-lg border border-slate-200 bg-white p-6">
           {activeTab === "info" && (
-            <InfoTab student={student} canWriteLegal={canWritePayments} />
+            <InfoTab
+              student={student}
+              canWriteLegal={canWritePayments}
+              mentors={mentors}
+              closers={closers}
+            />
           )}
           {activeTab !== "info" && (
           <p className="text-sm text-slate-500">
@@ -148,14 +175,19 @@ export default async function StudentDetailPage({
 function InfoTab({
   student,
   canWriteLegal,
+  mentors,
+  closers,
 }: {
   student: {
     id: string;
     fullName: string;
     email: string;
     phone: string | null;
+    startDate: Date;
     durationMonths: number;
     status: string;
+    mentorUserId: string | null;
+    closerUserId: string | null;
     legalName: string | null;
     documentType: string | null;
     documentNumber: string | null;
@@ -169,6 +201,8 @@ function InfoTab({
     closerUser: { name: string | null; email: string } | null;
   };
   canWriteLegal: boolean;
+  mentors: { id: string; name: string | null; email: string }[];
+  closers: { id: string; name: string | null; email: string; position: string }[];
 }) {
   return (
     <>
@@ -236,11 +270,23 @@ function InfoTab({
       </dl>
 
       {canWriteLegal && (
-        <LegalDataForm
+        <StudentDataEditForm
           studentId={student.id}
+          mentors={mentors}
+          closers={closers}
           initial={{
-            legalName: student.legalName,
+            fullName: student.fullName,
+            email: student.email,
             phone: student.phone,
+            startDate: student.startDate.toISOString().slice(0, 10),
+            durationMonths: student.durationMonths,
+            mentorUserId: student.mentorUserId,
+            closerUserId: student.closerUserId,
+            status: student.status,
+            notes: student.notes,
+            personality: student.personality,
+            ghlContactId: student.ghlContactId,
+            legalName: student.legalName,
             documentType: student.documentType,
             documentNumber: student.documentNumber,
             legalAddress: student.legalAddress,
