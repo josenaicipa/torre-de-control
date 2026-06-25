@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useExchangeRate } from "../_lib/use-exchange-rate";
 import { ExchangeRateStatusLine } from "../_lib/exchange-rate-status";
 import { MoneyInput } from "../_lib/money-input";
+import {
+  buildUpgradeAmounts,
+  calculateUpgradeCredit,
+  canUpgradeToLevel,
+} from "@/lib/operaciones-upgrade";
 
 type Numeric = string | number;
 
@@ -30,7 +35,15 @@ interface Product {
   defaultCommissionPercent: Numeric;
   isMainProduct: boolean;
   isActive: boolean;
+  programLevel: number | null;
   learnWorldsAccessConfigs: LearnWorldsAccessConfig[];
+}
+
+interface UpgradeOrigin {
+  id: string;
+  productNameSnapshot: string | null;
+  programLevelSnapshot: number | null;
+  product: { name: string; programLevel: number | null } | null;
 }
 
 interface PaymentAccount {
@@ -102,6 +115,12 @@ interface Enrollment {
   learnWorldsSyncError: string | null;
   notes: string | null;
   createdAt: string;
+  programLevelSnapshot: number | null;
+  upgradeFromEnrollmentId: string | null;
+  grossProgramPriceUsd: Numeric | null;
+  upgradeCreditUsd: Numeric | null;
+  netAmountUsd: Numeric | null;
+  upgradeFromEnrollment: UpgradeOrigin | null;
   product: Product;
   payments: EnrollmentPayment[];
   paymentSchedules: EnrollmentSchedule[];
@@ -288,6 +307,7 @@ export function ProductosTab({
           studentId={studentId}
           products={products}
           paymentAccounts={paymentAccounts}
+          enrollments={enrollments}
           onCancel={() => setShowForm(false)}
           onSaved={() => {
             setShowForm(false);
@@ -673,6 +693,27 @@ function EnrollmentCard({
       )}
 
       <JoseSignatureHint contractStatus={enrollment.contractStatus} canWrite={canWrite} />
+
+      {enrollment.upgradeFromEnrollmentId && (
+        <div className="mt-3 rounded-md border border-indigo-200 bg-indigo-50/50 px-3 py-2 text-xs text-slate-700">
+          <p className="font-semibold uppercase text-indigo-700">Upgrade de nivel</p>
+          <p className="mt-1">
+            Origen:{" "}
+            <span className="font-medium">
+              {enrollment.upgradeFromEnrollment?.product?.name ??
+                enrollment.upgradeFromEnrollment?.productNameSnapshot ??
+                "Inscripción previa"}
+            </span>
+          </p>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+            <span>Bruto: {formatUsd(enrollment.grossProgramPriceUsd ?? 0)}</span>
+            <span>Crédito aplicado: {formatUsd(enrollment.upgradeCreditUsd ?? 0)}</span>
+            <span className="font-semibold">
+              Neto: {formatUsd(enrollment.netAmountUsd ?? enrollment.totalAmountUsd)}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <Metric label="Pago inicial" value={formatUsd(enrollment.initialPaymentUsd ?? 0)} />
@@ -1202,6 +1243,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 interface FormState {
   productId: string;
+  upgradeFromEnrollmentId: string;
   startedAt: string;
   endsAt: string;
   totalAmountUsd: string;
@@ -1229,6 +1271,7 @@ interface FormState {
 function buildInitialFormState(): FormState {
   return {
     productId: "",
+    upgradeFromEnrollmentId: "",
     startedAt: todayIso(),
     endsAt: "",
     totalAmountUsd: "",
@@ -1253,16 +1296,22 @@ function buildInitialFormState(): FormState {
   };
 }
 
+function enrollmentLevel(enrollment: Enrollment): number | null {
+  return enrollment.programLevelSnapshot ?? enrollment.product.programLevel ?? null;
+}
+
 function SellProductForm({
   studentId,
   products,
   paymentAccounts,
+  enrollments,
   onCancel,
   onSaved,
 }: {
   studentId: string;
   products: Product[];
   paymentAccounts: PaymentAccount[];
+  enrollments: Enrollment[];
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -1275,6 +1324,45 @@ function SellProductForm({
     () => products.find((p) => p.id === state.productId) ?? null,
     [products, state.productId],
   );
+
+  // Inscripción de origen elegida para el upgrade (objeto completo con pagos).
+  const upgradeOrigin = useMemo(
+    () => enrollments.find((e) => e.id === state.upgradeFromEnrollmentId) ?? null,
+    [enrollments, state.upgradeFromEnrollmentId],
+  );
+
+  // Inscripciones del estudiante que pueden servir de origen: activas o
+  // completadas, con un nivel válido y, si ya hay producto destino con nivel,
+  // que el destino sea superior (espeja canUpgradeToLevel del backend).
+  const upgradeOptions = useMemo(
+    () =>
+      enrollments.filter((e) => {
+        if (e.status !== "ACTIVE" && e.status !== "COMPLETED") return false;
+        const level = enrollmentLevel(e);
+        if (level == null) return false;
+        if (product && product.programLevel != null) {
+          return canUpgradeToLevel(level, product.programLevel);
+        }
+        return true;
+      }),
+    [enrollments, product],
+  );
+
+  // Crédito real pagado en la inscripción de origen y desglose del upgrade. El
+  // bruto del nuevo nivel es el precio de catálogo del producto destino (lo que
+  // el backend usa como autoritativo), no el monto editable del formulario.
+  const upgradeCredit = useMemo(
+    () => (upgradeOrigin ? calculateUpgradeCredit(upgradeOrigin.payments) : 0),
+    [upgradeOrigin],
+  );
+  const upgradePreview = useMemo(
+    () =>
+      upgradeOrigin && product
+        ? buildUpgradeAmounts(toNum(product.basePriceUsd), upgradeCredit)
+        : null,
+    [upgradeOrigin, product, upgradeCredit],
+  );
+  const isUpgrade = Boolean(state.upgradeFromEnrollmentId);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -1310,6 +1398,10 @@ function SellProductForm({
 
   // Derived numeric values for preview + validation.
   const totalAmountUsdNum = toNum(state.totalAmountUsd);
+  // Para un upgrade el monto autoritativo es el neto (bruto catálogo − crédito),
+  // no el campo editable: saldo, cuotas y validación se calculan sobre el neto.
+  const effectiveTotalUsd =
+    isUpgrade && upgradePreview ? upgradePreview.netAmountUsd : totalAmountUsdNum;
   const initialPaymentUsdNum = state.hasInitialPayment
     ? state.initialPaymentCurrency.toUpperCase() === "USD"
       ? toNum(state.initialPaymentAmount)
@@ -1317,7 +1409,7 @@ function SellProductForm({
     : 0;
   const estimatedBalanceUsd = Math.max(
     0,
-    Math.round((totalAmountUsdNum - initialPaymentUsdNum) * 100) / 100,
+    Math.round((effectiveTotalUsd - initialPaymentUsdNum) * 100) / 100,
   );
   const installmentCountNum = Number.parseInt(state.installmentCount, 10);
   const estimatedPerInstallment =
@@ -1381,7 +1473,16 @@ function SellProductForm({
 
   function validate(): string | null {
     if (!product) return "Selecciona un producto";
-    if (!(totalAmountUsdNum > 0)) return "Monto total USD debe ser > 0";
+    if (state.upgradeFromEnrollmentId) {
+      if (!upgradeOrigin) {
+        return "La inscripción de origen del upgrade no es válida";
+      }
+      if (!canUpgradeToLevel(enrollmentLevel(upgradeOrigin), product.programLevel)) {
+        return "El producto destino del upgrade debe ser de un nivel superior al de la inscripción de origen";
+      }
+    } else if (!(totalAmountUsdNum > 0)) {
+      return "Monto total USD debe ser > 0";
+    }
 
     if (requiresInitialPayment && !state.hasInitialPayment) {
       return "Este producto requiere un pago inicial";
@@ -1398,7 +1499,7 @@ function SellProductForm({
       ) {
         return "El equivalente USD oficial es obligatorio cuando la moneda del pago no es USD";
       }
-      if (initialPaymentUsdNum - totalAmountUsdNum > 0.01) {
+      if (initialPaymentUsdNum - effectiveTotalUsd > 0.01) {
         return "El pago inicial (USD) no puede exceder el monto total";
       }
     }
@@ -1431,7 +1532,7 @@ function SellProductForm({
         productId: state.productId,
         startedAt: state.startedAt || null,
         endsAt: state.endsAt || null,
-        totalAmountUsd: totalAmountUsdNum,
+        totalAmountUsd: isUpgrade && product ? toNum(product.basePriceUsd) : totalAmountUsdNum,
         currency: state.currency,
         contractTemplateKind: state.contractTemplateKind,
         installmentFrequency: state.installmentFrequency,
@@ -1472,6 +1573,9 @@ function SellProductForm({
           initialPayment.notes = state.initialPaymentNotes.trim();
         }
         body.initialPayment = initialPayment;
+      }
+      if (state.upgradeFromEnrollmentId) {
+        body.upgradeFromEnrollmentId = state.upgradeFromEnrollmentId;
       }
 
       const response = await fetch(`/api/operaciones/students/${studentId}/products`, {
@@ -1524,6 +1628,23 @@ function SellProductForm({
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Upgrade desde inscripción previa (opcional)">
+          <select
+            value={state.upgradeFromEnrollmentId}
+            onChange={(e) => update("upgradeFromEnrollmentId", e.target.value)}
+            disabled={!product}
+            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-100"
+          >
+            <option value="">Venta nueva (sin upgrade)</option>
+            {upgradeOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.product.name} · crédito{" "}
+                {formatUsd(calculateUpgradeCredit(option.payments))}
               </option>
             ))}
           </select>
@@ -1587,6 +1708,25 @@ function SellProductForm({
           </select>
         </Field>
       </div>
+
+      {isUpgrade && upgradePreview && (
+        <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-3 text-sm text-slate-700">
+          <p className="font-semibold uppercase text-indigo-700">Upgrade de nivel</p>
+          <p className="mt-1">
+            Origen:{" "}
+            <span className="font-medium">
+              {upgradeOrigin?.product.name ?? "Inscripción previa"}
+            </span>
+          </p>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
+            <span>Crédito aplicado: {formatUsd(upgradePreview.upgradeCreditUsd)}</span>
+            <span>Valor bruto nuevo nivel: {formatUsd(upgradePreview.grossProgramPriceUsd)}</span>
+            <span className="font-semibold">
+              Valor neto a pagar: {formatUsd(upgradePreview.netAmountUsd)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {product && (
         <p className="text-xs text-slate-500">
@@ -1853,6 +1993,12 @@ function SellProductForm({
       </Field>
 
       <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        {upgradePreview && (
+          <p>
+            <span className="text-slate-500">Neto base del upgrade:</span>{" "}
+            <span className="font-semibold">{formatUsd(upgradePreview.netAmountUsd)}</span>
+          </p>
+        )}
         <p>
           <span className="text-slate-500">Saldo estimado USD:</span>{" "}
           <span className="font-semibold">{formatUsd(estimatedBalanceUsd)}</span>

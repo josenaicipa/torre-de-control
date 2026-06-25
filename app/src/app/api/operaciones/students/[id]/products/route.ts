@@ -54,6 +54,16 @@ export async function GET(_req: Request, { params }: Params) {
         paymentSchedules: {
           orderBy: { installmentNumber: "asc" },
         },
+        // Origen del upgrade (si esta inscripción es un upgrade de otra), para
+        // poder mostrar de qué nivel/producto provino el crédito aplicado.
+        upgradeFromEnrollment: {
+          select: {
+            id: true,
+            productNameSnapshot: true,
+            programLevelSnapshot: true,
+            product: { select: { name: true, programLevel: true } },
+          },
+        },
         referralCommissions: {
           include: {
             referral: {
