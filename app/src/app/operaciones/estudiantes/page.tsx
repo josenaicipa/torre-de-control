@@ -9,6 +9,10 @@ import {
   studentStatusBadgeClass,
   studentStatusLabel,
 } from "@/lib/student-status";
+import {
+  isStudentPendingNormalization,
+  PENDING_NORMALIZATION_LABEL,
+} from "@/lib/student-normalization";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +58,7 @@ export default async function EstudiantesPage({
       include: {
         mentorUser: { select: { id: true, name: true, email: true } },
         closerUser: { select: { id: true, name: true, email: true } },
+        _count: { select: { enrollments: true } },
       },
     }),
     prisma.student.count({ where: scoped as never }),
@@ -164,8 +169,16 @@ export default async function EstudiantesPage({
                 </td>
               </tr>
             ) : (
-              items.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50">
+              items.map((s) => {
+                const pending = isStudentPendingNormalization({
+                  durationAssumed: s.durationAssumed,
+                  enrollmentCount: s._count.enrollments,
+                });
+                return (
+                <tr
+                  key={s.id}
+                  className={pending ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-slate-50"}
+                >
                   <td className="px-4 py-2 text-sm">
                     <Link href={`/operaciones/estudiantes/${s.id}`} className="font-medium text-slate-900 hover:underline">
                       {s.fullName}
@@ -174,10 +187,10 @@ export default async function EstudiantesPage({
                   <td className="px-4 py-2 text-sm text-slate-600">{s.email}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.mentorUser?.name ?? s.mentorUser?.email ?? "—"}</td>
                   <td className="px-4 py-2 text-sm text-slate-600">{s.closerUser?.name ?? s.closerUser?.email ?? "—"}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{s.startDate.toISOString().slice(0, 10)}</td>
-                  <td className="px-4 py-2 text-sm text-slate-600">{s.endDate.toISOString().slice(0, 10)}</td>
+                  <td className="px-4 py-2 text-sm text-slate-600">{pending ? "Pendiente" : s.startDate.toISOString().slice(0, 10)}</td>
+                  <td className="px-4 py-2 text-sm text-slate-600">{pending ? "Pendiente" : s.endDate.toISOString().slice(0, 10)}</td>
                   <td className="px-4 py-2 text-sm">
-                    <StatusBadge status={s.status} />
+                    {pending ? <PendingBadge /> : <StatusBadge status={s.status} />}
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-2 text-right text-sm">
@@ -185,7 +198,8 @@ export default async function EstudiantesPage({
                     </td>
                   )}
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -212,6 +226,17 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${studentStatusBadgeClass(status)}`}>
       {studentStatusLabel(status)}
+    </span>
+  );
+}
+
+function PendingBadge() {
+  return (
+    <span
+      className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+      title="Llegó desde GHL; faltan datos por completar en Torre"
+    >
+      {PENDING_NORMALIZATION_LABEL}
     </span>
   );
 }

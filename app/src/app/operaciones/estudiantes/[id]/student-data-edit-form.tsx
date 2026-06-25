@@ -29,6 +29,26 @@ const EDITABLE_STATUSES = [
   "ACCESS_REVOKED",
 ] as const;
 
+export interface MemberInitial {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  documentType: string | null;
+  documentNumber: string | null;
+  isPrimaryContact: boolean;
+  isContractSigner: boolean;
+}
+
+interface MemberRowState {
+  fullName: string;
+  email: string;
+  phone: string;
+  documentType: string;
+  documentNumber: string;
+  isContractSigner: boolean;
+}
+
 export interface StudentEditInitial {
   fullName: string;
   email: string;
@@ -73,6 +93,28 @@ function buildState(initial: StudentEditInitial) {
   };
 }
 
+function buildMembers(members: MemberInitial[]): MemberRowState[] {
+  return members.map((m) => ({
+    fullName: m.fullName ?? "",
+    email: m.email ?? "",
+    phone: m.phone ?? "",
+    documentType: m.documentType ?? "",
+    documentNumber: m.documentNumber ?? "",
+    isContractSigner: m.isContractSigner,
+  }));
+}
+
+function emptyMemberRow(): MemberRowState {
+  return {
+    fullName: "",
+    email: "",
+    phone: "",
+    documentType: "",
+    documentNumber: "",
+    isContractSigner: false,
+  };
+}
+
 function trimmedOrNull(value: string): string | null {
   const t = value.trim();
   return t.length > 0 ? t : null;
@@ -83,15 +125,20 @@ export function StudentDataEditForm({
   initial,
   mentors,
   closers,
+  members,
 }: {
   studentId: string;
   initial: StudentEditInitial;
   mentors: UserOption[];
   closers: UserOption[];
+  members: MemberInitial[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState(() => buildState(initial));
+  const [memberRows, setMemberRows] = useState<MemberRowState[]>(() =>
+    buildMembers(members),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,8 +157,27 @@ export function StudentDataEditForm({
     setState((prev) => ({ ...prev, legalCountry: value, legalState: "" }));
   }
 
+  function updateMember<K extends keyof MemberRowState>(
+    index: number,
+    key: K,
+    value: MemberRowState[K],
+  ) {
+    setMemberRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
+    );
+  }
+
+  function addMember() {
+    setMemberRows((prev) => [...prev, emptyMemberRow()]);
+  }
+
+  function removeMember(index: number) {
+    setMemberRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
   function openModal() {
     setState(buildState(initial));
+    setMemberRows(buildMembers(members));
     setError(null);
     setOpen(true);
   }
@@ -163,6 +229,14 @@ export function StudentDataEditForm({
           legalCity: trimmedOrNull(state.legalCity),
           legalState: trimmedOrNull(state.legalState),
           legalCountry: trimmedOrNull(state.legalCountry),
+          members: memberRows.map((m) => ({
+            fullName: m.fullName.trim(),
+            email: trimmedOrNull(m.email),
+            phone: trimmedOrNull(m.phone),
+            documentType: trimmedOrNull(m.documentType),
+            documentNumber: trimmedOrNull(m.documentNumber),
+            isContractSigner: m.isContractSigner,
+          })),
         }),
       });
       if (!response.ok) {
@@ -339,6 +413,126 @@ export function StudentDataEditForm({
                     className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                   />
                 </Field>
+              </div>
+
+              <div className="space-y-3 border-t border-slate-200 pt-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Miembros del equipo
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addMember}
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    + Agregar miembro
+                  </button>
+                </div>
+                {memberRows.length === 0 ? (
+                  <p className="text-xs text-slate-500">
+                    No hay miembros del equipo.
+                  </p>
+                ) : (
+                  memberRows.map((member, index) => (
+                    <div
+                      key={index}
+                      className="space-y-3 rounded-md border border-slate-200 p-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-500">
+                          Miembro {index + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeMember(index)}
+                          className="text-xs font-medium text-rose-600 hover:text-rose-700"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                      <Field label="Nombre completo">
+                        <input
+                          type="text"
+                          value={member.fullName}
+                          onChange={(e) =>
+                            updateMember(index, "fullName", e.target.value)
+                          }
+                          maxLength={200}
+                          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                        />
+                      </Field>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Correo">
+                          <input
+                            type="email"
+                            value={member.email}
+                            onChange={(e) =>
+                              updateMember(index, "email", e.target.value)
+                            }
+                            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </Field>
+                        <Field label="Teléfono">
+                          <input
+                            type="text"
+                            value={member.phone}
+                            onChange={(e) =>
+                              updateMember(index, "phone", e.target.value)
+                            }
+                            maxLength={50}
+                            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </Field>
+                        <Field label="Tipo de documento">
+                          <select
+                            value={member.documentType}
+                            onChange={(e) =>
+                              updateMember(index, "documentType", e.target.value)
+                            }
+                            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                          >
+                            <option value="">— Selecciona —</option>
+                            {DOCUMENT_TYPES.map((dt) => (
+                              <option key={dt.value} value={dt.value}>
+                                {dt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Número de documento">
+                          <input
+                            type="text"
+                            value={member.documentNumber}
+                            onChange={(e) =>
+                              updateMember(
+                                index,
+                                "documentNumber",
+                                e.target.value,
+                              )
+                            }
+                            maxLength={100}
+                            className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </Field>
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={member.isContractSigner}
+                          onChange={(e) =>
+                            updateMember(
+                              index,
+                              "isContractSigner",
+                              e.target.checked,
+                            )
+                          }
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        Firmante del contrato
+                      </label>
+                    </div>
+                  ))
+                )}
               </div>
 
               <div className="space-y-3 border-t border-slate-200 pt-5">

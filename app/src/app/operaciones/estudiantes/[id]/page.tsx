@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { getActor } from "@/lib/actor";
 import { canAccessStudent } from "@/lib/access";
 import { isStudentPending } from "@/lib/student-payments-finance";
+import {
+  isStudentPendingNormalization,
+  PENDING_NORMALIZATION_LABEL,
+} from "@/lib/student-normalization";
 import { AvancesTab } from "./avances-tab";
 import { PagosTab } from "./pagos-tab";
 import { MetricasTab } from "./metricas-tab";
@@ -13,6 +17,17 @@ import { StudentDataEditForm } from "./student-data-edit-form";
 import { studentStatusLabel } from "@/lib/student-status";
 
 export const dynamic = "force-dynamic";
+
+interface StudentMemberRow {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  documentType: string | null;
+  documentNumber: string | null;
+  isPrimaryContact: boolean;
+  isContractSigner: boolean;
+}
 
 const TABS = [
   { key: "info", label: "Info" },
@@ -63,6 +78,13 @@ export default async function StudentDetailPage({
   if (!canAccessStudent(actor, student.mentorUserId)) notFound();
   const canWritePayments = actor.role === "ADMIN" || actor.role === "OPERATOR";
 
+  // Ficha llegada desde GHL/n8n sin normalizar: ocultamos programa/duración
+  // "reales" (son defaults técnicos) hasta que un operador la diligencie.
+  const pendingNormalization = isStudentPendingNormalization({
+    durationAssumed: student.durationAssumed,
+    enrollmentCount: student.enrollments.length,
+  });
+
   // Listas para los selects de mentor/closer en el editor de datos (mismo
   // criterio que el formulario de creación de estudiante). Sólo se necesitan
   // cuando el actor puede editar y está viendo la pestaña Info.
@@ -100,7 +122,7 @@ export default async function StudentDetailPage({
           <p className="text-sm text-slate-500">{student.email}</p>
         </div>
         <div className="text-right text-sm text-slate-600">
-          {isStudentPending(student.enrollments) ? (
+          {pendingNormalization || isStudentPending(student.enrollments) ? (
             <>
               <p>Inicio: Pendiente</p>
               <p>Fin: Pendiente</p>
@@ -157,6 +179,7 @@ export default async function StudentDetailPage({
             <InfoTab
               student={student}
               canWriteLegal={canWritePayments}
+              pendingNormalization={pendingNormalization}
               mentors={mentors}
               closers={closers}
             />
@@ -175,6 +198,7 @@ export default async function StudentDetailPage({
 function InfoTab({
   student,
   canWriteLegal,
+  pendingNormalization,
   mentors,
   closers,
 }: {
@@ -199,8 +223,10 @@ function InfoTab({
     personality: string | null;
     ghlContactId: string | null;
     closerUser: { name: string | null; email: string } | null;
+    members: StudentMemberRow[];
   };
   canWriteLegal: boolean;
+  pendingNormalization: boolean;
   mentors: { id: string; name: string | null; email: string }[];
   closers: { id: string; name: string | null; email: string; position: string }[];
 }) {
@@ -241,15 +267,33 @@ function InfoTab({
         </div>
         <div>
           <dt className="font-medium text-slate-500">Programa</dt>
-          <dd className="text-slate-900">Nivel 5 + Clases Avanzadas</dd>
+          <dd className="text-slate-900">
+            {pendingNormalization ? (
+              <span className="text-amber-700">{PENDING_NORMALIZATION_LABEL}</span>
+            ) : (
+              "Nivel 5 + Clases Avanzadas"
+            )}
+          </dd>
         </div>
         <div>
           <dt className="font-medium text-slate-500">Duración</dt>
-          <dd className="text-slate-900">{student.durationMonths} meses</dd>
+          <dd className="text-slate-900">
+            {pendingNormalization ? (
+              <span className="text-amber-700">{PENDING_NORMALIZATION_LABEL}</span>
+            ) : (
+              `${student.durationMonths} meses`
+            )}
+          </dd>
         </div>
         <div>
           <dt className="font-medium text-slate-500">Estado</dt>
-          <dd className="text-slate-900">{studentStatusLabel(student.status)}</dd>
+          <dd className="text-slate-900">
+            {pendingNormalization ? (
+              <span className="text-amber-700">{PENDING_NORMALIZATION_LABEL}</span>
+            ) : (
+              studentStatusLabel(student.status)
+            )}
+          </dd>
         </div>
         <div>
           <dt className="font-medium text-slate-500">Closer</dt>
@@ -274,6 +318,16 @@ function InfoTab({
           studentId={student.id}
           mentors={mentors}
           closers={closers}
+          members={student.members.map((m) => ({
+            id: m.id,
+            fullName: m.fullName,
+            email: m.email,
+            phone: m.phone,
+            documentType: m.documentType,
+            documentNumber: m.documentNumber,
+            isPrimaryContact: m.isPrimaryContact,
+            isContractSigner: m.isContractSigner,
+          }))}
           initial={{
             fullName: student.fullName,
             email: student.email,

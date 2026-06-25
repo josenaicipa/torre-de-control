@@ -1,40 +1,34 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import type { Prisma, StudentStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
-import { calculateEndDate } from "@/domain/students";
 import {
-  normalizeEmail,
   normalizePhone,
   pickStudentMatch,
   type StudentMatchCandidate,
 } from "@/lib/operaciones-signature-flow";
+import {
+  buildN8nStudentCreateData,
+  buildN8nStudentUpdateData,
+  parseN8nStudentFields,
+  type N8nParsedFields,
+} from "@/lib/n8n-operaciones-student";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// n8n (disparado por GHL) crea/actualiza el estudiante básico en Torre con los
-// datos del contacto. Autenticado solo por el secreto compartido
-// N8N_TORRE_WEBHOOK_SECRET (header x-n8n-webhook-secret / x-webhook-secret /
-// Authorization Bearer); el secreto se compara con timingSafeEqual y jamás se
-// loguea. Este endpoint NO crea inscripción, pago, contrato ni acceso a
-// LearnWorlds: solo materializa/actualiza el Student para que el resto del
-// flujo operativo lo encuentre. El payload de GHL es laxo (varios alias por
-// campo), así que se extrae campo a campo en vez de exigir un shape rígido.
-
-const STUDENT_STATUS_VALUES: readonly StudentStatus[] = [
-  "ACTIVE",
-  "PAUSED",
-  "COMPLETED",
-  "DROPPED",
-  "EXTENDED",
-  "ACCESS_REVOKED",
-  "SEPARATED",
-  "INACTIVE",
-  "WITHDRAWN",
-];
+// n8n (disparado por GHL) crea/actualiza una ficha MÍNIMA del estudiante en
+// Torre: nombre, correo, teléfono y, si ya existe, ghlContactId / carpeta Drive.
+// Autenticado solo por el secreto compartido N8N_TORRE_WEBHOOK_SECRET (header
+// x-n8n-webhook-secret / x-webhook-secret / Authorization Bearer); el secreto se
+// compara con timingSafeEqual y jamás se loguea. Este endpoint NO crea
+// inscripción, pago, contrato ni acceso a LearnWorlds, y NO normaliza
+// producto/programa/duración/estado/legal aunque el payload los traiga: la ficha
+// queda como "pendiente de completar" (status INACTIVE + durationAssumed) hasta
+// que un operador la diligencia en Torre. Toda la lógica de parseo/armado de
+// datos vive en @/lib/n8n-operaciones-student para poder testearla sin red.
 
 function configuredSecret(): string | null {
   const value = process.env.N8N_TORRE_WEBHOOK_SECRET;
@@ -56,129 +50,6 @@ function secretMatches(expected: string, presented: string): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// Coacciona un valor del payload a string no vacío, tolerando números.
-function asString(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-  return null;
-}
-
-// Primer alias con valor no vacío.
-function pick(raw: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = asString(raw[key]);
-    if (value) return value;
-  }
-  return null;
-}
-
-function parseStartDate(raw: string | null): Date | null {
-  if (!raw) return null;
-  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) return null;
-  const date = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function parseDuration(raw: string | null): number | null {
-  if (!raw) return null;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1 || n > 60) return null;
-  return n;
-}
-
-// El estado de GHL llega como texto libre. Mapeamos a StudentStatus solo cuando
-// es inequívoco; si no, devolvemos null (en creación se usa el default ACTIVE y
-// en actualización se deja el estado intacto). "separado"/"separación" ->
-// SEPARATED por requisito explícito del flujo.
-function resolveStatus(raw: string | null): StudentStatus | null {
-  if (!raw) return null;
-  const value = raw.trim().toLowerCase();
-  if (!value) return null;
-  const upper = value.toUpperCase();
-  if (STUDENT_STATUS_VALUES.includes(upper as StudentStatus)) {
-    return upper as StudentStatus;
-  }
-  if (value.includes("separa")) return "SEPARATED";
-  if (value.includes("activ")) return "ACTIVE";
-  if (value.includes("pausa")) return "PAUSED";
-  return null;
-}
-
-function emailLocalPart(email: string): string {
-  const at = email.indexOf("@");
-  return at > 0 ? email.slice(0, at) : email;
-}
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-interface ParsedFields {
-  fullName: string | null;
-  email: string | null;
-  phone: string | null;
-  ghlContactId: string | null;
-  startDate: Date | null;
-  durationMonths: number | null;
-  status: StudentStatus | null;
-  notes: string | null;
-  personality: string | null;
-  legalName: string | null;
-  documentType: string | null;
-  documentNumber: string | null;
-  legalAddress: string | null;
-  legalCity: string | null;
-  legalState: string | null;
-  legalCountry: string | null;
-  driveFolderId: string | null;
-  driveFolderUrl: string | null;
-}
-
-function parseFields(raw: Record<string, unknown>): ParsedFields {
-  const firstName = pick(raw, ["first_name", "firstName"]);
-  const lastName = pick(raw, ["last_name", "lastName"]);
-  const explicitFullName = pick(raw, ["fullName", "full_name", "name"]);
-  const composedName =
-    explicitFullName ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
-
-  const rawEmail = pick(raw, ["email"]);
-  const email = normalizeEmail(rawEmail);
-
-  return {
-    fullName: composedName,
-    email: email && EMAIL_REGEX.test(email) ? email : null,
-    phone: pick(raw, ["phone"]),
-    ghlContactId: pick(raw, [
-      "ghlContactId",
-      "contactId",
-      "contact_id",
-      "id",
-    ]),
-    startDate: parseStartDate(
-      pick(raw, ["startDate", "fecha_ingreso", "fecha_inicio"]),
-    ),
-    durationMonths: parseDuration(
-      pick(raw, ["durationMonths", "meses", "duration_months"]),
-    ),
-    status: resolveStatus(pick(raw, ["status", "estado", "estado_llamada"])),
-    notes: pick(raw, ["notes"]),
-    personality: pick(raw, ["personality"]),
-    legalName: pick(raw, ["legalName", "nombre_legal"]),
-    documentType: pick(raw, ["documentType"]),
-    documentNumber: pick(raw, ["documentNumber", "documento"]),
-    legalAddress: pick(raw, ["legalAddress"]),
-    legalCity: pick(raw, ["legalCity"]),
-    legalState: pick(raw, ["legalState"]),
-    legalCountry: pick(raw, ["legalCountry"]),
-    driveFolderId: pick(raw, ["driveFolderId"]),
-    driveFolderUrl: pick(raw, ["driveFolderUrl", "drive_folder_url"]),
-  };
-}
-
 export async function POST(req: NextRequest) {
   try {
     const expected = configuredSecret();
@@ -197,28 +68,14 @@ export async function POST(req: NextRequest) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
       return jsonError(400, "Payload inválido: se esperaba un objeto JSON");
     }
-    const fields = parseFields(raw as Record<string, unknown>);
+    const fields = parseN8nStudentFields(raw as Record<string, unknown>);
 
     const matchedId = await findMatchingStudentId(fields);
-
-    // Datos de carpeta Drive: cuando vienen, marcamos la sincronización igual
-    // que el webhook dedicado de drive-folder.
-    const driveData: Partial<Prisma.StudentUncheckedCreateInput> =
-      fields.driveFolderId || fields.driveFolderUrl
-        ? {
-            driveFolderId: fields.driveFolderId ?? undefined,
-            driveFolderUrl: fields.driveFolderUrl ?? null,
-            driveFolderSource: "n8n_ghl_webhook",
-            driveFolderSyncedAt: new Date(),
-            driveFolderSyncStatus: "synced",
-            driveFolderSyncError: null,
-          }
-        : {};
 
     if (matchedId) {
       const existing = await prisma.student.findUnique({
         where: { id: matchedId },
-        select: { startDate: true, durationMonths: true },
+        select: { id: true },
       });
       if (!existing) {
         // Carrera improbable: el estudiante desapareció entre el match y el
@@ -226,36 +83,9 @@ export async function POST(req: NextRequest) {
         return jsonError(409, "El estudiante coincidente ya no existe");
       }
 
-      const data: Prisma.StudentUpdateInput = { ...driveData };
-      if (fields.fullName) data.fullName = fields.fullName;
-      if (fields.email) data.email = fields.email;
-      if (fields.phone) data.phone = fields.phone;
-      if (fields.ghlContactId) data.ghlContactId = fields.ghlContactId;
-      if (fields.status) data.status = fields.status;
-      if (fields.notes) data.notes = fields.notes;
-      if (fields.personality) data.personality = fields.personality;
-      if (fields.legalName) data.legalName = fields.legalName;
-      if (fields.documentType) data.documentType = fields.documentType;
-      if (fields.documentNumber) data.documentNumber = fields.documentNumber;
-      if (fields.legalAddress) data.legalAddress = fields.legalAddress;
-      if (fields.legalCity) data.legalCity = fields.legalCity;
-      if (fields.legalState) data.legalState = fields.legalState;
-      if (fields.legalCountry) data.legalCountry = fields.legalCountry;
-
-      // Solo recomputamos endDate si cambia startDate o durationMonths, usando
-      // los valores efectivos (nuevos o los ya guardados) para no degradar la
-      // fila existente.
-      if (fields.startDate || fields.durationMonths) {
-        const effStart = fields.startDate ?? existing.startDate;
-        const effDuration = fields.durationMonths ?? existing.durationMonths;
-        if (fields.startDate) data.startDate = fields.startDate;
-        if (fields.durationMonths) data.durationMonths = fields.durationMonths;
-        data.endDate = calculateEndDate(effStart, effDuration);
-      }
-
       const student = await prisma.student.update({
         where: { id: matchedId },
-        data,
+        data: buildN8nStudentUpdateData(fields),
         select: studentResponseSelect,
       });
       await writeAudit({
@@ -264,45 +94,22 @@ export async function POST(req: NextRequest) {
         target: student.id,
         metadata: {
           ghlContactId: student.ghlContactId,
-          driveFolderSynced: Boolean(fields.driveFolderId || fields.driveFolderUrl),
+          driveFolderSynced: Boolean(
+            fields.driveFolderId || fields.driveFolderUrl,
+          ),
         },
       });
       return NextResponse.json({ created: false, student });
     }
 
-    // No existe: creamos con defaults seguros. Email es obligatorio para crear
-    // (es la clave única); fullName se deriva si no vino explícito.
+    // No existe: creamos una ficha mínima pendiente. Email es obligatorio para
+    // crear (es la clave única); fullName se deriva si no vino explícito.
     if (!fields.email) {
-      return jsonError(
-        400,
-        "email requerido para crear un estudiante nuevo",
-      );
+      return jsonError(400, "email requerido para crear un estudiante nuevo");
     }
-    const fullName = fields.fullName ?? emailLocalPart(fields.email);
-    const startDate = fields.startDate ?? new Date(todayUtcDateString() + "T00:00:00.000Z");
-    const durationMonths = fields.durationMonths ?? 12;
 
     const student = await prisma.student.create({
-      data: {
-        fullName,
-        email: fields.email,
-        phone: fields.phone ?? null,
-        startDate,
-        durationMonths,
-        endDate: calculateEndDate(startDate, durationMonths),
-        status: fields.status ?? "ACTIVE",
-        ghlContactId: fields.ghlContactId ?? null,
-        notes: fields.notes ?? null,
-        personality: fields.personality ?? null,
-        legalName: fields.legalName ?? null,
-        documentType: fields.documentType ?? null,
-        documentNumber: fields.documentNumber ?? null,
-        legalAddress: fields.legalAddress ?? null,
-        legalCity: fields.legalCity ?? null,
-        legalState: fields.legalState ?? null,
-        legalCountry: fields.legalCountry ?? null,
-        ...driveData,
-      },
+      data: buildN8nStudentCreateData(fields),
       select: studentResponseSelect,
     });
     await writeAudit({
@@ -330,15 +137,11 @@ const studentResponseSelect = {
   driveFolderUrl: true,
 } satisfies Prisma.StudentSelect;
 
-function todayUtcDateString(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 // Reúne candidatos por los tres criterios (ghlContactId, email, teléfono) y deja
 // que pickStudentMatch decida en orden de prioridad. El teléfono se filtra por
 // sus últimos 10 dígitos para tolerar prefijos +57/formato.
 async function findMatchingStudentId(
-  fields: ParsedFields,
+  fields: N8nParsedFields,
 ): Promise<string | null> {
   const email = fields.email;
   const phone = normalizePhone(fields.phone);
