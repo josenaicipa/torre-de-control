@@ -93,6 +93,7 @@ export async function POST(req: Request, { params }: Params) {
     const { studentId: _studentId, ...enrollmentBody } = body;
     const validated = await prepareEnrollmentCreate(prisma, enrollmentBody, {
       enforceSaleLimitForStudentId: id,
+      studentId: id,
     });
 
     const result = await prisma.$transaction((tx) =>

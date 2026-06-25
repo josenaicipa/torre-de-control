@@ -4,6 +4,11 @@ import {
   initialPaymentInputSchema,
 } from "./operaciones-validations";
 import { buildEnrollmentScheduleRows } from "./operaciones-products";
+import {
+  EnrollmentValidationError,
+  prepareEnrollmentCreate,
+  type EnrollmentRequestBody,
+} from "./operaciones-enrollments";
 
 const validStudentId = "cmav9cy3g000008l22t111111";
 const validProductId = "cmav9cy3g000008l22t222222";
@@ -213,6 +218,41 @@ describe("createStudentProductEnrollmentSchema", () => {
       totalAmountUsd: 3000,
     });
     expect(result.success).toBe(true);
+  });
+
+  it("accepts an optional upgradeFromEnrollmentId (cuid)", () => {
+    const result = createStudentProductEnrollmentSchema.safeParse({
+      studentId: validStudentId,
+      productId: validProductId,
+      startedAt: "2026-06-01",
+      totalAmountUsd: 3000,
+      upgradeFromEnrollmentId: "cmav9cy3g000008l22t444444",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.upgradeFromEnrollmentId).toBe(
+        "cmav9cy3g000008l22t444444",
+      );
+    }
+  });
+
+  it("leaves upgradeFromEnrollmentId undefined for a normal sale", () => {
+    const parsed = createStudentProductEnrollmentSchema.parse({
+      studentId: validStudentId,
+      productId: validProductId,
+      totalAmountUsd: 3000,
+    });
+    expect(parsed.upgradeFromEnrollmentId).toBeUndefined();
+  });
+
+  it("rejects a non-cuid upgradeFromEnrollmentId", () => {
+    const result = createStudentProductEnrollmentSchema.safeParse({
+      studentId: validStudentId,
+      productId: validProductId,
+      totalAmountUsd: 3000,
+      upgradeFromEnrollmentId: "not-a-cuid",
+    });
+    expect(result.success).toBe(false);
   });
 
   // Caso de alta: estudiante creado con una RESERVA en COP por 1.500.000

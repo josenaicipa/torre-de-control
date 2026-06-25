@@ -6,6 +6,7 @@ import {
   normalizeContractTemplateKind,
   type ContractInput,
   type ContractSection,
+  type ContractUpgradeInfo,
   type ManualClause,
 } from "./operaciones-contract-template";
 
@@ -64,6 +65,14 @@ export interface ContractDataShape {
   endsAt: Date | string | null;
   contractTemplateKind?: string | null;
   paymentSchedules: ContractScheduleShape[];
+  // Datos del upgrade de nivel (cuando la inscripción nació como upgrade de
+  // otra). Si upgradeFromEnrollmentId está presente, el contrato muestra la
+  // liquidación bruto/crédito/neto. Ausentes en inscripciones normales.
+  upgradeFromEnrollmentId?: string | null;
+  grossProgramPriceUsd?: number | string | { toString(): string } | null;
+  upgradeCreditUsd?: number | string | { toString(): string } | null;
+  netAmountUsd?: number | string | { toString(): string } | null;
+  programLevelSnapshot?: number | string | { toString(): string } | null;
 }
 
 // Select Prisma reutilizable: trae todo lo necesario para validar, renderizar
@@ -92,6 +101,11 @@ export const contractEnrollmentSelect = {
   contractCeoSignatureHash: true,
   contractCeoSignatureImage: true,
   contractApprovedAt: true,
+  upgradeFromEnrollmentId: true,
+  grossProgramPriceUsd: true,
+  upgradeCreditUsd: true,
+  netAmountUsd: true,
+  programLevelSnapshot: true,
   student: {
     select: {
       fullName: true,
@@ -437,6 +451,19 @@ export function buildContractInputFromData(
     dueDate: isoDate(s.dueDate) ?? "",
   }));
 
+  // Liquidación del upgrade. Solo se arma cuando la inscripción nació como
+  // upgrade de otra (upgradeFromEnrollmentId presente); en inscripciones
+  // normales queda en null y se omite del input para que el hash de firma siga
+  // siendo idéntico al de un contrato sin upgrade.
+  const upgrade: ContractUpgradeInfo | null = data.upgradeFromEnrollmentId
+    ? {
+        grossProgramPriceUsd: toNumberOrNull(data.grossProgramPriceUsd) ?? 0,
+        upgradeCreditUsd: toNumberOrNull(data.upgradeCreditUsd) ?? 0,
+        netAmountUsd: toNumberOrNull(data.netAmountUsd) ?? 0,
+        programLevelSnapshot: toNumberOrNull(data.programLevelSnapshot),
+      }
+    : null;
+
   // Integrantes adicionales del equipo. Se omiten por completo cuando la
   // inscripción es individual para que el ContractInput (y por tanto el hash
   // de firma) quede idéntico al de antes de esta función.
@@ -466,6 +493,7 @@ export function buildContractInputFromData(
     durationMonths,
     manualClauses: parseManualClauses(manualClauses ?? []),
     sectionsSnapshot: sectionsSnapshot ?? null,
+    ...(upgrade ? { upgrade } : {}),
     ...(teamMembers.length > 0 ? { teamMembers } : {}),
   };
 }

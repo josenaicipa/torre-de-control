@@ -455,6 +455,12 @@ export const createEnrollmentBaseSchema = z.object({
   currency: z.string().length(3).default("USD"),
   paymentAccountId: fkIdSchema("Cuenta receptora").optional().nullable(),
   contractTemplateKind: contractTemplateKindSchema,
+  // Inscripción de origen cuando esta venta es un upgrade de nivel (N3→N4/N5,
+  // N4→N5). Cuando viene, el route trata la inscripción como un upgrade: el
+  // bruto es el precio de catálogo del producto destino, el crédito es lo
+  // realmente pagado en el origen y el neto (lo que se cobra ahora) define
+  // totalAmountUsd y el cronograma. Ausente = venta normal.
+  upgradeFromEnrollmentId: z.string().cuid().optional().nullable(),
   notes: z.string().max(5000).optional().nullable(),
 });
 

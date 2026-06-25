@@ -17,6 +17,11 @@ import {
   type InstallmentPlanRow,
   type ProductSaleLimit,
 } from "./operaciones-products";
+import {
+  buildUpgradeAmounts,
+  calculateUpgradeCredit,
+  canUpgradeToLevel,
+} from "./operaciones-upgrade";
 import type {
   CreateStudentProductEnrollmentInput,
   InitialPaymentInput,
@@ -61,6 +66,23 @@ interface LoadedProduct {
   requiresInitialPayment: boolean;
   generatesCommission: boolean;
   defaultCommissionPercent: Prisma.Decimal;
+  programLevel: number | null;
+  basePriceUsd: Prisma.Decimal;
+}
+
+/**
+ * Computed money + snapshot breakdown for a level upgrade. Present only when
+ * the request carried a valid `upgradeFromEnrollmentId`. The route persists
+ * these onto the new enrollment so the upgrade chain and the credit applied are
+ * auditable later.
+ */
+export interface PreparedUpgrade {
+  fromEnrollmentId: string;
+  grossProgramPriceUsd: number;
+  upgradeCreditUsd: number;
+  netAmountUsd: number;
+  programLevelSnapshot: number | null;
+  productNameSnapshot: string;
 }
 
 export interface PreparedEnrollment {
@@ -74,6 +96,8 @@ export interface PreparedEnrollment {
   commissionBaseUsd: number | null;
   commissionPercent: number | null;
   grantAccess: boolean;
+  /** Non-null when this enrollment is a level upgrade of a prior one. */
+  upgrade: PreparedUpgrade | null;
 }
 
 export interface PrepareEnrollmentOptions {
@@ -83,6 +107,14 @@ export interface PrepareEnrollmentOptions {
    * student does not exist yet (the count is trivially 0).
    */
   enforceSaleLimitForStudentId?: string;
+  /**
+   * Target student id, required to validate `upgradeFromEnrollmentId`: the
+   * source enrollment must belong to this student and the destination product
+   * must not already have an active enrollment. Upgrades are only possible for
+   * an existing student, so the new-student flow leaves this unset and any
+   * upgrade request without it is rejected.
+   */
+  studentId?: string;
 }
 
 /**
@@ -110,6 +142,8 @@ export async function prepareEnrollmentCreate(
       requiresInitialPayment: true,
       generatesCommission: true,
       defaultCommissionPercent: true,
+      programLevel: true,
+      basePriceUsd: true,
     },
   });
   if (!product) {
@@ -118,6 +152,11 @@ export async function prepareEnrollmentCreate(
   if (!product.isActive) {
     throw new EnrollmentValidationError(400, "El producto no está activo");
   }
+
+  // Upgrade path: when the request points at a prior enrollment, the
+  // destination total is not the caller-supplied amount but the catalog gross
+  // of the destination program minus the credit actually paid on the origin.
+  const upgrade = await prepareUpgrade(client, body, product, opts.studentId);
 
   const initialPayment = body.initialPayment ?? null;
   if (product.requiresInitialPayment && !initialPayment) {
@@ -214,7 +253,11 @@ export async function prepareEnrollmentCreate(
       )
     : 0;
 
-  const totalAmountUsd = Number(body.totalAmountUsd);
+  // For an upgrade the net (gross − credit) is authoritative and overrides the
+  // caller-supplied total; a normal sale keeps the agreed body amount.
+  const totalAmountUsd = upgrade
+    ? upgrade.netAmountUsd
+    : Number(body.totalAmountUsd);
   if (initialPaymentUsd - totalAmountUsd > 0.01) {
     throw new EnrollmentValidationError(
       400,
@@ -292,6 +335,98 @@ export async function prepareEnrollmentCreate(
     commissionBaseUsd,
     commissionPercent,
     grantAccess: body.grantAccessNow === true,
+    upgrade,
+  };
+}
+
+/**
+ * Validates and prices a level upgrade. Returns null for a normal sale (no
+ * `upgradeFromEnrollmentId`). Throws EnrollmentValidationError on any rule
+ * violation: missing student context, unknown / foreign source enrollment, a
+ * non-upward level move, or an already-active enrollment of the destination
+ * product. The credit is what the student really paid on the origin and the
+ * net (gross − credit, floored at 0) is what the upgrade will charge.
+ */
+async function prepareUpgrade(
+  client: ReadClient,
+  body: EnrollmentRequestBody,
+  product: LoadedProduct,
+  studentId: string | undefined,
+): Promise<PreparedUpgrade | null> {
+  if (!body.upgradeFromEnrollmentId) return null;
+  if (!studentId) {
+    throw new EnrollmentValidationError(
+      400,
+      "Un upgrade requiere un estudiante existente",
+    );
+  }
+
+  const source = await client.studentProductEnrollment.findUnique({
+    where: { id: body.upgradeFromEnrollmentId },
+    select: {
+      id: true,
+      studentId: true,
+      programLevelSnapshot: true,
+      product: { select: { programLevel: true } },
+      payments: {
+        select: { amount: true, currency: true, officialAmountUsd: true },
+      },
+    },
+  });
+  if (!source) {
+    throw new EnrollmentValidationError(
+      404,
+      "La inscripción de origen del upgrade no existe",
+    );
+  }
+  if (source.studentId !== studentId) {
+    throw new EnrollmentValidationError(
+      400,
+      "La inscripción de origen pertenece a otro estudiante",
+    );
+  }
+
+  const sourceLevel = source.programLevelSnapshot ?? source.product?.programLevel ?? null;
+  const targetLevel = product.programLevel ?? null;
+  if (!canUpgradeToLevel(sourceLevel, targetLevel)) {
+    throw new EnrollmentValidationError(
+      400,
+      "El nivel destino del upgrade debe ser superior al de origen",
+    );
+  }
+
+  // No second active enrollment of the destination program: an upgrade replaces
+  // the prior level, it does not stack on top of an existing destination sale.
+  const activeDestinationCount = await client.studentProductEnrollment.count({
+    where: {
+      studentId,
+      productId: product.id,
+      status: { in: ["ACTIVE", "PAUSED"] },
+    },
+  });
+  if (activeDestinationCount > 0) {
+    throw new EnrollmentValidationError(
+      409,
+      "El estudiante ya tiene una inscripción activa del producto destino",
+    );
+  }
+
+  const credit = calculateUpgradeCredit(
+    source.payments.map((p) => ({
+      amount: p.amount.toString(),
+      currency: p.currency,
+      officialAmountUsd: p.officialAmountUsd?.toString() ?? null,
+    })),
+  );
+  const amounts = buildUpgradeAmounts(product.basePriceUsd.toString(), credit);
+
+  return {
+    fromEnrollmentId: source.id,
+    grossProgramPriceUsd: amounts.grossProgramPriceUsd,
+    upgradeCreditUsd: amounts.upgradeCreditUsd,
+    netAmountUsd: amounts.netAmountUsd,
+    programLevelSnapshot: targetLevel,
+    productNameSnapshot: product.name,
   };
 }
 
@@ -330,6 +465,7 @@ export async function createValidatedEnrollmentInTx(
     scheduleRows,
     commissionBaseUsd,
     commissionPercent,
+    upgrade,
   } = validated;
 
   const enrollment = await tx.studentProductEnrollment.create({
@@ -359,6 +495,16 @@ export async function createValidatedEnrollmentInTx(
       accessGrantedAt: null,
       learnWorldsSyncStatus: "pending",
       notes: body.notes ?? null,
+      ...(upgrade
+        ? {
+            upgradeFromEnrollmentId: upgrade.fromEnrollmentId,
+            grossProgramPriceUsd: upgrade.grossProgramPriceUsd,
+            upgradeCreditUsd: upgrade.upgradeCreditUsd,
+            netAmountUsd: upgrade.netAmountUsd,
+            programLevelSnapshot: upgrade.programLevelSnapshot,
+            productNameSnapshot: upgrade.productNameSnapshot,
+          }
+        : {}),
     },
   });
 

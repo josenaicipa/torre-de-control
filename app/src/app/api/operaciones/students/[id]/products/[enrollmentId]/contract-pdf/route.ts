@@ -6,14 +6,8 @@ import {
 } from "@/lib/actor";
 import { canAccessStudent } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
-import {
-  buildContractInputFromData,
-  contractEnrollmentSelect,
-  contractSignerMembers,
-  parseContractSectionsSnapshot,
-  parseManualClausesSnapshot,
-} from "@/lib/operaciones-contract";
-import { generateSignedContractPdf } from "@/lib/operaciones-contract-pdf";
+import { contractEnrollmentSelect } from "@/lib/operaciones-contract";
+import { renderSignedContractPdfForEnrollment } from "@/lib/operaciones-contract-pdf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,40 +55,7 @@ export async function GET(_req: Request, { params }: Params) {
       );
     }
 
-    const manualClauses = parseManualClausesSnapshot(enrollment.contractManualClausesSnapshot) ?? [];
-    const sectionsSnapshot =
-      parseContractSectionsSnapshot(enrollment.contractSectionsSnapshot) ?? undefined;
-    const input = buildContractInputFromData(
-      enrollment,
-      enrollment.contractSignedAt,
-      manualClauses,
-      sectionsSnapshot,
-    );
-    const memberSigners = contractSignerMembers(enrollment.student.members).map(
-      (m) => ({
-        name: m.contractSignerName ?? m.fullName,
-        signedAt: m.contractSignedAt,
-        signedIp: m.contractSignedIp,
-        signatureHash: m.contractSignatureHash,
-        signatureImage: m.contractSignatureImage,
-      }),
-    );
-    const pdf = await generateSignedContractPdf({
-      input,
-      evidence: {
-        studentSignerName: enrollment.contractSignerName,
-        studentSignedAt: enrollment.contractSignedAt,
-        studentSignedIp: enrollment.contractSignedIp,
-        studentSignatureHash: enrollment.contractStudentSignatureHash,
-        studentSignatureImage: enrollment.contractStudentSignatureImage,
-        ceoSignerName: enrollment.contractCeoSignerName,
-        ceoSignedAt: enrollment.contractCeoSignedAt,
-        ceoSignatureHash: enrollment.contractCeoSignatureHash,
-        ceoSignatureImage: enrollment.contractCeoSignatureImage,
-        templateVersion: enrollment.contractTemplateVersion,
-        memberSigners,
-      },
-    });
+    const pdf = await renderSignedContractPdfForEnrollment(enrollment);
 
     return new Response(new Uint8Array(pdf), {
       status: 200,

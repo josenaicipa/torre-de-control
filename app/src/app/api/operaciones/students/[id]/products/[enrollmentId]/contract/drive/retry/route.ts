@@ -10,6 +10,8 @@ import { canAccessStudent } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
 import { buildSignedContractDriveFilename } from "@/lib/operaciones-signature-flow";
+import { contractEnrollmentSelect } from "@/lib/operaciones-contract";
+import { renderSignedContractPdfForEnrollment } from "@/lib/operaciones-contract-pdf";
 import {
   DriveApiError,
   DriveConfigError,

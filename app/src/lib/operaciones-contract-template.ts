@@ -129,6 +129,22 @@ export interface ManualClause {
   paragraphs: string[];
 }
 
+// Liquidación de un upgrade de nivel. Cuando una inscripción nace como upgrade
+// de otra, el contrato debe explicitar de dónde sale el valor neto: el precio
+// bruto de catálogo del nivel destino, el crédito reconocido por lo ya pagado
+// en niveles anteriores y el neto resultante. Los montos vienen ya calculados
+// por el backend de upgrades (operaciones-upgrade / operaciones-enrollments).
+export interface ContractUpgradeInfo {
+  // Precio bruto de catálogo del nivel destino (USD).
+  grossProgramPriceUsd: number;
+  // Crédito aplicado por pagos reconocidos en niveles anteriores (USD).
+  upgradeCreditUsd: number;
+  // Valor neto a pagar = bruto − crédito, con piso en 0 (USD).
+  netAmountUsd: number;
+  // Nivel destino del programa, si está disponible.
+  programLevelSnapshot?: number | null;
+}
+
 export interface ContractInput {
   // Plantilla legal a emitir. Decide título, subtítulo y cuerpo del contrato.
   // Ausente/undefined => "TRADITIONAL" (contrato por defecto «Unlocked Academy»).
@@ -152,6 +168,11 @@ export interface ContractInput {
   durationMonths: number;
   // Cláusulas manuales configurables que se anexan al final del contrato.
   manualClauses?: ManualClause[];
+  // Liquidación de un upgrade de nivel. Cuando está presente, el contrato
+  // incluye un bloque que detalla valor bruto, crédito aplicado y valor neto,
+  // y entra al hash de la firma vía el input canónico (igual que web y PDF).
+  // Ausente/null => contrato normal, con salida idéntica a la anterior.
+  upgrade?: ContractUpgradeInfo | null;
   // Snapshot del contrato COMPLETO personalizado para esta inscripción. Cuando
   // está presente y tiene al menos una sección, REEMPLAZA la plantilla oficial
   // y las cláusulas manuales como `sections` en TODAS las vistas (web, PDF y el
@@ -958,6 +979,74 @@ function buildBusinessSections(
   ];
 }
 
+// Construye el bloque de liquidación del upgrade de nivel. Devuelve null para
+// un contrato normal (sin input.upgrade). Los montos van resaltados en negrita
+// con los mismos marcadores que el resto del contrato; el cronograma reutiliza
+// las cuotas del input (montos y vencimientos) para que web, PDF y hash muestren
+// exactamente la misma información.
+function buildUpgradeSection(input: ContractInput): ContractSection | null {
+  const up = input.upgrade;
+  if (!up) return null;
+
+  const level =
+    typeof up.programLevelSnapshot === "number" &&
+    Number.isFinite(up.programLevelSnapshot)
+      ? up.programLevelSnapshot
+      : null;
+
+  const intro =
+    level != null
+      ? `Esta inscripción corresponde a un upgrade al nivel ${level} del ` +
+        "programa «Unlocked Academy». A continuación se detalla la liquidación " +
+        "del upgrade:"
+      : "Esta inscripción corresponde a un upgrade de nivel del programa " +
+        "«Unlocked Academy». A continuación se detalla la liquidación del upgrade:";
+
+  const paragraphs: string[] = [
+    intro,
+    `${CONTRACT_BULLET_PREFIX}Valor bruto del nuevo nivel: ${boldFragment(
+      formatContractUsd(up.grossProgramPriceUsd),
+    )}.`,
+    `${CONTRACT_BULLET_PREFIX}Crédito aplicado por pagos anteriores: ${boldFragment(
+      formatContractUsd(up.upgradeCreditUsd),
+    )}.`,
+    `${CONTRACT_BULLET_PREFIX}Valor neto a pagar: ${boldFragment(
+      formatContractUsd(up.netAmountUsd),
+    )}.`,
+  ];
+
+  if (input.installments.length > 0) {
+    const count = input.installments.length;
+    const fechas = input.installments
+      .map(
+        (cuota) =>
+          `${boldFragment(formatContractUsd(cuota.amountUsd))} el ` +
+          `${boldFragment(formatContractDate(cuota.dueDate))}`,
+      )
+      .join("; ");
+    paragraphs.push(
+      `El valor neto se cancelará en ${count} ${
+        count === 1 ? "cuota" : "cuotas"
+      } conforme al siguiente cronograma: ${fechas}.`,
+    );
+  } else if (input.balanceUsd > 0) {
+    paragraphs.push(
+      "El valor neto se cancelará según las fechas y la forma de pago " +
+        "acordadas entre las partes.",
+    );
+  } else {
+    paragraphs.push(
+      "El valor neto quedó cubierto en su totalidad; no hay cuotas pendientes.",
+    );
+  }
+
+  return {
+    id: "upgrade",
+    heading: "Detalle del upgrade de nivel",
+    paragraphs,
+  };
+}
+
 export function buildContractView(input: ContractInput): ContractView {
   const templateKind = normalizeContractTemplateKind(input.templateKind);
   const isBusiness = templateKind === "BUSINESS";
@@ -1339,6 +1428,15 @@ export function buildContractView(input: ContractInput): ContractView {
   const baseSections = isBusiness
     ? buildBusinessSections(input, duration)
     : defaultSections;
+
+  // Upgrade de nivel: se antepone un bloque que explica de dónde sale el valor
+  // neto (bruto − crédito) antes de las cláusulas oficiales. Solo aparece en la
+  // plantilla oficial; un snapshot personalizado reemplaza todo el cuerpo más
+  // abajo, pero la liquidación sigue dentro del hash vía input.upgrade.
+  const upgradeSection = buildUpgradeSection(input);
+  if (upgradeSection) {
+    baseSections.unshift(upgradeSection);
+  }
 
   // Cláusulas manuales configurables: se anexan al final del cuerpo legal con
   // un id estable (manual-N) para que web, PDF y hash compartan el mismo orden.

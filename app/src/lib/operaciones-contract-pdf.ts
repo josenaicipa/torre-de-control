@@ -10,7 +10,14 @@ import {
   parseContractSegments,
   type ContractInput,
 } from "./operaciones-contract-template";
-import { validateSignatureImage } from "./operaciones-contract";
+import {
+  buildContractInputFromData,
+  contractSignerMembers,
+  parseContractSectionsSnapshot,
+  parseManualClausesSnapshot,
+  validateSignatureImage,
+  type ContractDataShape,
+} from "./operaciones-contract";
 
 // Fuentes Unicode (DejaVu) para que ñ, tildes, viñetas «»°— y demás caracteres
 // españoles no se rompan en el PDF. Se empaquetan en public/fonts y, como
@@ -322,5 +329,70 @@ export function generateSignedContractPdf({
       .text(`Versión de plantilla: ${evidence.templateVersion ?? "—"}`);
 
     doc.end();
+  });
+}
+
+// Forma mínima de una inscripción para regenerar el PDF firmado final: el
+// cuerpo legal (ContractDataShape) más la evidencia de firma del estudiante y
+// del CEO y los snapshots congelados. La usan la aprobación (Torre), la descarga
+// del PDF y el reintento de subida a Drive para producir SIEMPRE el mismo
+// documento a partir de los datos guardados.
+export interface SignedContractPdfEnrollment extends ContractDataShape {
+  contractSignedAt: Date | string | null;
+  contractSignerName: string | null;
+  contractSignedIp: string | null;
+  contractStudentSignatureHash: string | null;
+  contractStudentSignatureImage: string | null;
+  contractCeoSignerName: string | null;
+  contractCeoSignedAt: Date | string | null;
+  contractCeoSignatureHash: string | null;
+  contractCeoSignatureImage: string | null;
+  contractTemplateVersion: string | null;
+  contractManualClausesSnapshot: string | null;
+  contractSectionsSnapshot: string | null;
+}
+
+// Genera el PDF firmado final de una inscripción reconstruyendo el ContractInput
+// canónico (con cláusulas y secciones congeladas) y la evidencia de firma de
+// todas las partes (titular, socios firmantes y CEO). Es la fuente única que
+// comparten la aprobación, la descarga y el reintento de Drive, de modo que el
+// documento sea idéntico independientemente de quién lo dispare.
+export function renderSignedContractPdfForEnrollment(
+  enrollment: SignedContractPdfEnrollment,
+): Promise<Buffer> {
+  const manualClauses =
+    parseManualClausesSnapshot(enrollment.contractManualClausesSnapshot) ?? [];
+  const sectionsSnapshot =
+    parseContractSectionsSnapshot(enrollment.contractSectionsSnapshot) ?? undefined;
+  const input = buildContractInputFromData(
+    enrollment,
+    enrollment.contractSignedAt,
+    manualClauses,
+    sectionsSnapshot,
+  );
+  const memberSigners = contractSignerMembers(enrollment.student.members ?? []).map(
+    (m) => ({
+      name: m.contractSignerName ?? m.fullName,
+      signedAt: m.contractSignedAt,
+      signedIp: m.contractSignedIp,
+      signatureHash: m.contractSignatureHash,
+      signatureImage: m.contractSignatureImage,
+    }),
+  );
+  return generateSignedContractPdf({
+    input,
+    evidence: {
+      studentSignerName: enrollment.contractSignerName,
+      studentSignedAt: enrollment.contractSignedAt,
+      studentSignedIp: enrollment.contractSignedIp,
+      studentSignatureHash: enrollment.contractStudentSignatureHash,
+      studentSignatureImage: enrollment.contractStudentSignatureImage,
+      ceoSignerName: enrollment.contractCeoSignerName,
+      ceoSignedAt: enrollment.contractCeoSignedAt,
+      ceoSignatureHash: enrollment.contractCeoSignatureHash,
+      ceoSignatureImage: enrollment.contractCeoSignatureImage,
+      templateVersion: enrollment.contractTemplateVersion,
+      memberSigners,
+    },
   });
 }

@@ -16,6 +16,12 @@ import {
   contractEnrollmentSelect,
   findMissingContractFields,
 } from "@/lib/operaciones-contract";
+import {
+  renderSignedContractPdfForEnrollment,
+  type SignedContractPdfEnrollment,
+} from "@/lib/operaciones-contract-pdf";
+import { buildSignedContractDriveFilename } from "@/lib/operaciones-signature-flow";
+import { uploadSignedContractPdfToDrive } from "@/lib/drive-client";
 import { getJoseSignature } from "@/lib/operaciones-settings";
 
 export const runtime = "nodejs";
@@ -23,6 +29,106 @@ export const dynamic = "force-dynamic";
 
 interface Params {
   params: Promise<{ id: string; enrollmentId: string }>;
+}
+
+interface ArchiveSignedPdfResult {
+  stored: boolean;
+  // "uploaded" | "error" | "skipped": espeja el campo signedPdfDriveUploadStatus
+  // que ya escribe el endpoint de retry de Drive.
+  driveStatus: "uploaded" | "error" | "skipped" | "not_stored";
+  error: string | null;
+}
+
+// Genera el PDF firmado final de la inscripción ya aprobada, lo guarda en Torre
+// (base64 + fecha) y, si hay carpeta de Drive, lo sube con el nombre del
+// blueprint. Nunca lanza: cualquier fallo se persiste en los campos signedPdf*
+// y se devuelve para la auditoría, de modo que la aprobación y la liberación de
+// acceso en LearnWorlds sigan su curso. El reintento manual vive en el endpoint
+// contract/drive/retry, que reutiliza el PDF guardado.
+async function archiveSignedContractPdf(params: {
+  enrollmentId: string;
+  signedEnrollment: SignedContractPdfEnrollment;
+  filename: string;
+  driveFolderId: string | null;
+}): Promise<ArchiveSignedPdfResult> {
+  const { enrollmentId, signedEnrollment, filename, driveFolderId } = params;
+  let base64: string;
+  try {
+    const pdf = await renderSignedContractPdfForEnrollment(signedEnrollment);
+    base64 = pdf.toString("base64");
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Error generando el PDF firmado";
+    const truncated = message.slice(0, 500);
+    // No hay base64 que guardar (el PDF nunca llegó a generarse), pero el fallo
+    // debe quedar visible en BD para diagnóstico y reintento manual. No tocamos
+    // signedPdfContent porque no existe documento.
+    await prisma.studentProductEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        signedPdfDriveUploadStatus: "error",
+        signedPdfDriveUploadError: truncated,
+        signatureFlowStatus: "DRIVE_ERROR",
+      },
+    });
+    return { stored: false, driveStatus: "not_stored", error: truncated };
+  }
+
+  const storedAt = new Date();
+  const driveFolder = driveFolderId?.trim();
+  if (!driveFolder) {
+    await prisma.studentProductEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        signedPdfContent: base64,
+        signedPdfStoredAt: storedAt,
+        signedPdfDriveUploadStatus: "skipped",
+        signedPdfDriveUploadError: null,
+        signatureFlowStatus: "PDF_STORED",
+      },
+    });
+    return { stored: true, driveStatus: "skipped", error: null };
+  }
+
+  try {
+    const uploaded = await uploadSignedContractPdfToDrive(
+      driveFolder,
+      filename,
+      base64,
+    );
+    await prisma.studentProductEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        signedPdfContent: base64,
+        signedPdfStoredAt: storedAt,
+        signedPdfDriveFileId: uploaded.fileId || null,
+        signedPdfDriveUrl: uploaded.webViewLink,
+        signedPdfDriveUploadedAt: storedAt,
+        signedPdfDriveUploadStatus: "uploaded",
+        signedPdfDriveUploadError: null,
+        signatureFlowStatus: "DRIVE_UPLOADED",
+      },
+    });
+    return { stored: true, driveStatus: "uploaded", error: null };
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Error subiendo el PDF firmado a Drive";
+    // El PDF sí se guardó en Torre: persistimos el contenido y marcamos el error
+    // de Drive para poder reintentar la subida sin regenerar el documento.
+    await prisma.studentProductEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        signedPdfContent: base64,
+        signedPdfStoredAt: storedAt,
+        signedPdfDriveUploadStatus: "error",
+        signedPdfDriveUploadError: message.slice(0, 500),
+        signatureFlowStatus: "DRIVE_ERROR",
+      },
+    });
+    return { stored: true, driveStatus: "error", error: message.slice(0, 500) };
+  }
 }
 
 // Aprueba el contrato desde Torre: registra la firma del CEO (Jose David
@@ -49,7 +155,7 @@ export async function POST(_req: Request, { params }: Params) {
 
     const student = await prisma.student.findUnique({
       where: { id },
-      select: { id: true, mentorUserId: true },
+      select: { id: true, mentorUserId: true, driveFolderId: true },
     });
     if (!student) return jsonError(404, "Estudiante no encontrado");
     if (!canAccessStudent(actor, student.mentorUserId)) {
@@ -63,7 +169,12 @@ export async function POST(_req: Request, { params }: Params) {
         studentId: true,
         installmentCount: true,
         product: {
-          select: { id: true, name: true, requiresInitialPayment: true },
+          select: {
+            id: true,
+            name: true,
+            requiresInitialPayment: true,
+            programLevel: true,
+          },
         },
         payments: { select: { isInitialPayment: true } },
         _count: { select: { paymentSchedules: true } },
@@ -155,6 +266,32 @@ export async function POST(_req: Request, { params }: Params) {
       },
     });
 
+    // Genera y archiva el PDF firmado final (con la firma del CEO recién
+    // registrada) y, si el estudiante ya tiene carpeta de Drive sincronizada, lo
+    // sube con el nombre del blueprint. Todo esto es best-effort: un fallo al
+    // generar o subir el PDF NO debe bloquear la aprobación ni el acceso en
+    // LearnWorlds; el error queda visible en los campos signedPdf* y en la
+    // auditoría para reintentar luego desde el endpoint de retry.
+    const programLevel =
+      enrollment.programLevelSnapshot ?? enrollment.product.programLevel ?? 0;
+    const studentName =
+      enrollment.student.legalName?.trim() ||
+      enrollment.student.fullName ||
+      "Estudiante";
+    const signedEnrollment: SignedContractPdfEnrollment = {
+      ...enrollment,
+      contractCeoSignerName: ceoName,
+      contractCeoSignedAt: now,
+      contractCeoSignatureHash: ceoHash,
+      contractCeoSignatureImage: joseSignature.dataUrl,
+    };
+    const pdfEvidence = await archiveSignedContractPdf({
+      enrollmentId: enrollment.id,
+      signedEnrollment,
+      filename: buildSignedContractDriveFilename(studentName, programLevel),
+      driveFolderId: student.driveFolderId,
+    });
+
     const lwResult = await enrollEnrollmentInLearnWorlds(enrollment.id);
 
     await writeAudit({
@@ -167,7 +304,13 @@ export async function POST(_req: Request, { params }: Params) {
         accessStatus: lwResult.accessStatus,
         learnWorldsSyncStatus: lwResult.syncStatus,
         learnWorldsConfigCount: lwResult.configCount,
+        learnWorldsEnrolledCount: lwResult.enrolledCount,
+        learnWorldsRevokedCount: lwResult.revokedCount,
+        learnWorldsRevokeError: lwResult.revokeError,
         learnWorldsError: lwResult.error,
+        signedPdfStored: pdfEvidence.stored,
+        signedPdfDriveStatus: pdfEvidence.driveStatus,
+        signedPdfError: pdfEvidence.error,
       },
     });
 

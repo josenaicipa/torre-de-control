@@ -70,6 +70,9 @@ export async function POST(_req: Request, { params }: Params) {
         accessStatus: lwResult.accessStatus,
         learnWorldsSyncStatus: lwResult.syncStatus,
         learnWorldsConfigCount: lwResult.configCount,
+        learnWorldsEnrolledCount: lwResult.enrolledCount,
+        learnWorldsRevokedCount: lwResult.revokedCount,
+        learnWorldsRevokeError: lwResult.revokeError,
         learnWorldsError: lwResult.error,
       },
     });
