@@ -6,6 +6,7 @@ import {
   createScheduleSchema,
   createStudentSchema,
   updateStudentSchema,
+  updateStudentMemberSchema,
   updatePaymentSchema,
   updateScheduleSchema,
   listStudentsQuerySchema,
@@ -164,6 +165,52 @@ describe("updateStudentSchema", () => {
   it("rejects invalid status", () => {
     const result = updateStudentSchema.safeParse({ status: "WRONG" as never });
     expect(result.success).toBe(false);
+  });
+  it("accepts the full lifecycle statuses (SEPARATED/INACTIVE/WITHDRAWN)", () => {
+    for (const status of ["SEPARATED", "INACTIVE", "WITHDRAWN"] as const) {
+      expect(updateStudentSchema.safeParse({ status }).success).toBe(true);
+    }
+  });
+});
+
+describe("updateStudentMemberSchema", () => {
+  it("requires fullName and defaults isContractSigner to false", () => {
+    const parsed = updateStudentMemberSchema.parse({ fullName: "Ana Gómez" });
+    expect(parsed.fullName).toBe("Ana Gómez");
+    expect(parsed.isContractSigner).toBe(false);
+  });
+
+  it("rejects a blank fullName (useful rows must be named)", () => {
+    expect(updateStudentMemberSchema.safeParse({ fullName: "  " }).success).toBe(
+      false,
+    );
+  });
+
+  it("accepts optional/nullable contact fields and a valid email", () => {
+    expect(
+      updateStudentMemberSchema.safeParse({
+        fullName: "Ana",
+        email: "Ana@EXAMPLE.com",
+        phone: null,
+        documentType: "CC",
+        documentNumber: "123",
+        isContractSigner: true,
+      }).success,
+    ).toBe(true);
+    const parsed = updateStudentMemberSchema.parse({
+      fullName: "Ana",
+      email: "Ana@EXAMPLE.com",
+    });
+    expect(parsed.email).toBe("ana@example.com");
+  });
+
+  it("rejects an invalid email", () => {
+    expect(
+      updateStudentMemberSchema.safeParse({
+        fullName: "Ana",
+        email: "not-an-email",
+      }).success,
+    ).toBe(false);
   });
 });
 

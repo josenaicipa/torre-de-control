@@ -12,6 +12,7 @@ import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
 import {
   updateStudentSchema,
+  updateStudentMemberSchema,
   isHardDeleteConfirmed,
 } from "@/lib/operaciones-validations";
 import { calculateEndDate } from "@/domain/students";
@@ -20,6 +21,26 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface Params { params: Promise<{ id: string }> }
+
+function isBlank(value: unknown): boolean {
+  return value == null || (typeof value === "string" && value.trim() === "");
+}
+
+// Una fila de integrante se considera vacía cuando el operador la dejó sin
+// ningún dato (típico de un "+ Agregar miembro" no rellenado). Esas filas se
+// descartan antes de validar para no exigir fullName en filas que el usuario
+// nunca completó.
+function isEmptyMemberRow(row: unknown): boolean {
+  if (!row || typeof row !== "object") return true;
+  const r = row as Record<string, unknown>;
+  return (
+    isBlank(r.fullName) &&
+    isBlank(r.email) &&
+    isBlank(r.phone) &&
+    isBlank(r.documentType) &&
+    isBlank(r.documentNumber)
+  );
+}
 
 export async function GET(_req: Request, { params }: Params) {
   try {
@@ -66,7 +87,29 @@ export async function PATCH(req: Request, { params }: Params) {
     });
     if (!existing) return jsonError(404, "Estudiante no encontrado");
 
-    const body = updateStudentSchema.parse(await req.json());
+    const rawBody = (await req.json()) as Record<string, unknown>;
+    const body = updateStudentSchema.parse(rawBody);
+
+    // Los integrantes del equipo no son una columna de Student: se extraen del
+    // body crudo y se reemplazan aparte dentro de la transacción. Si el campo
+    // no viene, la lista de miembros se deja intacta.
+    const hasMembers = Array.isArray(rawBody.members);
+    const memberCreates = hasMembers
+      ? (rawBody.members as unknown[])
+          .filter((row) => !isEmptyMemberRow(row))
+          .map((row, index) => {
+            const member = updateStudentMemberSchema.parse(row);
+            return {
+              fullName: member.fullName,
+              email: member.email ?? null,
+              phone: member.phone ?? null,
+              documentType: member.documentType ?? null,
+              documentNumber: member.documentNumber ?? null,
+              isContractSigner: member.isContractSigner,
+              isPrimaryContact: index === 0,
+            };
+          })
+      : [];
 
     if (body.closerUserId) {
       const closer = await prisma.user.findFirst({
@@ -94,13 +137,26 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.startDate) data.startDate = new Date(body.startDate + "T00:00:00.000Z");
     if (computedEndDate) data.endDate = computedEndDate;
 
-    const student = await prisma.student.update({
-      where: { id },
-      data: data as never,
-      include: {
-        mentorUser: { select: { id: true, name: true, email: true } },
-        closerUser: { select: { id: true, name: true, email: true } },
-      },
+    const student = await prisma.$transaction(async (tx) => {
+      await tx.student.update({ where: { id }, data: data as never });
+
+      if (hasMembers) {
+        await tx.studentMember.deleteMany({ where: { studentId: id } });
+        if (memberCreates.length > 0) {
+          await tx.studentMember.createMany({
+            data: memberCreates.map((m) => ({ ...m, studentId: id })),
+          });
+        }
+      }
+
+      return tx.student.findUniqueOrThrow({
+        where: { id },
+        include: {
+          mentorUser: { select: { id: true, name: true, email: true } },
+          closerUser: { select: { id: true, name: true, email: true } },
+          members: true,
+        },
+      });
     });
 
     await writeAudit({

@@ -7,6 +7,9 @@ import { z } from "zod";
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
+// Refleja el enum Prisma StudentStatus completo. Los tres últimos modelan el
+// ciclo comercial añadido en PR1 (SEPARATED/INACTIVE/WITHDRAWN); omitirlos
+// hacía que editar un estudiante en esos estados fallara el parse con 400.
 export const studentStatusSchema = z.enum([
   "ACTIVE",
   "PAUSED",
@@ -14,6 +17,9 @@ export const studentStatusSchema = z.enum([
   "DROPPED",
   "EXTENDED",
   "ACCESS_REVOKED",
+  "SEPARATED",
+  "INACTIVE",
+  "WITHDRAWN",
 ]);
 
 export const progressLevelSchema = z.enum(["ALTO", "MEDIO", "BAJO", "SIN_DATO"]);
@@ -43,6 +49,22 @@ export const updateStudentSchema = createStudentSchema.partial().extend({
   currentProgressLevel: progressLevelSchema.optional(),
   currentBottleneck: z.string().max(500).optional().nullable(),
 });
+
+// Fila de integrante enviada por el editor de estudiante. El route filtra las
+// filas completamente vacías antes de validar, así que aquí `fullName` es
+// obligatorio: cualquier fila «útil» (con algún dato) debe tener nombre. El
+// resto es opcional/nullable. `isPrimaryContact` no se acepta del cliente: el
+// route marca como primario sólo al primero al reemplazar la lista.
+export const updateStudentMemberSchema = z.object({
+  fullName: z.string().trim().min(1, "Nombre del integrante requerido").max(200),
+  email: z.string().trim().toLowerCase().email().optional().nullable(),
+  phone: z.string().trim().max(50).optional().nullable(),
+  documentType: z.string().trim().max(50).optional().nullable(),
+  documentNumber: z.string().trim().max(100).optional().nullable(),
+  isContractSigner: z.boolean().default(false),
+});
+
+export type UpdateStudentMemberInput = z.infer<typeof updateStudentMemberSchema>;
 
 /**
  * Palabra exacta que el ADMIN debe escribir para confirmar la eliminación

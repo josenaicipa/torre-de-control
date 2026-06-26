@@ -27,6 +27,9 @@ const EDITABLE_STATUSES = [
   "DROPPED",
   "EXTENDED",
   "ACCESS_REVOKED",
+  "SEPARATED",
+  "INACTIVE",
+  "WITHDRAWN",
 ] as const;
 
 export interface MemberInitial {
@@ -632,22 +635,27 @@ export function StudentDataEditForm({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4">
-              <button
-                type="button"
-                onClick={close}
-                disabled={saving}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
-              >
-                {saving ? "Guardando…" : "Guardar cambios"}
-              </button>
+            <div className="flex flex-col gap-2 border-t border-slate-200 px-6 py-4">
+              {error && (
+                <p className="text-sm font-medium text-rose-700">{error}</p>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={close}
+                  disabled={saving}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {saving ? "Guardando…" : "Guardar cambios"}
+                </button>
+              </div>
             </div>
           </form>
         </div>
