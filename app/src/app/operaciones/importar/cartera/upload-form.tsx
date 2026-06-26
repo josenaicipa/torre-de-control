@@ -36,12 +36,21 @@ interface ParsedRowPreview {
   warnings: string[];
 }
 
+interface ExistingMatch {
+  row: number;
+  name: string;
+  email: string;
+  existingName?: string;
+  existingStatus?: string;
+}
+
 interface PreviewSummary {
   totalRows: number;
   validRows: number;
   rowsWithWarnings: number;
   newStudents: number;
   matchedStudents: number;
+  existingMatches: ExistingMatch[];
   unmatchedClosers: string[];
   sample: ParsedRowPreview[];
   errors: Array<{ row: number; error: string }>;
@@ -189,6 +198,30 @@ export function CarteraImportForm() {
               color={preview.errors.length > 0 ? "rose" : "slate"}
             />
           </div>
+
+          {(preview.existingMatches ?? []).length > 0 && (
+            <div className="mt-4 rounded-md bg-amber-50 px-3 py-3 text-sm text-amber-800">
+              <strong>Estudiantes que ya existen ({preview.existingMatches.length}):</strong>
+              <p className="mt-1 text-xs">
+                Estas filas coinciden por correo con estudiantes ya registrados y se omitirán
+                al importar (no se modifican).
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                {preview.existingMatches.slice(0, 20).map((match) => (
+                  <li key={`${match.row}-${match.email}`}>
+                    Fila {match.row}: <strong>{match.name}</strong> · {match.email}
+                    {match.existingName && match.existingName !== match.name
+                      ? ` (registrado como ${match.existingName})`
+                      : ""}
+                    {match.existingStatus ? ` · estado: ${match.existingStatus}` : ""}
+                  </li>
+                ))}
+                {preview.existingMatches.length > 20 && (
+                  <li>...y {preview.existingMatches.length - 20} más</li>
+                )}
+              </ul>
+            </div>
+          )}
 
           {preview.unmatchedClosers.length > 0 && (
             <div className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">

@@ -13,12 +13,21 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+interface ExistingMatch {
+  row: number;
+  name: string;
+  email: string;
+  existingName?: string;
+  existingStatus?: string;
+}
+
 interface PreviewSummary {
   totalRows: number;
   validRows: number;
   rowsWithWarnings: number;
   newStudents: number;
   matchedStudents: number;
+  existingMatches: ExistingMatch[];
   unmatchedClosers: string[];
   sample: ParsedRow[];
   errors: Array<{ row: number; error: string }>;
@@ -64,16 +73,26 @@ export async function POST(req: Request) {
     );
     const existingStudents = await prisma.student.findMany({
       where: { email: { in: allEmails } },
-      select: { email: true },
+      select: { email: true, fullName: true, status: true },
     });
-    const existingEmails = new Set(
-      existingStudents.map((student) => student.email.toLowerCase()),
+    const existingByEmail = new Map(
+      existingStudents.map((student) => [student.email.toLowerCase(), student]),
     );
 
     let matchedStudents = 0;
+    const existingMatches: ExistingMatch[] = [];
     for (const row of parsedRows) {
-      if (row.head.email && existingEmails.has(row.head.email.toLowerCase())) {
+      if (!row.head.email) continue;
+      const existing = existingByEmail.get(row.head.email.toLowerCase());
+      if (existing) {
         matchedStudents += 1;
+        existingMatches.push({
+          row: row.legacyRowId,
+          name: row.head.fullName,
+          email: row.head.email,
+          existingName: existing.fullName,
+          existingStatus: existing.status,
+        });
       }
     }
 
@@ -99,6 +118,7 @@ export async function POST(req: Request) {
       rowsWithWarnings: parsedRows.filter((row) => row.warnings.length > 0).length,
       newStudents: parsedRows.length - matchedStudents,
       matchedStudents,
+      existingMatches,
       unmatchedClosers,
       sample: parsedRows.slice(0, 5),
       errors,
