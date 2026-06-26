@@ -26,6 +26,21 @@ on:
       n8n_torre_webhook_secret:
         description: Optional one-time N8N_TORRE_WEBHOOK_SECRET seed; leave empty to preserve existing task env/repo secret.
         required: false
+      lw_base_url:
+        description: Optional one-time LW_BASE_URL seed; leave empty to preserve existing task env/repo secret.
+        required: false
+      lw_access_token:
+        description: Optional one-time LW_ACCESS_TOKEN seed; leave empty to preserve existing task env/repo secret.
+        required: false
+      lw_client_id:
+        description: Optional one-time LW_CLIENT_ID seed; leave empty to preserve existing task env/repo secret.
+        required: false
+      google_drive_client_email:
+        description: Optional one-time GOOGLE_DRIVE_CLIENT_EMAIL seed; leave empty to preserve existing task env/repo secret.
+        required: false
+      google_drive_private_key:
+        description: Optional one-time GOOGLE_DRIVE_PRIVATE_KEY seed; leave empty to preserve existing task env/repo secret.
+        required: false
 
 concurrency:
   group: torre-de-control-ecs
@@ -143,6 +158,16 @@ jobs:
           IMAGE_URI: ${{ steps.image.outputs.image_uri }}
           N8N_TORRE_WEBHOOK_SECRET_REPO: ${{ secrets.N8N_TORRE_WEBHOOK_SECRET }}
           N8N_TORRE_WEBHOOK_SECRET_INPUT: ${{ github.event.inputs.n8n_torre_webhook_secret || '' }}
+          LW_BASE_URL_SECRET: ${{ secrets.LW_BASE_URL }}
+          LW_ACCESS_TOKEN_SECRET: ${{ secrets.LW_ACCESS_TOKEN }}
+          LW_CLIENT_ID_SECRET: ${{ secrets.LW_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_EMAIL_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_EMAIL }}
+          GOOGLE_DRIVE_PRIVATE_KEY_SECRET: ${{ secrets.GOOGLE_DRIVE_PRIVATE_KEY }}
+          LW_BASE_URL_INPUT: ${{ github.event.inputs.lw_base_url || '' }}
+          LW_ACCESS_TOKEN_INPUT: ${{ github.event.inputs.lw_access_token || '' }}
+          LW_CLIENT_ID_INPUT: ${{ github.event.inputs.lw_client_id || '' }}
+          GOOGLE_DRIVE_CLIENT_EMAIL_INPUT: ${{ github.event.inputs.google_drive_client_email || '' }}
+          GOOGLE_DRIVE_PRIVATE_KEY_INPUT: ${{ github.event.inputs.google_drive_private_key || '' }}
         run: |
           set -euo pipefail
           # Decide whether to (re)seed N8N_TORRE_WEBHOOK_SECRET into the task
@@ -167,6 +192,30 @@ jobs:
             exit 1
           fi
 
+          # LearnWorlds and Google Drive secrets follow the same priority as N8N:
+          # workflow_dispatch input > repo secret > preserve existing task env.
+          # Resolve each variable independently. The value is captured on stdout
+          # while the source (input/repo/preserve) is logged on stderr, so the
+          # value itself is never printed.
+          resolve_secret() {
+            local name="$1" input="$2" repo="$3"
+            if [[ -n "${input}" ]]; then
+              echo "Using ${name} from workflow_dispatch input." >&2
+              printf '%s' "${input}"
+            elif [[ -n "${repo}" ]]; then
+              echo "Using ${name} from repo secret." >&2
+              printf '%s' "${repo}"
+            else
+              echo "No ${name} input/repo secret; preserving existing task env if present." >&2
+            fi
+          }
+
+          LW_BASE_URL_TO_SET="$(resolve_secret "LW_BASE_URL" "${LW_BASE_URL_INPUT:-}" "${LW_BASE_URL_SECRET:-}")"
+          LW_ACCESS_TOKEN_TO_SET="$(resolve_secret "LW_ACCESS_TOKEN" "${LW_ACCESS_TOKEN_INPUT:-}" "${LW_ACCESS_TOKEN_SECRET:-}")"
+          LW_CLIENT_ID_TO_SET="$(resolve_secret "LW_CLIENT_ID" "${LW_CLIENT_ID_INPUT:-}" "${LW_CLIENT_ID_SECRET:-}")"
+          GOOGLE_DRIVE_CLIENT_EMAIL_TO_SET="$(resolve_secret "GOOGLE_DRIVE_CLIENT_EMAIL" "${GOOGLE_DRIVE_CLIENT_EMAIL_INPUT:-}" "${GOOGLE_DRIVE_CLIENT_EMAIL_SECRET:-}")"
+          GOOGLE_DRIVE_PRIVATE_KEY_TO_SET="$(resolve_secret "GOOGLE_DRIVE_PRIVATE_KEY" "${GOOGLE_DRIVE_PRIVATE_KEY_INPUT:-}" "${GOOGLE_DRIVE_PRIVATE_KEY_SECRET:-}")"
+
           # Take the stack-managed task definition, swap only the container
           # image, and register a new revision. CloudFormation still owns the
           # base definition; this revision is a roll-forward to the new image.
@@ -175,19 +224,32 @@ jobs:
             --task-definition "${TASK_DEF_ARN}" \
             --query 'taskDefinition' --output json > current-taskdef.json
 
-          # Only upsert N8N_TORRE_WEBHOOK_SECRET when we have a value to set.
-          # When empty, leave the environment untouched so any value already in
-          # the current task definition is preserved across deploys.
+          # Only upsert a variable when we have a value to set. When empty, leave
+          # the environment untouched so any value already in the current task
+          # definition is preserved across deploys. The `upsert` helper replaces
+          # an existing entry with the same name or appends a new one.
           jq --arg IMAGE "${IMAGE_URI}" \
-             --arg N8N_SECRET "${N8N_SECRET_TO_SET}" '
-            .containerDefinitions[0].image = $IMAGE
-            | (if $N8N_SECRET != "" then
+             --arg N8N_SECRET "${N8N_SECRET_TO_SET}" \
+             --arg LW_BASE_URL "${LW_BASE_URL_TO_SET:-}" \
+             --arg LW_ACCESS_TOKEN "${LW_ACCESS_TOKEN_TO_SET:-}" \
+             --arg LW_CLIENT_ID "${LW_CLIENT_ID_TO_SET:-}" \
+             --arg GOOGLE_DRIVE_CLIENT_EMAIL "${GOOGLE_DRIVE_CLIENT_EMAIL_TO_SET:-}" \
+             --arg GOOGLE_DRIVE_PRIVATE_KEY "${GOOGLE_DRIVE_PRIVATE_KEY_TO_SET:-}" '
+            def upsert($name; $value):
+              if $value != "" then
                 .containerDefinitions[0].environment = (
                   (.containerDefinitions[0].environment // [])
-                  | map(select(.name != "N8N_TORRE_WEBHOOK_SECRET"))
-                  + [{ name: "N8N_TORRE_WEBHOOK_SECRET", value: $N8N_SECRET }]
+                  | map(select(.name != $name))
+                  + [{ name: $name, value: $value }]
                 )
-              else . end)
+              else . end;
+            .containerDefinitions[0].image = $IMAGE
+            | upsert("N8N_TORRE_WEBHOOK_SECRET"; $N8N_SECRET)
+            | upsert("LW_BASE_URL"; $LW_BASE_URL)
+            | upsert("LW_ACCESS_TOKEN"; $LW_ACCESS_TOKEN)
+            | upsert("LW_CLIENT_ID"; $LW_CLIENT_ID)
+            | upsert("GOOGLE_DRIVE_CLIENT_EMAIL"; $GOOGLE_DRIVE_CLIENT_EMAIL)
+            | upsert("GOOGLE_DRIVE_PRIVATE_KEY"; $GOOGLE_DRIVE_PRIVATE_KEY)
             | {
                 family,
                 taskRoleArn,
