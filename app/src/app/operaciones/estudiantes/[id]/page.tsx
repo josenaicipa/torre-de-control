@@ -222,6 +222,8 @@ function InfoTab({
     notes: string | null;
     personality: string | null;
     ghlContactId: string | null;
+    driveFolderUrl: string | null;
+    driveFolderId: string | null;
     closerUser: { name: string | null; email: string } | null;
     members: StudentMemberRow[];
   };
@@ -302,6 +304,37 @@ function InfoTab({
         <div>
           <dt className="font-medium text-slate-500">ID contacto GHL</dt>
           <dd className="text-slate-900">{student.ghlContactId ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">Carpeta Drive</dt>
+          <dd className="text-slate-900">
+            {(() => {
+              const driveUrl =
+                student.driveFolderUrl ??
+                (student.driveFolderId && /^[A-Za-z0-9_-]+$/.test(student.driveFolderId)
+                  ? `https://drive.google.com/drive/folders/${student.driveFolderId}`
+                  : null);
+              if (driveUrl) {
+                return (
+                  <>
+                    <a
+                      href={driveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      Abrir carpeta en Drive
+                    </a>
+                    <p className="mt-1 break-all text-xs text-slate-400">{driveUrl}</p>
+                  </>
+                );
+              }
+              if (student.driveFolderId) {
+                return <span className="break-all">{student.driveFolderId}</span>;
+              }
+              return "—";
+            })()}
+          </dd>
         </div>
         <div className="col-span-2">
           <dt className="font-medium text-slate-500">Personalidad</dt>
