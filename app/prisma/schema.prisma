@@ -469,6 +469,14 @@ model Student {
   driveFolderSyncedAt  DateTime?
   driveFolderSyncStatus String?
   driveFolderSyncError String?
+  // Onboarding Torre: link público de un solo uso que el estudiante diligencia
+  // tras la venta para completar sus datos legales/comerciales. El token se
+  // mintea desde la ficha y se reutiliza mientras no se complete. Todos
+  // opcionales para no romper estudiantes/importadores existentes.
+  onboardingToken          String?   @unique
+  onboardingTokenCreatedAt DateTime?
+  onboardingCompletedAt    DateTime?
+  onboardingResponses      Json?
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 

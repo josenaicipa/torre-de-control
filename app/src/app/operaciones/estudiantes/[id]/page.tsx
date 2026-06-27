@@ -14,6 +14,7 @@ import { MetricasTab } from "./metricas-tab";
 import { ProductosTab } from "./productos-tab";
 import { DeleteStudentButton } from "../delete-student-button";
 import { StudentDataEditForm } from "./student-data-edit-form";
+import { OnboardingLinkButton } from "./onboarding-link-button";
 import { studentStatusLabel } from "@/lib/student-status";
 
 export const dynamic = "force-dynamic";
@@ -182,6 +183,7 @@ export default async function StudentDetailPage({
               pendingNormalization={pendingNormalization}
               mentors={mentors}
               closers={closers}
+              hasSoldProduct={student.enrollments.some((e) => e.status === "ACTIVE")}
             />
           )}
           {activeTab !== "info" && (
@@ -201,6 +203,7 @@ function InfoTab({
   pendingNormalization,
   mentors,
   closers,
+  hasSoldProduct,
 }: {
   student: {
     id: string;
@@ -224,6 +227,7 @@ function InfoTab({
     ghlContactId: string | null;
     driveFolderUrl: string | null;
     driveFolderId: string | null;
+    onboardingCompletedAt: Date | null;
     closerUser: { name: string | null; email: string } | null;
     members: StudentMemberRow[];
   };
@@ -231,6 +235,7 @@ function InfoTab({
   pendingNormalization: boolean;
   mentors: { id: string; name: string | null; email: string }[];
   closers: { id: string; name: string | null; email: string; position: string }[];
+  hasSoldProduct: boolean;
 }) {
   return (
     <>
@@ -345,6 +350,18 @@ function InfoTab({
           <dd className="whitespace-pre-wrap text-slate-900">{student.notes ?? "—"}</dd>
         </div>
       </dl>
+
+      {canWriteLegal && (
+        <OnboardingLinkButton
+          studentId={student.id}
+          hasSoldProduct={hasSoldProduct}
+          completedAt={
+            student.onboardingCompletedAt
+              ? student.onboardingCompletedAt.toISOString().slice(0, 10)
+              : null
+          }
+        />
+      )}
 
       {canWriteLegal && (
         <StudentDataEditForm
