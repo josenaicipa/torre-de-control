@@ -44,4 +44,23 @@ describe("onboarding public link routing", () => {
     );
     expect(legacy).toContain("OnboardingView");
   });
+
+  it("shows a friendly missing-token screen, not the invalid-link error", () => {
+    const source = readFileSync(
+      resolve(appRoot, "src/app/onboarding/onboarding-view.tsx"),
+      "utf8",
+    );
+    // Existe un estado dedicado para "falta token" distinto del error.
+    expect(source).toContain("function MissingLink()");
+    expect(source).toContain("Este formulario usa un enlace personal");
+    // Sin token se renderiza la pantalla amable, no el error rojo.
+    expect(source).toContain("if (!token) return <MissingLink />;");
+    // El estado de token faltante no usa el texto/estilo de inválido.
+    const missingBlock = source.slice(
+      source.indexOf("function MissingLink()"),
+      source.indexOf("export async function OnboardingView"),
+    );
+    expect(missingBlock).not.toContain("inválido");
+    expect(missingBlock).not.toContain("is-error");
+  });
 });

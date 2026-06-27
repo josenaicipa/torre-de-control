@@ -24,11 +24,58 @@ export function InvalidLink() {
   );
 }
 
+// Pantalla amable cuando se abre /formularioonboarding sin token. No es un
+// error: el formulario simplemente necesita el enlace personal de cada
+// estudiante (generado desde su ficha en Torre).
+export function MissingLink() {
+  return (
+    <main className="onboarding-surface">
+      <div className="onboarding-shell">
+        <header className="ob-hero">
+          <span className="ob-eyebrow">Unlocked Academy</span>
+          <h1 className="ob-title">Este formulario usa un enlace personal</h1>
+          <p className="ob-subtitle">
+            Cada estudiante tiene su propio enlace de onboarding para que
+            podamos guardar tu información de forma segura. Genera o copia tu
+            enlace desde la ficha del estudiante en Torre y ábrelo para
+            completar tus datos.
+          </p>
+          <div className="ob-benefits">
+            <span className="ob-benefit">
+              <ShieldIcon />
+              Datos seguros
+            </span>
+            <span className="ob-benefit">
+              <ClockIcon />
+              2 minutos
+            </span>
+            <span className="ob-benefit">
+              <SparkIcon />
+              Acompañamiento 1:1
+            </span>
+          </div>
+        </header>
+
+        <div className="ob-banner is-info" style={{ marginTop: "1rem" }}>
+          <InfoIcon />
+          <div>
+            <h2>¿No tienes tu enlace?</h2>
+            <p>
+              Escríbele al equipo de Unlocked Academy y te compartimos tu enlace
+              personalizado para empezar.
+            </p>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 // Carga el estudiante por token y renderiza el formulario de onboarding. Es la
 // vista compartida entre la ruta legacy /onboarding/[token] y la ruta pública
 // /formularioonboarding?token=...
 export async function OnboardingView({ token }: { token?: string }) {
-  if (!token) return <InvalidLink />;
+  if (!token) return <MissingLink />;
 
   const student = await prisma.student.findUnique({
     where: { onboardingToken: token },

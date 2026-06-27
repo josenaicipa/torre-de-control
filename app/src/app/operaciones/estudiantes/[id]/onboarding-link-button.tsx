@@ -62,7 +62,7 @@ export function OnboardingLinkButton({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-900">
-            Onboarding del estudiante
+            Link personalizado del estudiante
           </p>
           {completedAt ? (
             <p className="mt-1 text-sm text-emerald-700">
@@ -70,7 +70,8 @@ export function OnboardingLinkButton({
             </p>
           ) : (
             <p className="mt-1 text-sm text-slate-500">
-              Genera el link para que el estudiante complete sus datos.
+              Genera el link personalizado del estudiante para que complete sus
+              datos.
             </p>
           )}
         </div>
@@ -114,7 +115,7 @@ export function OnboardingLinkButton({
               onClick={copyLink}
               className="shrink-0 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
             >
-              {copied ? "¡Copiado!" : "Copiar"}
+              {copied ? "¡Copiado!" : "Copiar link personalizado"}
             </button>
           </div>
         </div>
