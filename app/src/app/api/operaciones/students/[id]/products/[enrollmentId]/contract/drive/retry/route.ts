@@ -12,17 +12,40 @@ import { writeAudit } from "@/lib/audit";
 import { buildSignedContractDriveFilename } from "@/lib/operaciones-signature-flow";
 import { contractEnrollmentSelect } from "@/lib/operaciones-contract";
 import { renderSignedContractPdfForEnrollment } from "@/lib/operaciones-contract-pdf";
-import {
-  DriveApiError,
-  DriveConfigError,
-  uploadSignedContractPdfToDrive,
-} from "@/lib/drive-client";
+import { sendSignedContractToN8n } from "@/lib/n8n-operaciones-actions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface Params {
   params: Promise<{ id: string; enrollmentId: string }>;
+}
+
+// Extrae fileId y URL del cuerpo que devuelve n8n de forma tolerante: el flujo
+// puede responder un objeto, un array (toma el primer elemento) o usar nombres
+// distintos para las mismas claves. Si no encaja nada, devuelve nulls.
+function extractDriveInfoFromN8n(data: unknown): {
+  fileId: string | null;
+  url: string | null;
+} {
+  const candidate = Array.isArray(data) ? data[0] : data;
+  if (!candidate || typeof candidate !== "object") {
+    return { fileId: null, url: null };
+  }
+  const record = candidate as Record<string, unknown>;
+  const pick = (...keys: string[]): string | null => {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  };
+  return {
+    fileId: pick("driveFileId", "fileId"),
+    url: pick("driveFileUrl", "webViewLink", "url"),
+  };
 }
 
 // Reintenta subir a Drive el PDF firmado ya guardado en Torre, con el nombre
@@ -53,9 +76,14 @@ export async function POST(_req: Request, { params }: Params) {
         signatureFlowStatus: true,
         signedPdfContent: true,
         programLevelSnapshot: true,
-        product: { select: { programLevel: true } },
+        product: { select: { id: true, name: true, programLevel: true } },
         student: {
-          select: { fullName: true, legalName: true, driveFolderId: true },
+          select: {
+            email: true,
+            fullName: true,
+            legalName: true,
+            driveFolderId: true,
+          },
         },
       },
     });
@@ -84,17 +112,30 @@ export async function POST(_req: Request, { params }: Params) {
     const filename = buildSignedContractDriveFilename(studentName, programLevel);
 
     const now = new Date();
-    try {
-      const uploaded = await uploadSignedContractPdfToDrive(
-        driveFolderId,
-        filename,
-        enrollment.signedPdfContent,
-      );
+    const result = await sendSignedContractToN8n({
+      studentId: id,
+      enrollmentId: enrollment.id,
+      studentEmail: enrollment.student.email,
+      email: enrollment.student.email,
+      fullName: enrollment.student.fullName,
+      legalName: enrollment.student.legalName,
+      productId: enrollment.product?.id,
+      productName: enrollment.product?.name,
+      programLevel,
+      driveFolderId,
+      filename,
+      pdfBase64: enrollment.signedPdfContent,
+      contractStatus: "APPROVED",
+      retry: true,
+    });
+
+    if (result.ok) {
+      const { fileId, url } = extractDriveInfoFromN8n(result.data);
       await prisma.studentProductEnrollment.update({
         where: { id: enrollment.id },
         data: {
-          signedPdfDriveFileId: uploaded.fileId || null,
-          signedPdfDriveUrl: uploaded.webViewLink,
+          signedPdfDriveFileId: fileId,
+          signedPdfDriveUrl: url,
           signedPdfDriveUploadedAt: now,
           signedPdfDriveUploadStatus: "uploaded",
           signedPdfDriveUploadError: null,
@@ -109,23 +150,20 @@ export async function POST(_req: Request, { params }: Params) {
       });
       return NextResponse.json({
         signatureFlowStatus: "DRIVE_UPLOADED",
-        signedPdfDriveUrl: uploaded.webViewLink,
+        signedPdfDriveUrl: url,
       });
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Error subiendo el PDF firmado a Drive";
-      await prisma.studentProductEnrollment.update({
-        where: { id: enrollment.id },
-        data: {
-          signedPdfDriveUploadStatus: "error",
-          signedPdfDriveUploadError: message.slice(0, 500),
-          signatureFlowStatus: "DRIVE_ERROR",
-        },
-      });
-      if (err instanceof DriveConfigError) return jsonError(503, message);
-      if (err instanceof DriveApiError) return jsonError(502, message);
-      throw err;
     }
+
+    const message = result.error;
+    await prisma.studentProductEnrollment.update({
+      where: { id: enrollment.id },
+      data: {
+        signedPdfDriveUploadStatus: "error",
+        signedPdfDriveUploadError: message.slice(0, 500),
+        signatureFlowStatus: "DRIVE_ERROR",
+      },
+    });
+    return jsonError(502, message);
   } catch (err) {
     return handleApiError(err);
   }

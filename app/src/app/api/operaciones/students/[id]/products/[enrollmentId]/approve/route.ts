@@ -9,7 +9,6 @@ import {
 import { canAccessStudent } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
-import { enrollEnrollmentInLearnWorlds } from "@/lib/lw-client";
 import { COMPANY } from "@/lib/operaciones-contract-template";
 import {
   computeCeoSignatureHash,
@@ -21,7 +20,7 @@ import {
   type SignedContractPdfEnrollment,
 } from "@/lib/operaciones-contract-pdf";
 import { buildSignedContractDriveFilename } from "@/lib/operaciones-signature-flow";
-import { uploadSignedContractPdfToDrive } from "@/lib/drive-client";
+import { sendSignedContractToN8n } from "@/lib/n8n-operaciones-actions";
 import { getJoseSignature } from "@/lib/operaciones-settings";
 
 export const runtime = "nodejs";
@@ -39,19 +38,65 @@ interface ArchiveSignedPdfResult {
   error: string | null;
 }
 
+// Extrae fileId y URL del cuerpo que devuelve n8n de forma tolerante: el flujo
+// puede responder un objeto, un array (toma el primer elemento) o usar nombres
+// distintos para las mismas claves. Si no encaja nada, devuelve nulls.
+function extractDriveInfoFromN8n(data: unknown): {
+  fileId: string | null;
+  url: string | null;
+} {
+  const candidate = Array.isArray(data) ? data[0] : data;
+  if (!candidate || typeof candidate !== "object") {
+    return { fileId: null, url: null };
+  }
+  const record = candidate as Record<string, unknown>;
+  const pick = (...keys: string[]): string | null => {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+    return null;
+  };
+  return {
+    fileId: pick("driveFileId", "fileId"),
+    url: pick("driveFileUrl", "webViewLink", "url"),
+  };
+}
+
 // Genera el PDF firmado final de la inscripción ya aprobada, lo guarda en Torre
-// (base64 + fecha) y, si hay carpeta de Drive, lo sube con el nombre del
-// blueprint. Nunca lanza: cualquier fallo se persiste en los campos signedPdf*
-// y se devuelve para la auditoría, de modo que la aprobación y la liberación de
-// acceso en LearnWorlds sigan su curso. El reintento manual vive en el endpoint
-// contract/drive/retry, que reutiliza el PDF guardado.
+// (base64 + fecha) y, si hay carpeta de Drive, delega su subida a n8n vía
+// webhook (best-effort). Nunca lanza: cualquier fallo se persiste en los campos
+// signedPdf* y se devuelve para la auditoría, de modo que la aprobación siga su
+// curso. El reintento manual vive en el endpoint contract/drive/retry, que
+// reutiliza el PDF guardado.
 async function archiveSignedContractPdf(params: {
+  studentId: string;
   enrollmentId: string;
   signedEnrollment: SignedContractPdfEnrollment;
   filename: string;
   driveFolderId: string | null;
+  email: string;
+  fullName: string;
+  legalName: string | null;
+  productId: string;
+  productName: string;
+  programLevel: number;
 }): Promise<ArchiveSignedPdfResult> {
-  const { enrollmentId, signedEnrollment, filename, driveFolderId } = params;
+  const {
+    studentId,
+    enrollmentId,
+    signedEnrollment,
+    filename,
+    driveFolderId,
+    email,
+    fullName,
+    legalName,
+    productId,
+    productName,
+    programLevel,
+  } = params;
   let base64: string;
   try {
     const pdf = await renderSignedContractPdfForEnrollment(signedEnrollment);
@@ -90,19 +135,31 @@ async function archiveSignedContractPdf(params: {
     return { stored: true, driveStatus: "skipped", error: null };
   }
 
-  try {
-    const uploaded = await uploadSignedContractPdfToDrive(
-      driveFolder,
-      filename,
-      base64,
-    );
+  const result = await sendSignedContractToN8n({
+    studentEmail: email,
+    studentId,
+    enrollmentId,
+    email,
+    fullName,
+    legalName,
+    productId,
+    name: productName,
+    programLevel,
+    driveFolderId: driveFolder,
+    filename,
+    pdfBase64: base64,
+    contractStatus: "APPROVED",
+  });
+
+  if (result.ok) {
+    const { fileId, url } = extractDriveInfoFromN8n(result.data);
     await prisma.studentProductEnrollment.update({
       where: { id: enrollmentId },
       data: {
         signedPdfContent: base64,
         signedPdfStoredAt: storedAt,
-        signedPdfDriveFileId: uploaded.fileId || null,
-        signedPdfDriveUrl: uploaded.webViewLink,
+        signedPdfDriveFileId: fileId,
+        signedPdfDriveUrl: url,
         signedPdfDriveUploadedAt: storedAt,
         signedPdfDriveUploadStatus: "uploaded",
         signedPdfDriveUploadError: null,
@@ -110,31 +167,30 @@ async function archiveSignedContractPdf(params: {
       },
     });
     return { stored: true, driveStatus: "uploaded", error: null };
-  } catch (err) {
-    const message =
-      err instanceof Error
-        ? err.message
-        : "Error subiendo el PDF firmado a Drive";
-    // El PDF sí se guardó en Torre: persistimos el contenido y marcamos el error
-    // de Drive para poder reintentar la subida sin regenerar el documento.
-    await prisma.studentProductEnrollment.update({
-      where: { id: enrollmentId },
-      data: {
-        signedPdfContent: base64,
-        signedPdfStoredAt: storedAt,
-        signedPdfDriveUploadStatus: "error",
-        signedPdfDriveUploadError: message.slice(0, 500),
-        signatureFlowStatus: "DRIVE_ERROR",
-      },
-    });
-    return { stored: true, driveStatus: "error", error: message.slice(0, 500) };
   }
+
+  // El PDF sí se guardó en Torre: persistimos el contenido y marcamos el error
+  // de n8n para poder reintentar la subida sin regenerar el documento.
+  const truncated = result.error.slice(0, 500);
+  await prisma.studentProductEnrollment.update({
+    where: { id: enrollmentId },
+    data: {
+      signedPdfContent: base64,
+      signedPdfStoredAt: storedAt,
+      signedPdfDriveUploadStatus: "error",
+      signedPdfDriveUploadError: truncated,
+      signatureFlowStatus: "DRIVE_ERROR",
+    },
+  });
+  return { stored: true, driveStatus: "error", error: truncated };
 }
 
 // Aprueba el contrato desde Torre: registra la firma del CEO (Jose David
-// Naicipa Jiménez) y libera el acceso en LearnWorlds. Solo aprueba contratos
-// realmente FIRMADOS con evidencia de firma electrónica del estudiante (hash y
-// fecha) y con todos los datos legales/comerciales completos.
+// Naicipa Jiménez) y archiva el PDF firmado. El acceso en LearnWorlds NO se
+// libera aquí: queda pendiente hasta que el operador pulse "Conceder acceso".
+// Solo aprueba contratos realmente FIRMADOS con evidencia de firma electrónica
+// del estudiante (hash y fecha) y con todos los datos legales/comerciales
+// completos.
 export async function POST(_req: Request, { params }: Params) {
   try {
     const actor = await getActor();
@@ -194,7 +250,7 @@ export async function POST(_req: Request, { params }: Params) {
     ) {
       return jsonError(
         400,
-        "El contrato debe estar firmado por el estudiante para poder aprobarlo y liberar acceso",
+        "El contrato debe estar firmado por el estudiante para poder aprobarlo",
       );
     }
 
@@ -263,15 +319,18 @@ export async function POST(_req: Request, { params }: Params) {
         contractCeoSignatureImage: joseSignature.dataUrl,
         contractRejectedAt: null,
         contractRejectionReason: null,
+        accessStatus: "PENDING",
+        learnWorldsSyncStatus: "pending",
+        learnWorldsSyncError: null,
       },
     });
 
     // Genera y archiva el PDF firmado final (con la firma del CEO recién
-    // registrada) y, si el estudiante ya tiene carpeta de Drive sincronizada, lo
-    // sube con el nombre del blueprint. Todo esto es best-effort: un fallo al
-    // generar o subir el PDF NO debe bloquear la aprobación ni el acceso en
-    // LearnWorlds; el error queda visible en los campos signedPdf* y en la
-    // auditoría para reintentar luego desde el endpoint de retry.
+    // registrada) y, si el estudiante ya tiene carpeta de Drive sincronizada,
+    // delega su subida a n8n. Todo esto es best-effort: un fallo al generar o
+    // subir el PDF NO debe bloquear la aprobación; el error queda visible en los
+    // campos signedPdf* y en la auditoría para reintentar luego desde el
+    // endpoint de retry. El acceso a LearnWorlds NO se libera aquí.
     const programLevel =
       enrollment.programLevelSnapshot ?? enrollment.product.programLevel ?? 0;
     const studentName =
@@ -286,13 +345,18 @@ export async function POST(_req: Request, { params }: Params) {
       contractCeoSignatureImage: joseSignature.dataUrl,
     };
     const pdfEvidence = await archiveSignedContractPdf({
+      studentId: id,
       enrollmentId: enrollment.id,
       signedEnrollment,
       filename: buildSignedContractDriveFilename(studentName, programLevel),
       driveFolderId: student.driveFolderId,
+      email: enrollment.student.email,
+      fullName: enrollment.student.fullName,
+      legalName: enrollment.student.legalName,
+      productId: enrollment.product.id,
+      productName: enrollment.product.name,
+      programLevel,
     });
-
-    const lwResult = await enrollEnrollmentInLearnWorlds(enrollment.id);
 
     await writeAudit({
       actorId: actor.userId,
@@ -301,13 +365,9 @@ export async function POST(_req: Request, { params }: Params) {
       metadata: {
         studentId: id,
         productId: enrollment.product.id,
-        accessStatus: lwResult.accessStatus,
-        learnWorldsSyncStatus: lwResult.syncStatus,
-        learnWorldsConfigCount: lwResult.configCount,
-        learnWorldsEnrolledCount: lwResult.enrolledCount,
-        learnWorldsRevokedCount: lwResult.revokedCount,
-        learnWorldsRevokeError: lwResult.revokeError,
-        learnWorldsError: lwResult.error,
+        accessStatus: "PENDING",
+        learnWorldsDeferred: true,
+        learnWorldsNote: "Pendiente de botón Conceder acceso",
         signedPdfStored: pdfEvidence.stored,
         signedPdfDriveStatus: pdfEvidence.driveStatus,
         signedPdfError: pdfEvidence.error,
@@ -328,7 +388,10 @@ export async function POST(_req: Request, { params }: Params) {
       },
     });
 
-    return NextResponse.json({ enrollment: updated, learnWorlds: lwResult });
+    return NextResponse.json({
+      enrollment: updated,
+      learnWorlds: { deferred: true, accessStatus: "PENDING" },
+    });
   } catch (err) {
     return handleApiError(err);
   }

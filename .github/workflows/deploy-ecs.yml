@@ -148,6 +148,8 @@ jobs:
           LW_CLIENT_ID_SECRET: ${{ secrets.LW_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_EMAIL_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_EMAIL }}
           GOOGLE_DRIVE_PRIVATE_KEY_SECRET: ${{ secrets.GOOGLE_DRIVE_PRIVATE_KEY }}
+          N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL_SECRET: ${{ secrets.N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL }}
+          N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET: ${{ secrets.N8N_TORRE_LW_ACCESS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
           # Decide whether to (re)seed N8N_TORRE_WEBHOOK_SECRET into the task
@@ -181,7 +183,9 @@ jobs:
                       "LW_ACCESS_TOKEN=${LW_ACCESS_TOKEN_SECRET:-}" \
                       "LW_CLIENT_ID=${LW_CLIENT_ID_SECRET:-}" \
                       "GOOGLE_DRIVE_CLIENT_EMAIL=${GOOGLE_DRIVE_CLIENT_EMAIL_SECRET:-}" \
-                      "GOOGLE_DRIVE_PRIVATE_KEY=${GOOGLE_DRIVE_PRIVATE_KEY_SECRET:-}"; do
+                      "GOOGLE_DRIVE_PRIVATE_KEY=${GOOGLE_DRIVE_PRIVATE_KEY_SECRET:-}" \
+                      "N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL=${N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL_SECRET:-}" \
+                      "N8N_TORRE_LW_ACCESS_WEBHOOK_URL=${N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET:-}"; do
             name="${pair%%=*}"
             value="${pair#*=}"
             if [[ -n "${value}" ]]; then
@@ -209,7 +213,9 @@ jobs:
              --arg LW_ACCESS_TOKEN "${LW_ACCESS_TOKEN_SECRET:-}" \
              --arg LW_CLIENT_ID "${LW_CLIENT_ID_SECRET:-}" \
              --arg GOOGLE_DRIVE_CLIENT_EMAIL "${GOOGLE_DRIVE_CLIENT_EMAIL_SECRET:-}" \
-             --arg GOOGLE_DRIVE_PRIVATE_KEY "${GOOGLE_DRIVE_PRIVATE_KEY_SECRET:-}" '
+             --arg GOOGLE_DRIVE_PRIVATE_KEY "${GOOGLE_DRIVE_PRIVATE_KEY_SECRET:-}" \
+             --arg N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL "${N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL_SECRET:-}" \
+             --arg N8N_TORRE_LW_ACCESS_WEBHOOK_URL "${N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET:-}" '
             def upsert($name; $value):
               if $value != "" then
                 .containerDefinitions[0].environment = (
@@ -225,6 +231,8 @@ jobs:
             | upsert("LW_CLIENT_ID"; $LW_CLIENT_ID)
             | upsert("GOOGLE_DRIVE_CLIENT_EMAIL"; $GOOGLE_DRIVE_CLIENT_EMAIL)
             | upsert("GOOGLE_DRIVE_PRIVATE_KEY"; $GOOGLE_DRIVE_PRIVATE_KEY)
+            | upsert("N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL"; $N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL)
+            | upsert("N8N_TORRE_LW_ACCESS_WEBHOOK_URL"; $N8N_TORRE_LW_ACCESS_WEBHOOK_URL)
             | {
                 family,
                 taskRoleArn,

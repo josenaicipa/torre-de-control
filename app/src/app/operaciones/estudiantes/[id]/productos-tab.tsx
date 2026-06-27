@@ -346,7 +346,7 @@ function EnrollmentCard({
 
   const ACTION_ERROR_LABEL: Record<CardAction, string> = {
     approve: "No se pudo aprobar el contrato",
-    "retry-lw": "No se pudo reintentar la sincronización con LearnWorlds",
+    "retry-lw": "No se pudo conceder acceso en LearnWorlds",
     "contract-test": "No se pudo crear el contrato",
   };
 
@@ -626,7 +626,11 @@ function EnrollmentCard({
               disabled={actionLoading !== null}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              {actionLoading === "retry-lw" ? "Reintentando..." : "Reintentar sync LW"}
+              {actionLoading === "retry-lw"
+                ? "Concediendo acceso..."
+                : enrollment.accessStatus === "SYNC_ERROR"
+                  ? "Reintentar conceder acceso"
+                  : "Conceder acceso"}
             </button>
           )}
           {canDownloadPdf && (
