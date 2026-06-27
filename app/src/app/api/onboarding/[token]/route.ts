@@ -23,35 +23,56 @@ const optionalEmail = z
   .optional()
   .transform((v) => (v ? v.toLowerCase() : ""));
 
-const onboardingSchema = z.object({
-  nombre: optional,
-  apellidos: optional,
-  whatsapp: required,
-  correoPrincipal: z
-    .string()
-    .trim()
-    .email("Correo principal inválido")
-    .transform((v) => v.toLowerCase()),
-  correoSecundario: optionalEmail,
-  direccionPostal: required,
-  ciudad: required,
-  region: required,
-  pais: required,
-  nombreLegal: required,
-  tipoDocumento: required,
-  numeroDocumento: required,
-  tiendaActiva: required,
-  paisOpera: required,
-  nombreTienda: optional,
-  facturacionActual: optional,
-  plataformaLogistica: optional,
-  comoNosConociste: required,
-  otroMedio: optional,
-  porQueMundoDigital: required,
-  tiempoSemanal: required,
-  presupuestoInicial: required,
-  queEsperasLograr: required,
-});
+const onboardingSchema = z
+  .object({
+    nombre: optional,
+    apellidos: optional,
+    whatsapp: required,
+    correoPrincipal: z
+      .string()
+      .trim()
+      .email("Correo principal inválido")
+      .transform((v) => v.toLowerCase()),
+    correoSecundario: optionalEmail,
+    direccionPostal: required,
+    ciudad: required,
+    region: required,
+    pais: required,
+    nombreLegal: required,
+    tipoDocumento: required,
+    numeroDocumento: required,
+    tiendaActiva: required,
+    // Los datos de tienda solo se exigen cuando tiendaActiva === "Si"
+    // (ver superRefine). Si no, quedan opcionales y no bloquean el envío.
+    paisOpera: optional,
+    nombreTienda: optional,
+    facturacionActual: optional,
+    plataformaLogistica: optional,
+    comoNosConociste: required,
+    otroMedio: optional,
+    porQueMundoDigital: required,
+    tiempoSemanal: required,
+    presupuestoInicial: required,
+    queEsperasLograr: required,
+  })
+  .superRefine((data, ctx) => {
+    if (data.tiendaActiva !== "Si") return;
+    const tiendaFields = [
+      "paisOpera",
+      "nombreTienda",
+      "facturacionActual",
+      "plataformaLogistica",
+    ] as const;
+    for (const field of tiendaFields) {
+      if (!data[field]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: "Campo obligatorio",
+        });
+      }
+    }
+  });
 
 // Envío público del onboarding por token. No requiere login: el token ES la
 // autorización. Actualiza los datos legales del estudiante y guarda el resto de

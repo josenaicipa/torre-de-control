@@ -47,6 +47,8 @@ const PAISES_OPERA = [
   "Otro",
 ];
 
+const PLATAFORMAS_LOGISTICAS = ["Dropi", "Effi", "Otra"];
+
 const COMO_NOS_CONOCISTE = [
   "Redes Jose",
   "PodCast",
@@ -55,9 +57,6 @@ const COMO_NOS_CONOCISTE = [
   "SmartBeemo",
   "Otro Medio",
 ];
-
-const inputClass =
-  "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900";
 
 export function OnboardingForm({
   token,
@@ -71,11 +70,30 @@ export function OnboardingForm({
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  const tieneTienda = form.tiendaActiva === "Si";
+
   function set<K extends keyof OnboardingInitial>(
     key: K,
     value: OnboardingInitial[K],
   ) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function onTiendaActivaChange(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      tiendaActiva: value,
+      // Al dejar de tener tienda activa, limpiamos los datos de tienda para no
+      // guardar información vieja e invisible.
+      ...(value === "Si"
+        ? {}
+        : {
+            paisOpera: "",
+            nombreTienda: "",
+            facturacionActual: "",
+            plataformaLogistica: "",
+          }),
+    }));
   }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -103,33 +121,40 @@ export function OnboardingForm({
 
   if (done) {
     return (
-      <div className="mt-8 rounded-lg border border-emerald-300 bg-emerald-50 p-6 text-center">
-        <h2 className="text-lg font-semibold text-emerald-900">
-          ¡Gracias! Recibimos tu información
-        </h2>
-        <p className="mt-2 text-sm text-emerald-700">
-          El equipo de Unlocked Academy continuará con tu proceso.
-        </p>
+      <div className="ob-banner is-success" style={{ marginTop: "1.5rem" }}>
+        <CheckCircleIcon />
+        <div>
+          <h2>¡Listo! Recibimos tu información</h2>
+          <p>
+            El equipo de Unlocked Academy continuará con tu proceso de
+            acompañamiento. Pronto tendrás noticias nuestras.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 space-y-5">
+    <form onSubmit={onSubmit} className="ob-form">
       {error && (
-        <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {error}
+        <div className="ob-banner is-error">
+          <AlertIcon />
+          <div>
+            <h2>No pudimos enviar tu formulario</h2>
+            <p>{error}</p>
+          </div>
         </div>
       )}
 
-      <Section title="Datos personales">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <Section step={1} title="Datos personales" desc="Para identificarte y contactarte.">
+        <div className="ob-grid cols-2">
           <Field label="Nombre">
             <input
               type="text"
               value={form.nombre}
               onChange={(e) => set("nombre", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="Tu nombre"
             />
           </Field>
           <Field label="Apellidos">
@@ -137,7 +162,8 @@ export function OnboardingForm({
               type="text"
               value={form.apellidos}
               onChange={(e) => set("apellidos", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="Tus apellidos"
             />
           </Field>
           <Field label="Whatsapp" required>
@@ -146,38 +172,45 @@ export function OnboardingForm({
               required
               value={form.whatsapp}
               onChange={(e) => set("whatsapp", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="+57 300 000 0000"
             />
           </Field>
-          <Field label="Correo Principal" required>
+          <Field label="Correo principal" required>
             <input
               type="email"
               required
               value={form.correoPrincipal}
               onChange={(e) => set("correoPrincipal", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="tucorreo@email.com"
             />
           </Field>
-          <Field label="Correo Secundario">
+          <Field label="Correo secundario" className="span-2">
             <input
               type="email"
               value={form.correoSecundario}
               onChange={(e) => set("correoSecundario", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="Opcional"
             />
           </Field>
         </div>
       </Section>
 
-      <Section title="Datos legales">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Dirección postal" required>
+      <Section
+        step={2}
+        title="Datos legales"
+        desc="Necesarios para preparar tu contrato."
+      >
+        <div className="ob-grid cols-2">
+          <Field label="Dirección postal" required className="span-2">
             <input
               type="text"
               required
               value={form.direccionPostal}
               onChange={(e) => set("direccionPostal", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
           <Field label="Ciudad" required>
@@ -186,7 +219,7 @@ export function OnboardingForm({
               required
               value={form.ciudad}
               onChange={(e) => set("ciudad", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
           <Field label="Región / provincia / estado" required>
@@ -195,7 +228,7 @@ export function OnboardingForm({
               required
               value={form.region}
               onChange={(e) => set("region", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
           <Field label="País" required>
@@ -204,7 +237,7 @@ export function OnboardingForm({
               required
               value={form.pais}
               onChange={(e) => set("pais", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
           <Field label="Nombre legal" required>
@@ -213,7 +246,7 @@ export function OnboardingForm({
               required
               value={form.nombreLegal}
               onChange={(e) => set("nombreLegal", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
           <Field label="Tipo de documento" required>
@@ -222,7 +255,8 @@ export function OnboardingForm({
               required
               value={form.tipoDocumento}
               onChange={(e) => set("tipoDocumento", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="CC, DNI, Pasaporte…"
             />
           </Field>
           <Field label="Número de documento" required>
@@ -231,76 +265,105 @@ export function OnboardingForm({
               required
               value={form.numeroDocumento}
               onChange={(e) => set("numeroDocumento", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
         </div>
       </Section>
 
-      <Section title="Tu negocio">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="¿Tienes Tienda Activa?" required>
+      <Section
+        step={3}
+        title="Tu negocio"
+        desc="Cuéntanos en qué punto estás hoy."
+      >
+        <div className="ob-grid">
+          <Field label="¿Tienes tienda activa?" required>
             <select
               required
               value={form.tiendaActiva}
-              onChange={(e) => set("tiendaActiva", e.target.value)}
-              className={inputClass}
+              onChange={(e) => onTiendaActivaChange(e.target.value)}
+              className="ob-input"
             >
               <option value="">Selecciona…</option>
               <option value="Si">Sí</option>
               <option value="No">No</option>
             </select>
           </Field>
-          <Field label="País en el que Opera" required>
-            <select
-              required
-              value={form.paisOpera}
-              onChange={(e) => set("paisOpera", e.target.value)}
-              className={inputClass}
-            >
-              <option value="">Selecciona…</option>
-              {PAISES_OPERA.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Nombre de la Tienda">
-            <input
-              type="text"
-              value={form.nombreTienda}
-              onChange={(e) => set("nombreTienda", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="$ Facturación Actual">
-            <input
-              type="text"
-              value={form.facturacionActual}
-              onChange={(e) => set("facturacionActual", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Plataforma logística">
-            <input
-              type="text"
-              value={form.plataformaLogistica}
-              onChange={(e) => set("plataformaLogistica", e.target.value)}
-              className={inputClass}
-            />
-          </Field>
+
+          {tieneTienda && (
+            <div className="ob-conditional">
+              <div className="ob-conditional-head">
+                <StoreIcon />
+                Datos de tu tienda
+              </div>
+              <div className="ob-grid cols-2">
+                <Field label="País en el que opera" required>
+                  <select
+                    required={tieneTienda}
+                    value={form.paisOpera}
+                    onChange={(e) => set("paisOpera", e.target.value)}
+                    className="ob-input"
+                  >
+                    <option value="">Selecciona…</option>
+                    {PAISES_OPERA.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Nombre de la tienda" required>
+                  <input
+                    type="text"
+                    required={tieneTienda}
+                    value={form.nombreTienda}
+                    onChange={(e) => set("nombreTienda", e.target.value)}
+                    className="ob-input"
+                  />
+                </Field>
+                <Field label="$ Facturación actual" required>
+                  <input
+                    type="text"
+                    required={tieneTienda}
+                    value={form.facturacionActual}
+                    onChange={(e) => set("facturacionActual", e.target.value)}
+                    className="ob-input"
+                    placeholder="Ej: USD 5.000 / mes"
+                  />
+                </Field>
+                <Field label="¿Con qué plataforma logística trabajas?" required>
+                  <select
+                    required={tieneTienda}
+                    value={form.plataformaLogistica}
+                    onChange={(e) => set("plataformaLogistica", e.target.value)}
+                    className="ob-input"
+                  >
+                    <option value="">Selecciona…</option>
+                    {PLATAFORMAS_LOGISTICAS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            </div>
+          )}
         </div>
       </Section>
 
-      <Section title="Cuéntanos más">
-        <div className="grid gap-4">
+      <Section
+        step={4}
+        title="Cuéntanos más"
+        desc="Esto nos ayuda a personalizar tu acompañamiento."
+      >
+        <div className="ob-grid">
           <Field label="¿Cómo nos conociste?" required>
             <select
               required
               value={form.comoNosConociste}
               onChange={(e) => set("comoNosConociste", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             >
               <option value="">Selecciona…</option>
               {COMO_NOS_CONOCISTE.map((c) => (
@@ -315,7 +378,8 @@ export function OnboardingForm({
               type="text"
               value={form.otroMedio}
               onChange={(e) => set("otroMedio", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="Opcional"
             />
           </Field>
           <Field label="¿Por qué el mundo digital?" required>
@@ -324,7 +388,7 @@ export function OnboardingForm({
               rows={3}
               value={form.porQueMundoDigital}
               onChange={(e) => set("porQueMundoDigital", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
           <Field label="Tiempo semanal que puedes dedicar" required>
@@ -333,7 +397,8 @@ export function OnboardingForm({
               required
               value={form.tiempoSemanal}
               onChange={(e) => set("tiempoSemanal", e.target.value)}
-              className={inputClass}
+              className="ob-input"
+              placeholder="Ej: 10 horas"
             />
           </Field>
           <Field label="Presupuesto inicial" required>
@@ -342,7 +407,7 @@ export function OnboardingForm({
               required
               value={form.presupuestoInicial}
               onChange={(e) => set("presupuestoInicial", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
           <Field label="¿Qué esperas lograr?" required>
@@ -351,34 +416,45 @@ export function OnboardingForm({
               rows={3}
               value={form.queEsperasLograr}
               onChange={(e) => set("queEsperasLograr", e.target.value)}
-              className={inputClass}
+              className="ob-input"
             />
           </Field>
         </div>
       </Section>
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full rounded-md bg-slate-900 px-4 py-3 text-sm font-semibold !text-white hover:bg-slate-800 disabled:opacity-50"
-      >
-        {submitting ? "Enviando…" : "Enviar información"}
-      </button>
+      <div className="ob-submit-bar">
+        <button type="submit" disabled={submitting} className="ob-submit">
+          {submitting ? "Enviando…" : "Enviar información"}
+        </button>
+        <p className="ob-submit-note">
+          Tus datos se usan solo para tu proceso con Unlocked Academy.
+        </p>
+      </div>
     </form>
   );
 }
 
 function Section({
+  step,
   title,
+  desc,
   children,
 }: {
+  step: number;
   title: string;
+  desc?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-5">
-      <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-      <div className="mt-4">{children}</div>
+    <section className="ob-section">
+      <div className="ob-section-head">
+        <span className="ob-step">{step}</span>
+        <div>
+          <h2 className="ob-section-title">{title}</h2>
+          {desc && <p className="ob-section-desc">{desc}</p>}
+        </div>
+      </div>
+      {children}
     </section>
   );
 }
@@ -386,19 +462,50 @@ function Section({
 function Field({
   label,
   required,
+  className,
   children,
 }: {
   label: string;
   required?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">
+    <label className={`ob-field${className ? ` ${className}` : ""}`}>
+      <span className="ob-field-label">
         {label}
-        {required && <span className="text-rose-600"> *</span>}
+        {required && <span className="req">*</span>}
       </span>
       {children}
     </label>
+  );
+}
+
+function CheckCircleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  );
+}
+
+function StoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 9l1-5h16l1 5" />
+      <path d="M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9" />
+      <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+    </svg>
   );
 }

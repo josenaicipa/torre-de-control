@@ -733,3 +733,361 @@ a:hover {
 .embed-mode body {
   background: #f6f7f7 !important;
 }
+
+/* ============================================================
+ * Onboarding público (formulario del estudiante por token).
+ * Superficie cálida de marca Unlocked, premium y mobile-first.
+ * Fuerza los tokens claros aunque el sistema esté en dark, para
+ * mantener una experiencia consistente y confiable de cara al
+ * estudiante. Solo afecta a esta pantalla (scope .onboarding-surface).
+ * ============================================================ */
+.onboarding-surface {
+  --color-bg: #f6f7f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #f0f2f2;
+  --color-border: #e2e4e4;
+  --color-text: #0c0e0e;
+  --color-muted: #565d5e;
+  --shadow-card: 0 1px 2px oklch(20% 0.02 260 / 0.06), 0 8px 24px oklch(20% 0.02 260 / 0.06);
+  color-scheme: light;
+  color: var(--color-text);
+  background:
+    radial-gradient(120% 60% at 50% 0%, #fff 0%, var(--color-bg) 60%);
+  min-height: 100dvh;
+}
+
+.onboarding-shell {
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+  padding: clamp(1.25rem, 4vw, 2.5rem) var(--space-4) var(--space-8);
+}
+
+/* ----- Hero ----- */
+.ob-hero {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  position: relative;
+  overflow: hidden;
+}
+
+.ob-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-accent-press), var(--color-accent), var(--color-warn));
+}
+
+.ob-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-accent-press);
+}
+
+.ob-eyebrow::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+
+.ob-title {
+  font-size: clamp(1.6rem, 1.2rem + 2.4vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: var(--space-3) 0 0;
+}
+
+.ob-title .ob-name {
+  color: var(--color-accent);
+}
+
+.ob-subtitle {
+  color: var(--color-muted);
+  font-size: var(--text-lg);
+  margin: var(--space-3) 0 0;
+  max-width: 52ch;
+}
+
+.ob-benefits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+
+.ob-benefit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ob-benefit svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-accent);
+  flex: none;
+}
+
+/* ----- Banners (info / éxito / error) ----- */
+.ob-banner {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-4);
+}
+
+.ob-banner svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-top: 1px;
+}
+
+.ob-banner h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.ob-banner p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.ob-banner.is-success {
+  border-color: color-mix(in srgb, var(--color-good) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-good) 8%, var(--color-surface));
+}
+
+.ob-banner.is-success svg,
+.ob-banner.is-success h2 {
+  color: var(--color-good);
+}
+
+.ob-banner.is-info {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+}
+
+.ob-banner.is-info svg {
+  color: var(--color-accent);
+}
+
+.ob-banner.is-error {
+  border-color: color-mix(in srgb, var(--color-accent-press) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-press) 8%, var(--color-surface));
+}
+
+.ob-banner.is-error svg,
+.ob-banner.is-error h2 {
+  color: var(--color-accent-press);
+}
+
+/* ----- Formulario ----- */
+.ob-form {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.ob-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.ob-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.ob-step {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-numeric);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: var(--color-accent-press);
+  background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+}
+
+.ob-section-title {
+  margin: 3px 0 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.ob-section-desc {
+  margin: 2px 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.ob-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .ob-grid.cols-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ob-grid .span-2 {
+    grid-column: 1 / -1;
+  }
+}
+
+.ob-field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ob-field-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.ob-field-label .req {
+  color: var(--color-accent);
+  margin-left: 2px;
+}
+
+.ob-input {
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+
+.ob-input::placeholder {
+  color: color-mix(in srgb, var(--color-muted) 70%, transparent);
+}
+
+.ob-input:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+}
+
+.ob-input:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+textarea.ob-input {
+  resize: vertical;
+  min-height: 84px;
+}
+
+select.ob-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23565d5e' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 38px;
+}
+
+/* Bloque condicional de tienda activa: aparece con un acento sutil */
+.ob-conditional {
+  border-radius: var(--radius-sm);
+  border: 1px dashed color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface));
+  padding: var(--space-4);
+}
+
+.ob-conditional-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-accent-press);
+  margin-bottom: var(--space-4);
+}
+
+.ob-conditional-head svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ----- CTA ----- */
+.ob-submit-bar {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.ob-submit {
+  font: inherit;
+  font-weight: 700;
+  font-size: var(--text-lg);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 14px 20px;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  transition: background var(--duration) var(--ease), transform var(--duration) var(--ease);
+  width: 100%;
+}
+
+.ob-submit:hover {
+  background: var(--color-accent-hover);
+}
+
+.ob-submit:active {
+  background: var(--color-accent-press);
+  transform: translateY(1px);
+}
+
+.ob-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ob-submit-note {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
