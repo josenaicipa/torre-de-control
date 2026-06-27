@@ -21,7 +21,7 @@ interface Params {
 // Construye la URL absoluta del link de onboarding usando los headers de la
 // petición; si no hay host disponible cae al path relativo.
 function buildOnboardingUrl(req: Request, token: string): string {
-  const path = `/onboarding/${token}`;
+  const path = `/formularioonboarding?token=${encodeURIComponent(token)}`;
   const proto = req.headers.get("x-forwarded-proto") || "https";
   const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
   return host ? `${proto}://${host}${path}` : path;
