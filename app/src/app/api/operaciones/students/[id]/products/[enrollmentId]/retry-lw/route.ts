@@ -9,7 +9,7 @@ import {
 import { canAccessStudent } from "@/lib/access";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
-import { grantLearnWorldsAccessViaN8n } from "@/lib/n8n-operaciones-actions";
+import { enrollEnrollmentInLearnWorlds } from "@/lib/lw-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,32 +52,15 @@ export async function POST(_req: Request, { params }: Params) {
         studentId: true,
         contractStatus: true,
         accessStatus: true,
-        student: { select: { email: true, fullName: true, legalName: true } },
-        product: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            programLevel: true,
-            learnWorldsAccessConfigs: {
-              where: { isActive: true },
-              select: {
-                lwProductType: true,
-                lwExternalId: true,
-                lwDisplayName: true,
-              },
-              orderBy: { createdAt: "asc" },
-            },
-          },
-        },
+        product: { select: { id: true } },
       },
     });
     if (!enrollment || enrollment.studentId !== id) {
       return jsonError(404, "Inscripción no encontrada para este estudiante");
     }
 
-    // Idempotente: si el acceso ya está ACTIVE no volvemos a llamar a n8n; la UI
-    // solo necesita el enrollment fresco.
+    // Idempotente: si el acceso ya está ACTIVE no volvemos a tocar LearnWorlds;
+    // la UI solo necesita el enrollment fresco.
     if (enrollment.accessStatus === "ACTIVE") {
       const current = await prisma.studentProductEnrollment.findUnique({
         where: { id: enrollment.id },
@@ -99,83 +82,12 @@ export async function POST(_req: Request, { params }: Params) {
       );
     }
 
-    const accessConfigs = enrollment.product.learnWorldsAccessConfigs;
-    const courses = accessConfigs.map((config) => ({
-      productId: config.lwExternalId,
-      productType: config.lwProductType.toLowerCase(),
-      displayName: config.lwDisplayName,
-    }));
-    const studentName =
-      enrollment.student.legalName?.trim() ||
-      enrollment.student.fullName ||
-      "Estudiante";
+    // lw-client es la fuente de verdad del aprovisionamiento: lee los configs
+    // activos del producto, enrola (y revoca el nivel anterior en upgrades) y
+    // ya persiste accessStatus ACTIVE/SYNC_ERROR + learnWorldsSync* en el
+    // enrollment. Aquí solo auditamos y devolvemos el enrollment fresco.
+    const result = await enrollEnrollmentInLearnWorlds(enrollment.id);
 
-    const result = await grantLearnWorldsAccessViaN8n({
-      studentId: id,
-      enrollmentId: enrollment.id,
-      studentEmail: enrollment.student.email,
-      email: enrollment.student.email,
-      studentName,
-      fullName: enrollment.student.fullName,
-      legalName: enrollment.student.legalName,
-      product: {
-        id: enrollment.product.id,
-        name: enrollment.product.name,
-        slug: enrollment.product.slug,
-        programLevel: enrollment.product.programLevel,
-      },
-      accessConfigs,
-      courses,
-      contractStatus: enrollment.contractStatus,
-      requestedAt: new Date().toISOString(),
-    });
-
-    if (!result.ok) {
-      const error = result.error.slice(0, 500);
-      await prisma.studentProductEnrollment.update({
-        where: { id: enrollment.id },
-        data: {
-          accessStatus: "SYNC_ERROR",
-          learnWorldsSyncStatus: "error",
-          learnWorldsSyncError: error,
-        },
-      });
-      await writeAudit({
-        actorId: actor.userId,
-        action: "operaciones.student_product_enrollment.grant_lw_access",
-        target: enrollment.id,
-        metadata: {
-          studentId: id,
-          productId: enrollment.product.id,
-          accessStatus: "SYNC_ERROR",
-          learnWorldsSyncStatus: "error",
-          learnWorldsConfigCount: accessConfigs.length,
-          learnWorldsError: error,
-        },
-      });
-      const updated = await prisma.studentProductEnrollment.findUnique({
-        where: { id: enrollment.id },
-        include: ENROLLMENT_INCLUDE,
-      });
-      return NextResponse.json(
-        {
-          enrollment: updated,
-          learnWorlds: { ok: false, accessStatus: "SYNC_ERROR", error },
-        },
-        { status: 502 },
-      );
-    }
-
-    const now = new Date();
-    await prisma.studentProductEnrollment.update({
-      where: { id: enrollment.id },
-      data: {
-        accessStatus: "ACTIVE",
-        accessGrantedAt: now,
-        learnWorldsSyncStatus: "ok",
-        learnWorldsSyncError: null,
-      },
-    });
     await writeAudit({
       actorId: actor.userId,
       action: "operaciones.student_product_enrollment.retry_lw",
@@ -183,9 +95,15 @@ export async function POST(_req: Request, { params }: Params) {
       metadata: {
         studentId: id,
         productId: enrollment.product.id,
-        accessStatus: "ACTIVE",
-        learnWorldsSyncStatus: "ok",
-        learnWorldsConfigCount: accessConfigs.length,
+        accessStatus: result.accessStatus,
+        learnWorldsSyncStatus: result.syncStatus,
+        learnWorldsConfigCount: result.configCount,
+        learnWorldsEnrolledCount: result.enrolledCount,
+        learnWorldsRevokedCount: result.revokedCount,
+        ...(result.revokeError
+          ? { learnWorldsRevokeError: result.revokeError }
+          : {}),
+        ...(result.error ? { learnWorldsError: result.error } : {}),
       },
     });
 
@@ -194,9 +112,24 @@ export async function POST(_req: Request, { params }: Params) {
       include: ENROLLMENT_INCLUDE,
     });
 
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          error: result.error,
+          enrollment: updated,
+          learnWorlds: {
+            ok: false,
+            accessStatus: result.accessStatus,
+            error: result.error,
+          },
+        },
+        { status: 502 },
+      );
+    }
+
     return NextResponse.json({
       enrollment: updated,
-      learnWorlds: { ok: true, accessStatus: "ACTIVE" },
+      learnWorlds: { ok: true, accessStatus: result.accessStatus },
     });
   } catch (err) {
     return handleApiError(err);
