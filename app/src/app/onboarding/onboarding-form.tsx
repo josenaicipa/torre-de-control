@@ -1,6 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+
+import {
+  COUNTRIES,
+  DOCUMENT_TYPES,
+  subdivisionsForCountry,
+} from "@/lib/legal-locations";
 
 export interface OnboardingInitial {
   nombre: string;
@@ -72,11 +78,40 @@ export function OnboardingForm({
 
   const tieneTienda = form.tiendaActiva === "Si";
 
+  const regionOptions = useMemo(
+    () => subdivisionsForCountry(form.pais),
+    [form.pais],
+  );
+
+  const mostrarOtroMedio =
+    form.comoNosConociste === "Otro Medio" || form.comoNosConociste === "Otro";
+
   function set<K extends keyof OnboardingInitial>(
     key: K,
     value: OnboardingInitial[K],
   ) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function onPaisChange(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      pais: value,
+      // Al cambiar de país, la región anterior puede no existir en el nuevo
+      // catálogo: la limpiamos para no guardar un departamento incoherente.
+      ...(subdivisionsForCountry(value).includes(prev.region)
+        ? {}
+        : { region: "" }),
+    }));
+  }
+
+  function onComoNosConocisteChange(value: string) {
+    const esOtro = value === "Otro Medio" || value === "Otro";
+    setForm((prev) => ({
+      ...prev,
+      comoNosConociste: value,
+      ...(esOtro ? {} : { otroMedio: "" }),
+    }));
   }
 
   function onTiendaActivaChange(value: string) {
@@ -204,14 +239,78 @@ export function OnboardingForm({
         desc="Necesarios para preparar tu contrato."
       >
         <div className="ob-grid cols-2">
-          <Field label="Dirección postal" required className="span-2">
+          <Field label="Nombre legal" required className="span-2">
             <input
               type="text"
               required
-              value={form.direccionPostal}
-              onChange={(e) => set("direccionPostal", e.target.value)}
+              value={form.nombreLegal}
+              onChange={(e) => set("nombreLegal", e.target.value)}
               className="ob-input"
             />
+          </Field>
+          <Field label="Tipo de documento" required>
+            <select
+              required
+              value={form.tipoDocumento}
+              onChange={(e) => set("tipoDocumento", e.target.value)}
+              className="ob-input"
+            >
+              <option value="">Selecciona…</option>
+              {DOCUMENT_TYPES.map((dt) => (
+                <option key={dt.value} value={dt.value}>
+                  {dt.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Número de documento" required>
+            <input
+              type="text"
+              required
+              value={form.numeroDocumento}
+              onChange={(e) => set("numeroDocumento", e.target.value)}
+              className="ob-input"
+            />
+          </Field>
+          <Field label="País" required>
+            <select
+              required
+              value={form.pais}
+              onChange={(e) => onPaisChange(e.target.value)}
+              className="ob-input"
+            >
+              <option value="">Selecciona…</option>
+              {COUNTRIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Región / departamento / estado" required>
+            {regionOptions.length > 0 ? (
+              <select
+                required
+                value={form.region}
+                onChange={(e) => set("region", e.target.value)}
+                className="ob-input"
+              >
+                <option value="">Selecciona…</option>
+                {regionOptions.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                required
+                value={form.region}
+                onChange={(e) => set("region", e.target.value)}
+                className="ob-input"
+              />
+            )}
           </Field>
           <Field label="Ciudad" required>
             <input
@@ -222,49 +321,12 @@ export function OnboardingForm({
               className="ob-input"
             />
           </Field>
-          <Field label="Región / provincia / estado" required>
+          <Field label="Dirección postal" required className="span-2">
             <input
               type="text"
               required
-              value={form.region}
-              onChange={(e) => set("region", e.target.value)}
-              className="ob-input"
-            />
-          </Field>
-          <Field label="País" required>
-            <input
-              type="text"
-              required
-              value={form.pais}
-              onChange={(e) => set("pais", e.target.value)}
-              className="ob-input"
-            />
-          </Field>
-          <Field label="Nombre legal" required>
-            <input
-              type="text"
-              required
-              value={form.nombreLegal}
-              onChange={(e) => set("nombreLegal", e.target.value)}
-              className="ob-input"
-            />
-          </Field>
-          <Field label="Tipo de documento" required>
-            <input
-              type="text"
-              required
-              value={form.tipoDocumento}
-              onChange={(e) => set("tipoDocumento", e.target.value)}
-              className="ob-input"
-              placeholder="CC, DNI, Pasaporte…"
-            />
-          </Field>
-          <Field label="Número de documento" required>
-            <input
-              type="text"
-              required
-              value={form.numeroDocumento}
-              onChange={(e) => set("numeroDocumento", e.target.value)}
+              value={form.direccionPostal}
+              onChange={(e) => set("direccionPostal", e.target.value)}
               className="ob-input"
             />
           </Field>
@@ -362,7 +424,7 @@ export function OnboardingForm({
             <select
               required
               value={form.comoNosConociste}
-              onChange={(e) => set("comoNosConociste", e.target.value)}
+              onChange={(e) => onComoNosConocisteChange(e.target.value)}
               className="ob-input"
             >
               <option value="">Selecciona…</option>
@@ -373,16 +435,22 @@ export function OnboardingForm({
               ))}
             </select>
           </Field>
-          <Field label="Otro medio">
-            <input
-              type="text"
-              value={form.otroMedio}
-              onChange={(e) => set("otroMedio", e.target.value)}
-              className="ob-input"
-              placeholder="Opcional"
-            />
-          </Field>
-          <Field label="¿Por qué el mundo digital?" required>
+          {mostrarOtroMedio && (
+            <Field label="Otro medio" required>
+              <input
+                type="text"
+                required
+                value={form.otroMedio}
+                onChange={(e) => set("otroMedio", e.target.value)}
+                className="ob-input"
+                placeholder="Cuéntanos cómo nos conociste"
+              />
+            </Field>
+          )}
+          <Field
+            label="¿Por qué quieres hacer parte del mundo digital? (Ingresos extra, negocio a largo plazo, aprendizaje, etc.)"
+            required
+          >
             <textarea
               required
               rows={3}
@@ -401,7 +469,10 @@ export function OnboardingForm({
               placeholder="Ej: 10 horas"
             />
           </Field>
-          <Field label="Presupuesto inicial" required>
+          <Field
+            label="¿Tienes un presupuesto inicial para invertir en publicidad y herramientas? (Sí/No, ¿Cuánto?)"
+            required
+          >
             <input
               type="text"
               required
