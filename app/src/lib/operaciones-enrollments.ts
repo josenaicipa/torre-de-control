@@ -22,6 +22,7 @@ import {
   calculateUpgradeCredit,
   canUpgradeToLevel,
 } from "./operaciones-upgrade";
+import { buildStudentActivationUpdate } from "@/domain/students";
 import type {
   CreateStudentProductEnrollmentInput,
   InitialPaymentInput,
@@ -574,6 +575,27 @@ export async function createValidatedEnrollmentInTx(
       paymentSchedules: { orderBy: { installmentNumber: "asc" } },
     },
   });
+
+  // A real enrollment means the student is no longer a pending n8n/GHL ficha:
+  // flip a minimal INACTIVE+durationAssumed row to ACTIVE and replace its
+  // technical default duration with the enrollment's real dates. Conservative
+  // by design (see buildStudentActivationUpdate): manual/withdrawn states and
+  // real INACTIVE rows are never touched here.
+  const student = await tx.student.findUnique({
+    where: { id: studentId },
+    select: { status: true, durationAssumed: true },
+  });
+  if (student) {
+    const activation = buildStudentActivationUpdate({
+      status: student.status,
+      durationAssumed: student.durationAssumed,
+      enrollmentStartedAt: updated.startedAt,
+      enrollmentEndsAt: updated.endsAt,
+    });
+    if (activation) {
+      await tx.student.update({ where: { id: studentId }, data: activation });
+    }
+  }
 
   return { enrollment: updated, createdPaymentId };
 }

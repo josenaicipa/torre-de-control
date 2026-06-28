@@ -20,6 +20,7 @@
  * sent as request headers — never logged or returned.
  */
 import { prisma } from "./prisma";
+import { buildStudentActivationUpdate } from "@/domain/students";
 
 export interface EnrollLearnWorldsResult {
   ok: boolean;
@@ -154,6 +155,40 @@ async function closeUpgradeSourceEnrollment(sourceEnrollmentId: string): Promise
   });
 }
 
+type StudentActivationStatus = Parameters<
+  typeof buildStudentActivationUpdate
+>[0]["status"];
+
+/**
+ * After access is confirmed ACTIVE, lift a pending n8n/GHL ficha out of its
+ * technical INACTIVE state. Conservative (see buildStudentActivationUpdate):
+ * only a minimal INACTIVE+durationAssumed row is activated; manual/withdrawn
+ * states are left untouched. The enrollment's real dates replace the technical
+ * default duration when they form a consistent triple.
+ */
+async function activateStudentIfPendingMinimal(enrollment: {
+  startedAt: Date | null;
+  endsAt: Date | null;
+  student: {
+    id: string;
+    status: StudentActivationStatus;
+    durationAssumed: boolean;
+  };
+}): Promise<void> {
+  const activation = buildStudentActivationUpdate({
+    status: enrollment.student.status,
+    durationAssumed: enrollment.student.durationAssumed,
+    enrollmentStartedAt: enrollment.startedAt,
+    enrollmentEndsAt: enrollment.endsAt,
+  });
+  if (activation) {
+    await prisma.student.update({
+      where: { id: enrollment.student.id },
+      data: activation,
+    });
+  }
+}
+
 /**
  * Provisions LearnWorlds access for the given enrollment and persists the
  * result. Resolves (never rejects) with the outcome whenever it can.
@@ -166,7 +201,17 @@ export async function enrollEnrollmentInLearnWorlds(
     select: {
       id: true,
       upgradeFromEnrollmentId: true,
-      student: { select: { email: true, fullName: true } },
+      startedAt: true,
+      endsAt: true,
+      student: {
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          status: true,
+          durationAssumed: true,
+        },
+      },
       product: {
         select: {
           learnWorldsAccessConfigs: {
@@ -236,6 +281,7 @@ export async function enrollEnrollmentInLearnWorlds(
     if (enrollment.upgradeFromEnrollmentId) {
       await closeUpgradeSourceEnrollment(enrollment.upgradeFromEnrollmentId);
     }
+    await activateStudentIfPendingMinimal(enrollment);
     return {
       ok: true,
       accessStatus: "ACTIVE",
