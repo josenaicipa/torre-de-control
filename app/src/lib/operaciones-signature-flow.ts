@@ -20,18 +20,46 @@ function sanitizeFilenamePart(value: string): string {
 }
 
 /**
- * Exact Drive filename for the signed contract, per the blueprint's
- * non-negotiable format:
+ * Exact Drive filename for the signed contract:
  *
- *   `Contrato firmado - {Nombre Estudiante} - Nivel {N}.pdf`
+ *   `Contrato - {Nombre Estudiante}.pdf`
+ *
+ * Uses the legal/full name already resolved by the caller, sanitized to be
+ * Drive-safe. Keeps accents/ñ. Falls back to `Contrato - Estudiante.pdf`.
  */
-export function buildSignedContractDriveFilename(
-  studentName: string,
-  programLevel: number,
-): string {
+export function buildSignedContractDriveFilename(studentName: string): string {
   const name = sanitizeFilenamePart(studentName) || "Estudiante";
-  const level = Number.isFinite(programLevel) ? programLevel : "";
-  return `Contrato firmado - ${name} - Nivel ${level}.pdf`;
+  return `Contrato - ${name}.pdf`;
+}
+
+// ─── Signature link token ────────────────────────────────────────────────────
+
+/**
+ * URL-safe slug from a student's name: strips accents/ñ, lowercases and turns
+ * every run of non-alphanumerics into a single hyphen (trimmed at the ends).
+ * Falls back to `estudiante` when nothing usable remains.
+ */
+export function slugifyNameForToken(value: string | null | undefined): string {
+  const slug = (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "estudiante";
+}
+
+/**
+ * Readable-but-unguessable signature link token: the student's name slug plus a
+ * random suffix. The slug makes the link legible (e.g. `juan-perez-…`); the
+ * random suffix (minted by the caller via crypto) keeps it unpredictable and
+ * collision-free. This exact string is what lives at `/contratos/firmar/<token>`.
+ */
+export function buildContractSignatureToken(
+  studentName: string | null | undefined,
+  randomSuffix: string,
+): string {
+  return `${slugifyNameForToken(studentName)}-${randomSuffix}`;
 }
 
 // ─── n8n drive-folder reconciliation ─────────────────────────────────────────

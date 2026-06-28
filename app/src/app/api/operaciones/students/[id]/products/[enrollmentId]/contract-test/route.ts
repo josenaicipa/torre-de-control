@@ -17,6 +17,7 @@ import {
   serializeManualClausesSnapshot,
 } from "@/lib/operaciones-contract";
 import { getManualContractClauses } from "@/lib/operaciones-settings";
+import { buildContractSignatureToken } from "@/lib/operaciones-signature-flow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +72,10 @@ export async function POST(_req: Request, { params }: Params) {
       );
     }
 
-    const token = randomBytes(32).toString("hex");
+    const token = buildContractSignatureToken(
+      enrollment.student.legalName?.trim() || enrollment.student.fullName,
+      randomBytes(8).toString("hex"),
+    );
     const contractUrl = `/contratos/firmar/${token}`;
 
     // Congela las cláusulas manuales vigentes en el enrollment: si Operaciones

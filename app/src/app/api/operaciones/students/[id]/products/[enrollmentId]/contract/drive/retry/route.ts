@@ -109,7 +109,7 @@ export async function POST(_req: Request, { params }: Params) {
       enrollment.programLevelSnapshot ?? enrollment.product?.programLevel ?? 0;
     const studentName =
       enrollment.student.legalName?.trim() || enrollment.student.fullName || "Estudiante";
-    const filename = buildSignedContractDriveFilename(studentName, programLevel);
+    const filename = buildSignedContractDriveFilename(studentName);
 
     const now = new Date();
     const result = await sendSignedContractToN8n({
