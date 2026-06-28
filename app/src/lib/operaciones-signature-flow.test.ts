@@ -10,26 +10,38 @@ import {
 
 describe("buildSignedContractDriveFilename", () => {
   it("uses the exact blueprint format", () => {
-    expect(buildSignedContractDriveFilename("Juan Perez")).toBe(
-      "Contrato - Juan Perez.pdf",
+    expect(buildSignedContractDriveFilename("Juan Perez", 4)).toBe(
+      "Contrato - Juan Perez - Nivel 4.pdf",
     );
   });
 
   it("keeps accents and ñ untouched", () => {
-    expect(buildSignedContractDriveFilename("José Muñoz")).toBe(
-      "Contrato - José Muñoz.pdf",
+    expect(buildSignedContractDriveFilename("José Muñoz", 2)).toBe(
+      "Contrato - José Muñoz - Nivel 2.pdf",
     );
   });
 
   it("sanitizes path separators and collapses whitespace", () => {
-    expect(buildSignedContractDriveFilename("  Ana/Maria\\Lopez  ")).toBe(
-      "Contrato - Ana Maria Lopez.pdf",
+    expect(buildSignedContractDriveFilename("  Ana/Maria\\Lopez  ", 1)).toBe(
+      "Contrato - Ana Maria Lopez - Nivel 1.pdf",
     );
   });
 
   it("falls back to a placeholder name when empty", () => {
-    expect(buildSignedContractDriveFilename("   ")).toBe(
-      "Contrato - Estudiante.pdf",
+    expect(buildSignedContractDriveFilename("   ", 3)).toBe(
+      "Contrato - Estudiante - Nivel 3.pdf",
+    );
+  });
+
+  it("falls back to Nivel X when the level is missing or not finite", () => {
+    expect(buildSignedContractDriveFilename("Juan Perez")).toBe(
+      "Contrato - Juan Perez - Nivel X.pdf",
+    );
+    expect(buildSignedContractDriveFilename("Juan Perez", null)).toBe(
+      "Contrato - Juan Perez - Nivel X.pdf",
+    );
+    expect(buildSignedContractDriveFilename("Juan Perez", Number.NaN)).toBe(
+      "Contrato - Juan Perez - Nivel X.pdf",
     );
   });
 });

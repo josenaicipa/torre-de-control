@@ -348,7 +348,7 @@ export async function POST(_req: Request, { params }: Params) {
       studentId: id,
       enrollmentId: enrollment.id,
       signedEnrollment,
-      filename: buildSignedContractDriveFilename(studentName),
+      filename: buildSignedContractDriveFilename(studentName, programLevel),
       driveFolderId: student.driveFolderId,
       email: enrollment.student.email,
       fullName: enrollment.student.fullName,

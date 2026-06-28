@@ -22,14 +22,19 @@ function sanitizeFilenamePart(value: string): string {
 /**
  * Exact Drive filename for the signed contract:
  *
- *   `Contrato - {Nombre Estudiante}.pdf`
+ *   `Contrato - {Nombre Estudiante} - Nivel {N}.pdf`
  *
  * Uses the legal/full name already resolved by the caller, sanitized to be
- * Drive-safe. Keeps accents/ñ. Falls back to `Contrato - Estudiante.pdf`.
+ * Drive-safe. Keeps accents/ñ. Falls back to `Estudiante` for the name and to
+ * `Nivel X` when no finite program level is provided.
  */
-export function buildSignedContractDriveFilename(studentName: string): string {
+export function buildSignedContractDriveFilename(
+  studentName: string,
+  programLevel?: number | null,
+): string {
   const name = sanitizeFilenamePart(studentName) || "Estudiante";
-  return `Contrato - ${name}.pdf`;
+  const level = Number.isFinite(programLevel) ? `Nivel ${programLevel}` : "Nivel X";
+  return `Contrato - ${name} - ${level}.pdf`;
 }
 
 // ─── Signature link token ────────────────────────────────────────────────────
