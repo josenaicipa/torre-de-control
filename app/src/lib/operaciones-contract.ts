@@ -9,6 +9,7 @@ import {
   type ContractUpgradeInfo,
   type ManualClause,
 } from "./operaciones-contract-template";
+import { paymentUsdValue } from "./student-payments-finance";
 
 // Capa compartida entre la página pública de firma, las APIs (crear link,
 // firmar, aprobar) y el generador de PDF. Centraliza tres cosas para que
@@ -22,6 +23,16 @@ export interface ContractScheduleShape {
   amountDue: number | string | { toString(): string };
   currency: string;
   dueDate: Date | string;
+}
+
+// Forma mínima de un pago para reconciliar el saldo/pago inicial del contrato.
+// Coincide con PaymentLike de student-payments-finance para reutilizar el
+// cálculo de USD canónico.
+export interface ContractPaymentShape {
+  amount: number | string | { toString(): string };
+  currency: string;
+  officialAmountUsd?: number | string | { toString(): string } | null;
+  isInitialPayment?: boolean | null;
 }
 
 // Forma mínima de los datos que necesita el flujo de contrato. Se mantiene
@@ -56,6 +67,12 @@ export interface ContractDataShape {
       contractSignatureImage: string | null;
       contractSignedIp: string | null;
     }[];
+    // Cuotas y pagos legacy/manuales registrados a nivel estudiante SIN ligar a
+    // ninguna inscripción (enrollmentId null). Sirven de fallback cuando la
+    // inscripción no tiene cronograma/pagos propios (cartera importada antes de
+    // crear el producto vendido). Opcionales: los flujos nuevos no los traen.
+    paymentSchedules?: ContractScheduleShape[];
+    payments?: ContractPaymentShape[];
   };
   product: { name: string } | null;
   totalAmountUsd: number | string | { toString(): string } | null;
@@ -65,6 +82,10 @@ export interface ContractDataShape {
   endsAt: Date | string | null;
   contractTemplateKind?: string | null;
   paymentSchedules: ContractScheduleShape[];
+  // Pagos ligados directamente a esta inscripción (enrollmentId = id). Cuando
+  // existen, esta inscripción tiene finanzas propias y NO se usa el fallback
+  // legacy. Opcional para no romper objetos de tests que no los traen.
+  payments?: ContractPaymentShape[];
   // Datos del upgrade de nivel (cuando la inscripción nació como upgrade de
   // otra). Si upgradeFromEnrollmentId está presente, el contrato muestra la
   // liquidación bruto/crédito/neto. Ausentes en inscripciones normales.
@@ -137,6 +158,28 @@ export const contractEnrollmentSelect = {
           contractSignedIp: true,
         },
       },
+      // Cuotas y pagos legacy a nivel estudiante sin inscripción ligada. Sirven
+      // de fallback para el contrato cuando el producto vendido se agregó
+      // después de importar la cartera y nada quedó ligado al enrollment.
+      paymentSchedules: {
+        where: { enrollmentId: null },
+        orderBy: { installmentNumber: "asc" as const },
+        select: {
+          installmentNumber: true,
+          amountDue: true,
+          currency: true,
+          dueDate: true,
+        },
+      },
+      payments: {
+        where: { enrollmentId: null },
+        select: {
+          amount: true,
+          currency: true,
+          officialAmountUsd: true,
+          isInitialPayment: true,
+        },
+      },
     },
   },
   product: { select: { name: true } },
@@ -150,6 +193,16 @@ export const contractEnrollmentSelect = {
       dueDate: true,
     },
   },
+  // Pagos ligados a esta inscripción. Cuando hay alguno, la inscripción tiene
+  // finanzas propias y el contrato no recurre al fallback legacy del estudiante.
+  payments: {
+    select: {
+      amount: true,
+      currency: true,
+      officialAmountUsd: true,
+      isInitialPayment: true,
+    },
+  },
 } as const;
 
 function toNumberOrNull(
@@ -158,6 +211,66 @@ function toNumberOrNull(
   if (value === null || value === undefined) return null;
   const num = typeof value === "number" ? value : Number(value.toString());
   return Number.isFinite(num) ? num : null;
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+// Cuotas que respaldan el contrato: las propias de la inscripción si existen;
+// si no, las legacy a nivel estudiante (cartera importada antes de crear el
+// producto vendido, que quedaron sin enrollment ligado).
+function applicableSchedules(data: ContractDataShape): ContractScheduleShape[] {
+  if (data.paymentSchedules.length > 0) return data.paymentSchedules;
+  return data.student.paymentSchedules ?? [];
+}
+
+// Pagos que respaldan el contrato: los propios de la inscripción si existen; si
+// no, los legacy a nivel estudiante sin enrollment ligado.
+function applicablePayments(data: ContractDataShape): ContractPaymentShape[] {
+  if ((data.payments?.length ?? 0) > 0) return data.payments ?? [];
+  return data.student.payments ?? [];
+}
+
+// Suma en USD canónico de una lista de pagos del contrato.
+function paidUsdFromPayments(payments: ContractPaymentShape[]): number {
+  return round2(
+    payments.reduce(
+      (sum, p) =>
+        sum +
+        paymentUsdValue({
+          amount: toNumberOrNull(p.amount) ?? 0,
+          currency: p.currency,
+          officialAmountUsd: toNumberOrNull(p.officialAmountUsd),
+        }),
+      0,
+    ),
+  );
+}
+
+// Pago inicial del contrato. Respeta el valor explícito si está definido; si es
+// null pero hay pagos aplicables, lo deriva: suma de los marcados como inicial
+// o, si ninguno está marcado, el total pagado. Así los importados legacy (sin
+// initialPaymentUsd y con pagos manuales) no quedan bloqueados.
+function derivedInitialPaymentUsd(data: ContractDataShape): number | null {
+  const explicit = toNumberOrNull(data.initialPaymentUsd);
+  if (explicit !== null) return explicit;
+  const payments = applicablePayments(data);
+  if (payments.length === 0) return null;
+  const marked = payments.filter((p) => p.isInitialPayment);
+  return paidUsdFromPayments(marked.length > 0 ? marked : payments);
+}
+
+// Saldo del contrato. Cuando hay pagos aplicables se concilia contra ellos
+// (total - pagado, sin bajar de 0) para no arrastrar el balanceUsd stale del
+// enrollment que no refleja pagos manuales. Sin pagos, usa el balanceUsd dado.
+function derivedBalanceUsd(data: ContractDataShape): number | null {
+  const payments = applicablePayments(data);
+  if (payments.length > 0) {
+    const total = toNumberOrNull(data.totalAmountUsd) ?? 0;
+    return round2(Math.max(0, total - paidUsdFromPayments(payments)));
+  }
+  return toNumberOrNull(data.balanceUsd);
 }
 
 function isoDate(value: Date | string | null | undefined): string | null {
@@ -232,10 +345,14 @@ export function findMissingContractFields(data: ContractDataShape): MissingField
   const total = toNumberOrNull(data.totalAmountUsd);
   if (total === null || total <= 0) add("totalAmountUsd", "Valor total (USD)");
 
-  if (toNumberOrNull(data.initialPaymentUsd) === null)
+  // No bloquea por initialPaymentUsd null si hay pagos aplicables (propios o
+  // legacy del estudiante): se deriva de los pagos.
+  if (derivedInitialPaymentUsd(data) === null)
     add("initialPaymentUsd", "Pago inicial definido");
 
-  const balance = toNumberOrNull(data.balanceUsd);
+  // El saldo se deriva: total - pagos aplicables cuando hay pagos, o el
+  // balanceUsd dado si no hay. Solo bloquea cuando no hay forma de calcularlo.
+  const balance = derivedBalanceUsd(data);
   if (balance === null) add("balanceUsd", "Saldo (USD) definido");
 
   const startDate = isoDate(data.startedAt) ?? isoDate(data.student.startDate);
@@ -244,8 +361,9 @@ export function findMissingContractFields(data: ContractDataShape): MissingField
   const endDate = isoDate(data.endsAt) ?? isoDate(data.student.endDate);
   if (!endDate) add("endDate", "Fecha de finalización");
 
-  // Si hay saldo pendiente, debe existir al menos una cuota que lo respalde.
-  if (balance !== null && balance > 0 && data.paymentSchedules.length === 0) {
+  // Si hay saldo pendiente, debe existir al menos una cuota que lo respalde
+  // (de la inscripción o legacy del estudiante).
+  if (balance !== null && balance > 0 && applicableSchedules(data).length === 0) {
     add(
       "paymentSchedule",
       "Cronograma de cuotas para el saldo pendiente",
@@ -444,7 +562,7 @@ export function buildContractInputFromData(
     data.endsAt ?? data.student.endDate,
   );
 
-  const installments = data.paymentSchedules.map((s) => ({
+  const installments = applicableSchedules(data).map((s) => ({
     number: s.installmentNumber,
     amountUsd: toNumberOrNull(s.amountDue) ?? 0,
     currency: s.currency,
@@ -485,8 +603,8 @@ export function buildContractInputFromData(
     clientAddress: composeAddress(data),
     productName: data.product?.name ?? "",
     totalAmountUsd: toNumberOrNull(data.totalAmountUsd) ?? 0,
-    initialPaymentUsd: toNumberOrNull(data.initialPaymentUsd) ?? 0,
-    balanceUsd: toNumberOrNull(data.balanceUsd) ?? 0,
+    initialPaymentUsd: derivedInitialPaymentUsd(data) ?? 0,
+    balanceUsd: derivedBalanceUsd(data) ?? 0,
     installments,
     agreementDate,
     endDate,

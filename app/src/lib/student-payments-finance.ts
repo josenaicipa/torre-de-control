@@ -60,10 +60,16 @@ export function computeStudentFinanceTotals(
   const paidUsd = round2(
     payments.reduce((sum, p) => sum + paymentUsdValue(p), 0),
   );
+  // Cuando hay pagos registrados, el saldo se concilia contra ellos
+  // (total - pagado, sin bajar de 0) para no arrastrar balances stale del
+  // enrollment que no reflejan pagos manuales/legacy. Sin pagos, se usan los
+  // balances del enrollment como fallback razonable (y total - pagado si no hay
+  // ninguno).
   const hasAnyBalance = enrollments.some((e) => e.balanceUsd != null && e.balanceUsd !== "");
-  const balanceUsd = hasAnyBalance
-    ? round2(enrollments.reduce((sum, e) => sum + toNum(e.balanceUsd), 0))
-    : round2(Math.max(0, totalUsd - paidUsd));
+  const balanceUsd =
+    payments.length > 0 || !hasAnyBalance
+      ? round2(Math.max(0, totalUsd - paidUsd))
+      : round2(enrollments.reduce((sum, e) => sum + toNum(e.balanceUsd), 0));
   return { totalUsd, paidUsd, balanceUsd };
 }
 

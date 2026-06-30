@@ -74,6 +74,35 @@ function completeData(overrides?: Partial<ContractDataShape>): ContractDataShape
   };
 }
 
+// Caso real de cartera importada: el estudiante tenía cuotas/pagos manuales a
+// nivel estudiante (sin enrollment ligado). Luego se agregó el producto y se
+// borraron los planes automáticos, dejando la inscripción sin cronograma ni
+// pagos propios, con initialPaymentUsd null y un balanceUsd stale que no
+// refleja lo manual. Programa 3000, pagos 100+900, cuotas 100/900/1000/1000.
+function legacyData(): ContractDataShape {
+  return {
+    ...completeData(),
+    totalAmountUsd: 3000,
+    initialPaymentUsd: null,
+    balanceUsd: 2900,
+    paymentSchedules: [],
+    payments: [],
+    student: {
+      ...completeData().student,
+      paymentSchedules: [
+        { installmentNumber: 1, amountDue: 100, currency: "USD", dueDate: "2026-07-11" },
+        { installmentNumber: 2, amountDue: 900, currency: "USD", dueDate: "2026-08-11" },
+        { installmentNumber: 3, amountDue: 1000, currency: "USD", dueDate: "2026-09-11" },
+        { installmentNumber: 4, amountDue: 1000, currency: "USD", dueDate: "2026-10-11" },
+      ],
+      payments: [
+        { amount: 100, currency: "USD" },
+        { amount: 900, currency: "USD" },
+      ],
+    },
+  };
+}
+
 describe("findMissingContractFields", () => {
   it("reporta documento, dirección, ciudad, departamento, país y teléfono faltantes, y cronograma si hay saldo > 0", () => {
     const data = completeData({
@@ -126,6 +155,14 @@ describe("findMissingContractFields", () => {
   it("con datos completos no devuelve faltantes", () => {
     expect(findMissingContractFields(completeData())).toHaveLength(0);
     expect(isContractComplete(completeData())).toBe(true);
+  });
+
+  it("no bloquea por initialPaymentUsd/cronograma con pagos y cuotas legacy del estudiante", () => {
+    const fields = findMissingContractFields(legacyData()).map((m) => m.field);
+    expect(fields).not.toContain("initialPaymentUsd");
+    expect(fields).not.toContain("balanceUsd");
+    expect(fields).not.toContain("paymentSchedule");
+    expect(isContractComplete(legacyData())).toBe(true);
   });
 });
 
@@ -236,6 +273,17 @@ describe("buildContractInputFromData", () => {
     );
 
     expect(input.durationMonths).toBe(12);
+  });
+
+  it("deriva total/inicial/saldo y cuotas desde los pagos y cuotas legacy del estudiante", () => {
+    const input = buildContractInputFromData(legacyData());
+    expect(input.totalAmountUsd).toBe(3000);
+    // initialPaymentUsd se deriva de los pagos (100 + 900) porque viene null.
+    expect(input.initialPaymentUsd).toBe(1000);
+    // balanceUsd concilia total - pagado (3000 - 1000), no el stale 2900.
+    expect(input.balanceUsd).toBe(2000);
+    expect(input.installments).toHaveLength(4);
+    expect(input.installments.map((i) => i.amountUsd)).toEqual([100, 900, 1000, 1000]);
   });
 });
 

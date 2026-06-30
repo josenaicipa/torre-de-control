@@ -60,7 +60,7 @@ describe("computeStudentFinanceTotals", () => {
     expect(res.balanceUsd).toBe(0);
   });
 
-  it("ignora pagos COP sin USD oficial al sumar pagado", () => {
+  it("ignora pagos COP sin USD oficial al sumar pagado y concilia el saldo", () => {
     const enrollments = [{ totalAmountUsd: "2900", balanceUsd: "2900" }];
     const payments = [
       { amount: "1500000", currency: "COP" },
@@ -68,7 +68,23 @@ describe("computeStudentFinanceTotals", () => {
     ];
     const res = computeStudentFinanceTotals(enrollments, payments);
     expect(res.paidUsd).toBe(100);
-    expect(res.balanceUsd).toBe(2900);
+    // Con pagos registrados el saldo concilia contra ellos (2900 - 100), no
+    // arrastra el balance stale del enrollment.
+    expect(res.balanceUsd).toBe(2800);
+  });
+
+  it("legacy: concilia el saldo total - pagado ignorando el balance stale del enrollment", () => {
+    // Cartera importada: cuotas/pagos manuales sin reflejar en balanceUsd.
+    const enrollments = [{ totalAmountUsd: "3000", balanceUsd: "2900" }];
+    const payments = [
+      { amount: "100", currency: "USD" },
+      { amount: "900", currency: "USD" },
+    ];
+    expect(computeStudentFinanceTotals(enrollments, payments)).toEqual({
+      totalUsd: 3000,
+      paidUsd: 1000,
+      balanceUsd: 2000,
+    });
   });
 });
 

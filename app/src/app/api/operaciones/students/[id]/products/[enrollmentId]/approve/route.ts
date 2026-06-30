@@ -232,7 +232,6 @@ export async function POST(_req: Request, { params }: Params) {
             programLevel: true,
           },
         },
-        payments: { select: { isInitialPayment: true } },
         _count: { select: { paymentSchedules: true } },
       },
     });
