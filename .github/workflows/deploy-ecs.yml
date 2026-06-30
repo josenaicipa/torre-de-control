@@ -150,6 +150,10 @@ jobs:
           GOOGLE_DRIVE_PRIVATE_KEY_SECRET: ${{ secrets.GOOGLE_DRIVE_PRIVATE_KEY }}
           N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL_SECRET: ${{ secrets.N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL }}
           N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET: ${{ secrets.N8N_TORRE_LW_ACCESS_WEBHOOK_URL }}
+          GHL_BASE_URL_SECRET: ${{ secrets.GHL_BASE_URL }}
+          GHL_API_KEY_SECRET: ${{ secrets.GHL_API_KEY }}
+          GHL_API_VERSION_SECRET: ${{ secrets.GHL_API_VERSION }}
+          GHL_LOCATION_ID_SECRET: ${{ secrets.GHL_LOCATION_ID }}
         run: |
           set -euo pipefail
           # Decide whether to (re)seed N8N_TORRE_WEBHOOK_SECRET into the task
@@ -185,7 +189,11 @@ jobs:
                       "GOOGLE_DRIVE_CLIENT_EMAIL=${GOOGLE_DRIVE_CLIENT_EMAIL_SECRET:-}" \
                       "GOOGLE_DRIVE_PRIVATE_KEY=${GOOGLE_DRIVE_PRIVATE_KEY_SECRET:-}" \
                       "N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL=${N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL_SECRET:-}" \
-                      "N8N_TORRE_LW_ACCESS_WEBHOOK_URL=${N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET:-}"; do
+                      "N8N_TORRE_LW_ACCESS_WEBHOOK_URL=${N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET:-}" \
+                      "GHL_BASE_URL=${GHL_BASE_URL_SECRET:-}" \
+                      "GHL_API_KEY=${GHL_API_KEY_SECRET:-}" \
+                      "GHL_API_VERSION=${GHL_API_VERSION_SECRET:-}" \
+                      "GHL_LOCATION_ID=${GHL_LOCATION_ID_SECRET:-}"; do
             name="${pair%%=*}"
             value="${pair#*=}"
             if [[ -n "${value}" ]]; then
@@ -215,7 +223,11 @@ jobs:
              --arg GOOGLE_DRIVE_CLIENT_EMAIL "${GOOGLE_DRIVE_CLIENT_EMAIL_SECRET:-}" \
              --arg GOOGLE_DRIVE_PRIVATE_KEY "${GOOGLE_DRIVE_PRIVATE_KEY_SECRET:-}" \
              --arg N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL "${N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL_SECRET:-}" \
-             --arg N8N_TORRE_LW_ACCESS_WEBHOOK_URL "${N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET:-}" '
+             --arg N8N_TORRE_LW_ACCESS_WEBHOOK_URL "${N8N_TORRE_LW_ACCESS_WEBHOOK_URL_SECRET:-}" \
+             --arg GHL_BASE_URL "${GHL_BASE_URL_SECRET:-}" \
+             --arg GHL_API_KEY "${GHL_API_KEY_SECRET:-}" \
+             --arg GHL_API_VERSION "${GHL_API_VERSION_SECRET:-}" \
+             --arg GHL_LOCATION_ID "${GHL_LOCATION_ID_SECRET:-}" '
             def upsert($name; $value):
               if $value != "" then
                 .containerDefinitions[0].environment = (
@@ -233,6 +245,10 @@ jobs:
             | upsert("GOOGLE_DRIVE_PRIVATE_KEY"; $GOOGLE_DRIVE_PRIVATE_KEY)
             | upsert("N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL"; $N8N_TORRE_CONTRACT_DRIVE_WEBHOOK_URL)
             | upsert("N8N_TORRE_LW_ACCESS_WEBHOOK_URL"; $N8N_TORRE_LW_ACCESS_WEBHOOK_URL)
+            | upsert("GHL_BASE_URL"; $GHL_BASE_URL)
+            | upsert("GHL_API_KEY"; $GHL_API_KEY)
+            | upsert("GHL_API_VERSION"; $GHL_API_VERSION)
+            | upsert("GHL_LOCATION_ID"; $GHL_LOCATION_ID)
             | {
                 family,
                 taskRoleArn,

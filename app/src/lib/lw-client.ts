@@ -20,6 +20,7 @@
  * sent as request headers — never logged or returned.
  */
 import { prisma } from "./prisma";
+import { syncGhlLearnWorldsAccess } from "./ghl-client";
 
 export interface EnrollLearnWorldsResult {
   ok: boolean;
@@ -37,6 +38,14 @@ export interface EnrollLearnWorldsResult {
    * access was granted but the old one could not be removed. null otherwise.
    */
   revokeError: string | null;
+  /** True when a brand-new LearnWorlds user had to be created for this access. */
+  userCreated?: boolean;
+  /**
+   * Non-fatal GHL mirror warning: the LearnWorlds access succeeded but mirroring
+   * the password/tags into GHL did not. null/undefined otherwise. Never turns
+   * the LW result into an error.
+   */
+  ghlWarning?: string | null;
 }
 
 interface ActiveConfig {
@@ -136,6 +145,147 @@ async function revokeConfig(
   }
 }
 
+/** Splits a full name into a first token (capitalized) and the remaining last name. */
+function splitName(fullName: string | null | undefined): {
+  firstNameCapitalized: string;
+  firstNameRaw: string;
+  lastName: string;
+} {
+  const tokens = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  const firstNameRaw = tokens[0] ?? "";
+  const firstNameCapitalized = firstNameRaw
+    ? firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1).toLowerCase()
+    : "";
+  return {
+    firstNameCapitalized,
+    firstNameRaw,
+    lastName: tokens.slice(1).join(" "),
+  };
+}
+
+type PasswordResult =
+  | { ok: true; password: string }
+  | { ok: false; error: string };
+
+/**
+ * Deterministic LearnWorlds password used ONLY when creating a brand-new user:
+ * first name (first letter uppercase) + last 4 digits of the phone + "*".
+ * E.g. "christian ..." + phone ending 2863 -> "Christian2863*". Never invents a
+ * password: if there is no name or no 4 phone digits it returns an error so the
+ * caller can surface it to Torre instead of creating an unusable account.
+ */
+function deriveLearnWorldsPassword(
+  fullName: string | null | undefined,
+  phone: string | null | undefined,
+): PasswordResult {
+  const { firstNameCapitalized } = splitName(fullName);
+  if (!firstNameCapitalized) {
+    return {
+      ok: false,
+      error:
+        "No se puede crear el usuario en LearnWorlds automáticamente: el estudiante no tiene un nombre para generar la contraseña.",
+    };
+  }
+  const digits = (phone ?? "").replace(/\D/g, "");
+  if (digits.length < 4) {
+    return {
+      ok: false,
+      error:
+        "No se puede crear el usuario en LearnWorlds automáticamente: el estudiante no tiene un teléfono con al menos 4 dígitos para generar la contraseña.",
+    };
+  }
+  return { ok: true, password: `${firstNameCapitalized}${digits.slice(-4)}*` };
+}
+
+type EnsureUserResult =
+  | { status: "exists" }
+  | { status: "created"; password: string }
+  | { status: "error"; error: string };
+
+/**
+ * Ensures the student exists in LearnWorlds before enrolment. GETs the user;
+ * if it does not exist (404) it creates them with a deterministic password and
+ * reports it back so the caller can mirror it to GHL. An existing user is left
+ * untouched (its password is never reset). Any other failure is surfaced as an
+ * error so the caller can mark the enrolment as a sync error.
+ */
+async function ensureLearnWorldsUser(
+  creds: LearnWorldsCredentials,
+  student: { email: string; fullName: string | null; phone: string | null },
+): Promise<EnsureUserResult> {
+  const base = creds.baseUrl.replace(/\/$/, "");
+  const authHeaders = {
+    Authorization: `Bearer ${creds.token}`,
+    "Lw-Client": creds.clientId,
+  };
+
+  try {
+    const lookup = await fetch(`${base}/users/${student.email}`, {
+      method: "GET",
+      headers: authHeaders,
+    });
+    if (lookup.ok) {
+      return { status: "exists" };
+    }
+    if (lookup.status !== 404) {
+      const detail = await lookup.text().catch(() => "");
+      return {
+        status: "error",
+        error: `No se pudo verificar el usuario en LearnWorlds: HTTP ${lookup.status}${
+          detail ? ` — ${detail.slice(0, 200)}` : ""
+        }`,
+      };
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "error desconocido";
+    return {
+      status: "error",
+      error: `No se pudo verificar el usuario en LearnWorlds: ${message}`,
+    };
+  }
+
+  const passwordResult = deriveLearnWorldsPassword(student.fullName, student.phone);
+  if (!passwordResult.ok) {
+    return { status: "error", error: passwordResult.error };
+  }
+
+  const { firstNameRaw, lastName } = splitName(student.fullName);
+  try {
+    const created = await fetch(`${base}/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({
+        email: student.email,
+        username: student.fullName ?? student.email,
+        fullName: student.fullName ?? student.email,
+        firstName: firstNameRaw,
+        lastName,
+        password: passwordResult.password,
+        ...(student.phone
+          ? { phone: student.phone, custom_fields: { cf_whatsapp: student.phone } }
+          : {}),
+      }),
+    });
+    if (!created.ok) {
+      const detail = await created.text().catch(() => "");
+      return {
+        status: "error",
+        error: `No se pudo crear el usuario en LearnWorlds: HTTP ${created.status}${
+          detail ? ` — ${detail.slice(0, 200)}` : ""
+        }`,
+      };
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "error desconocido";
+    return {
+      status: "error",
+      error: `No se pudo crear el usuario en LearnWorlds: ${message}`,
+    };
+  }
+
+  return { status: "created", password: passwordResult.password };
+}
+
 /**
  * Closes the previous-level enrollment after a successful upgrade: its LW access
  * was revoked (or shared and superseded by the new level), so the row is marked
@@ -173,6 +323,7 @@ export async function enrollEnrollmentInLearnWorlds(
           id: true,
           email: true,
           fullName: true,
+          phone: true,
           status: true,
           durationAssumed: true,
         },
@@ -288,6 +439,46 @@ export async function enrollEnrollmentInLearnWorlds(
   const creds: LearnWorldsCredentials = { baseUrl, token, clientId };
   const email = enrollment.student.email;
 
+  // Step 0 — make sure the student exists in LearnWorlds before enrolling.
+  // Only relevant when there is something to grant; a pure revocation (upgrade
+  // with no new configs) targets a user that already exists. If the user is
+  // missing we create it with a deterministic password and remember it so we
+  // can mirror it to GHL after access is live.
+  let userCreated = false;
+  let createdPassword: string | null = null;
+  if (configs.length > 0) {
+    const ensured = await ensureLearnWorldsUser(creds, {
+      email,
+      fullName: enrollment.student.fullName,
+      phone: enrollment.student.phone,
+    });
+    if (ensured.status === "error") {
+      await prisma.studentProductEnrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          accessStatus: "SYNC_ERROR",
+          learnWorldsSyncStatus: "error",
+          learnWorldsSyncError: ensured.error,
+        },
+      });
+      return {
+        ok: false,
+        accessStatus: "SYNC_ERROR",
+        syncStatus: "error",
+        error: ensured.error,
+        configCount: configs.length,
+        enrolledCount: 0,
+        revokedCount: 0,
+        revokeError: null,
+        userCreated: false,
+      };
+    }
+    if (ensured.status === "created") {
+      userCreated = true;
+      createdPassword = ensured.password;
+    }
+  }
+
   // Step 1 — grant the new level first, so we never revoke old access before
   // the replacement exists.
   const enrollErrors: string[] = [];
@@ -369,6 +560,24 @@ export async function enrollEnrollmentInLearnWorlds(
   if (enrollment.upgradeFromEnrollmentId) {
     await closeUpgradeSourceEnrollment(enrollment.upgradeFromEnrollmentId);
   }
+
+  // Best-effort GHL mirror: only when we just created the LW user, so the GHL
+  // workflow/email can deliver the access credentials. A GHL failure must NEVER
+  // turn the LearnWorlds access into an error — it is surfaced as a non-fatal
+  // warning only.
+  let ghlWarning: string | null = null;
+  if (userCreated && createdPassword) {
+    const { firstNameRaw, lastName } = splitName(enrollment.student.fullName);
+    const ghlResult = await syncGhlLearnWorldsAccess({
+      email,
+      firstName: firstNameRaw || null,
+      lastName: lastName || null,
+      phone: enrollment.student.phone,
+      password: createdPassword,
+    });
+    if (!ghlResult.ok) ghlWarning = ghlResult.warning;
+  }
+
   return {
     ok: true,
     accessStatus: "ACTIVE",
@@ -378,5 +587,7 @@ export async function enrollEnrollmentInLearnWorlds(
     enrolledCount,
     revokedCount,
     revokeError: null,
+    userCreated,
+    ghlWarning,
   };
 }
