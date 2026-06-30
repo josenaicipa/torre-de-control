@@ -248,17 +248,16 @@ function paidUsdFromPayments(payments: ContractPaymentShape[]): number {
   );
 }
 
-// Pago inicial del contrato. Respeta el valor explícito si está definido; si es
-// null pero hay pagos aplicables, lo deriva: suma de los marcados como inicial
-// o, si ninguno está marcado, el total pagado. Así los importados legacy (sin
-// initialPaymentUsd y con pagos manuales) no quedan bloqueados.
+// Valor pagado del contrato (campo initialPaymentUsd del input por
+// compatibilidad). Cuando hay pagos aplicables (propios de la inscripción o
+// legacy del estudiante) representa la SUMA USD de TODOS esos pagos al momento
+// de generar el contrato —no solo el pago inicial—, de modo que el contrato
+// refleje el total abonado aunque existan abonos posteriores al inicial. Sin
+// pagos aplicables, cae al initialPaymentUsd almacenado como fallback.
 function derivedInitialPaymentUsd(data: ContractDataShape): number | null {
-  const explicit = toNumberOrNull(data.initialPaymentUsd);
-  if (explicit !== null) return explicit;
   const payments = applicablePayments(data);
-  if (payments.length === 0) return null;
-  const marked = payments.filter((p) => p.isInitialPayment);
-  return paidUsdFromPayments(marked.length > 0 ? marked : payments);
+  if (payments.length > 0) return paidUsdFromPayments(payments);
+  return toNumberOrNull(data.initialPaymentUsd);
 }
 
 // Saldo del contrato. Cuando hay pagos aplicables se concilia contra ellos

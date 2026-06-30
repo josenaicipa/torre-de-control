@@ -146,16 +146,16 @@ describe("plantilla dinamiza honorarios, fechas y partes", () => {
     const honorarios = buildContractView(baseInput).sections.find(
       (s) => s.id === "honorarios",
     )!;
-    const abono = honorarios.paragraphs.find((p) => p.includes("primer abono"))!;
+    const abono = honorarios.paragraphs.find((p) => p.includes("valor pagado"))!;
     const segments = parseContractSegments(abono);
     const bold = segments.filter((s) => s.bold).map((s) => s.text);
-    // Primer abono, saldo restante, monto de cuota y fecha de cuota en negrita.
+    // Valor pagado, saldo restante, monto de cuota y fecha de cuota en negrita.
     expect(bold).toContain("USD $2,000.00");
     expect(bold).toContain("USD $900.00");
     expect(bold).toContain("11 de agosto de 2026");
     // Los conectores siguen en texto normal, no en negrita.
     const normal = segments.filter((s) => !s.bold).map((s) => s.text).join("");
-    expect(normal).toContain("primer abono de");
+    expect(normal).toContain("ha realizado abonos por un valor pagado de");
     expect(normal).toContain("El saldo restante por valor de");
     expect(normal).toContain("calendario de pagos:");
   });

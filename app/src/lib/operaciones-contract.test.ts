@@ -285,6 +285,40 @@ describe("buildContractInputFromData", () => {
     expect(input.installments).toHaveLength(4);
     expect(input.installments.map((i) => i.amountUsd)).toEqual([100, 900, 1000, 1000]);
   });
+
+  it("suma TODOS los pagos aplicables aunque initialPaymentUsd explícito sea menor, y concilia el saldo", () => {
+    // Estudiante con pago inicial 100 ya registrado en initialPaymentUsd, pero
+    // además abonó otros 900 (dos pagos propios de la inscripción) antes de
+    // generar el contrato. El balanceUsd almacenado (2900) quedó stale. El
+    // contrato debe reflejar el valor pagado total (1000) y el saldo real (2000).
+    const data = completeData({
+      totalAmountUsd: 3000,
+      initialPaymentUsd: 100,
+      balanceUsd: 2900,
+      payments: [
+        { amount: 100, currency: "USD", isInitialPayment: true },
+        { amount: 900, currency: "USD" },
+      ],
+      paymentSchedules: [
+        { installmentNumber: 1, amountDue: 1000, currency: "USD", dueDate: "2026-09-11" },
+        { installmentNumber: 2, amountDue: 1000, currency: "USD", dueDate: "2026-10-11" },
+      ],
+    });
+    const input = buildContractInputFromData(data);
+    expect(input.totalAmountUsd).toBe(3000);
+    // Valor pagado = suma de TODOS los pagos (100 + 900), no el initialPaymentUsd 100.
+    expect(input.initialPaymentUsd).toBe(1000);
+    // Saldo conciliado total - pagado (3000 - 1000), no el stale 2900.
+    expect(input.balanceUsd).toBe(2000);
+
+    const view = buildContractView(input);
+    const honorarios = view.sections.find((s) => s.id === "honorarios")!;
+    const text = honorarios.paragraphs.join(" ");
+    // El contrato muestra el valor pagado total y el saldo real, nunca solo 100.
+    expect(text).toContain("USD $1,000.00");
+    expect(text).toContain("USD $2,000.00");
+    expect(text).not.toContain("USD $100.00");
+  });
 });
 
 describe("namesReasonablyMatch", () => {
