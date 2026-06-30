@@ -1421,7 +1421,6 @@ function SellProductForm({
       ? Math.round((estimatedBalanceUsd / installmentCountNum) * 100) / 100
       : null;
 
-  const requiresInitialPayment = product?.requiresInitialPayment ?? false;
   const initialPaymentInNonUsd =
     state.hasInitialPayment && state.initialPaymentCurrency.toUpperCase() !== "USD";
   const initialPaymentIsCop =
@@ -1488,9 +1487,6 @@ function SellProductForm({
       return "Monto total USD debe ser > 0";
     }
 
-    if (requiresInitialPayment && !state.hasInitialPayment) {
-      return "Este producto requiere un pago inicial";
-    }
     if (state.hasInitialPayment) {
       if (!(toNum(state.initialPaymentAmount) > 0)) return "Monto del pago inicial requerido";
       if (!state.initialPaymentPaidAt) return "Fecha del pago inicial requerida";
@@ -1735,7 +1731,7 @@ function SellProductForm({
       {product && (
         <p className="text-xs text-slate-500">
           {product.allowsInstallments ? "Permite cuotas" : "No permite cuotas"} ·{" "}
-          {product.requiresInitialPayment ? "Pago inicial obligatorio" : "Pago inicial opcional"}
+          {product.requiresInitialPayment ? "Pago inicial marcado por defecto" : "Pago inicial opcional"}
           {product.generatesCommission ? " · Genera comisión" : " · Sin comisión"}
         </p>
       )}
@@ -1763,14 +1759,13 @@ function SellProductForm({
       {/* Initial payment block */}
       <fieldset className="rounded-md border border-slate-200 p-3">
         <legend className="px-1 text-sm font-semibold text-slate-700">
-          Pago inicial {requiresInitialPayment && <span className="text-rose-600">*</span>}
+          Pago inicial
         </legend>
 
         <label className="mt-1 flex items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={state.hasInitialPayment}
-            disabled={requiresInitialPayment}
             onChange={(e) => update("hasInitialPayment", e.target.checked)}
           />
           Registrar pago inicial ahora

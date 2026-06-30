@@ -444,7 +444,6 @@ export function NuevoEstudianteForm({
       ? Math.round((estimatedBalanceUsd / installmentCountNum) * 100) / 100
       : null;
 
-  const requiresInitialPayment = selectedProduct?.requiresInitialPayment ?? false;
   const initialPaymentInNonUsd =
     sale.hasInitialPayment && sale.initialPaymentCurrency.toUpperCase() !== "USD";
   // El plan de cuotas solo aplica cuando el pago inicial es de tipo
@@ -467,9 +466,6 @@ export function NuevoEstudianteForm({
     if (!selectedProduct) return "Selecciona un producto para la venta inicial";
     if (!(totalAmountUsdNum > 0)) return "Monto total USD debe ser > 0";
 
-    if (requiresInitialPayment && !sale.hasInitialPayment) {
-      return "Este producto requiere un pago inicial";
-    }
     if (sale.hasInitialPayment) {
       if (!(toNum(sale.initialPaymentAmount) > 0)) {
         return "Monto del pago inicial requerido";
@@ -1092,7 +1088,7 @@ export function NuevoEstudianteForm({
             {selectedProduct && (
               <p className="text-xs text-slate-500">
                 {selectedProduct.allowsInstallments ? "Permite cuotas" : "No permite cuotas"} ·{" "}
-                {selectedProduct.requiresInitialPayment ? "Pago inicial obligatorio" : "Pago inicial opcional"}
+                {selectedProduct.requiresInitialPayment ? "Pago inicial marcado por defecto" : "Pago inicial opcional"}
                 {selectedProduct.generatesCommission ? " · Genera comisión" : ""}
               </p>
             )}
@@ -1134,13 +1130,12 @@ export function NuevoEstudianteForm({
 
             <fieldset className="rounded-md border border-slate-200 p-3">
               <legend className="px-1 text-sm font-semibold text-slate-700">
-                Pago inicial {requiresInitialPayment && <span className="text-rose-600">*</span>}
+                Pago inicial
               </legend>
               <label className="mt-1 flex items-center gap-2 text-sm text-slate-700">
                 <input
                   type="checkbox"
                   checked={sale.hasInitialPayment}
-                  disabled={requiresInitialPayment}
                   onChange={(e) => updateSale("hasInitialPayment", e.target.checked)}
                 />
                 Registrar pago inicial ahora
