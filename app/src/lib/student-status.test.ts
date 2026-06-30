@@ -11,6 +11,7 @@ describe("studentStatusLabel", () => {
   });
 
   it("traduce el resto de estados del enum a español", () => {
+    expect(studentStatusLabel("PENDING")).toBe("Pendiente");
     expect(studentStatusLabel("ACTIVE")).toBe("Activo");
     expect(studentStatusLabel("PAUSED")).toBe("Pausado");
     expect(studentStatusLabel("COMPLETED")).toBe("Completado");

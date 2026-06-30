@@ -394,6 +394,9 @@ enum StudentStatus {
   SEPARATED
   INACTIVE
   WITHDRAWN
+  // Ficha mínima creada por n8n/GHL que aún no tiene contrato firmado. Pasa a
+  // ACTIVE cuando el contrato de la inscripción se firma (contractStatus SIGNED).
+  PENDING
 }
 
 enum ScheduleStatus {

@@ -6,8 +6,9 @@
 // (opcional) ghlContactId / carpeta Drive. NO se normaliza producto, programa,
 // duración, fecha de inicio, estado comercial ni datos legales aunque el
 // payload los traiga — todo eso se diligencia manualmente en Torre. La ficha se
-// crea como pendiente de completar: estado INACTIVE y durationAssumed=true (la
+// crea como pendiente de completar: estado PENDING y durationAssumed=true (la
 // duración guardada es solo un default técnico que el schema exige, no real).
+// El estado pasa a ACTIVE cuando se firma el contrato de la inscripción.
 
 import type { Prisma } from "@prisma/client";
 import { normalizeEmail } from "@/lib/operaciones-signature-flow";
@@ -97,7 +98,7 @@ export function buildN8nDriveData(
 
 // Construye el `data` de creación de una ficha mínima pendiente. `email` debe
 // venir resuelto (el route valida que exista antes de llamar). startDate y
-// durationMonths son defaults técnicos; durationAssumed=true y status INACTIVE
+// durationMonths son defaults técnicos; durationAssumed=true y status PENDING
 // dejan claro que NO es un estudiante activo normalizado.
 export function buildN8nStudentCreateData(
   fields: N8nParsedFields,
@@ -117,7 +118,7 @@ export function buildN8nStudentCreateData(
     startDate,
     durationMonths,
     endDate: calculateEndDate(startDate, durationMonths),
-    status: "INACTIVE",
+    status: "PENDING",
     durationAssumed: true,
     ghlContactId: fields.ghlContactId ?? null,
     ...buildN8nDriveData(fields),

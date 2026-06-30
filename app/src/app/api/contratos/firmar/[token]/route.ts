@@ -287,6 +287,11 @@ export async function POST(req: Request, { params }: Params) {
         },
       });
 
+      await prisma.student.updateMany({
+        where: { id: enrollment.studentId, status: "PENDING" },
+        data: { status: "ACTIVE", durationAssumed: false },
+      });
+
       await writeAudit({
         actorId: null,
         action: "operaciones.student_product_enrollment.sign_contract",
@@ -327,6 +332,11 @@ export async function POST(req: Request, { params }: Params) {
         contractStudentSignatureImage: signatureImage.dataUrl,
         contractManualClausesSnapshot: clausesSnapshot,
       },
+    });
+
+    await prisma.student.updateMany({
+      where: { id: enrollment.studentId, status: "PENDING" },
+      data: { status: "ACTIVE", durationAssumed: false },
     });
 
     await writeAudit({

@@ -7,6 +7,7 @@
  */
 
 export const STUDENT_STATUS_LABELS: Record<string, string> = {
+  PENDING: "Pendiente",
   ACTIVE: "Activo",
   PAUSED: "Pausado",
   SEPARATED: "Separado",
@@ -23,6 +24,7 @@ export function studentStatusLabel(status: string): string {
 }
 
 export const STUDENT_STATUS_BADGE_CLASSES: Record<string, string> = {
+  PENDING: "bg-yellow-100 text-yellow-800",
   ACTIVE: "bg-emerald-100 text-emerald-700",
   PAUSED: "bg-amber-100 text-amber-700",
   SEPARATED: "bg-orange-100 text-orange-700",
@@ -42,6 +44,7 @@ export function studentStatusBadgeClass(status: string): string {
 // WITHDRAWN ("Dado de baja") se omite a propósito: sigue teniendo label/badge
 // para mostrar datos históricos, pero no debe ofrecerse como opción de filtro.
 export const STUDENT_STATUS_FILTER_ORDER = [
+  "PENDING",
   "ACTIVE",
   "PAUSED",
   "SEPARATED",
