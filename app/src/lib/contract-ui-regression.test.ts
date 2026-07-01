@@ -13,6 +13,8 @@ const productosTab = () =>
   read("src/app/operaciones/estudiantes/[id]/productos-tab.tsx");
 const nuevoForm = () =>
   read("src/app/operaciones/estudiantes/nuevo/nuevo-form.tsx");
+const studentEditForm = () =>
+  read("src/app/operaciones/estudiantes/[id]/student-data-edit-form.tsx");
 const signPage = () => read("src/app/contratos/firmar/[token]/page.tsx");
 const signForm = () => read("src/app/contratos/firmar/[token]/sign-form.tsx");
 const configPage = () =>
@@ -134,6 +136,62 @@ describe("UI selector de tipo de contrato (Tradicional / Empresarial)", () => {
     expect(source).toContain(
       "No se puede cambiar el tipo porque este contrato ya tiene firma.",
     );
+  });
+});
+
+describe("UI Brand Consulting: datos de empresa al crear estudiante", () => {
+  it("ofrece la opción de contrato Brand Consulting y su helper", () => {
+    const source = nuevoForm();
+    expect(source).toContain('<option value="BRAND_CONSULTING">Brand Consulting</option>');
+    expect(source).toContain(
+      "Brand Consulting usa la razón social + NIT de la empresa como",
+    );
+  });
+
+  it("captura razón social, NIT/documento empresa y representante legal", () => {
+    const source = nuevoForm();
+    expect(source).toContain("Datos de la empresa (EL CLIENTE)");
+    expect(source).toContain("Razón social");
+    expect(source).toContain("Tipo de documento empresa");
+    expect(source).toContain("NIT / documento empresa");
+    expect(source).toContain("Representante legal firmante");
+    // Enlazados a los estados company* que se envían al backend.
+    expect(source).toContain("companyLegalName");
+    expect(source).toContain("companyDocumentType");
+    expect(source).toContain("companyDocumentNumber");
+    expect(source).toContain("companyRepresentativeName");
+  });
+
+  it("aclara que el estudiante, la empresa y el representante son distintos", () => {
+    const source = nuevoForm();
+    expect(source).toContain("EL CLIENTE es la empresa, no el estudiante");
+    expect(source).toContain("pueden ser tres personas/entidades distintas");
+    expect(source).toContain("Puede ser distinta del");
+  });
+});
+
+describe("UI Brand Consulting: datos de empresa al editar estudiante", () => {
+  it("tiene la sección de empresa contratante Brand Consulting", () => {
+    const source = studentEditForm();
+    expect(source).toContain("Empresa contratante (Brand Consulting)");
+  });
+
+  it("captura razón social, NIT/documento empresa y representante legal", () => {
+    const source = studentEditForm();
+    expect(source).toContain("Razón social / empresa (EL CLIENTE)");
+    expect(source).toContain("Representante legal firmante");
+    expect(source).toContain("Tipo documento empresa / NIT");
+    expect(source).toContain("Número NIT / documento empresa");
+    expect(source).toContain("companyLegalName");
+    expect(source).toContain("companyDocumentType");
+    expect(source).toContain("companyDocumentNumber");
+    expect(source).toContain("companyRepresentativeName");
+  });
+
+  it("aclara que el estudiante y la empresa/representante pueden ser distintos", () => {
+    const source = studentEditForm();
+    expect(source).toContain("el estudiante");
+    expect(source).toContain("pueden ser distintos");
   });
 });
 

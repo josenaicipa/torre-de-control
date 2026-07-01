@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  findMissingContractFields,
+  isContractComplete,
+  type ContractDataShape,
+} from "./operaciones-contract";
+import {
   addInstallmentSchema,
   createPaymentSchema,
   createProgressUpdateSchema,
@@ -808,5 +813,149 @@ describe("referralSplitListSchema", () => {
         },
       ]).success,
     ).toBe(false);
+  });
+});
+
+describe("createStudentSchema campos de empresa (Brand Consulting)", () => {
+  const base = {
+    fullName: "Juan",
+    email: "j@e.com",
+    startDate: "2026-05-23",
+    durationMonths: 12,
+  };
+
+  it("acepta los campos company* opcionales y los expone parseados", () => {
+    const result = createStudentSchema.safeParse({
+      ...base,
+      companyLegalName: "Marca Propia S.A.S.",
+      companyDocumentType: "NIT",
+      companyDocumentNumber: "900.123.456-7",
+      companyRepresentativeName: "Ana Gómez",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.companyLegalName).toBe("Marca Propia S.A.S.");
+      expect(result.data.companyDocumentType).toBe("NIT");
+      expect(result.data.companyDocumentNumber).toBe("900.123.456-7");
+      expect(result.data.companyRepresentativeName).toBe("Ana Gómez");
+    }
+  });
+
+  it("trata los campos company* como opcionales (el schema no los exige)", () => {
+    expect(createStudentSchema.safeParse(base).success).toBe(true);
+  });
+});
+
+// El gate de "datos que faltan para generar/firmar" vive en
+// findMissingContractFields. En Brand EL CLIENTE es la empresa, así que exige la
+// identidad empresarial; las demás plantillas no la piden y siguen exigiendo los
+// datos personales del estudiante.
+describe("gate de contrato: Brand exige la identidad empresarial", () => {
+  // Datos por lo demás completos, para que los únicos faltantes sean los que la
+  // plantilla realmente exige. balanceUsd 0 evita exigir cronograma.
+  function contractDataFor(
+    templateKind: string | null,
+    studentOverrides: Partial<ContractDataShape["student"]> = {},
+  ): ContractDataShape {
+    return {
+      student: {
+        fullName: "Andrés Toro Sierra",
+        legalName: "Andrés Toro Sierra",
+        email: "andres@example.com",
+        phone: "+57 300 1234567",
+        documentType: "Cédula de Ciudadanía",
+        documentNumber: "1.040.046.608",
+        legalAddress: "Carrera 27 # 7b - 145",
+        legalCity: "Medellín",
+        legalState: "Antioquia",
+        legalCountry: "Colombia",
+        durationMonths: 12,
+        startDate: "2026-06-11",
+        endDate: "2027-06-11",
+        ...studentOverrides,
+      },
+      product: { name: "Mentoría VIP 1 a 1 Dropshipping" },
+      totalAmountUsd: 2900,
+      initialPaymentUsd: 2900,
+      balanceUsd: 0,
+      startedAt: "2026-06-11",
+      endsAt: "2027-06-11",
+      contractTemplateKind: templateKind,
+      paymentSchedules: [],
+    };
+  }
+
+  it("Brand sin company* ni fallback legacy exige razón social, documento y representante", () => {
+    const missing = findMissingContractFields(
+      contractDataFor("BRAND_CONSULTING", {
+        // Sin fallback: sin fullName/legalName/documento el resolutor no encuentra
+        // identidad empresarial y la exige explícitamente.
+        fullName: "",
+        legalName: null,
+        documentType: null,
+        documentNumber: null,
+      }),
+    ).map((m) => m.field);
+    expect(missing).toContain("companyLegalName");
+    expect(missing).toContain("companyDocumentNumber");
+    expect(missing).toContain("companyRepresentativeName");
+    // En Brand no se exigen los datos personales del estudiante.
+    expect(missing).not.toContain("legalName");
+    expect(missing).not.toContain("documentType");
+    expect(missing).not.toContain("documentNumber");
+  });
+
+  it("Brand con la identidad empresarial completa no reporta faltantes company*", () => {
+    const data = contractDataFor("BRAND_CONSULTING", {
+      fullName: "",
+      legalName: null,
+      documentType: null,
+      documentNumber: null,
+      companyLegalName: "Marca Propia S.A.S.",
+      companyDocumentType: "NIT",
+      companyDocumentNumber: "900.123.456-7",
+      companyRepresentativeName: "Laura Restrepo",
+    });
+    const missing = findMissingContractFields(data).map((m) => m.field);
+    expect(missing).not.toContain("companyLegalName");
+    expect(missing).not.toContain("companyDocumentNumber");
+    expect(missing).not.toContain("companyRepresentativeName");
+    expect(isContractComplete(data)).toBe(true);
+  });
+
+  it("Traditional/Business no exigen los campos company* y sí los personales", () => {
+    for (const kind of ["TRADITIONAL", "BUSINESS"] as const) {
+      const missing = findMissingContractFields(
+        contractDataFor(kind, {
+          legalName: null,
+          documentType: null,
+          documentNumber: null,
+          companyLegalName: null,
+          companyDocumentType: null,
+          companyDocumentNumber: null,
+          companyRepresentativeName: null,
+        }),
+      ).map((m) => m.field);
+      // Nunca piden la identidad empresarial.
+      expect(missing).not.toContain("companyLegalName");
+      expect(missing).not.toContain("companyDocumentNumber");
+      expect(missing).not.toContain("companyRepresentativeName");
+      // Sí exigen los datos personales del estudiante.
+      expect(missing).toContain("legalName");
+      expect(missing).toContain("documentType");
+      expect(missing).toContain("documentNumber");
+    }
+  });
+
+  it("Traditional con datos personales completos no reporta faltantes ni company*", () => {
+    const missing = findMissingContractFields(
+      contractDataFor("TRADITIONAL", {
+        companyLegalName: null,
+        companyDocumentType: null,
+        companyDocumentNumber: null,
+        companyRepresentativeName: null,
+      }),
+    ).map((m) => m.field);
+    expect(missing).toHaveLength(0);
   });
 });

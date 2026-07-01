@@ -356,6 +356,76 @@ describe("buildContractInputFromData con BRAND_CONSULTING", () => {
   });
 });
 
+describe("buildContractInputFromData Brand company* fields y fallback legacy", () => {
+  // Brand con la identidad empresarial explícita (EL CLIENTE = empresa) además
+  // de los datos personales del estudiante, que NO deben mandar en Brand.
+  const brandWithCompany = () =>
+    completeData({
+      contractTemplateKind: "BRAND_CONSULTING",
+      student: {
+        ...completeData().student,
+        legalName: "Andrés Toro Sierra",
+        fullName: "Andrés Toro Sierra",
+        documentType: "Cédula de Ciudadanía",
+        documentNumber: "1.040.046.608",
+        companyLegalName: "Marca Propia S.A.S.",
+        companyDocumentType: "NIT",
+        companyDocumentNumber: "900.123.456-7",
+        companyRepresentativeName: "Laura Restrepo",
+      },
+    });
+
+  it("usa la identidad empresarial (company*) cuando está presente", () => {
+    const input = buildContractInputFromData(brandWithCompany());
+    expect(input.templateKind).toBe("BRAND_CONSULTING");
+    expect(input.clientName).toBe("Marca Propia S.A.S.");
+    expect(input.clientRepresentativeName).toBe("Laura Restrepo");
+    expect(input.clientDocument).toBe("NIT N° 900.123.456-7");
+  });
+
+  it("cae al fallback legacy (legalName/document/fullName) cuando faltan los company*", () => {
+    const input = buildContractInputFromData(
+      completeData({
+        contractTemplateKind: "BRAND_CONSULTING",
+        student: {
+          ...completeData().student,
+          legalName: "Marca Propia S.A.S.",
+          fullName: "Andrés Toro Sierra",
+          documentType: "Cédula de Ciudadanía",
+          documentNumber: "1.040.046.608",
+        },
+      }),
+    );
+    // Sin company*, la razón social sale de legalName, el representante del
+    // fullName y el documento del propio estudiante.
+    expect(input.clientName).toBe("Marca Propia S.A.S.");
+    expect(input.clientRepresentativeName).toBe("Andrés Toro Sierra");
+    expect(input.clientDocument).toBe("Cédula de Ciudadanía N° 1.040.046.608");
+  });
+
+  it("no regresa Traditional: ignora company* y usa los datos del estudiante", () => {
+    const input = buildContractInputFromData({
+      ...brandWithCompany(),
+      contractTemplateKind: "TRADITIONAL",
+    });
+    expect(input.templateKind).toBe("TRADITIONAL");
+    expect(input.clientName).toBe("Andrés Toro Sierra");
+    expect(input.clientRepresentativeName).toBeUndefined();
+    expect(input.clientDocument).toBe("Cédula de Ciudadanía N° 1.040.046.608");
+  });
+
+  it("no regresa Business: ignora company* y usa los datos del estudiante", () => {
+    const input = buildContractInputFromData({
+      ...brandWithCompany(),
+      contractTemplateKind: "BUSINESS",
+    });
+    expect(input.templateKind).toBe("BUSINESS");
+    expect(input.clientName).toBe("Andrés Toro Sierra");
+    expect(input.clientRepresentativeName).toBeUndefined();
+    expect(input.clientDocument).toBe("Cédula de Ciudadanía N° 1.040.046.608");
+  });
+});
+
 describe("namesReasonablyMatch", () => {
   it("acepta un nombre normalizado equivalente (acentos / mayúsculas)", () => {
     expect(namesReasonablyMatch("andres toro sierra", "Andrés Toro Sierra")).toBe(true);
