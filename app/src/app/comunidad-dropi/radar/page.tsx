@@ -16,7 +16,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getActor } from "@/lib/actor";
-import { prisma } from "@/lib/prisma";
 import { type Radar } from "@/lib/comunidad-dropi-radar";
 import { formatMonthRef, loadRadar } from "../_lib/radar-data";
 import { loadComparativo, type Granularity } from "../_lib/crecimiento-data";
@@ -26,10 +25,6 @@ import {
   classifyImportAge,
   type ImportAgeInfo,
 } from "../_lib/import-age";
-import {
-  computeRadarFollowUpStats,
-  type RadarFollowUpStats,
-} from "../_lib/follow-up-stats";
 import { SubNav } from "../_components/SubNav";
 import { RadarPeriodFiltro } from "../_components/RadarPeriodFiltro";
 import { RendimientoComunidad } from "../_components/RendimientoComunidad";
@@ -138,7 +133,7 @@ function Header() {
   );
 }
 
-async function PulsoBody({
+function PulsoBody({
   radar,
   importAge,
   comparativo,
@@ -150,21 +145,6 @@ async function PulsoBody({
   const currentLabel = radar ? formatMonthRef(radar.current) : null;
   const previousLabel =
     radar && radar.previous ? formatMonthRef(radar.previous) : null;
-
-  // Una sola query alimenta el banner "Qué hacer hoy".
-  const activeFollowUps = await prisma.dropiFollowUp.findMany({
-    where: { status: { in: ["OPEN", "IN_PROGRESS"] } },
-    select: {
-      memberId: true,
-      status: true,
-      priority: true,
-      dueDate: true,
-      assignedToId: true,
-      assignedTo: { select: { name: true, email: true } },
-    },
-  });
-  const now = new Date();
-  const followUpStats = computeRadarFollowUpStats(activeFollowUps, now);
 
   return (
     <>
@@ -196,166 +176,12 @@ async function PulsoBody({
         ) : null}
       </div>
 
-      <TodayActionsCard stats={followUpStats} />
-
       {comparativo ? (
         <RendimientoComunidad comparativo={comparativo} />
       ) : (
         <RendimientoEmpty />
       )}
     </>
-  );
-}
-
-function TodayActionsCard({ stats }: { stats: RadarFollowUpStats }) {
-  const tiles: Array<{
-    key: string;
-    label: string;
-    value: number;
-    href: string;
-    accent: string;
-    hint?: string;
-  }> = [
-    {
-      key: "urgent",
-      label: "P1 abiertos",
-      value: stats.urgentCount,
-      href: "/comunidad-dropi/seguimientos?priority=P1",
-      accent: "#B91C1C",
-      hint: "Prioridad máxima en cola",
-    },
-    {
-      key: "overdue",
-      label: "Vencidos",
-      value: stats.overdueCount,
-      href: "/comunidad-dropi/seguimientos?bucket=OVERDUE",
-      accent: "#B91C1C",
-      hint: "Días atrás de la fecha límite",
-    },
-    {
-      key: "today",
-      label: "Para hoy",
-      value: stats.todayCount,
-      href: "/comunidad-dropi/seguimientos?bucket=TODAY",
-      accent: "#D97706",
-      hint: "Cierre antes de fin de día",
-    },
-    {
-      key: "unassigned",
-      label: "Sin asignar",
-      value: stats.unassignedCount,
-      href: "/comunidad-dropi/seguimientos?unassigned=1",
-      accent: "#475569",
-      hint: "Aún sin responsable",
-    },
-  ];
-
-  return (
-    <section
-      aria-label="Qué hacer hoy"
-      style={{
-        backgroundColor: COLORS.surface,
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 14,
-        padding: 16,
-        marginBottom: 18,
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <p style={eyebrowStyle()}>Qué hacer hoy</p>
-          <p
-            style={{
-              margin: "4px 0 0",
-              fontSize: 16,
-              fontWeight: 700,
-              color: COLORS.text,
-            }}
-          >
-            {stats.openCount === 0
-              ? "Cola vacía: sin seguimientos abiertos."
-              : `${stats.openCount} seguimientos abiertos o en curso ahora mismo.`}
-          </p>
-        </div>
-        <Link
-          href="/comunidad-dropi/seguimientos"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "8px 14px",
-            borderRadius: 8,
-            backgroundColor: COLORS.brand,
-            color: COLORS.surface,
-            fontSize: 13,
-            fontWeight: 700,
-            textDecoration: "none",
-          }}
-        >
-          Ir a Seguimientos →
-        </Link>
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 10,
-        }}
-      >
-        {tiles.map((t) => (
-          <Link
-            key={t.key}
-            href={t.href}
-            style={{
-              display: "block",
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: `1px solid ${COLORS.border}`,
-              borderTop: `3px solid ${t.accent}`,
-              textDecoration: "none",
-              color: COLORS.text,
-              backgroundColor: COLORS.surface,
-            }}
-          >
-            <span style={eyebrowStyle()}>{t.label}</span>
-            <span
-              style={{
-                display: "block",
-                marginTop: 6,
-                fontSize: 26,
-                fontWeight: 800,
-                color: COLORS.text,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {t.value}
-            </span>
-            {t.hint ? (
-              <span
-                style={{
-                  display: "block",
-                  marginTop: 4,
-                  fontSize: 11,
-                  color: COLORS.textMuted,
-                }}
-              >
-                {t.hint}
-              </span>
-            ) : null}
-          </Link>
-        ))}
-      </div>
-    </section>
   );
 }
 
