@@ -328,6 +328,15 @@ export function findMissingContractFields(data: ContractDataShape): MissingField
   const add = (field: string, label: string) => missing.push({ field, label });
 
   if (!nonEmpty(data.student.legalName)) add("legalName", "Nombre legal completo");
+  // BRAND_CONSULTING: la razón social (legalName) firma a través de su
+  // representante legal, que en Torre es el fullName del titular.
+  if (
+    normalizeContractTemplateKind(data.contractTemplateKind) ===
+      "BRAND_CONSULTING" &&
+    !nonEmpty(data.student.fullName)
+  ) {
+    add("fullName", "Nombre del representante legal firmante");
+  }
   if (!nonEmpty(data.student.email)) add("email", "Correo electrónico");
   if (!nonEmpty(data.student.phone)) add("phone", "Teléfono");
   if (!nonEmpty(data.student.documentType)) add("documentType", "Tipo de documento");
@@ -549,7 +558,14 @@ export function buildContractInputFromData(
   manualClauses?: ManualClause[],
   sectionsSnapshot?: ContractSection[] | null,
 ): ContractInput {
+  const templateKind = normalizeContractTemplateKind(data.contractTemplateKind);
   const clientName = data.student.legalName?.trim() || data.student.fullName;
+  // BRAND_CONSULTING: EL CLIENTE es la empresa (clientName = razón social) y el
+  // firmante es su representante legal, que en Torre es el fullName del titular.
+  const clientRepresentativeName =
+    templateKind === "BRAND_CONSULTING"
+      ? data.student.fullName?.trim() || null
+      : null;
   const agreementDate =
     isoDate(signedAt ?? null) ??
     isoDate(data.startedAt) ??
@@ -596,8 +612,9 @@ export function buildContractInputFromData(
     }));
 
   return {
-    templateKind: normalizeContractTemplateKind(data.contractTemplateKind),
+    templateKind,
     clientName,
+    ...(clientRepresentativeName ? { clientRepresentativeName } : {}),
     clientEmail: data.student.email,
     clientDocument: composeDocument(data),
     clientAddress: composeAddress(data),
@@ -844,6 +861,9 @@ export interface ContractSignersInput {
       contractSignedAt: Date | string | null;
     }[];
   };
+  // Plantilla legal de la inscripción. En BRAND_CONSULTING el titular firmante
+  // es el representante legal (fullName), no la razón social (legalName).
+  contractTemplateKind?: string | null;
   contractSignedAt?: Date | string | null;
 }
 
@@ -855,7 +875,14 @@ export interface ContractSignersInput {
 export function buildContractSignersSummary(
   data: ContractSignersInput,
 ): ContractSignersSummary {
-  const titularName = data.student.legalName?.trim() || data.student.fullName;
+  // En BRAND_CONSULTING firma el representante legal (fullName); en las demás
+  // plantillas el titular firma con su nombre legal (legalName si existe).
+  const isBrandConsulting =
+    normalizeContractTemplateKind(data.contractTemplateKind) ===
+    "BRAND_CONSULTING";
+  const titularName = isBrandConsulting
+    ? data.student.fullName?.trim() || data.student.legalName?.trim() || ""
+    : data.student.legalName?.trim() || data.student.fullName;
   const members = contractSignerMembers(data.student.members ?? []);
   const signers: ContractSigner[] = [
     {

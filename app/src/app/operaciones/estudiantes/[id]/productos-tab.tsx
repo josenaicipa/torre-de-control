@@ -1864,6 +1864,14 @@ function SellProductForm({
             campos para poder firmarlo.
           </p>
         )}
+        {state.contractTemplateKind === "BRAND_CONSULTING" && (
+          <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            Brand Consulting usa la razón social + NIT como EL CLIENTE que
+            contrata, y los nombres/apellidos del estudiante como representante
+            legal firmante. Completa la razón social y los datos legales para
+            poder firmarlo.
+          </p>
+        )}
       </Field>
 
       {/* Initial payment block */}

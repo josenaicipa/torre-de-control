@@ -327,6 +327,11 @@ export function NuevoEstudianteForm({
     [products, sale.productId],
   );
 
+  // Cuando la venta inicial usa el contrato Brand Consulting, el "nombre legal"
+  // deja de ser el del estudiante para pasar a ser la razón social del cliente.
+  const isBrandConsulting =
+    sellNow && sale.contractTemplateKind === "BRAND_CONSULTING";
+
   // TRM automática: solo aplica cuando hay pago inicial activo y la
   // moneda es COP. El padre conserva el valor del input; el hook avisa
   // por callback cuando consigue un valor automático.
@@ -761,12 +766,21 @@ export function NuevoEstudianteForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700">Nombre legal (opcional)</label>
+          <label className="block text-sm font-medium text-slate-700">
+            {isBrandConsulting ? "Razón social (nombre legal)" : "Nombre legal (opcional)"}
+          </label>
           <input
             value={legalName}
             onChange={(e) => setLegalName(e.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
+          {isBrandConsulting && (
+            <p className="mt-1 text-xs text-slate-500">
+              En Brand Consulting el nombre del estudiante es el representante
+              legal firmante; este campo es la razón social de la empresa/cliente
+              que contrata.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -1116,6 +1130,14 @@ export function NuevoEstudianteForm({
                   Este contrato empresarial usa los datos legales del estudiante
                   (nombre legal, documento, domicilio, duración y valor).
                   Completa esos campos para poder firmarlo.
+                </p>
+              )}
+              {sale.contractTemplateKind === "BRAND_CONSULTING" && (
+                <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                  Brand Consulting usa la razón social + NIT como EL CLIENTE que
+                  contrata, y los nombres/apellidos del estudiante como
+                  representante legal firmante. Completa la razón social y los
+                  datos legales para poder firmarlo.
                 </p>
               )}
             </div>

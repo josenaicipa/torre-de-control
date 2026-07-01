@@ -321,6 +321,41 @@ describe("buildContractInputFromData", () => {
   });
 });
 
+describe("buildContractInputFromData con BRAND_CONSULTING", () => {
+  // legalName = razón social (EL CLIENTE); fullName = representante legal firmante.
+  const brandData = () =>
+    completeData({
+      contractTemplateKind: "BRAND_CONSULTING",
+      student: {
+        ...completeData().student,
+        legalName: "Marca Propia S.A.S.",
+        fullName: "Andrés Toro Sierra",
+      },
+    });
+
+  it("clientName sale de la razón social (legalName) y representante del fullName", () => {
+    const input = buildContractInputFromData(brandData());
+    expect(input.templateKind).toBe("BRAND_CONSULTING");
+    expect(input.clientName).toBe("Marca Propia S.A.S.");
+    expect(input.clientRepresentativeName).toBe("Andrés Toro Sierra");
+  });
+
+  it("las plantillas no-Brand no fijan clientRepresentativeName", () => {
+    const traditional = buildContractInputFromData(
+      completeData({
+        student: {
+          ...completeData().student,
+          legalName: "Marca Propia S.A.S.",
+          fullName: "Andrés Toro Sierra",
+        },
+      }),
+    );
+    // Sin Brand, EL CLIENTE firma por sí mismo: clientName = legalName y no hay representante.
+    expect(traditional.clientName).toBe("Marca Propia S.A.S.");
+    expect(traditional.clientRepresentativeName).toBeUndefined();
+  });
+});
+
 describe("namesReasonablyMatch", () => {
   it("acepta un nombre normalizado equivalente (acentos / mayúsculas)", () => {
     expect(namesReasonablyMatch("andres toro sierra", "Andrés Toro Sierra")).toBe(true);
@@ -789,6 +824,31 @@ describe("buildContractSignersSummary", () => {
     expect(summary.total).toBe(3);
     expect(summary.allSigned).toBe(false);
     expect(summary.pending.map((s) => s.id)).toEqual(["m2"]);
+  });
+
+  it("BRAND_CONSULTING: el titular firmante usa el fullName, no la razón social", () => {
+    const summary = buildContractSignersSummary({
+      student: {
+        fullName: "Andrés Toro Sierra",
+        legalName: "Marca Propia S.A.S.",
+      },
+      contractTemplateKind: "BRAND_CONSULTING",
+    });
+    expect(summary.signers[0].id).toBe(CONTRACT_HOLDER_SIGNER_ID);
+    // Firma el representante legal (fullName), no la razón social (legalName).
+    expect(summary.signers[0].name).toBe("Andrés Toro Sierra");
+    expect(summary.signers[0].name).not.toBe("Marca Propia S.A.S.");
+  });
+
+  it("contrato normal: el titular firmante sigue usando el nombre legal (legalName)", () => {
+    const summary = buildContractSignersSummary({
+      student: {
+        fullName: "Andrés Toro Sierra",
+        legalName: "Marca Propia S.A.S.",
+      },
+    });
+    // Sin Brand, EL CLIENTE firma con su nombre legal registrado.
+    expect(summary.signers[0].name).toBe("Marca Propia S.A.S.");
   });
 
   it("allSigned solo cuando titular y todos los integrantes marcados firmaron", () => {

@@ -351,6 +351,51 @@ describe("plantilla Brand Consulting (BRAND_CONSULTING)", () => {
     expect(blob).toContain("«Unlocked Academy Nivel 6 Brand Consulting»");
   });
 
+  const brandPartiesInput: ContractInput = {
+    ...baseInput,
+    templateKind: "BRAND_CONSULTING",
+    // legalName/razón social como EL CLIENTE; fullName como representante legal.
+    clientName: "Marca Propia S.A.S.",
+    clientRepresentativeName: "Andrés Toro Sierra",
+    clientDocument: "NIT N° 900.123.456-7",
+    clientAddress: "Carrera 27 # 7b - 145, Medellín, Antioquia, Colombia",
+  };
+
+  it("las partes incluyen razón social, NIT y representante legal (concordancia femenina)", () => {
+    const view = buildContractView(brandPartiesInput);
+    expect(view.parties).toContain("Marca Propia S.A.S.");
+    expect(view.parties).toContain("NIT N° 900.123.456-7");
+    // EL CLIENTE es la empresa: concuerda en femenino y explicita representante.
+    expect(view.parties).toContain("identificada con");
+    expect(view.parties).toContain(
+      "representada legalmente por Andrés Toro Sierra",
+    );
+    // Los segmentos siguen coincidiendo con el string plano firmado.
+    expect(segmentsToText(buildPartiesSegments(brandPartiesInput))).toBe(
+      view.parties,
+    );
+  });
+
+  it("firma con razón social como cliente y representante legal como firmante", () => {
+    const view = buildContractView(brandPartiesInput);
+    expect(view.signature.clientName).toBe("Marca Propia S.A.S.");
+    expect(view.signature.signatoryName).toBe("Andrés Toro Sierra");
+    expect(view.signature.signatoryLabel).toBe("Firma del representante legal");
+    // El firmante requerido del contrato es el representante legal, no la razón social.
+    expect(view.signature.signerNames).toEqual(["Andrés Toro Sierra"]);
+  });
+
+  it("usa el marcador de datos incompletos cuando falta el representante legal", () => {
+    const view = buildContractView({
+      ...brandPartiesInput,
+      clientRepresentativeName: null,
+    });
+    expect(view.parties).toContain("representada legalmente por");
+    expect(view.parties).toContain(INCOMPLETE_LEGAL_DATA);
+    // Sin representante, el firmante cae a la razón social (clientName).
+    expect(view.signature.signatoryName).toBe("Marca Propia S.A.S.");
+  });
+
   it("difiere del cuerpo del contrato empresarial (BUSINESS)", () => {
     const brand = brandView();
     const business = buildContractView({

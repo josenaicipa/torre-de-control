@@ -7,6 +7,7 @@ import {
   formatContractUsd,
   isContractBullet,
   contractBulletText,
+  normalizeContractTemplateKind,
   parseContractSegments,
   type ContractInput,
 } from "./operaciones-contract-template";
@@ -121,6 +122,10 @@ export function generateSignedContractPdf({
   evidence: ContractPdfEvidence;
 }): Promise<Buffer> {
   const view = buildContractView(input);
+  // BRAND_CONSULTING: EL CLIENTE es la empresa y firma su representante legal;
+  // la evidencia titula la firma como tal y muestra al representante (fullName).
+  const isBrandConsulting =
+    normalizeContractTemplateKind(input.templateKind) === "BRAND_CONSULTING";
 
   return new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ size: "A4", margin: 56 });
@@ -279,12 +284,21 @@ export function generateSignedContractPdf({
     // Firma manuscrita del estudiante, arriba del encabezado EL CLIENTE.
     drawSignatureImage(
       evidence.studentSignatureImage,
-      "Firma manuscrita de EL CLIENTE:",
+      isBrandConsulting
+        ? "Firma manuscrita del representante legal de EL CLIENTE:"
+        : "Firma manuscrita de EL CLIENTE:",
     );
 
     doc.font(fonts.bold).fontSize(10).text("EL CLIENTE");
     doc.font(fonts.regular).fontSize(10);
-    doc.text(`Nombre: ${evidence.studentSignerName ?? view.signature.clientName}`);
+    if (isBrandConsulting) {
+      doc.text(`Razón social: ${view.signature.clientName}`);
+      doc.text(
+        `Representante legal: ${evidence.studentSignerName ?? view.signature.signatoryName}`,
+      );
+    } else {
+      doc.text(`Nombre: ${evidence.studentSignerName ?? view.signature.signatoryName}`);
+    }
     doc.text(`Fecha de firma: ${formatDateTime(evidence.studentSignedAt)}`);
     doc.text(`IP de firma: ${evidence.studentSignedIp ?? "—"}`);
     doc.text(`Hash de firma: ${shortHash(evidence.studentSignatureHash)}`);

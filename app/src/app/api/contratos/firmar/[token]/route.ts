@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError } from "@/lib/api-helpers";
 import { writeAudit } from "@/lib/audit";
-import { CONTRACT_ACCEPTANCE_TEXT, CONTRACT_TEMPLATE_VERSION } from "@/lib/operaciones-contract-template";
+import {
+  CONTRACT_ACCEPTANCE_TEXT,
+  CONTRACT_TEMPLATE_VERSION,
+  contractSignatoryName,
+} from "@/lib/operaciones-contract-template";
 import {
   buildContractInputFromData,
   computeSignaturesSummaryHash,
@@ -135,8 +139,9 @@ export async function POST(req: Request, { params }: Params) {
     if (signerMembers.length > 0) {
       const rawSignerId = String(record.signerId ?? CONTRACT_HOLDER_SIGNER_ID).trim();
       const signerId = rawSignerId.length > 0 ? rawSignerId : CONTRACT_HOLDER_SIGNER_ID;
-      const titularName =
-        enrollment.student.legalName?.trim() || enrollment.student.fullName;
+      // BRAND_CONSULTING: el titular firmante es el representante legal
+      // (fullName); en las demás plantillas, su nombre legal (legalName).
+      const titularName = contractSignatoryName(contractInput);
 
       if (signerId === CONTRACT_HOLDER_SIGNER_ID) {
         if (enrollment.contractSignedAt) {
@@ -309,8 +314,9 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     // ── Flujo legacy: firmante único (titular Student) ───────────────────────
-    const expectedName =
-      enrollment.student.legalName?.trim() || enrollment.student.fullName;
+    // En BRAND_CONSULTING valida contra el representante legal (fullName); en
+    // las demás plantillas, contra el nombre legal registrado.
+    const expectedName = contractSignatoryName(contractInput);
     if (!namesReasonablyMatch(signerName, expectedName)) {
       return jsonError(
         400,

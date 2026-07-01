@@ -131,6 +131,8 @@ export default async function FirmarContratoPage({ params }: PageProps) {
 
   const clientName =
     enrollment.student.legalName?.trim() || enrollment.student.fullName;
+  const isBrandConsulting =
+    enrollment.contractTemplateKind === "BRAND_CONSULTING";
 
   // Firmantes requeridos: el titular Student SIEMPRE (id "student") más cada
   // integrante marcado con isContractSigner=true. El contrato se considera
@@ -247,9 +249,18 @@ export default async function FirmarContratoPage({ params }: PageProps) {
         </section>
 
         <dl className="mt-6 grid gap-3 sm:grid-cols-2">
-          <Detail label="Estudiante (EL CLIENTE)" value={clientName} />
+          <Detail
+            label={isBrandConsulting ? "Razón social (EL CLIENTE)" : "Estudiante (EL CLIENTE)"}
+            value={clientName}
+          />
+          <Detail
+            label={isBrandConsulting ? "NIT / Documento" : "Documento"}
+            value={input.clientDocument ?? "—"}
+          />
+          {isBrandConsulting && (
+            <Detail label="Representante legal" value={contract.signature.signatoryName} />
+          )}
           <Detail label="Correo" value={enrollment.student.email} />
-          <Detail label="Documento" value={input.clientDocument ?? "—"} />
           <Detail label="Domicilio" value={input.clientAddress ?? "—"} />
           <Detail label="Producto" value={input.productName} />
           <Detail label="Fecha de acuerdo" value={agreementDateLabel} />
@@ -295,8 +306,10 @@ export default async function FirmarContratoPage({ params }: PageProps) {
             <span className="font-medium">{contract.signature.endDateLabel}</span>
           </p>
           <p>
-            <span className="block text-xs text-slate-500">Firma del estudiante</span>
-            <span className="font-medium">{contract.signature.clientName}</span>
+            <span className="block text-xs text-slate-500">
+              {contract.signature.signatoryLabel}
+            </span>
+            <span className="font-medium">{contract.signature.signatoryName}</span>
           </p>
           <p>
             <span className="block text-xs text-slate-500">Firma del CEO</span>

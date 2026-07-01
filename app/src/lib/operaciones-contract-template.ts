@@ -37,6 +37,18 @@ export function normalizeContractTemplateKind(
   return "TRADITIONAL";
 }
 
+// Rótulo de la firma de EL CLIENTE en el pie del contrato y en la UI pública.
+// En BRAND_CONSULTING EL CLIENTE es una empresa y quien firma es su
+// representante legal; en las demás plantillas firma el propio estudiante.
+export const CONTRACT_SIGNATORY_LABEL_DEFAULT = "Firma del estudiante";
+export const CONTRACT_SIGNATORY_LABEL_BRAND = "Firma del representante legal";
+
+export function contractSignatoryLabel(value: unknown): string {
+  return normalizeContractTemplateKind(value) === "BRAND_CONSULTING"
+    ? CONTRACT_SIGNATORY_LABEL_BRAND
+    : CONTRACT_SIGNATORY_LABEL_DEFAULT;
+}
+
 // Marcador con el que se prefijan los párrafos que deben renderizarse como
 // viñetas (tanto en la vista web como en el PDF). Se mantiene como convención
 // de texto para no cambiar la forma `string[]` de los párrafos.
@@ -98,7 +110,7 @@ export const INCOMPLETE_LEGAL_DATA = "DATOS LEGALES INCOMPLETOS";
 // Versión de la plantilla aceptada por el estudiante. Se congela en la
 // inscripción al firmar para tener evidencia de QUÉ texto se aceptó. Súbela
 // cuando cambie el contenido legal del contrato.
-export const CONTRACT_TEMPLATE_VERSION = "2026-06-unlocked-v4";
+export const CONTRACT_TEMPLATE_VERSION = "2026-07-unlocked-v5";
 
 // Texto exacto de la declaración de aceptación que firma el estudiante. Se
 // guarda junto a la firma como evidencia de consentimiento informado.
@@ -155,9 +167,14 @@ export interface ContractInput {
   // Plantilla legal a emitir. Decide título, subtítulo y cuerpo del contrato.
   // Ausente/undefined => "TRADITIONAL" (contrato por defecto «Unlocked Academy»).
   templateKind?: ContractTemplateKind;
-  // Nombre legal del estudiante (legalName si existe; si no, fullName).
+  // Nombre legal del estudiante (legalName si existe; si no, fullName). En la
+  // plantilla BRAND_CONSULTING es la razón social de la empresa (EL CLIENTE).
   clientName: string;
   clientEmail: string;
+  // Solo BRAND_CONSULTING: nombre del representante legal que firma en nombre de
+  // la empresa (EL CLIENTE). Es el firmante real del contrato; las demás
+  // plantillas lo dejan ausente porque EL CLIENTE firma por sí mismo.
+  clientRepresentativeName?: string | null;
   // Datos legales aún no modelados en Torre. Se dejan opcionales: si llegan,
   // se usan; si no, se cae a una frase segura sin inventar el dato.
   clientDocument?: string | null;
@@ -230,6 +247,8 @@ export function segmentsToText(segments: ContractTextSegment[]): string {
 // string `parties` en buildContractView, garantizando que web, PDF y hash
 // usen el mismo texto.
 export function buildPartiesSegments(input: ContractInput): ContractTextSegment[] {
+  const isBrandConsulting =
+    normalizeContractTemplateKind(input.templateKind) === "BRAND_CONSULTING";
   const hasDocument = Boolean(input.clientDocument?.trim());
   const documentValue = hasDocument
     ? input.clientDocument!.trim()
@@ -248,7 +267,9 @@ export function buildPartiesSegments(input: ContractInput): ContractTextSegment[
     { text: COMPANY.address, bold: true },
     { text: ". Y, de otra parte, ", bold: false },
     { text: input.clientName, bold: true },
-    { text: " identificado con ", bold: false },
+    // BRAND_CONSULTING: EL CLIENTE es la empresa/razón social, por eso concuerda
+    // en femenino ("identificada") y se explicita su representante legal.
+    { text: isBrandConsulting ? " identificada con " : " identificado con ", bold: false },
     { text: documentValue, bold: true },
     {
       text: hasAddress
@@ -257,8 +278,20 @@ export function buildPartiesSegments(input: ContractInput): ContractTextSegment[
       bold: false,
     },
     { text: addressValue, bold: true },
-    { text: ".", bold: false },
   ];
+
+  if (isBrandConsulting) {
+    const representative = input.clientRepresentativeName?.trim();
+    segments.push({ text: ", representada legalmente por ", bold: false });
+    segments.push({
+      text: representative && representative.length > 0
+        ? representative
+        : INCOMPLETE_LEGAL_DATA,
+      bold: true,
+    });
+  }
+
+  segments.push({ text: ".", bold: false });
 
   // Equipo: si hay integrantes adicionales, se añade una frase con el conteo
   // total (titular + miembros) y la lista de integrantes con su documento. El
@@ -314,6 +347,19 @@ function validTeamMembers(input: ContractInput): ContractTeamMember[] {
   );
 }
 
+// Nombre que firma el contrato en representación de EL CLIENTE. En
+// BRAND_CONSULTING es el representante legal (clientRepresentativeName); en las
+// demás plantillas EL CLIENTE firma por sí mismo, así que coincide con
+// clientName. Es la fuente de verdad para la validación de la firma, el pie del
+// contrato y la evidencia del PDF.
+export function contractSignatoryName(input: ContractInput): string {
+  if (normalizeContractTemplateKind(input.templateKind) === "BRAND_CONSULTING") {
+    const representative = input.clientRepresentativeName?.trim();
+    if (representative && representative.length > 0) return representative;
+  }
+  return input.clientName;
+}
+
 export interface ContractView {
   title: string;
   subtitle: string;
@@ -324,6 +370,12 @@ export interface ContractView {
     agreementDateLabel: string;
     endDateLabel: string;
     clientName: string;
+    // Nombre visible del firmante de EL CLIENTE. Coincide con clientName salvo
+    // en BRAND_CONSULTING, donde es el representante legal de la empresa.
+    signatoryName: string;
+    // Rótulo del pie de firma de EL CLIENTE ("Firma del estudiante" o, en
+    // BRAND_CONSULTING, "Firma del representante legal").
+    signatoryLabel: string;
     ceoName: string;
     // Firmantes requeridos del contrato interno: el titular y los integrantes
     // adicionales marcados con isContractSigner. Sin equipo => [titular].
@@ -1969,8 +2021,9 @@ export function buildContractView(input: ContractInput): ContractView {
   const sections =
     Array.isArray(snapshot) && snapshot.length > 0 ? snapshot : baseSections;
 
+  const signatoryName = contractSignatoryName(input);
   const signerNames = [
-    input.clientName,
+    signatoryName,
     ...validTeamMembers(input)
       .filter((m) => m.isContractSigner)
       .map((m) => m.fullName.trim()),
@@ -1990,6 +2043,8 @@ export function buildContractView(input: ContractInput): ContractView {
       agreementDateLabel: formatContractDate(input.agreementDate),
       endDateLabel: formatContractDate(input.endDate),
       clientName: input.clientName,
+      signatoryName,
+      signatoryLabel: contractSignatoryLabel(input.templateKind),
       ceoName: COMPANY.ceoName,
       signerNames,
     },
