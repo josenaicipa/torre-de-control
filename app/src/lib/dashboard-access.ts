@@ -52,7 +52,23 @@ function uniq(values: string[]): string[] {
   return Array.from(new Set(values));
 }
 
+function isActiveSetterAlias(value: string | undefined): boolean {
+  if (!value) return false;
+  return COLLABORATORS.some((c) => c.role === "setter" && (c.id === value || c.label === value));
+}
+
 function aliasesOf(c: Collaborator): string[] {
+  // The storage/member aliases must not let a dual-profile setter (Alejandro or
+  // Daniel) write/read the closer row via the shared display-name legacy alias.
+  // We still use those display names for identity matching below; we just don't
+  // expose them as writable row aliases for the closer profile.
+  const aliases = [c.id];
+  if (c.label !== c.id && !(c.role === "closer" && isActiveSetterAlias(c.label))) aliases.push(c.label);
+  if (c.legacy && !(c.role === "closer" && isActiveSetterAlias(c.legacy))) aliases.push(c.legacy);
+  return uniq(aliases);
+}
+
+function identityAliasesOf(c: Collaborator): string[] {
   return uniq(c.legacy ? [c.id, c.label, c.legacy] : [c.id, c.label]);
 }
 
@@ -83,7 +99,7 @@ function membersForIdentity(actor: DashboardActor, role: Collaborator["role"]): 
 
   for (const c of COLLABORATORS) {
     if (c.role !== role) continue;
-    const matches = aliasesOf(c).some((a) => candidates.has(norm(a)));
+    const matches = identityAliasesOf(c).some((a) => candidates.has(norm(a)));
     if (matches) return aliasesOf(c);
   }
   return [];
@@ -201,7 +217,7 @@ export function isMemberAllowed(access: DashboardAccess, member: unknown): boole
  * "Llenar reporte" flow so operators can fill their own Detalle row even when they are not broad dashboard writers.
  */
 export function isOwnDashboardEntryMember(
-  actor: Pick<DashboardActor, "ghlUserName" | "name" | "email">,
+  actor: Pick<DashboardActor, "ghlUserName" | "name" | "email" | "position">,
   member: unknown,
 ): boolean {
   if (typeof member !== "string" || !member.trim()) return false;
@@ -210,9 +226,12 @@ export function isOwnDashboardEntryMember(
   );
   if (candidates.size === 0) return false;
 
+  const allowedRole = actor.position === "CLOSER" ? "closer" : actor.position === "SETTER" ? "setter" : null;
+
   for (const c of COLLABORATORS) {
+    if (allowedRole && c.role !== allowedRole) continue;
     const aliases = aliasesOf(c);
-    const identityMatches = aliases.some((a) => candidates.has(norm(a)));
+    const identityMatches = identityAliasesOf(c).some((a) => candidates.has(norm(a)));
     if (identityMatches && aliases.includes(member)) return true;
   }
   return false;

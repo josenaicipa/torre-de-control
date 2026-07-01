@@ -115,7 +115,7 @@ describe("resolveDashboardAccess — CLOSER OWN", () => {
     expect(a.allowedMembers).toEqual(["Wiston Quintero", "Juan Diego Afanador"]);
   });
 
-  it("allows Daniel Garcia to own both setter and closer collaborator rows", () => {
+  it("keeps Daniel Garcia setter and closer rows separated by profile", () => {
     const setter = resolveDashboardAccess(
       actor({ position: "SETTER", dataScope: "OWN", ghlUserName: "Daniel Garcia" }),
     );
@@ -124,7 +124,7 @@ describe("resolveDashboardAccess — CLOSER OWN", () => {
     );
 
     expect(setter.allowedMembers).toEqual(["Daniel Garcia"]);
-    expect(closer.allowedMembers).toEqual(["Daniel Garcia Closer", "Daniel Garcia"]);
+    expect(closer.allowedMembers).toEqual(["Daniel Garcia Closer"]);
   });
 
   it("allows Alejandro Gallo to own his closer collaborator row", () => {
@@ -132,7 +132,7 @@ describe("resolveDashboardAccess — CLOSER OWN", () => {
       actor({ position: "CLOSER", dataScope: "OWN", ghlUserName: "Alejandro Gallo" }),
     );
 
-    expect(a.allowedMembers).toEqual(["Alejandro Gallo Closer", "Alejandro Gallo"]);
+    expect(a.allowedMembers).toEqual(["Alejandro Gallo Closer"]);
   });
 
   it("renames Daryi Uribe to Daryi Perez while preserving the Daryi legacy alias", () => {
@@ -220,9 +220,7 @@ describe("resolveDashboardAccess — DIRECTOR AREA/TEAM", () => {
       "Wiston Quintero",
       "Juan Diego Afanador",
       "Daniel Garcia Closer",
-      "Daniel Garcia",
       "Alejandro Gallo Closer",
-      "Alejandro Gallo",
     ]);
   });
 
@@ -317,8 +315,11 @@ describe("isOwnDashboardEntryMember", () => {
     expect(isOwnDashboardEntryMember(actor({ name: "Carlos Velez" }), "Daryi")).toBe(false);
   });
 
-  it("allows Alejandro Gallo to fill his closer row as his own daily entry", () => {
-    expect(isOwnDashboardEntryMember(actor({ name: "Alejandro Gallo" }), "Alejandro Gallo Closer")).toBe(true);
+  it("keeps Alejandro Gallo setter and closer own-entry writes separated by profile", () => {
+    expect(isOwnDashboardEntryMember(actor({ position: "SETTER", name: "Alejandro Gallo" }), "Alejandro Gallo")).toBe(true);
+    expect(isOwnDashboardEntryMember(actor({ position: "SETTER", name: "Alejandro Gallo" }), "Alejandro Gallo Closer")).toBe(false);
+    expect(isOwnDashboardEntryMember(actor({ position: "CLOSER", name: "Alejandro Gallo" }), "Alejandro Gallo Closer")).toBe(true);
+    expect(isOwnDashboardEntryMember(actor({ position: "CLOSER", name: "Alejandro Gallo" }), "Alejandro Gallo")).toBe(false);
   });
 
   it("allows Lucas Soria to fill his own setter daily entry", () => {

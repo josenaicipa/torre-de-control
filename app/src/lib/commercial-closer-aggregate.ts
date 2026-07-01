@@ -36,6 +36,16 @@ const CLOSER_COLLABORATORS: readonly CloserCollaborator[] = [
   { id: "Alejandro Gallo Closer", legacy: "Alejandro Gallo" },
 ];
 
+// Active setter rows that share display names with closer profiles. These must
+// never be canonicalized into the closer aggregate.
+const ACTIVE_SETTER_MEMBER_IDS: ReadonlySet<string> = new Set([
+  "Alejandro Gallo",
+  "Daniel Garcia",
+  "Luisa Vega",
+  "Lucas Soria",
+  "Karen Setter",
+]);
+
 const ADMIN_MEMBER_ID = "Admin";
 
 /** Canonical closer ids (the `member` value `saveEntry` persists). */
@@ -52,12 +62,15 @@ const COMMERCIAL_REPORTING_MEMBER_IDS: ReadonlySet<string> = new Set([
 /** Commercial ids incl. legacy aliases (pre-priority-period set). */
 const COMMERCIAL_MEMBER_IDS: ReadonlySet<string> = new Set([
   ADMIN_MEMBER_ID,
-  ...CLOSER_COLLABORATORS.flatMap((c) => (c.legacy ? [c.id, c.legacy] : [c.id])),
+  ...CLOSER_COLLABORATORS.flatMap((c) =>
+    c.legacy && !ACTIVE_SETTER_MEMBER_IDS.has(c.legacy) ? [c.id, c.legacy] : [c.id],
+  ),
 ]);
 
 /** Legacy → canonical member id. Mirrors public/index.html `closerCanonId`. */
 export function closerCanonId(member: string): string {
   if (!member) return member;
+  if (ACTIVE_SETTER_MEMBER_IDS.has(member)) return member;
   const match = CLOSER_COLLABORATORS.find((c) => c.legacy === member);
   return match ? match.id : member;
 }

@@ -221,12 +221,16 @@ describe("manual collaborator labels", () => {
     expect(html).not.toContain('const dispCash=cashApi&&cashApi.highTicket?cashApi.highTicket:totalCash;');
   });
 
-  it("does not count active setter rows as commercial legacy closer rows", () => {
+  it("does not count or save active setter rows as commercial legacy closer rows", () => {
     expect(html).toContain('const COMMERCIAL_LEGACY_MEMBER_IDS=new Set(COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean).filter(id=>!SETTER_MEMBER_IDS.has(id)));');
     expect(html).toContain('const COMMERCIAL_MEMBER_IDS=new Set([');
     expect(html).toContain('...COMMERCIAL_LEGACY_MEMBER_IDS,');
     expect(html).toContain('const isCommercialMember=m=>COMMERCIAL_MEMBER_IDS.has(m);');
+    expect(html).toContain('if(SETTER_MEMBER_IDS.has(m))return m;');
+    expect(html).toContain('if(SETTER_MEMBER_IDS.has(m))return [m];');
+    expect(html).toContain('return [cl.id,SETTER_MEMBER_IDS.has(cl.legacy)?null:cl.legacy].filter(Boolean);');
     expect(html).not.toContain('...COMMERCIAL_COLLABORATORS.map(c=>c.legacy).filter(Boolean),');
+    expect(html).not.toContain('return cl?[cl.id,cl.legacy].filter(Boolean):[m].filter(Boolean);');
   });
 
   it("counts all five High Ticket closers for June Agendas / Leads manual fields", () => {

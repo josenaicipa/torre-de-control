@@ -27,6 +27,11 @@ describe("closerCanonId", () => {
     expect(closerCanonId("Juan Diego Afanador")).toBe("Wiston Quintero");
   });
 
+  it("does not canonicalize active setter ids into same-name closer profiles", () => {
+    expect(closerCanonId("Alejandro Gallo")).toBe("Alejandro Gallo");
+    expect(closerCanonId("Daniel Garcia")).toBe("Daniel Garcia");
+  });
+
   it("returns canonical/unknown ids unchanged", () => {
     expect(closerCanonId("Daryi Perez")).toBe("Daryi Perez");
     expect(closerCanonId("Someone Else")).toBe("Someone Else");
@@ -81,6 +86,8 @@ describe("shouldRecomputeCommercialCloser", () => {
   it("is false for non-closer members", () => {
     expect(shouldRecomputeCommercialCloser("Karen", "2026-06-17")).toBe(false);
     expect(shouldRecomputeCommercialCloser("Admin", "2026-06-17")).toBe(false);
+    expect(shouldRecomputeCommercialCloser("Alejandro Gallo", "2026-06-17")).toBe(false);
+    expect(shouldRecomputeCommercialCloser("Daniel Garcia", "2026-06-17")).toBe(false);
   });
 });
 
@@ -124,6 +131,8 @@ describe("deriveCommercialCloserAggregate", () => {
       row({ date: "2026-06-18", member: "Daryi Perez", sales_organic: 99 }), // other date
       row({ member: "Karen", sales_organic: 50 }), // not a closer
       row({ member: "Admin", sales_organic: 50 }), // admin excluded from HT closer set
+      row({ member: "Alejandro Gallo", sales_organic: 50 }), // active setter, not closer alias
+      row({ member: "Daniel Garcia", sales_organic: 50 }), // active setter, not closer alias
     ];
     const agg = deriveCommercialCloserAggregate("2026-06-17", rows);
     expect(agg?.q_ventas_ht).toBe(4);

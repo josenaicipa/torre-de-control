@@ -2308,12 +2308,17 @@ Ventas, cash, recurring, low ticket y reservas usan primero el dato diario de Á
 
 const closerCanonId=m=>{
   if(!m)return m;
+  // Active setter ids (e.g. Alejandro/Daniel) must stay setter rows even when
+  // a closer profile exists with the same display name as legacy alias.
+  if(SETTER_MEMBER_IDS.has(m))return m;
   const cl=COMMERCIAL_COLLABORATORS.find(c=>c.legacy===m);
   return cl?cl.id:m;
 };
 const commercialEntryAliases=m=>{
+  if(SETTER_MEMBER_IDS.has(m))return [m];
   const cl=COMMERCIAL_COLLABORATORS.find(c=>c.id===m||c.legacy===m);
-  return cl?[cl.id,cl.legacy].filter(Boolean):[m].filter(Boolean);
+  if(!cl)return [m].filter(Boolean);
+  return [cl.id,SETTER_MEMBER_IDS.has(cl.legacy)?null:cl.legacy].filter(Boolean);
 };
 const resolveDailyEntry=(allDaily,date,member)=>{
   const ids=commercialEntryAliases(member);
