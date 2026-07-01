@@ -1152,7 +1152,11 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
 
   const roasReal=totalGasto>0&&dispCash>0?dispCash/totalGasto:null;
   const invEsperadaHoy=inversionPlaneada*pctTranscurrido;
-  const gapInversion=totalGasto-invEsperadaHoy;
+  // Gap inversión = lo que falta por invertir contra el plan/ritmo esperado.
+  // Si es positivo, hay subinversión y debe mostrarse como alerta roja.
+  const gapInversion=invEsperadaHoy-totalGasto;
+  const inversionSubEjecutada=gapInversion>500;
+  const inversionSobreEjecutada=gapInversion<-500;
 
   const leadsPorDolar=metaMensual>0?leadsPerDollarForRevenue(metaMensual):0;
   const leadsMeta=metaMensual>0?metaMensual*leadsPorDolar:0;
@@ -1446,7 +1450,7 @@ const Torre=({kpi,year,month,allCloser,allDaily,dm,onSaveConfig})=>{
           <Row2 label="Inversión planeada mes ($)" value={fD(inversionPlaneada)}/>
           <Row2 label="Inversión Ads real acumulada ($)" value={fD(totalGasto)} bold/>
           <Row2 label={isCurrent?"Inversión Ads esperada a hoy ($)":isPast?"Inversión Ads esperada total ($)":"Inversión Ads esperada al cierre ($)"} value={fD(invEsperadaHoy)}/>
-          <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={gapInversion>500?C.red:gapInversion<-500?C.green:TXT} bg={gapInversion>500?"#fef2f2":gapInversion<-500?"#f0fdf4":"transparent"}/>
+          <Row2 label="Gap inversión ($)" value={fD(gapInversion)} color={inversionSubEjecutada?C.red:inversionSobreEjecutada?C.green:TXT} bg={inversionSubEjecutada?"#fef2f2":inversionSobreEjecutada?"#f0fdf4":"transparent"}/>
           <div style={{height:1,background:BORDER,margin:"2px 0"}}/>
           <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Hanken Grotesk',sans-serif",fontSize:11}}>
             <thead>
