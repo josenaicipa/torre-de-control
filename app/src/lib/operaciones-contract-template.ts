@@ -110,7 +110,7 @@ export const INCOMPLETE_LEGAL_DATA = "DATOS LEGALES INCOMPLETOS";
 // Versión de la plantilla aceptada por el estudiante. Se congela en la
 // inscripción al firmar para tener evidencia de QUÉ texto se aceptó. Súbela
 // cuando cambie el contenido legal del contrato.
-export const CONTRACT_TEMPLATE_VERSION = "2026-07-unlocked-v5";
+export const CONTRACT_TEMPLATE_VERSION = "2026-07-unlocked-v6";
 
 // Texto exacto de la declaración de aceptación que firma el estudiante. Se
 // guarda junto a la firma como evidencia de consentimiento informado.

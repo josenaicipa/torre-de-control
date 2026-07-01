@@ -71,6 +71,10 @@ export interface StudentEditInitial {
   legalCity: string | null;
   legalState: string | null;
   legalCountry: string | null;
+  companyLegalName: string | null;
+  companyDocumentType: string | null;
+  companyDocumentNumber: string | null;
+  companyRepresentativeName: string | null;
 }
 
 function buildState(initial: StudentEditInitial) {
@@ -93,6 +97,10 @@ function buildState(initial: StudentEditInitial) {
     legalCity: initial.legalCity ?? "",
     legalState: initial.legalState ?? "",
     legalCountry: initial.legalCountry ?? "",
+    companyLegalName: initial.companyLegalName ?? "",
+    companyDocumentType: initial.companyDocumentType ?? "",
+    companyDocumentNumber: initial.companyDocumentNumber ?? "",
+    companyRepresentativeName: initial.companyRepresentativeName ?? "",
   };
 }
 
@@ -232,6 +240,12 @@ export function StudentDataEditForm({
           legalCity: trimmedOrNull(state.legalCity),
           legalState: trimmedOrNull(state.legalState),
           legalCountry: trimmedOrNull(state.legalCountry),
+          companyLegalName: trimmedOrNull(state.companyLegalName),
+          companyDocumentType: trimmedOrNull(state.companyDocumentType),
+          companyDocumentNumber: trimmedOrNull(state.companyDocumentNumber),
+          companyRepresentativeName: trimmedOrNull(
+            state.companyRepresentativeName,
+          ),
           members: memberRows.map((m) => ({
             fullName: m.fullName.trim(),
             email: trimmedOrNull(m.email),
@@ -628,6 +642,70 @@ export function StudentDataEditForm({
                       value={state.legalCity}
                       onChange={(e) => update("legalCity", e.target.value)}
                       maxLength={120}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t border-slate-200 pt-5">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Empresa contratante (Brand Consulting)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Para contratos con Brand Consulting, el estudiante (
+                  {state.fullName.trim() || "el estudiante"}), la razón social y
+                  el representante legal pueden ser distintos. Completa aquí los
+                  datos de EL CLIENTE (la empresa) y de quien firma en su
+                  nombre.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Razón social / empresa (EL CLIENTE)">
+                    <input
+                      type="text"
+                      value={state.companyLegalName}
+                      onChange={(e) =>
+                        update("companyLegalName", e.target.value)
+                      }
+                      maxLength={200}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                  <Field label="Representante legal firmante">
+                    <input
+                      type="text"
+                      value={state.companyRepresentativeName}
+                      onChange={(e) =>
+                        update("companyRepresentativeName", e.target.value)
+                      }
+                      maxLength={200}
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </Field>
+                  <Field label="Tipo documento empresa / NIT">
+                    <select
+                      value={state.companyDocumentType}
+                      onChange={(e) =>
+                        update("companyDocumentType", e.target.value)
+                      }
+                      className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">— Selecciona —</option>
+                      {DOCUMENT_TYPES.map((dt) => (
+                        <option key={dt.value} value={dt.value}>
+                          {dt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Número NIT / documento empresa">
+                    <input
+                      type="text"
+                      value={state.companyDocumentNumber}
+                      onChange={(e) =>
+                        update("companyDocumentNumber", e.target.value)
+                      }
+                      maxLength={100}
                       className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
                     />
                   </Field>

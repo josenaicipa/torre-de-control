@@ -222,6 +222,10 @@ function InfoTab({
     legalCity: string | null;
     legalState: string | null;
     legalCountry: string | null;
+    companyLegalName: string | null;
+    companyDocumentType: string | null;
+    companyDocumentNumber: string | null;
+    companyRepresentativeName: string | null;
     notes: string | null;
     personality: string | null;
     ghlContactId: string | null;
@@ -271,6 +275,36 @@ function InfoTab({
         <div>
           <dt className="font-medium text-slate-500">País</dt>
           <dd className="text-slate-900">{student.legalCountry ?? "—"}</dd>
+        </div>
+        <div className="col-span-2 border-t border-slate-100 pt-3">
+          <dt className="font-medium text-slate-500">
+            Razón social / empresa (EL CLIENTE)
+          </dt>
+          <dd className="text-slate-900">{student.companyLegalName ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">
+            Representante legal firmante
+          </dt>
+          <dd className="text-slate-900">
+            {student.companyRepresentativeName ?? "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">
+            Tipo documento empresa / NIT
+          </dt>
+          <dd className="text-slate-900">
+            {student.companyDocumentType ?? "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-500">
+            Número NIT / documento empresa
+          </dt>
+          <dd className="text-slate-900">
+            {student.companyDocumentNumber ?? "—"}
+          </dd>
         </div>
         <div>
           <dt className="font-medium text-slate-500">Programa</dt>
@@ -397,6 +431,10 @@ function InfoTab({
             legalCity: student.legalCity,
             legalState: student.legalState,
             legalCountry: student.legalCountry,
+            companyLegalName: student.companyLegalName,
+            companyDocumentType: student.companyDocumentType,
+            companyDocumentNumber: student.companyDocumentNumber,
+            companyRepresentativeName: student.companyRepresentativeName,
           }}
         />
       )}

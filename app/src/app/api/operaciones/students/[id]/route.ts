@@ -16,11 +16,46 @@ import {
   isHardDeleteConfirmed,
 } from "@/lib/operaciones-validations";
 import { calculateEndDate } from "@/domain/students";
+import {
+  buildContractLinkResetData,
+  canChangeContractTemplateKind,
+} from "@/lib/operaciones-contract";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface Params { params: Promise<{ id: string }> }
+
+// Campos de Student que se interpolan en el contenido legal del contrato (o en
+// la evidencia de firma). Si cambia cualquiera de ellos mientras hay un contrato
+// con link/snapshot pendiente, ese link queda obsoleto y debe invalidarse para
+// forzar la regeneración con los datos nuevos.
+const LEGAL_CONTRACT_FIELDS = [
+  "legalName",
+  "documentType",
+  "documentNumber",
+  "legalAddress",
+  "legalCity",
+  "legalState",
+  "legalCountry",
+  "companyLegalName",
+  "companyDocumentType",
+  "companyDocumentNumber",
+  "companyRepresentativeName",
+  "fullName",
+  "email",
+  "phone",
+] as const;
+
+type LegalContractField = (typeof LEGAL_CONTRACT_FIELDS)[number];
+
+// Normaliza un valor legal a string comparable: null/undefined → "" y strings
+// recortados, para que un null↔"" o un cambio solo de espacios no dispare un
+// reset falso del link de contrato.
+function normalizeLegalValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return typeof value === "string" ? value.trim() : String(value);
+}
 
 function isBlank(value: unknown): boolean {
   return value == null || (typeof value === "string" && value.trim() === "");
@@ -83,12 +118,70 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const existing = await prisma.student.findUnique({
       where: { id },
-      select: { mentorUserId: true, startDate: true, durationMonths: true },
+      select: {
+        mentorUserId: true,
+        startDate: true,
+        durationMonths: true,
+        legalName: true,
+        documentType: true,
+        documentNumber: true,
+        legalAddress: true,
+        legalCity: true,
+        legalState: true,
+        legalCountry: true,
+        companyLegalName: true,
+        companyDocumentType: true,
+        companyDocumentNumber: true,
+        companyRepresentativeName: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        enrollments: {
+          select: {
+            id: true,
+            contractStatus: true,
+            contractSignedAt: true,
+            contractCeoSignedAt: true,
+            contractApprovedAt: true,
+            contractSignatureToken: true,
+            contractUrl: true,
+            contractSectionsSnapshot: true,
+          },
+        },
+      },
     });
     if (!existing) return jsonError(404, "Estudiante no encontrado");
 
     const rawBody = (await req.json()) as Record<string, unknown>;
     const body = updateStudentSchema.parse(rawBody);
+
+    // ¿El PATCH cambia algún dato legal que se congeló en un contrato pendiente?
+    // Se compara el valor entrante (solo campos presentes en el body) contra el
+    // guardado, normalizando null/undefined/espacios para no disparar resets
+    // falsos.
+    const legalContractFieldsChanged = LEGAL_CONTRACT_FIELDS.filter((field) => {
+      if (!(field in body)) return false;
+      return (
+        normalizeLegalValue((body as Record<string, unknown>)[field]) !==
+        normalizeLegalValue(existing[field as LegalContractField])
+      );
+    });
+
+    // Inscripciones cuyo link/snapshot de contrato quedaría obsoleto: solo las
+    // que aún pueden regenerarse (sin firma de ninguna parte) Y que tienen un
+    // link/snapshot pendiente que congeló los datos legales anteriores.
+    const enrollmentsToReset =
+      legalContractFieldsChanged.length > 0
+        ? existing.enrollments.filter(
+            (e) =>
+              canChangeContractTemplateKind(e) &&
+              (Boolean(e.contractSignatureToken) ||
+                Boolean(e.contractUrl) ||
+                Boolean(e.contractSectionsSnapshot) ||
+                e.contractStatus === "PENDING_SIGNATURE" ||
+                e.contractStatus === "REJECTED"),
+          )
+        : [];
 
     // Los integrantes del equipo no son una columna de Student: se extraen del
     // body crudo y se reemplazan aparte dentro de la transacción. Si el campo
@@ -149,6 +242,16 @@ export async function PATCH(req: Request, { params }: Params) {
         }
       }
 
+      // Los datos legales cambiaron: invalida los links/snapshots pendientes que
+      // los habían congelado, dejando esas inscripciones en DRAFT para regenerar
+      // el contrato con los datos nuevos. No toca contratos firmados/aprobados.
+      if (enrollmentsToReset.length > 0) {
+        await tx.studentProductEnrollment.updateMany({
+          where: { id: { in: enrollmentsToReset.map((e) => e.id) } },
+          data: buildContractLinkResetData(),
+        });
+      }
+
       return tx.student.findUniqueOrThrow({
         where: { id },
         include: {
@@ -163,7 +266,15 @@ export async function PATCH(req: Request, { params }: Params) {
       actorId: actor.userId,
       action: "student.update",
       target: id,
-      metadata: body as Record<string, unknown>,
+      metadata: {
+        ...(body as Record<string, unknown>),
+        ...(legalContractFieldsChanged.length > 0
+          ? {
+              legalContractFieldsChanged: [...legalContractFieldsChanged],
+              resetContractLinks: enrollmentsToReset.length,
+            }
+          : {}),
+      },
     });
 
     return NextResponse.json({ student });

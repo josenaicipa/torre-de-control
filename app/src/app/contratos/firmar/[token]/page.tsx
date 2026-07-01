@@ -249,12 +249,15 @@ export default async function FirmarContratoPage({ params }: PageProps) {
         </section>
 
         <dl className="mt-6 grid gap-3 sm:grid-cols-2">
+          {isBrandConsulting && (
+            <Detail label="Estudiante" value={enrollment.student.fullName} />
+          )}
           <Detail
             label={isBrandConsulting ? "Razón social (EL CLIENTE)" : "Estudiante (EL CLIENTE)"}
-            value={clientName}
+            value={isBrandConsulting ? input.clientName : clientName}
           />
           <Detail
-            label={isBrandConsulting ? "NIT / Documento" : "Documento"}
+            label={isBrandConsulting ? "NIT / Documento empresa" : "Documento"}
             value={input.clientDocument ?? "—"}
           />
           {isBrandConsulting && (

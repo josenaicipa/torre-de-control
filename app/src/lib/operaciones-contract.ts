@@ -51,6 +51,12 @@ export interface ContractDataShape {
     legalCity: string | null;
     legalState: string | null;
     legalCountry: string | null;
+    // Identidad empresarial (EL CLIENTE cuando es una empresa, no el estudiante).
+    // Opcionales: el mapeo cae de vuelta a legalName/fullName cuando faltan.
+    companyLegalName?: string | null;
+    companyDocumentType?: string | null;
+    companyDocumentNumber?: string | null;
+    companyRepresentativeName?: string | null;
     durationMonths: number | string | { toString(): string } | null;
     startDate: Date | string | null;
     endDate: Date | string | null;
@@ -140,6 +146,10 @@ export const contractEnrollmentSelect = {
       legalCity: true,
       legalState: true,
       legalCountry: true,
+      companyLegalName: true,
+      companyDocumentType: true,
+      companyDocumentNumber: true,
+      companyRepresentativeName: true,
       durationMonths: true,
       startDate: true,
       endDate: true,
@@ -327,21 +337,30 @@ export function findMissingContractFields(data: ContractDataShape): MissingField
   const missing: MissingField[] = [];
   const add = (field: string, label: string) => missing.push({ field, label });
 
-  if (!nonEmpty(data.student.legalName)) add("legalName", "Nombre legal completo");
-  // BRAND_CONSULTING: la razón social (legalName) firma a través de su
-  // representante legal, que en Torre es el fullName del titular.
-  if (
+  const isBrand =
     normalizeContractTemplateKind(data.contractTemplateKind) ===
-      "BRAND_CONSULTING" &&
-    !nonEmpty(data.student.fullName)
-  ) {
-    add("fullName", "Nombre del representante legal firmante");
+    "BRAND_CONSULTING";
+
+  if (isBrand) {
+    // EL CLIENTE es la empresa: se exige razón social, NIT/documento de la
+    // empresa y representante legal firmante. Se validan los valores resueltos
+    // (campo nuevo con fallback a legalName/fullName) para no romper contratos
+    // existentes sin los campos company*.
+    if (!nonEmpty(resolveCompanyLegalName(data)))
+      add("companyLegalName", "Razón social de la empresa (EL CLIENTE)");
+    if (!nonEmpty(composeCompanyDocument(data)))
+      add("companyDocumentNumber", "NIT / documento de la empresa");
+    if (!nonEmpty(resolveCompanyRepresentativeName(data)))
+      add("companyRepresentativeName", "Representante legal firmante");
+  } else {
+    if (!nonEmpty(data.student.legalName)) add("legalName", "Nombre legal completo");
+    if (!nonEmpty(data.student.documentType))
+      add("documentType", "Tipo de documento");
+    if (!nonEmpty(data.student.documentNumber))
+      add("documentNumber", "Número de documento");
   }
   if (!nonEmpty(data.student.email)) add("email", "Correo electrónico");
   if (!nonEmpty(data.student.phone)) add("phone", "Teléfono");
-  if (!nonEmpty(data.student.documentType)) add("documentType", "Tipo de documento");
-  if (!nonEmpty(data.student.documentNumber))
-    add("documentNumber", "Número de documento");
   if (!nonEmpty(data.student.legalAddress))
     add("legalAddress", "Dirección / domicilio");
   if (!nonEmpty(data.student.legalCity)) add("legalCity", "Ciudad");
@@ -392,6 +411,41 @@ function composeDocument(data: ContractDataShape): string | null {
   if (!type && !number) return null;
   if (type && number) return `${type} N° ${number}`;
   return type ?? number ?? null;
+}
+
+// Documento/NIT de la empresa (EL CLIENTE en contratos empresariales). Usa los
+// campos company* y cae de vuelta al documento del estudiante cuando faltan,
+// preservando el hash de contratos ya firmados sin campos nuevos.
+function composeCompanyDocument(data: ContractDataShape): string | null {
+  const type = data.student.companyDocumentType?.trim();
+  const number = data.student.companyDocumentNumber?.trim();
+  if (type && number) return `${type} N° ${number}`;
+  if (type || number) return type ?? number ?? null;
+  return composeDocument(data);
+}
+
+// Razón social firmante (EL CLIENTE empresa). Cae de vuelta a legalName y, en
+// último caso, al nombre del estudiante para no romper contratos existentes.
+export function resolveCompanyLegalName(data: ContractDataShape): string | null {
+  return (
+    data.student.companyLegalName?.trim() ||
+    data.student.legalName?.trim() ||
+    data.student.fullName?.trim() ||
+    null
+  );
+}
+
+// Representante legal firmante de la empresa. Cae de vuelta al nombre del
+// estudiante (comportamiento previo de BRAND_CONSULTING) cuando falta.
+export function resolveCompanyRepresentativeName(
+  data: ContractDataShape,
+): string | null {
+  return (
+    data.student.companyRepresentativeName?.trim() ||
+    data.student.fullName?.trim() ||
+    data.student.legalName?.trim() ||
+    null
+  );
 }
 
 function composeAddress(data: ContractDataShape): string | null {
@@ -559,13 +613,20 @@ export function buildContractInputFromData(
   sectionsSnapshot?: ContractSection[] | null,
 ): ContractInput {
   const templateKind = normalizeContractTemplateKind(data.contractTemplateKind);
-  const clientName = data.student.legalName?.trim() || data.student.fullName;
+  const isBrand = templateKind === "BRAND_CONSULTING";
   // BRAND_CONSULTING: EL CLIENTE es la empresa (clientName = razón social) y el
-  // firmante es su representante legal, que en Torre es el fullName del titular.
-  const clientRepresentativeName =
-    templateKind === "BRAND_CONSULTING"
-      ? data.student.fullName?.trim() || null
-      : null;
+  // firmante es su representante legal. Ambos son identidades independientes del
+  // estudiante; se resuelven desde los campos company* con fallback a
+  // legalName/fullName para no romper contratos existentes.
+  const clientName = isBrand
+    ? resolveCompanyLegalName(data) ?? data.student.fullName
+    : data.student.legalName?.trim() || data.student.fullName;
+  const clientRepresentativeName = isBrand
+    ? resolveCompanyRepresentativeName(data)
+    : null;
+  const clientDocument = isBrand
+    ? composeCompanyDocument(data)
+    : composeDocument(data);
   const agreementDate =
     isoDate(signedAt ?? null) ??
     isoDate(data.startedAt) ??
@@ -616,7 +677,7 @@ export function buildContractInputFromData(
     clientName,
     ...(clientRepresentativeName ? { clientRepresentativeName } : {}),
     clientEmail: data.student.email,
-    clientDocument: composeDocument(data),
+    clientDocument,
     clientAddress: composeAddress(data),
     productName: data.product?.name ?? "",
     totalAmountUsd: toNumberOrNull(data.totalAmountUsd) ?? 0,
@@ -854,6 +915,7 @@ export interface ContractSignersInput {
   student: {
     fullName: string;
     legalName: string | null;
+    companyRepresentativeName?: string | null;
     members?: {
       id: string;
       fullName: string;
@@ -862,7 +924,8 @@ export interface ContractSignersInput {
     }[];
   };
   // Plantilla legal de la inscripción. En BRAND_CONSULTING el titular firmante
-  // es el representante legal (fullName), no la razón social (legalName).
+  // es el representante legal de la empresa (companyRepresentativeName, con
+  // fallback a fullName), no la razón social (clientName).
   contractTemplateKind?: string | null;
   contractSignedAt?: Date | string | null;
 }
@@ -881,7 +944,10 @@ export function buildContractSignersSummary(
     normalizeContractTemplateKind(data.contractTemplateKind) ===
     "BRAND_CONSULTING";
   const titularName = isBrandConsulting
-    ? data.student.fullName?.trim() || data.student.legalName?.trim() || ""
+    ? data.student.companyRepresentativeName?.trim() ||
+      data.student.fullName?.trim() ||
+      data.student.legalName?.trim() ||
+      ""
     : data.student.legalName?.trim() || data.student.fullName;
   const members = contractSignerMembers(data.student.members ?? []);
   const signers: ContractSigner[] = [

@@ -57,6 +57,13 @@ export const createStudentSchema = z.object({
   legalCity: z.string().trim().max(120).optional().nullable(),
   legalState: z.string().trim().max(120).optional().nullable(),
   legalCountry: z.string().trim().max(120).optional().nullable(),
+  // Identidad empresarial para contratos donde EL CLIENTE es la empresa (p. ej.
+  // BRAND_CONSULTING): razón social firmante, su NIT/documento y su
+  // representante legal, independientes de la persona-estudiante.
+  companyLegalName: z.string().trim().max(200).optional().nullable(),
+  companyDocumentType: z.string().trim().max(50).optional().nullable(),
+  companyDocumentNumber: z.string().trim().max(100).optional().nullable(),
+  companyRepresentativeName: z.string().trim().max(200).optional().nullable(),
 });
 
 export const updateStudentSchema = createStudentSchema.partial().extend({

@@ -462,6 +462,14 @@ model Student {
   legalCity            String?
   legalState           String?
   legalCountry         String?
+  // Identidad empresarial para contratos donde EL CLIENTE es una empresa y no
+  // el estudiante (p. ej. BRAND_CONSULTING). Separan la razón social firmante y
+  // su representante legal de la persona-estudiante. Opcionales para no romper
+  // datos existentes; el mapeo cae de vuelta a legalName/fullName cuando faltan.
+  companyLegalName          String?
+  companyDocumentType       String?
+  companyDocumentNumber     String?
+  companyRepresentativeName String?
   // Carpeta Google Drive del estudiante. La crea n8n por webhook desde GHL y la
   // informa a Torre vía /api/integrations/n8n/student-drive-folder. Torre sube
   // ahí el PDF firmado del contrato (sin subcarpeta). Todos opcionales para no

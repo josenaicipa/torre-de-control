@@ -240,6 +240,15 @@ export function NuevoEstudianteForm({
   const [legalState, setLegalState] = useState("");
   const [legalCity, setLegalCity] = useState("");
 
+  // Identidad empresarial (EL CLIENTE) para contratos Brand Consulting: razón
+  // social firmante, su NIT/documento y su representante legal. Son distintos
+  // del estudiante (fullName) y de sus datos legales personales (legalName /
+  // documentType / documentNumber) de arriba.
+  const [companyLegalName, setCompanyLegalName] = useState("");
+  const [companyDocumentType, setCompanyDocumentType] = useState("");
+  const [companyDocumentNumber, setCompanyDocumentNumber] = useState("");
+  const [companyRepresentativeName, setCompanyRepresentativeName] = useState("");
+
   const legalSubdivisions = useMemo(
     () => subdivisionsForCountry(legalCountry),
     [legalCountry],
@@ -592,6 +601,10 @@ export function NuevoEstudianteForm({
       legalCountry: legalCountry || null,
       legalState: legalState || null,
       legalCity: legalCity || null,
+      companyLegalName: companyLegalName || null,
+      companyDocumentType: companyDocumentType || null,
+      companyDocumentNumber: companyDocumentNumber || null,
+      companyRepresentativeName: companyRepresentativeName || null,
       notes: notes || null,
     };
     if (initialEnrollment) {
@@ -767,7 +780,7 @@ export function NuevoEstudianteForm({
 
         <div>
           <label className="block text-sm font-medium text-slate-700">
-            {isBrandConsulting ? "Razón social (nombre legal)" : "Nombre legal (opcional)"}
+            Nombre legal (opcional)
           </label>
           <input
             value={legalName}
@@ -776,9 +789,8 @@ export function NuevoEstudianteForm({
           />
           {isBrandConsulting && (
             <p className="mt-1 text-xs text-slate-500">
-              En Brand Consulting el nombre del estudiante es el representante
-              legal firmante; este campo es la razón social de la empresa/cliente
-              que contrata.
+              Datos personales del estudiante. La razón social, el NIT de la
+              empresa y su representante legal se capturan aparte, más abajo.
             </p>
           )}
         </div>
@@ -879,6 +891,81 @@ export function NuevoEstudianteForm({
             className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
           />
         </div>
+
+        {isBrandConsulting && (
+          <div className="space-y-4 rounded-md border border-indigo-200 bg-indigo-50 p-4">
+            <div>
+              <h3 className="text-sm font-semibold text-indigo-900">
+                Datos de la empresa (EL CLIENTE)
+              </h3>
+              <p className="mt-1 text-xs text-indigo-800">
+                En Brand Consulting EL CLIENTE es la empresa, no el estudiante.
+                La empresa (razón social + NIT) firma a través de su
+                representante legal. El estudiante, la empresa y el representante
+                pueden ser tres personas/entidades distintas.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Razón social
+              </label>
+              <input
+                value={companyLegalName}
+                onChange={(e) => setCompanyLegalName(e.target.value)}
+                maxLength={200}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700">
+                  Tipo de documento empresa
+                </label>
+                <select
+                  value={companyDocumentType}
+                  onChange={(e) => setCompanyDocumentType(e.target.value)}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">— Selecciona —</option>
+                  {DOCUMENT_TYPES.map((dt) => (
+                    <option key={dt.value} value={dt.value}>
+                      {dt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700">
+                  NIT / documento empresa
+                </label>
+                <input
+                  value={companyDocumentNumber}
+                  onChange={(e) => setCompanyDocumentNumber(e.target.value)}
+                  maxLength={100}
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Representante legal firmante
+              </label>
+              <input
+                value={companyRepresentativeName}
+                onChange={(e) => setCompanyRepresentativeName(e.target.value)}
+                maxLength={200}
+                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Persona que firma en nombre de la empresa. Puede ser distinta del
+                estudiante.
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6">
@@ -1134,10 +1221,10 @@ export function NuevoEstudianteForm({
               )}
               {sale.contractTemplateKind === "BRAND_CONSULTING" && (
                 <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                  Brand Consulting usa la razón social + NIT como EL CLIENTE que
-                  contrata, y los nombres/apellidos del estudiante como
-                  representante legal firmante. Completa la razón social y los
-                  datos legales para poder firmarlo.
+                  Brand Consulting usa la razón social + NIT de la empresa como
+                  EL CLIENTE que contrata, y su representante legal como
+                  firmante. Completa los datos de la empresa (más abajo) —
+                  distintos del estudiante — para poder firmarlo.
                 </p>
               )}
             </div>
