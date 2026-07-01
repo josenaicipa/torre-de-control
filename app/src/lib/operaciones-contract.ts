@@ -6,6 +6,7 @@ import {
   normalizeContractTemplateKind,
   type ContractInput,
   type ContractSection,
+  type ContractTemplateKind,
   type ContractUpgradeInfo,
   type ManualClause,
 } from "./operaciones-contract-template";
@@ -660,15 +661,13 @@ export function canChangeContractTemplateKind(
   return true;
 }
 
-// Datos para dejar la inscripción con un contrato NUEVO/no emitido al cambiar la
-// plantilla: fija el nuevo tipo, vuelve a DRAFT y limpia link de firma, snapshots
-// y toda evidencia de firma/aprobación/rechazo previa. Invalida cualquier link
-// anterior y obliga a generar uno nuevo con la plantilla elegida.
-export function buildContractTemplateResetData(
-  templateKind: "TRADITIONAL" | "BUSINESS",
-) {
+// Deja la inscripción con un contrato NUEVO/no emitido: vuelve a DRAFT y limpia
+// link de firma, token, snapshots y toda evidencia de firma/aprobación/rechazo
+// previa. Invalida cualquier link anterior. No toca la plantilla legal, así que
+// sirve para cualquier flujo que cambie el contenido del contrato (p. ej. la
+// fecha de inicio) sin cambiar el tipo.
+export function buildContractLinkResetData() {
   return {
-    contractTemplateKind: templateKind,
     contractStatus: "DRAFT" as const,
     contractUrl: null,
     contractSignatureToken: null,
@@ -692,6 +691,19 @@ export function buildContractTemplateResetData(
     contractRejectionReason: null,
     contractTemplateVersion: null,
     contractAcceptanceText: null,
+  };
+}
+
+// Datos para dejar la inscripción con un contrato NUEVO/no emitido al cambiar la
+// plantilla: fija el nuevo tipo y aplica el reset del link (DRAFT + limpieza de
+// snapshots y evidencia). Invalida cualquier link anterior y obliga a generar
+// uno nuevo con la plantilla elegida.
+export function buildContractTemplateResetData(
+  templateKind: ContractTemplateKind,
+) {
+  return {
+    contractTemplateKind: templateKind,
+    ...buildContractLinkResetData(),
   };
 }
 

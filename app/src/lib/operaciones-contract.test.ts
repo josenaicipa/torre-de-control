@@ -694,6 +694,13 @@ describe("buildContractTemplateResetData", () => {
       "TRADITIONAL",
     );
   });
+
+  it("acepta BRAND_CONSULTING como tipo válido y vuelve a DRAFT", () => {
+    const data = buildContractTemplateResetData("BRAND_CONSULTING");
+    expect(data.contractTemplateKind).toBe("BRAND_CONSULTING");
+    expect(data.contractStatus).toBe("DRAFT");
+    expect(data.contractSectionsSnapshot).toBeNull();
+  });
 });
 
 describe("buildContractSignersSummary", () => {

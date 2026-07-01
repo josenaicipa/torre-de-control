@@ -76,7 +76,7 @@ function emptyMember(): TeamMember {
 
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
 type InstallmentFrequency = "monthly" | "biweekly";
-type ContractTemplateKind = "TRADITIONAL" | "BUSINESS";
+type ContractTemplateKind = "TRADITIONAL" | "BUSINESS" | "BRAND_CONSULTING";
 
 function toNum(value: Numeric | null | undefined): number {
   if (value === null || value === undefined) return 0;
@@ -1109,6 +1109,7 @@ export function NuevoEstudianteForm({
               >
                 <option value="TRADITIONAL">Tradicional</option>
                 <option value="BUSINESS">Empresarial</option>
+                <option value="BRAND_CONSULTING">Brand Consulting</option>
               </select>
               {sale.contractTemplateKind === "BUSINESS" && (
                 <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">

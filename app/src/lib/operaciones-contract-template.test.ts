@@ -309,6 +309,77 @@ describe("plantilla empresarial (BUSINESS) vs tradicional", () => {
   });
 });
 
+describe("plantilla Brand Consulting (BRAND_CONSULTING)", () => {
+  const brandView = () =>
+    buildContractView({ ...baseInput, templateKind: "BRAND_CONSULTING" });
+
+  it("usa el título oficial y el subtítulo «Unlocked Academy Nivel 6 Brand Consulting»", () => {
+    const view = brandView();
+    expect(view.title).toBe("CONTRATO DE PRESTACIÓN DE SERVICIOS DE CONSULTORÍA");
+    expect(view.subtitle).toBe("Unlocked Academy Nivel 6 Brand Consulting");
+  });
+
+  it("incluye cláusulas y textos clave del PDF de Brand Consulting", () => {
+    const view = brandView();
+    const headings = view.sections.map((s) => s.heading);
+    expect(headings).toContain("Primera. Objeto del contrato");
+    expect(headings).toContain(
+      "Tercera. DESCRIPCIÓN DEL PROGRAMA DE TRANSFORMACIÓN EMPRESARIAL",
+    );
+    expect(headings).toContain("Quinta. Honorarios");
+    expect(headings).toContain("Décima Cuarta. Anexos");
+
+    const blob = view.sections
+      .flatMap((s) => [s.heading, ...s.paragraphs])
+      .join("\n");
+    // Frases específicas del programa de consultoría de marca (D2C).
+    expect(blob).toContain("Nivel 6 – Brand Consulting");
+    expect(blob).toContain("una marca propia");
+    expect(blob).toContain("(D2C)");
+    expect(blob).toContain(
+      "Hasta cuarenta y ocho (48) sesiones estratégicas personalizadas",
+    );
+    expect(blob).toContain("Diseño de Brand Book");
+    expect(blob).toContain("Juan Sebastián Naicipa");
+    expect(blob).toContain(
+      "Meses del 1 al 3: Fundamentos, investigación y posicionamiento",
+    );
+    expect(blob).toContain("Estado de Florida");
+    // Derecho de desistimiento del 95% del contrato de Brand Consulting.
+    expect(blob).toContain("noventa y cinco por ciento (95%)");
+    // El nombre del programa aparece en los honorarios.
+    expect(blob).toContain("«Unlocked Academy Nivel 6 Brand Consulting»");
+  });
+
+  it("difiere del cuerpo del contrato empresarial (BUSINESS)", () => {
+    const brand = brandView();
+    const business = buildContractView({
+      ...baseInput,
+      templateKind: "BUSINESS",
+    });
+    const flatten = (view: ReturnType<typeof buildContractView>) =>
+      view.sections.flatMap((s) => [s.heading, ...s.paragraphs]).join("\n");
+    expect(flatten(brand)).not.toBe(flatten(business));
+    expect(brand.subtitle).not.toBe(business.subtitle);
+
+    // El objetivo del programa (3.1) es distinto entre ambas plantillas.
+    const brandObjetivo = brand.sections.find(
+      (s) => s.id === "programa-brand-consulting",
+    );
+    expect(brandObjetivo).toBeDefined();
+    const brandBlob = brandObjetivo!.paragraphs.join("\n");
+    expect(brandBlob).toContain("consolidación de una marca propia");
+    // El cuerpo empresarial habla de eCommerce/dropshipping, no de marca D2C.
+    const businessObjetivo = business.sections.find(
+      (s) => s.id === "programa-empresarial",
+    );
+    expect(businessObjetivo).toBeDefined();
+    expect(businessObjetivo!.paragraphs.join("\n")).not.toContain(
+      "consolidación de una marca propia",
+    );
+  });
+});
+
 describe("contrato de equipo con integrantes adicionales", () => {
   const teamInput: ContractInput = {
     ...baseInput,

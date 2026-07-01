@@ -134,11 +134,12 @@ interface ContractSectionFormItem {
 
 type InitialPaymentType = "FULL_PAYMENT" | "DOWN_PAYMENT" | "RESERVATION";
 type InstallmentFrequency = "monthly" | "biweekly";
-type ContractTemplateKind = "TRADITIONAL" | "BUSINESS";
+type ContractTemplateKind = "TRADITIONAL" | "BUSINESS" | "BRAND_CONSULTING";
 
 const CONTRACT_TEMPLATE_KIND_LABEL: Record<ContractTemplateKind, string> = {
   TRADITIONAL: "Tradicional",
   BUSINESS: "Empresarial",
+  BRAND_CONSULTING: "Brand Consulting",
 };
 
 function toNum(value: Numeric | null | undefined): number {
@@ -566,7 +567,7 @@ function EnrollmentCard({
               {actionLoading === "contract-test"
                 ? "Generando..."
                 : hasSignLink
-                  ? "Regenerar link de firma"
+                  ? "Regenerar contrato"
                   : "Crear contrato"}
             </button>
           )}
@@ -693,6 +694,14 @@ function EnrollmentCard({
             setShowTemplateEditor(false);
             onChanged();
           }}
+        />
+      )}
+
+      {canWrite && canChangeContractTemplate && (
+        <StartDateEditor
+          studentId={studentId}
+          enrollment={enrollment}
+          onSaved={onChanged}
         />
       )}
 
@@ -1184,6 +1193,7 @@ function ContractTemplateEditor({
           >
             <option value="TRADITIONAL">Tradicional</option>
             <option value="BUSINESS">Empresarial</option>
+            <option value="BRAND_CONSULTING">Brand Consulting</option>
           </select>
         </label>
         <button
@@ -1193,6 +1203,105 @@ function ContractTemplateEditor({
           className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Guardando..." : "Guardar tipo de contrato"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Edita la fecha de inicio del contrato de una inscripción antes de que se
+// firme. El endpoint recalcula la fecha de fin con la duración vigente; si hay
+// un link de firma pendiente, se invalida y el contrato vuelve a DRAFT porque
+// las fechas cambiaron (por eso se pide confirmación cuando hay link activo).
+function StartDateEditor({
+  studentId,
+  enrollment,
+  onSaved,
+}: {
+  studentId: string;
+  enrollment: Enrollment;
+  onSaved: () => void;
+}) {
+  const currentStartedAt = enrollment.startedAt.slice(0, 10);
+  const [startedAt, setStartedAt] = useState(currentStartedAt);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = startedAt !== currentStartedAt;
+
+  async function save() {
+    setError(null);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startedAt)) {
+      setError("Formato de fecha esperado YYYY-MM-DD");
+      return;
+    }
+    const hasActiveLink =
+      Boolean(enrollment.contractUrl) ||
+      enrollment.contractStatus === "PENDING_SIGNATURE";
+    if (
+      hasActiveLink &&
+      !window.confirm(
+        "Cambiar la fecha de inicio borrará el link de firma actual y dejará un contrato nuevo. ¿Continuar?",
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(
+        `/api/operaciones/students/${studentId}/products/${enrollment.id}/dates`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt }),
+        },
+      );
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(json.error ?? "No se pudo cambiar la fecha de inicio");
+        return;
+      }
+      onSaved();
+    } catch {
+      setError("Error de red al cambiar la fecha de inicio");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+      <h5 className="text-sm font-semibold text-slate-900">
+        Fecha de inicio del contrato
+      </h5>
+      <p className="mt-1 text-xs text-slate-600">
+        Ajusta la fecha de inicio antes de que se firme el contrato. La fecha de
+        fin se recalcula con la misma duración. Si hay un link de firma
+        pendiente, se invalidará.
+      </p>
+
+      {error && (
+        <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="block text-xs font-medium text-slate-600">
+          Fecha de inicio del contrato
+          <input
+            type="date"
+            value={startedAt}
+            onChange={(e) => setStartedAt(e.target.value)}
+            disabled={saving}
+            className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm sm:w-56"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={saving || !dirty}
+          className="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium !text-white hover:bg-slate-800 disabled:opacity-50"
+        >
+          {saving ? "Guardando..." : "Guardar fecha de inicio"}
         </button>
       </div>
     </div>
@@ -1746,6 +1855,7 @@ function SellProductForm({
         >
           <option value="TRADITIONAL">Tradicional</option>
           <option value="BUSINESS">Empresarial</option>
+          <option value="BRAND_CONSULTING">Brand Consulting</option>
         </select>
         {state.contractTemplateKind === "BUSINESS" && (
           <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">

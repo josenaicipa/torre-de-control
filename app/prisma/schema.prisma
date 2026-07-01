@@ -817,6 +817,7 @@ enum ContractStatus {
 enum ContractTemplateKind {
   TRADITIONAL
   BUSINESS
+  BRAND_CONSULTING
 }
 
 // Estado VISIBLE del flujo de firma electrónica de una inscripción, gobernado

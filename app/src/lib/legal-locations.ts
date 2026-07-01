@@ -17,6 +17,7 @@ export const DOCUMENT_TYPES: DocumentTypeOption[] = [
   { value: "INE", label: "INE (México)" },
   { value: "Pasaporte", label: "Pasaporte" },
   { value: "Cédula de Extranjería", label: "Cédula de Extranjería" },
+  { value: "NIT", label: "NIT (Colombia)" },
 ];
 
 // Lista completa de países (nombre en español). Se ofrece país primero y luego

@@ -23,7 +23,31 @@ import {
   HARD_DELETE_CONFIRMATION,
   studentMemberInputSchema,
   createStudentWithInitialEnrollmentSchema,
+  updateEnrollmentContractDatesSchema,
 } from "./operaciones-validations";
+
+describe("updateEnrollmentContractDatesSchema", () => {
+  it("accepts a real calendar date", () => {
+    const result = updateEnrollmentContractDatesSchema.safeParse({
+      startedAt: "2026-05-23",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a malformed date string", () => {
+    const result = updateEnrollmentContractDatesSchema.safeParse({
+      startedAt: "23/05/2026",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a well-formatted but non-existent calendar date", () => {
+    const result = updateEnrollmentContractDatesSchema.safeParse({
+      startedAt: "2026-02-31",
+    });
+    expect(result.success).toBe(false);
+  });
+});
 
 describe("isHardDeleteConfirmed", () => {
   it("accepts the exact confirmation word", () => {

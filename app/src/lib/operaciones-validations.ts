@@ -7,6 +7,21 @@ import { z } from "zod";
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
+// Verifica que un string YYYY-MM-DD sea una fecha de calendario real. El regex
+// solo garantiza el formato: "2026-02-31" lo pasa pero JS lo normaliza a marzo,
+// corriendo la fecha silenciosamente. Reconstruimos la fecha en UTC y
+// comprobamos que los componentes no se hayan desbordado.
+export function isRealCalendarDate(value: string): boolean {
+  if (!ISO_DATE_REGEX.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 // Refleja el enum Prisma StudentStatus completo. Los tres últimos modelan el
 // ciclo comercial añadido en PR1 (SEPARATED/INACTIVE/WITHDRAWN); omitirlos
 // hacía que editar un estudiante en esos estados fallara el parse con 400.
@@ -441,20 +456,35 @@ export const accessStatusSchema = z.enum([
 
 // Plantilla legal de la inscripción. Refleja el enum Prisma
 // ContractTemplateKind: TRADITIONAL es el contrato por defecto «Unlocked
-// Academy»; BUSINESS es el contrato «Unlocked Academy Empresarial».
+// Academy»; BUSINESS es el contrato «Unlocked Academy Empresarial»;
+// BRAND_CONSULTING es «Unlocked Academy Nivel 6 Brand Consulting».
 export const contractTemplateKindSchema = z
-  .enum(["TRADITIONAL", "BUSINESS"])
+  .enum(["TRADITIONAL", "BUSINESS", "BRAND_CONSULTING"])
   .default("TRADITIONAL");
 
 // Body para cambiar el tipo de contrato de una inscripción existente. Reutiliza
-// contractTemplateKindSchema (TRADITIONAL/BUSINESS); si el campo viene ausente,
-// el default lo trata como TRADITIONAL.
+// contractTemplateKindSchema (TRADITIONAL/BUSINESS/BRAND_CONSULTING); si el
+// campo viene ausente, el default lo trata como TRADITIONAL.
 export const changeContractTemplateSchema = z.object({
   contractTemplateKind: contractTemplateKindSchema,
 });
 
 export type ChangeContractTemplateInput = z.infer<
   typeof changeContractTemplateSchema
+>;
+
+// Body para editar la fecha de inicio del contrato de una inscripción antes de
+// que se firme. `endsAt` se recalcula en el server a partir de la duración; el
+// cliente solo envía la nueva fecha de inicio en YYYY-MM-DD.
+export const updateEnrollmentContractDatesSchema = z.object({
+  startedAt: z
+    .string()
+    .regex(ISO_DATE_REGEX, "Formato esperado YYYY-MM-DD")
+    .refine(isRealCalendarDate, "Fecha inválida"),
+});
+
+export type UpdateEnrollmentContractDatesInput = z.infer<
+  typeof updateEnrollmentContractDatesSchema
 >;
 
 // Base shape for enrolling a student in a product. Downstream flows (initial
